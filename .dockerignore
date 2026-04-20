@@ -1,0 +1,22 @@
+.git/
+.github/
+.idea/
+.vscode/
+.claude/
+.tmp/
+node_modules/
+site/
+
+# Meta / dev-only docs — not needed in the image
+OVERVIEW.md
+ROADMAP.md
+CONTRIBUTING.md
+CHANGELOG.md
+README.md
+AGENTS.md
+CLAUDE.md
+LICENSE
+
+Dockerfile
+.dockerignore
+.gitignore

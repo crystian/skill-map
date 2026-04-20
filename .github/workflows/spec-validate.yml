@@ -1,0 +1,39 @@
+name: spec-validate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'spec/**'
+      - 'scripts/build-site.mjs'
+      - '.github/workflows/spec-validate.yml'
+  pull_request:
+    paths:
+      - 'spec/**'
+      - 'scripts/build-site.mjs'
+      - '.github/workflows/spec-validate.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Parse-check every JSON schema
+        run: |
+          fail=0
+          while IFS= read -r f; do
+            if ! node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" 2>/dev/null; then
+              echo "::error file=$f::invalid JSON"
+              fail=1
+            fi
+          done < <(find spec/schemas -name '*.schema.json')
+          exit $fail
+
+      - name: Build site + validate $id alignment
+        run: node scripts/build-site.mjs

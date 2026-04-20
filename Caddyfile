@@ -1,0 +1,38 @@
+{
+    # Explicitly set the HTTP port Caddy listens on. Railway passes $PORT at runtime.
+    # auto_https off here; Railway terminates TLS in front of the container.
+    auto_https off
+    admin off
+    log {
+        output stdout
+        format console
+    }
+}
+
+:{$PORT:8080} {
+    root * /usr/share/caddy
+    encode gzip
+
+    # Machine-readable schemas: advertise the JSON Schema media type and allow CORS
+    # so browser-based validators can fetch them.
+    @schemas path *.schema.json
+    header @schemas {
+        Content-Type "application/schema+json; charset=utf-8"
+        Access-Control-Allow-Origin "*"
+        Cache-Control "public, max-age=300"
+    }
+
+    # Landing / index HTML
+    @html path *.html /
+    header @html Cache-Control "public, max-age=60"
+
+    # Hardening + hygiene for every response
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    file_server
+}
