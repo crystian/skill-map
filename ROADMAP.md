@@ -119,6 +119,514 @@ Pre-implementación. Diseño, decisiones arquitectónicas y plan de ejecución c
 
 ---
 
+## Session log — 2026-04-19 (architecture shift, pending integration)
+
+> Captures decisions and open gaps from the 2026-04-19 design session.
+> Sections further below ("Execution plan", "Persistence layout", "Architecture principle: Kernel + Extensions", "Stack conventions", "Decision log", "Open decisions") reflect pre-session design and are **partially superseded**. Full integration happens in the next session once the open gaps close.
+
+### Topic explored
+
+"How does the LLM layer actually get wired into the tool?" Three options surfaced and were discarded in sequence:
+
+1. `LLMProvider` abstract interface inside `sm` with multiple backends (roadmap's original Phase B).
+2. Skill pack invoked by the user's own agent session.
+3. `claude -p` subprocess as the execution substrate.
+
+The conversation converged on a fourth shape that subsumes (2) and (3): **materialized intent via dispatch files + filesystem queue**.
+
+### Core shift — "Dispatch subsystem" replaces "LLM layer"
+
+Phase B (Steps 9–10) of the existing roadmap collapses into a single subsystem:
+
+1. **Dispatch file** (materialized intent). Each action invocation produces a self-contained MD file: prompt rendered with node content + JSON Schema for expected output + callback instruction. The file IS the atomic unit of execution, independent of who triggered it.
+2. **Filesystem maildir** as queue. `.skill-map/dispatch/{queued, running, completed, failed}/*.md`. State transitions are atomic file renames (no locks, no leases, no DB for the queue primitive).
+3. **Runners are plural, not singular**:
+   - `/skill-map:run-queue` skill inside an agent host (interactive, Claude Code and friends).
+   - `sm dispatch run-queue [--max N]` CLI (headless, CI, cron).
+   - Both subprocess `claude -p < dispatch.md` per item **by default** — preserves context-free isolation between dispatches. `--in-session` opt-in exists for users who accept the trade-off.
+4. **Callback via `sm record`**. The final instruction in every dispatch MD. Writes execution result (status, tokens, duration, report path) to DB.
+5. **`sm` never touches an LLM**. Pure template rendering on the write side; LLM only materializes when a runner executes a dispatch. The `sm` binary has zero LLM dependencies, zero API keys, zero billing implications. Offline-first becomes structural, not aspirational.
+
+### Why this shape wins
+
+Resolves multiple deferred items simultaneously:
+
+- **Decision #10 (browser ↔ execution bridge)** — resolved by dispatch MD + user invocation.
+- **Decision #15 (plugin security)** — resolved by audit-first: plugin renders MD, user reviews before running. Plugin's attack surface is bounded to "can render misleading prompts", inspectable by a human.
+- **Action `invocation-template` mode** — becomes the canonical mode; stdout-to-file is now how it works.
+- **Callback contract** — baked into every dispatch, not a separate feature.
+- **Decision #32 (LLM POC timing)** — resolved: POC validates dispatch subsystem, not `LLMProvider`.
+
+Additional wins that were not visible in the original roadmap:
+
+- **Prompt versioning**: `diff dispatch-old.md dispatch-new.md` shows exactly what changed in a prompt over time. `git blame` for prompts.
+- **Caching by hash**: hash(dispatch MD) = cache key. Same dispatch + same model = cached report. Zero extra schema.
+- **Evals as diff-against-snapshot**: no framework, just replay dispatches across models and compare reports.
+- **Agent-agnostic**: same MD works in Claude Code, Codex, Cursor, Gemini, ChatGPT. Writing a standard, not an integration.
+- **Click-first-run-later UX**: UI queues many, user drains when ready; CI is just another runner of the same queue.
+- **Team inbox**: dispatch folder can be committed; one person enqueues, another runs, reports close the loop.
+
+### Persistence shift — SQLite from Step 1
+
+Three JSON files (`plugins.json`, `cache.json`, `history.json`) replaced by a single SQLite DB per scope. Schema split into three semantic zones:
+
+| Prefix | Nature | Regenerable? | Example tables |
+|---|---|---|---|
+| `scan_*` | Last scan result | **Yes** — `sm scan` truncates and repopulates | `scan_nodes`, `scan_edges`, `scan_issues` |
+| `state_*` | Non-regenerable operational history | **No** — must back up | `state_dispatches`, `state_executions`, `state_token_ledger`, `state_plugin_kv` |
+| `config_*` | User-owned configuration | **No** | `config_plugins` (installed/enabled), `config_preferences` |
+
+This split gives "nuke and re-scan" safety for `scan_*` and a clear backup target (`state_*` + `config_*` only).
+
+### Global vs project scope (clarified)
+
+`-g` is **not** a toggle between two DBs — it is the scope of what the tool **scans**:
+
+- **Default (no `-g`)**: scans the current project (SKILL.md files, agents, CLAUDE.md, etc. under cwd). Writes to `<repo>/.skill-map/skill-map.db`. This DB may be committed by the team for shared audit history.
+- **`-g`**: scans global artifacts (`~/.claude/`, user's global skill installs). Writes to `~/.skill-map/skill-map.db`. Project files are not touched.
+
+Two independent scopes, symmetric. Each scope has its own DB file. No cross-contamination.
+
+### Kernel-as-library architecture
+
+The CLI and the future Web UI are **peer consumers** of a shared kernel library, not one depending on the other. Package layout (monorepo, **single package with internal modules** — see open gaps):
+
+```
+skill-map/                   ← single npm package
+├── src/
+│   ├── kernel/              ← Registry, Orchestrator, Storage, Plugin loader, Dispatch.
+│   │                         Zero CLI, zero HTTP. Pure programmatic API.
+│   ├── cli/                 ← Thin wrapper: verb → kernel.call() → stdout.
+│   ├── server/              ← Hono + SSE. Wrapper: HTTP → kernel.call() → response.
+│   └── testkit/             ← Kernel mocks for plugin authors.
+├── bin/sm.mjs               ← CLI entry, imports from dist/cli.
+└── package.json
+    {
+      "engines": { "node": ">=22.5" },
+      "main": "./dist/index.js",
+      "bin": { "sm": "./bin/sm.mjs" },
+      "exports": {
+        ".": "./dist/index.js",
+        "./kernel": "./dist/kernel/index.js",
+        "./server": "./dist/server/index.js",
+        "./testkit": "./dist/testkit/index.js"
+      }
+    }
+```
+
+Plugins import `import { registerDetector } from 'skill-map/kernel'` — not via CLI spawn. UI consumes server, server consumes kernel, CLI consumes kernel. CLI-first principle reinterprets as: CLI and UI are peers over the same kernel API.
+
+Split to real `@skill-map/*` workspaces deferred until a concrete need appears (third-party kernel consumer on a different release cadence than CLI).
+
+### Deterministic vs probabilistic refresh
+
+Two refresh modes per node, each with its own UI button and CLI verb:
+
+1. **Deterministic refresh** — re-scan this node. Recomputes bytes, tokens, frontmatter hash, body hash, outgoing edges. Synchronous, no LLM, cheap. `sm rescan --node X`.
+2. **Probabilistic refresh** — enqueue a dispatch for an LLM-backed action (validate / cluster-triggers / semantic-check). Asynchronous. `sm dispatch <action> --node X`.
+
+Two buttons, two pipelines, same spine.
+
+### Decisions confirmed this session
+
+| # | Item | Resolution |
+|---|---|---|
+| 33 | Node runtime | **Node 22.5+ required** (uses `node:sqlite` stable). Declared in `engines`. |
+| 34 | DB engine | **SQLite via `node:sqlite`** — zero native dependencies. |
+| 35 | Plugin storage | **Generic KV API** (option B). Plugins receive `ctx.store.{get,set,list,delete}` scoped to their `plugin_id`. Never see SQL. Backed by single kernel-owned table `state_plugin_kv(plugin_id, node_id, key, value, updated_at)`. |
+| 36 | DB scope | **Two independent DBs**, one per scan scope. `-g` selects global scope (scans `~/.claude/`, writes `~/.skill-map/skill-map.db`). Default is project scope. |
+| 37 | UI data path | **UI → server → kernel → DB**. UI never touches DB directly. Mirrors CLI path (`CLI → kernel → DB`, in-process). |
+| 38 | LLM integration model | **Dispatch subsystem** (materialized intent + maildir queue). Supersedes original Phase B / Step 9 design. |
+| 39 | `sm` LLM dependency | **Zero**. `sm` is pure deterministic rendering + DB + filesystem. LLM lives exclusively in the runner process. |
+| 40 | Architecture shape | **Kernel-as-library**; CLI, Server, (future UI) are thin wrappers. |
+| 41 | Refresh semantics | **Two types** (deterministic / probabilistic), separate UI actions, separate CLI verbs. |
+| 42 | Package layout | **Single package with internal modules + multiple `exports`** for MVP. Workspaces deferred until justified by external consumers. |
+| 43 | Runner isolation default | **Subprocess-per-item** (`claude -p < dispatch.md`) is default; `--in-session` is opt-in. Preserves context-free property. |
+
+### Open gaps (to close before next roadmap revision)
+
+- **Default probabilistic-refresh action per node**: adapter-registered `defaultRefreshAction`, UI dropdown, or "re-run last action" convention. Unresolved.
+- **Report schema enforcement**: `reportSchema` field on actions (previously deferred post-MVP) becomes load-bearing in dispatch. Needs spec'ing before Step 9.
+- **Dispatch authentication**: `sm record --dispatch-id X` should require a nonce to prevent forged callback closing someone else's pending dispatch. Contract undesigned.
+- **Concurrent dispatch on same (action, node) pair**: lock policy? Accept both, serialize, refuse second, idempotent by hash? Unresolved.
+- **Abandoned dispatch reap**: TTL on `running/` items + auto-reap on `run-queue` or manual `sm dispatch reap`. Frontmatter fields (`runner-pid`, `claimed-at`, `lease-ttl`) needed.
+- **Prompt injection mitigation**: node content interpolated into dispatch MD can contain injection payloads. Delimiter convention (XML tags) + preamble rule must be a spec'd requirement for all action templates.
+- **Tool permissions declared per dispatch**: frontmatter `expected-tools: [Bash, Read, Write]` so host can filter or warn. Shape undefined.
+- **Streaming output from runner**: `claude -p --stream` passthrough vs buffered end-of-run. Design needed for interactive CLI ergonomics.
+- **Conversational verbs** (e.g., `sm why` with follow-ups): don't fit single-turn dispatch cleanly. Accept limitation or design workaround (session-hand-off pattern)?
+- **Atomicity between maildir rename and DB row update**: the two must be a logical transaction. Ordering needs design so partial failure is recoverable in either direction.
+- **DB backup / corruption policy**: `sm db backup`, `sm db restore`, `PRAGMA integrity_check` invocation cadence, `sm doctor` integration — undesigned.
+- **Migration tooling**: was deferred Step 6, now load-bearing Step 1 (every schema change ships a migration). `sm migrate --apply | --dry-run | --to <n>` surface needs spec.
+- **DB schema versioning in spec**: `db-schema.md` joins the spec artifacts.
+
+### Sections below that require revision in the next session
+
+- **Execution plan**: Step 1 gains SQLite + migrations + kernel/CLI/server package split. Step 4 (history + callback) mostly absorbed into dispatch. Step 9 renamed to "Dispatch subsystem + first action template"; scope reduced (most of the complexity moved into MVP).
+- **Persistence layout**: rewritten to SQLite two-scope model, scan/state/config table split.
+- **Architecture principle: Kernel + Extensions**: expanded to reflect kernel-as-library and package structure.
+- **Stack conventions**: Node 22.5+ pinned, `node:sqlite` added, package layout documented.
+- **Spec as a standard**: new artifacts — `dispatch.schema.json`, `db-schema.md`, `plugin-kv-api.md`, `dispatch-lifecycle.md`.
+- **Decision log**: #10, #15, #16, #32 resolved; #7 (diff mode) and #12 (live validation) unchanged; numbered decisions 33–43 above to be merged into the main table.
+- **Open decisions**: items resolved above moved to the decision log; new gaps (list above) added.
+
+---
+
+## Session log — 2026-04-19 (part 2 — vocabulary, commands, hexagonal, runner model)
+
+> Continuation of part 1. Refines terminology, freezes the MVP command surface, names the architectural pattern explicitly, corrects the runner design, and closes several part-1 open gaps.
+
+### Terminology finalized
+
+| Old name | New name | Rationale |
+|---|---|---|
+| `edge` | **`link`** | Domain-natural (MDs already have "links"). `edge` is graph-theory jargon. Tables: `scan_links`. |
+| `dispatch` | **`job`** | Queue-standard naming. Tables: `state_jobs`. Artifact: "job file". |
+| `sm rescan` | **absorbed into `sm scan`** | Single verb with filters (`-n`, `--changed`, `--compare-with`). Smaller surface. |
+
+Project name **`skill-map`** kept (discarded `skill-manager` — evokes package manager; discarded `skillctl` — too dev-flavored). Binary remains **`sm`**.
+
+### Named architecture: Hexagonal (Ports & Adapters)
+
+```
+                    Driving adapters (primary)
+                         │
+   ┌─────────┐       ┌─────────┐       ┌──────┐
+   │   CLI   │       │ Server  │       │Skill │
+   └────┬────┘       └────┬────┘       └───┬──┘
+        │                 │                │
+        └─────────────────┼────────────────┘
+                          ▼
+                   ┌──────────────┐
+                   │    Kernel    │  ← domain core (pure use cases)
+                   └──┬───┬───┬───┘
+                      │   │   │
+        ┌─────────────┘   │   └──────────────┐
+        ▼                 ▼                  ▼
+   ┌────────┐        ┌─────────┐        ┌─────────┐
+   │ SQLite │        │   FS    │        │ Plugins │
+   └────────┘        └─────────┘        └─────────┘
+                Driven adapters (secondary)
+```
+
+- Kernel accepts **ports** (interfaces) for Storage, FS, PluginLoader, Runner — never imports SQLite/fs/subprocess directly.
+- Each adapter swappable: `InMemoryStore` for tests, real SQLite in production; `MockRunner` for tests, real `claude -p` subprocess in production.
+- Testing pyramid collapses: unit tests hit kernel with injected mocks; integration tests use real adapters.
+- Documented canonically at `spec/architecture.md`.
+
+### Runner model (corrected — supersedes decision #43)
+
+Part 1 proposed subprocess-per-item as universal default. Revised:
+
+| Runner | Execution engine | Context | Use case |
+|---|---|---|---|
+| **CLI** (`sm job run`) | `claude -p < jobfile.md` subprocess per item | isolated (context-free) | batch, CI, cron, many jobs |
+| **Skill** (`/skill-map:run-queue`) | agent executes in-session using its own LLM + tools | in-session, context bleeds between items | interactive, few jobs, user wants to see reasoning |
+
+Both runners share CLI primitives. Skill orchestrates via bash: `sm job claim` → `Read jobfile.md` → agent reasons → `Write report.json` → `sm record ...`. **No `claude -p` from the skill path.** Claim is atomic via SQL `UPDATE ... RETURNING id`.
+
+New CLI verb: **`sm job claim [--filter <action>]`** — returns next queued job's id on stdout, exits non-zero if empty.
+
+### Plugin layout (physical, drop-in)
+
+```
+<scope-root>/.skill-map/plugins/
+├── my-cluster-plugin/
+│   ├── plugin.json              ← manifest
+│   └── extensions/
+│       ├── cluster.action.mjs
+│       └── cluster.detector.mjs
+└── validate-plugin/
+    └── plugin.json + extensions/...
+```
+
+Manifest:
+```json
+{
+  "id": "my-cluster-plugin",
+  "version": "1.0.0",
+  "spec-compat": ">=1.0.0 <2.0.0",
+  "extensions": [
+    "extensions/cluster.action.mjs",
+    "extensions/cluster.detector.mjs"
+  ]
+}
+```
+
+On boot / `sm plugins list`, kernel walks `<scope>/.skill-map/plugins/*` and `~/.skill-map/plugins/*`, runs `semver.satisfies(specVersion, plugin['spec-compat'])`. If compat OK, dynamic-imports extensions, validates against kind schema, registers. If compat fails, plugin marked `disabled` with reason `incompatible-spec`.
+
+**No `sm plugins add` / `sm plugins remove` for MVP.** User drops files and they appear. `disable` (persisted in `config_plugins`) covers "don't use now" without deleting code.
+
+### Orphan reconciliation by hash
+
+Deterministic rule (MVP):
+- New node with `body_hash` matching an orphan → **high** confidence rename.
+- Only `frontmatter_hash` match → **medium**.
+- Semantic match on description/triggers → **deferred** post-MVP (needs LLM layer).
+
+Surface: `sm orphans reconcile <orphan-id> --to <new-id>` — migrates history rows, clears orphan.
+
+### Config merging
+
+Three-level precedence (lowest → highest):
+
+1. **Library defaults** — `src/config/defaults.json` bundled in library.
+2. **User config** — `.skill-map.json` (project) or `~/.skill-map/config.json` (global).
+3. **Env vars / CLI flags** — point-in-time overrides.
+
+Effective config = deep merge. User config can be partial (only overrides). Validation via JSON Schema in `spec/schemas/project-config.schema.json`.
+
+Surface: `sm config list | get <k> | set <k> <v> | reset <k> | show <k> --source`. `show --source` reveals origin (default / project / global / env / flag).
+
+### Introspection as first-class property
+
+The CLI is self-describing. Every verb has structured metadata (description, flags, types, examples) exposed programmatically:
+
+```console
+$ sm help                     human-readable, all verbs
+$ sm help <verb>              detail of a verb
+$ sm help --format json       structured dump of the full surface
+$ sm help --format md         canonical markdown for docs/cli-reference.md
+```
+
+Consumers of the JSON introspection:
+- **Markdown generator** → `docs/cli-reference.md` (CI-enforced sync).
+- **Shell completion** (bash / zsh / fish).
+- **Web UI** — form generation for invoking commands.
+- **IDE extensions** — autocomplete.
+- **Test harness** — asserts every flag has a smoke test.
+- **Agent integration** — the `sm-cli` skill feeds the JSON to the agent so it invokes `sm` precisely, without prompt drift.
+
+Framework pick (pragmatic, not frozen): **Clipanion** — introspection built-in, strict types, used by Yarn Berry.
+
+### Scan unification
+
+`sm scan` is the only scan verb:
+
+| Filter | Behavior |
+|---|---|
+| (no flag) | full scan — truncates `scan_*`, repopulates |
+| `-n <id>` | partial scan of one node — updates row + outgoing links |
+| `--changed` | incremental — only files with `mtime > last_scanned_at` |
+| `--compare-with <path>` | delta mode — compares against exported scan, prints diff |
+
+### Tokens & bytes (triple-split per node)
+
+| Column | Value |
+|---|---|
+| `bytes_frontmatter`, `bytes_body`, `bytes_total` | Raw sizes |
+| `tokens_frontmatter`, `tokens_body`, `tokens_total` | `js-tiktoken` with encoder in `tokenizer` column (default `cl100k_base`) |
+
+`sm show` renders all six tabulated. Useful to identify heavy-frontmatter nodes.
+
+### Nonce clarification
+
+The nonce lives in the **generated job file** (`.skill-map/jobs/<id>.md`), NOT in any user file. User's SKILL.md, agents, commands, CLAUDE.md, etc., are **read-only** from sm's perspective. sm never writes back to them in MVP. Decision #11 (Node ID = relative path, no UUID injection) stands.
+
+### Job lifecycle without maildir (supersedes decision #54 of part 1)
+
+State lives in DB (`state_jobs.status`). The MD at `.skill-map/jobs/<id>.md` is content only; no folder-per-state.
+
+Atomic claim:
+```sql
+UPDATE state_jobs
+SET status='running', claimed_by=?, claimed_at=?
+WHERE id = (SELECT id FROM state_jobs WHERE status='queued'
+            ORDER BY priority DESC, created_at ASC LIMIT 1)
+  AND status='queued'
+RETURNING id;
+```
+
+Lifecycle: `queued → running → completed | failed`. Abandoned `running` items (runner died) auto-reaped at start of next `sm job run` based on TTL.
+
+### Full command surface (MVP-frozen)
+
+**Setup & state**
+
+| Command | Purpose |
+|---|---|
+| `sm init` | Bootstrap scope (`.skill-map/`, DB, first scan). |
+| `sm version` | CLI / kernel / spec / DB schema versions. |
+| `sm doctor` | DB integrity, pending migrations, orphan files, plugins in error. |
+| `sm help [<verb>] [--format human\|md\|json]` | Self-describing introspection. |
+
+**Config**
+
+| Command | Purpose |
+|---|---|
+| `sm config list` | Effective config. |
+| `sm config get <key>` | Single value. |
+| `sm config set <key> <value>` | Write to user config (scope-aware). |
+| `sm config reset <key>` | Remove override, revert to default. |
+| `sm config show <key> --source` | Origin of each value. |
+
+**Scan**
+
+| Command | Purpose |
+|---|---|
+| `sm scan` | Full scan. |
+| `sm scan -n <id>` | Partial (one node). |
+| `sm scan --changed` | Incremental (mtime-based). |
+| `sm scan --compare-with <path>` | Delta report. |
+
+**Browse**
+
+| Command | Purpose |
+|---|---|
+| `sm list [--type <kind>] [--issue] [--sort-by ...] [--limit N]` | Tabular listing. |
+| `sm show <id>` | Node detail: weight, frontmatter, links in/out, issues, stats. |
+| `sm check` | All current issues. |
+| `sm graph [--format ascii\|mermaid\|dot]` | Graph render. |
+| `sm export <query> --format json\|md\|mermaid` | Filtered export. |
+| `sm orphans` | History rows whose node no longer exists. |
+| `sm orphans reconcile <orphan-id> --to <new-id>` | Migrate history after rename. |
+
+**Actions**
+
+| Command | Purpose |
+|---|---|
+| `sm actions list` | Registered action types. |
+| `sm actions show <id>` | Action manifest detail. |
+
+**Jobs**
+
+| Command | Purpose |
+|---|---|
+| `sm job submit <action> -n <id>` | Enqueue (or run inline for `local` mode). |
+| `sm job submit <action> -n <id> --run` | Submit + spawn subprocess immediately. |
+| `sm job list [--status ...]` | List jobs. |
+| `sm job show <id>` | Detail. |
+| `sm job preview <id>` | Render the MD (no execution). |
+| `sm job claim [--filter <action>]` | **Primitive**. Atomic claim of next queued. |
+| `sm job run` | CLI runner: claim + spawn + record. One job. |
+| `sm job run --all` | Drain queue. |
+| `sm job run --max N` | Up to N jobs. |
+| `sm job status [<id>]` | Counts or single-job status. |
+| `sm job cancel <id>` | Force to `failed`. |
+| `sm job prune` | GC completed/failed per retention policy. |
+
+(Removed: `sm job reap` — auto-reap on `run`.)
+
+**Record (callback)**
+
+| Command | Purpose |
+|---|---|
+| `sm record --id <id> --nonce <n> --status completed --report <path> --tokens-in N --tokens-out N --duration-ms N --model <name>` | Success close. |
+| `sm record --id <id> --nonce <n> --status failed --error "..."` | Failure close. |
+
+**History**
+
+| Command | Purpose |
+|---|---|
+| `sm history [-n <id>] [--action <id>] [--status ...] [--since <date>]` | Executions log. |
+| `sm history stats` | Aggregates (tokens per action, per month, top nodes). |
+
+**Plugins (drop-in only)**
+
+| Command | Purpose |
+|---|---|
+| `sm plugins list` | Auto-discovered from folders. |
+| `sm plugins show <id>` | Manifest + compat status. |
+| `sm plugins enable <id>` | Toggle on (persisted). |
+| `sm plugins disable <id>` | Toggle off (code remains, not loaded). |
+| `sm plugins doctor` | Revalidate spec-compat. |
+
+(Removed: `sm plugins add`, `sm plugins remove`.)
+
+**Audits**
+
+| Command | Purpose |
+|---|---|
+| `sm audit list` | Registered audits. |
+| `sm audit run <id>` | Execute, print report. |
+
+**Database**
+
+| Command | Purpose |
+|---|---|
+| `sm db reset` | Drop `scan_*` + `state_*`, keep `config_*`. |
+| `sm db reset --hard` | Delete DB file. Keep plugins folder. |
+| `sm db backup [--out <path>]` | WAL checkpoint + copy. |
+| `sm db restore <path>` | Swap DB. |
+| `sm db shell` | Interactive sqlite3 session. |
+| `sm db dump [--tables ...]` | SQL dump. |
+| `sm db migrate [--to <n>\|--dry-run]` | Schema migrations. |
+
+(Removed: `sm db reset --nuke`.)
+
+**Server**
+
+| Command | Purpose |
+|---|---|
+| `sm serve [--port N] [--host ...] [--no-open]` | Hono server for Web UI. |
+
+**Global flags**: `-g` scope · `--json` output · `-v`/`-q` · `--no-color` · `-h`/`--help` · `--db <path>` (escape hatch).
+
+### Decisions confirmed this part
+
+| # | Item | Resolution |
+|---|---|---|
+| 44 | Naming: `edge` → `link`, `dispatch` → `job`, `rescan` → `scan -n` | Adopted. |
+| 45 | Project name | **`skill-map`** confirmed. Binary `sm`. |
+| 46 | Architecture pattern | **Hexagonal (ports & adapters)** named in spec + docs. |
+| 47 | Runner model | **Dual**: CLI subprocess-per-item, Skill in-session. Supersedes #43. |
+| 48 | `sm job claim` | New primitive, atomic via `UPDATE ... RETURNING id`. |
+| 49 | Plugin installation | **Drop-in directory only** for MVP. No `add`/`remove`. |
+| 50 | Tool permissions per job | Frontmatter `expected-tools: []`. |
+| 51 | Nonce location | **Generated job file only**. User MDs never written. |
+| 52 | Orphan reconciliation | `body_hash` high, `frontmatter_hash` medium, semantic deferred. |
+| 53 | Token + byte tracking | Triple-split (frontmatter / body / total). |
+| 54 | Maildir dropped | Single flat `.skill-map/jobs/` folder; state in DB. Supersedes part 1. |
+| 55 | Reap | **Auto** on `sm job run`. TTL default 1h, configurable. |
+| 56 | `sm db reset --nuke` | **Dropped**. Soft + `--hard` remain. |
+| 57 | Config merging | Library defaults + user partial overrides, deep merge, `--source` lookup. |
+| 58 | Introspection | `sm help --format json` spec'd. Framework: Clipanion (pragmatic pick). |
+| 59 | CLI reference doc | Auto-generated via `sm help --format md`. CI-enforced sync. `docs/cli-reference.md`. |
+| 60 | `sm-cli` skill | Ships with tool. Feeds introspection JSON to the agent. |
+| 61 | Post-MVP in roadmap | Everything stays documented; MVP is a cut-line marker, not a delete marker. |
+
+### Gap resolutions (post part 2)
+
+| # | Gap | Resolution |
+|---|---|---|
+| 62 | Concurrency on same (action, node) | **Refuse duplicates with `--force` override**. On submit, check `state_jobs` for same `(action_id, action_version, node_id, content_hash)` in status `queued\|running`. If exists, error with existing job-id and exit code 3. `sm job submit ... --force` bypasses. Post-completion: no check, re-submit always allowed. `content_hash = sha256(action_id + action_version + node_body_hash + node_frontmatter_hash + prompt_template_hash)`. Exit code convention: 0 ok, 1 issues, 2 error, 3 duplicate-conflict. |
+| 63 | Streaming output from `sm job run` | **Three modes with single emitter** (hexagonal). Runner emits to `ProgressEmitter` port; three adapters: **pretty** (default TTY, line-progress, colored), **`--stream-output`** (pretty + model tokens inline, debug), **`--json`** (ndjson canonical events). `sm serve` re-emits same events via **WebSocket** (see #69). Canonical event list: `run.started`, `run.reap.started`, `run.reap.completed`, `job.claimed`, `job.skipped`, `job.spawning`, `model.delta`, `job.callback.received`, `job.completed`, `job.failed`, `run.summary`. Spec'd at `spec/job-events.md`. **Task UI integration** (Claude Code's TaskCreate, Cursor equivalent) lives as host-specific **skill**, NOT as CLI output mode — preserves hexagonal boundary. Ships: `skills/sm-cli-run-queue/SKILL.md` (Claude Code target) for MVP. Other host variants post-MVP. MVP runs jobs sequentially; parallel execution post-MVP (event schema already carries `id` for future demux). |
+| 64 | Conversational verbs | **Option D — CLI one-shot + skill wrapper**. CLI verbs are atomic, structured, LLM-backed, single-turn (`sm what <query>`, `sm dedupe`, `sm cluster-triggers`, `sm impact-of <node>`, `sm recommend-optimization`). Each emits `--json` with a schema declared by its action. Conversation lives in a single meta-skill: **`/skill-map:explore`** — user describes what they want in natural language; skill picks which `sm ... --json` calls to make, synthesizes, handles follow-ups, can chain multiple verbs in one conversation. No multi-turn jobs in kernel. MVP ambitious: all 5 CLI verbs + `/skill-map:explore` ship. Per-verb skills (`explore-what`, etc.) discarded in favor of a single meta-skill. |
+| 65 | Default prob-refresh action per node kind | **Resolved via summarizer pattern**. Each node-kind has a default Action registered by the adapter: `skill-summarizer` for `kind: skill`, `agent-summarizer`, `command-summarizer`, `hook-summarizer`, `note-summarizer`. Adapter declares `defaultRefreshAction` per kind it registers. UI's "🧠 prob" button submits the default summarizer for that node's kind. |
+| 66 | Summarizer pattern | **New concept: action-per-node-kind summarizer**. Each summarizer is an Action applied to one kind, with its own report schema in `spec/schemas/summaries/<kind>.schema.json`. Summary example for skill: `what_it_does`, `recipe[]`, `preconditions[]`, `outputs[]`, `side_effects[]`, `related_nodes[]`, `quality_notes`. Stored in dedicated kernel table `state_summaries(node_id, kind, summarizer_action_id, summarizer_version, body_hash_at_generation, generated_at, summary_json)`. `sm show` renders summary if present; flags as `(stale)` if current `body_hash ≠ body_hash_at_generation`. MVP ambitious: 5 schemas defined in spec (skill/agent/command/hook/note), **all 5 built-in summarizers shipped**. Third-party plugins can register additional summarizers that write to the same table. |
+| 67 | Plugin storage dual mode | **Updates #35 to support both modes; plugin declares in manifest.** Mode A = **KV** (`ctx.store`, generic, kernel-owned `state_plugin_kv` table). Mode B = **Dedicated tables**, opt-in via `storage: { mode: "dedicated", tables: [...], migrations: [...] }` in manifest. Kernel provisions tables with mandatory prefix `plugin_<plugin_id>_`. **Triple protection**: (1) kernel injects prefix on all DDL — plugin cannot create un-prefixed tables; (2) DDL validation — reject FK to kernel tables, triggers on kernel tables, DROP/ALTER of kernel tables, ATTACH, global PRAGMAs; (3) scoped connection — plugin receives wrapper of `Database`, not raw handle; wrapper rejects cross-namespace queries at runtime. Honest note: drop-in plugins are user-placed code; protection guards accidents, not hostile plugins (post-v1.0 evaluates signing). |
+| 68 | `sm doctor` surfaces missing LLM runner | `sm doctor` checks: (a) `claude` binary in PATH (CLI runner available), (b) current env is inside an agent host (skill runner context). Reports warning if neither, with note that deterministic features still work but probabilistic queue without execution. Same check exposed in UI — "🧠 prob" button disabled with tooltip when no runner available. |
+| 69 | Live sync protocol for UI | **WebSocket** (resolves deferred decision #28). `sm serve` exposes `/ws` endpoint (bidirectional). All live events (job lifecycle, scan updates, issue changes) pushed via WS. UI sends commands (rescan, submit, cancel) back over same channel. REST HTTP retained only for discrete CRUD (config reads, exports). Rationale over SSE: interactive map needs bidirectional real-time; unifying to one channel simplifies UI and server both. Library pick deferred to tech-stack-finalization (likely `ws` or Hono's built-in WS support). File-watcher push (Step 6 `chokidar`) wires directly into WS broadcast. |
+| 70 | Frontmatter standard | **Catalog of all fields enumerated** across categories: identity (name/description/type), authorship (author/authors/license + github/homepage/linkedin/twitter), versioning (version/spec-compat/stability/supersedes/superseded_by), taxonomy (tags/category/keywords), lifecycle (created/updated/released), integration (requires/conflicts_with/provides/related), display (icon/color/priority/hidden), documentation (docs_url/readme/examples_url). Kind-specific extensions: skill adds inputs/outputs; agent adds model/tools/color; command adds args/shortcut; hook adds event/condition/blocking/idempotent; note has no extras. All fields optional except `name` and `description`. Spec artifacts: `spec/schemas/frontmatter/base.schema.json` + `frontmatter/<kind>.schema.json` (5 kinds). **Validation default: warn** (permissive) on unknown/missing fields. `--strict` flag in `sm scan` / `sm check` promotes to error (for CI). Adapters emit issues `invalid-frontmatter`, `missing-recommended-field`, `unknown-field` (warn by default). Per-surface field visibility (`sm list` / `sm show` / UI inspector / UI node badge) deferred as a rendering-config decision; not a blocker for kernel or schema design. DB denormalizes a few high-query fields as columns (`stability`, `version`, `author`); rest lives in `frontmatter_json`. |
+| 71 | Build order inversion — UI prototype first | **New Step 0c inserted between 0b and 1: UI prototype with mocked data (Flavor A)**. Rationale: the map is the main UX; many design decisions (metadata visibility, event schema sufficiency, inspector layout, interactions) validate orders of magnitude faster with a clickable prototype than with specification. Cost: 2-3 days for Flavor A vs weeks of refactor if kernel API is wrong. Flavor A scope: graph view, node list, inspector panel, filters, simulated event flow (run-queue with fake jobs), interaction patterns. Data: JSON fixtures dumped from 5-10 real skills in `_plugins/`. Flavor B (vertical slice with real kernel) absorbed into Step 12 of the existing plan. **Forces three previously-deferred decisions to lock at this step**: #25 frontend framework (lean: **SolidJS**), #26 graph viz library (lean: **Cytoscape.js** for MVP), #27 styling (lean: **Tailwind**). After Step 0c completes, roadmap undergoes a review pass — some decisions confirm, some adjust, new gaps may surface. This is the explicit iteration checkpoint before kernel commitment. |
+| 72 | Prompt injection preamble | **Two-layer mitigation, kernel-enforced**. (1) All user content interpolated into job MDs MUST be wrapped in `<user-content id="<node-id>">...</user-content>` tags; kernel escapes any literal `</user-content>` in the content to `\</user-content>`. (2) Kernel auto-prepends a canonical preamble (spec'd verbatim at `spec/prompt-preamble.md`) to every rendered job MD — action templates cannot modify, omit, or precede it. The preamble instructs the model: content inside `<user-content>` is data, never instructions; detected injection attempts must be noted in the report's `safety` field. `spec/schemas/job.schema.json` validates the preamble presence. `sm job preview <id>` shows full rendered MD including preamble for auditability. Not bulletproof but raises the bar significantly; post-MVP extensions: adversarial test suite, deterministic regex second-pass. |
+| 73 | `sm findings` verb for probabilistic issues | **New CLI verb separate from `sm check`**. `sm check` remains deterministic (rules over current graph). `sm findings` queries materialized probabilistic reports in DB (injection attempts, low confidence analyses, stale summaries, suspicious content). Filters: `--type injection\|stale\|low-confidence\|suspicious`, `--since <date>`, `--threshold <n>`, `--json`. Zero query cost (reads stored data). UI renders two separate panels: **Issues** (fed by `sm check`) and **Findings** (fed by `sm findings`). |
+| 74 | `safety` object in probabilistic reports | **Sibling of `confidence` in shared report base schema** (`spec/schemas/report-base.schema.json`). All probabilistic actions (summarizers, `sm what`, `sm dedupe`, etc.) emit a `safety` object: `{ injection_detected: boolean, injection_details: string\|null, injection_type: enum[direct-override\|role-swap\|hidden-instruction\|other], content_quality: enum[clean\|suspicious\|malformed] }`. Distinct from `confidence` (metacognition about output) — `safety` is assessment of input content. Surfaces in `sm findings` and UI inspector. |
+| 75 | Enrichment invocation + skills.sh pivot | **No dedicated verb** — enrichment actions use existing `sm job submit <action> [-n <id>] [--all]` (where `--all` is officially promoted as a universal flag of `job submit`, applying the action to every node matching its `precondition`). **Skills.sh dropped from MVP** (no public API found after investigation; no hash/id endpoint, no documented developer contract). Pivot to **GitHub as primary enrichment source** — public API, raw content access, well-understood. Any nodes with `metadata.source` pointing to a GitHub URL get enrichment. Non-GitHub sources: no enrichment (post-MVP when other registries publish APIs). |
+| 76 | GitHub idempotency | **Three-layer caching**. (1) If `metadata.source_version` is a SHA or tag, plugin resolves to immutable raw URL `raw.githubusercontent.com/<owner>/<repo>/<sha>/<path>`; same SHA = same content = deterministic. (2) If `source_version` points to a branch or is absent, plugin resolves to current SHA via GitHub API and stores the resolved SHA in `state_enrichment.data_json`; subsequent refreshes compare SHA; only re-fetch if changed. (3) Optional ETag/`If-None-Match` caching against GitHub REST API (post-MVP, saves bandwidth within rate limit). Hash verification: compare local `body_hash` to hash of fetched raw content; set `verified: true\|false` and `locally_modified: true` on mismatch. |
+| 77 | Default plugin pack | **Pattern confirmed; specific contents TBD during implementation**. On `sm init`, a curated bundled pack is installed automatically (user can `disable` individual plugins but reinstall happens at next init). Only firm commitment now: **`github-enrichment`** bundled, because it implements the hash verify property that Decision #75 depends on. Remaining pack members (minimal security scanner, others) decided when implementing — not prematurely committed. Third-party plugins (Snyk, Socket, etc.) install post-MVP via `sm plugins install <name>` against spec'd interface at `spec/interfaces/security-scanner.md`. |
+| 78 | Reference counts | **Three denormalized integer columns on `scan_nodes`**: `links_out_count`, `links_in_count`, `external_refs_count`. Computed at scan time. External URL detection: regex for http/https in body, dedup exact match per node, normalize (strip trailing punctuation). **No new table, no URL liveness, no broken-external-ref rule**. User cares about count, not identity of URLs (user can read the file if they want specifics). `sm show` displays "N in · M out · K external". `sm list --sort-by external-refs` sorts by the counter. URL liveness remains an optional post-MVP plugin if demand appears. |
+| 72b | Frontmatter Provenance extension to Decision 70 | Adds `metadata.source` (URL to canonical origin, e.g., GitHub blob URL) and `metadata.source_version` (tag or SHA; branch-name allowed but gets dynamically resolved) to the frontmatter catalog under a new section **Provenance**. Consumed by `github-enrichment`. Drops `metadata.registry` / `metadata.registry_id` (were placeholder for skills.sh; no consumer until a registry publishes a real API). |
+| 79 | Atomicity edge cases between DB and filesystem | **Deterministic policy per scenario**. (1) `state_jobs.status = queued\|running` but MD file missing → on next `sm job run` after claim, read fails → kernel marks job `failed` with `error: 'job-file-missing'`, no retry; `sm doctor` reports proactively. (2) MD file with no DB row → reported by `sm doctor`, never auto-deleted; user runs `sm job prune --orphan-files` to clean. (3) MD file edited by user between submit and run → by design, runner uses current file content; user breaks their own guarantees and owns it (no warning, keeps noise low). (4) `completed` + file still present → normal, waits for retention policy via `sm job prune`. (5) Runner crash between atomic claim and file read → covered by existing auto-reap (#55); TTL expires, reap marks `failed` with reason `abandoned`. **`sm job run` operation order**: BEGIN TX → claim via `UPDATE ... RETURNING id` → COMMIT → read MD → if missing, mark `failed` + continue; else spawn `claude -p`, wait for callback. Minimizes inconsistency window to between COMMIT and read, handled deterministically. **New `sm doctor` checks**: reports count of DB-rows-without-files and files-without-DB-rows separately with guidance. **New flag**: `sm job prune --orphan-files` (complements `sm job prune` for retention GC) cleans orphan MD files only on explicit invocation. |
+
+### Gaps still open
+
+- Migration file format (`.sql` vs `.ts`, naming like `001_initial.sql`).
+- Per-action TTL override (post-MVP) — manifest field.
+- Tech stack finalization (YAML parser, MD parsing, templating engine, pretty CLI libs, globbing, diff, testing framework). Note: #25/#26/#27 (frontend/graph/styling) get locked during Step 0c.
+- DB naming conventions (plural/singular, timestamps `<event>_at`, booleans `is_*`, hash/json column suffixes, plugin prefix normalization).
+- Per-surface frontmatter visibility (which fields render in `sm list` / `sm show` / UI inspector / graph node badge) — resolvable during Step 0c with the prototype.
+
+### Sections below still pending rewrite
+
+- **Execution plan** — Step 1 includes SQLite + Clipanion + hexagonal wiring + `docs/cli-reference.md` auto-gen; Step 9 renamed "Job subsystem"; runner split (CLI/Skill) documented.
+- **Persistence layout** — SQLite two-scope + `scan_*` / `state_*` / `config_*` split + table list.
+- **Architecture principle: Kernel + Extensions** — expand to hexagonal with adapter catalog.
+- **Decision log** — merge decisions 33–61 into the main table.
+- **Action contract** — update `invocation-template` mode to reference job-file rendering.
+- **Spec as a standard** — add artifacts: `architecture.md`, `cli-contract.md`, `project-config.schema.json`, `job.schema.json`, `plugin-kv-api.md`, `db-schema.md`.
+
+---
+
 ## Spec as a standard (non-negotiable if targeting a standard)
 
 `skill-map` is designed to become a reusable standard, not a single tool. The **spec** is separated from the **reference implementation** from day zero.
