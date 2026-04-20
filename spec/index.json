@@ -1,0 +1,56 @@
+{
+  "specVersion": "0.0.1",
+  "dialect": "https://json-schema.org/draft/2020-12/schema",
+  "canonicalUrlPrefix": "https://skill-map.dev/spec/v0",
+  "schemas": {
+    "topLevel": [
+      { "id": "node", "path": "schemas/node.schema.json" },
+      { "id": "link", "path": "schemas/link.schema.json" },
+      { "id": "issue", "path": "schemas/issue.schema.json" },
+      { "id": "scan-result", "path": "schemas/scan-result.schema.json" },
+      { "id": "execution-record", "path": "schemas/execution-record.schema.json" },
+      { "id": "project-config", "path": "schemas/project-config.schema.json" },
+      { "id": "plugins-registry", "path": "schemas/plugins-registry.schema.json" },
+      { "id": "job", "path": "schemas/job.schema.json" },
+      { "id": "report-base", "path": "schemas/report-base.schema.json" },
+      { "id": "conformance-case", "path": "schemas/conformance-case.schema.json" }
+    ],
+    "frontmatter": [
+      { "id": "frontmatter/base", "path": "schemas/frontmatter/base.schema.json" },
+      { "id": "frontmatter/skill", "path": "schemas/frontmatter/skill.schema.json" },
+      { "id": "frontmatter/agent", "path": "schemas/frontmatter/agent.schema.json" },
+      { "id": "frontmatter/command", "path": "schemas/frontmatter/command.schema.json" },
+      { "id": "frontmatter/hook", "path": "schemas/frontmatter/hook.schema.json" },
+      { "id": "frontmatter/note", "path": "schemas/frontmatter/note.schema.json" }
+    ],
+    "summaries": [
+      { "id": "summaries/skill", "path": "schemas/summaries/skill.schema.json" },
+      { "id": "summaries/agent", "path": "schemas/summaries/agent.schema.json" },
+      { "id": "summaries/command", "path": "schemas/summaries/command.schema.json" },
+      { "id": "summaries/hook", "path": "schemas/summaries/hook.schema.json" },
+      { "id": "summaries/note", "path": "schemas/summaries/note.schema.json" }
+    ]
+  },
+  "prose": [
+    { "file": "README.md", "title": "README" },
+    { "file": "versioning.md", "title": "Versioning policy" },
+    { "file": "CHANGELOG.md", "title": "Spec changelog" },
+    { "file": "architecture.md", "title": "Architecture" },
+    { "file": "cli-contract.md", "title": "CLI contract" },
+    { "file": "dispatch-lifecycle.md", "title": "Dispatch lifecycle" },
+    { "file": "job-events.md", "title": "Job events" },
+    { "file": "prompt-preamble.md", "title": "Prompt preamble" },
+    { "file": "db-schema.md", "title": "Database schema" },
+    { "file": "plugin-kv-api.md", "title": "Plugin KV API" }
+  ],
+  "interfaces": [
+    { "file": "interfaces/security-scanner.md", "title": "Security scanner interface" }
+  ],
+  "conformance": {
+    "casesDir": "conformance/cases",
+    "fixturesDir": "conformance/fixtures",
+    "cases": [
+      { "id": "basic-scan", "file": "conformance/cases/basic-scan.json" }
+    ]
+  }
+}

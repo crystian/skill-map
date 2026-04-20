@@ -1,0 +1,17 @@
+{
+  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "id": "basic-scan",
+  "description": "Scanning the minimal-claude fixture detects exactly five nodes, one per kind, with no issues.",
+  "fixture": "minimal-claude",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 5 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
+    { "type": "json-path", "path": "$.nodes.length", "equals": 5 }
+  ]
+}

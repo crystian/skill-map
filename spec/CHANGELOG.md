@@ -25,8 +25,8 @@ Initial public spec bootstrap (Step 0a phases 1–3).
   - `README.md` — human-readable introduction and repo layout.
   - `versioning.md` — evolution policy, stability tags, 3-minor deprecation window.
   - `CHANGELOG.md` — this file.
-- JSON Schemas (20 files, all draft 2020-12, camelCase keys):
-  - Top-level (9): `node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`.
+- JSON Schemas (21 files, all draft 2020-12, camelCase keys):
+  - Top-level (10): `node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`, `conformance-case`.
   - Frontmatter (6): `base` + per-kind `skill` / `agent` / `command` / `hook` / `note`. Per-kind schemas extend `base` via `allOf`.
   - Summaries (5): per-kind `skill` / `agent` / `command` / `hook` / `note`. All extend `report-base` via `allOf`.
 - Prose contracts:
@@ -53,7 +53,20 @@ Initial public spec bootstrap (Step 0a phases 1–3).
 - Deprecation window: 3 minor releases between `stable → deprecated` and removal.
 - Storage modes: a plugin declares exactly one (`kv` or `dedicated`). Mixing forbidden.
 
+### Conformance (stub)
+
+- `conformance/README.md` — suite layout, case format, assertion types (`exit-code`, `json-path`, `file-exists`, `file-contains-verbatim`, `file-matches-schema`, `stderr-matches`), runner pseudocode.
+- `conformance/fixtures/minimal-claude/` — 5 MDs (one per kind: skill, agent, command, hook, note) used as the first controlled corpus.
+- `conformance/fixtures/preamble-v1.txt` — verbatim extraction of the preamble from `prompt-preamble.md`, checked byte-for-byte by the future `preamble-bitwise-match` case.
+- `conformance/cases/basic-scan.json` — first declarative case. Scans the `minimal-claude` fixture; asserts `schemaVersion: 1`, 5 nodes, 0 issues.
+
+### Packaging
+
+- `package.json` at the spec root. Name: `@skill-map/spec`. Version `0.0.1` (first release line; spec versioning is strict pre-1.0 per `versioning.md`). `exports` surfaces `.` → `index.json`, plus every `./schemas/*.json`.
+- `index.json` at the spec root. Machine-readable manifest of schemas, prose, interfaces, and conformance.
+- `schemas/conformance-case.schema.json` — formal schema for entries under `conformance/cases/*.json`. Defines the `invoke` object and the six assertion types (`exit-code`, `json-path`, `file-exists`, `file-contains-verbatim`, `file-matches-schema`, `stderr-matches`) as a discriminated union via `oneOf`.
+
 ### Notes
 
-- Pending to close Step 0a: conformance stub (fixtures + cases), `@skill-map/spec` npm package skeleton.
-- No tagged spec release yet. First tag (`spec-v0.1.0`) lands after conformance + package ship.
+- Pending for `spec-v0.1.0`: cases `kernel-empty-boot` and `preamble-bitwise-match` (referenced normatively in `architecture.md` and `prompt-preamble.md`). Land alongside Step 0b when the reference implementation exists to run them against.
+- No tagged spec release yet. First tag (`spec-v0.1.0`) lands after Step 0b CI validates the implementation against this stub.

@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "title": "ConformanceCase",
+  "description": "Shape of a single declarative test case under `spec/conformance/cases/<id>.json`. Consumed by language-neutral conformance runners. See `spec/conformance/README.md` for the runner contract.",
+  "type": "object",
+  "required": ["id", "description", "invoke", "assertions"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "format": "uri",
+      "description": "Optional IDE hint. Implementations MUST ignore this field."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "Kebab-case unique identifier. MUST equal the filename stem (`cases/<id>.json`)."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-to-three-sentence human-readable explanation of what the case verifies."
+    },
+    "fixture": {
+      "type": "string",
+      "description": "Folder name under `conformance/fixtures/` used as the scope root. Omit for cases that do not need a corpus (e.g. `kernel-empty-boot`)."
+    },
+    "setup": {
+      "type": "object",
+      "description": "Pre-invocation toggles. All default to `false`.",
+      "additionalProperties": false,
+      "properties": {
+        "disableAllAdapters": { "type": "boolean" },
+        "disableAllDetectors": { "type": "boolean" },
+        "disableAllRules": { "type": "boolean" }
+      }
+    },
+    "invoke": {
+      "type": "object",
+      "required": ["verb"],
+      "additionalProperties": false,
+      "properties": {
+        "verb": {
+          "type": "string",
+          "description": "First-level CLI verb (`scan`, `list`, `show`, `check`, `findings`, `graph`, `export`, `audit`, `job`, `record`, …)."
+        },
+        "sub": {
+          "type": "string",
+          "description": "Subcommand for verbs that have them (e.g. `submit` for `job submit`)."
+        },
+        "args": {
+          "type": "array",
+          "description": "Positional arguments, in order.",
+          "items": { "type": "string" }
+        },
+        "flags": {
+          "type": "array",
+          "description": "Flags. Implementations MUST accept them in any order; ordering here is cosmetic.",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "assertions": {
+      "type": "array",
+      "description": "Ordered list of assertions. A case passes iff every assertion passes.",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Assertion" }
+    }
+  },
+  "$defs": {
+    "Assertion": {
+      "description": "Discriminated union. The `type` field selects the assertion shape.",
+      "oneOf": [
+        { "$ref": "#/$defs/ExitCode" },
+        { "$ref": "#/$defs/JsonPath" },
+        { "$ref": "#/$defs/FileExists" },
+        { "$ref": "#/$defs/FileContainsVerbatim" },
+        { "$ref": "#/$defs/FileMatchesSchema" },
+        { "$ref": "#/$defs/StderrMatches" }
+      ]
+    },
+    "ExitCode": {
+      "type": "object",
+      "required": ["type", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "exit-code" },
+        "value": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "description": "Exit code the invocation MUST return."
+        }
+      }
+    },
+    "JsonPath": {
+      "type": "object",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "json-path" },
+        "path": {
+          "type": "string",
+          "description": "JSONPath expression (RFC 9535 subset) evaluated against parsed stdout."
+        },
+        "equals": {
+          "description": "Any JSON value. The extracted value MUST deep-equal this."
+        },
+        "greaterThan": {
+          "type": "number"
+        },
+        "lessThan": {
+          "type": "number"
+        },
+        "matches": {
+          "type": "string",
+          "description": "ECMAScript regex. The extracted value (coerced to string) MUST match."
+        }
+      },
+      "anyOf": [
+        { "required": ["equals"] },
+        { "required": ["greaterThan"] },
+        { "required": ["lessThan"] },
+        { "required": ["matches"] }
+      ]
+    },
+    "FileExists": {
+      "type": "object",
+      "required": ["type", "path"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "file-exists" },
+        "path": {
+          "type": "string",
+          "description": "Relative to the scope root. Glob patterns permitted; at least one match MUST exist."
+        }
+      }
+    },
+    "FileContainsVerbatim": {
+      "type": "object",
+      "required": ["type", "path", "fixture"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "file-contains-verbatim" },
+        "path": {
+          "type": "string",
+          "description": "Relative to the scope root. Glob permitted; MUST resolve to exactly one file."
+        },
+        "fixture": {
+          "type": "string",
+          "description": "Path under `conformance/fixtures/` whose bytes MUST appear verbatim in the target file."
+        }
+      }
+    },
+    "FileMatchesSchema": {
+      "type": "object",
+      "required": ["type", "path", "schema"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "file-matches-schema" },
+        "path": {
+          "type": "string",
+          "description": "Relative to the scope root. Glob permitted; MUST resolve to exactly one file. File MUST parse as JSON."
+        },
+        "schema": {
+          "type": "string",
+          "description": "Path under `schemas/` that the file MUST validate against."
+        }
+      }
+    },
+    "StderrMatches": {
+      "type": "object",
+      "required": ["type", "pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "stderr-matches" },
+        "pattern": {
+          "type": "string",
+          "description": "ECMAScript regex. The full stderr output MUST match at least once."
+        }
+      }
+    }
+  }
+}

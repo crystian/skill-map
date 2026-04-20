@@ -1,0 +1,49 @@
+{
+  "name": "@skill-map/spec",
+  "version": "0.0.1",
+  "description": "JSON Schemas, prose contracts, and conformance suite for the skill-map specification.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://skill-map.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crystian/skill-map.git",
+    "directory": "spec"
+  },
+  "bugs": {
+    "url": "https://github.com/crystian/skill-map/issues"
+  },
+  "keywords": [
+    "skill-map",
+    "spec",
+    "specification",
+    "json-schema",
+    "ai-agents",
+    "markdown",
+    "claude-code"
+  ],
+  "exports": {
+    ".": "./index.json",
+    "./index.json": "./index.json",
+    "./schemas/*.json": "./schemas/*.json"
+  },
+  "files": [
+    "README.md",
+    "CHANGELOG.md",
+    "versioning.md",
+    "architecture.md",
+    "cli-contract.md",
+    "dispatch-lifecycle.md",
+    "job-events.md",
+    "prompt-preamble.md",
+    "db-schema.md",
+    "plugin-kv-api.md",
+    "interfaces/",
+    "schemas/",
+    "conformance/",
+    "index.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

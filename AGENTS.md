@@ -170,19 +170,25 @@ Step 0a is **in progress**. The `spec/` tree is partially populated. Work was do
 ### What exists (done)
 
 - **Foundation** (`spec/README.md`, `spec/CHANGELOG.md`, `spec/versioning.md`) — full.
-- **JSON Schemas** (`spec/schemas/`) — 20 files, all JSON Schema **draft 2020-12**:
-  - 9 top-level: `node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`.
+- **JSON Schemas** (`spec/schemas/`) — 21 files, all JSON Schema **draft 2020-12**:
+  - 10 top-level: `node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`, `conformance-case`.
   - 6 frontmatter: `base` + `skill` / `agent` / `command` / `hook` / `note` (kind schemas extend base via `allOf`).
   - 5 summaries: `skill` / `agent` / `command` / `hook` / `note` (all extend `report-base` via `allOf`).
 - **Prose docs** (all 7): `architecture.md`, `cli-contract.md`, `dispatch-lifecycle.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`.
 - **Interfaces**: `spec/interfaces/security-scanner.md` (convention over the Action kind; no new extension kind).
-- Placeholder dirs: `spec/conformance/{cases,fixtures}/`.
+- **Conformance stub** (`spec/conformance/`):
+  - `README.md` — suite layout, case format, assertion types, runner pseudocode, stability rules.
+  - `fixtures/minimal-claude/` — 5 MDs, one per kind (skill / agent / command / hook / note).
+  - `fixtures/preamble-v1.txt` — verbatim preamble text for `preamble-bitwise-match` check (byte-identical to `prompt-preamble.md` source).
+  - `cases/basic-scan.json` — first declarative case: scan `minimal-claude` → 5 nodes, 0 issues.
+- **`@skill-map/spec` package** (`spec/package.json`): `name`, `version: 0.0.1`, `exports` for `.` (→ `index.json`) + every schema, `files` whitelist of the whole `spec/` tree. Ready to `npm publish` once Step 0b CI is green.
+- **Spec index** (`spec/index.json`): machine-readable manifest of the spec surface (schemas, prose, interfaces, conformance). Kept in sync with the file system by hand; drift will be caught by CI once a generator lands.
+- **Public site** — Railway deploys the `Dockerfile` at the repo root. `scripts/build-site.mjs` copies every `.schema.json` to `site/spec/v0/...` and validates that each `$id` equals its served URL. DNS at Vercel points `skill-map.dev` at Railway.
 
 ### What's pending (closes Step 0a)
 
-- Conformance stub: a minimal fixture set (one MD per kind) + 1–2 declarative cases under `spec/conformance/cases/`.
-- `@skill-map/spec` npm package skeleton: `spec/package.json` with `name`, `exports` for schemas, `files` whitelist.
-- Domain provisioning for `skill-map.dev` so that `$id` URLs resolve. Scheduled right after this bootstrap commit.
+- Additional conformance cases referenced in prose: `kernel-empty-boot` (in `architecture.md`), `preamble-bitwise-match` (in `prompt-preamble.md`). Land alongside Step 0b (implementation has something to run them against).
+- First tagged spec release: `spec-v0.1.0`. Happens after Step 0b CI is green against the conformance stub.
 
 ### Conventions locked during bootstrap (do NOT change unilaterally)
 
@@ -236,7 +242,7 @@ Step 0a is **in progress**. The `spec/` tree is partially populated. Work was do
 - **Never bump versions manually** — CI (`.github/workflows/bump-version.yml`) handles it.
 - **All artifacts in English** — code, commits, PRs, docs. Conversation language follows `CLAUDE.md` activation rule.
 - **Paths**: prefer relative over absolute in bash commands and agent prompts.
-- **Temp files**: use `.tmp/` (project-local), not `/tmp/`.
+- **Temp files**: use `.tmp/` (project-local, gitignored), not `/tmp/` or `/var/tmp/`. **This applies to every temp path an AI agent writes**, including intermediate files for `awk`, `sed`, `diff`, `grep`, piped scripts, and extracted snippets. If `.tmp/` does not exist, create it (`mkdir -p .tmp`). Never write a temp file outside the repo.
 - **Every feature**: update `spec/` first, then `src/`. No impl feature without spec change.
 - **CI green, always** — extensions ship with tests or do not boot.
 
