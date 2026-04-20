@@ -1,0 +1,29 @@
+{
+  "name": "skill-map-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "skill-map monorepo — houses the public spec and the reference implementation.",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crystian/skill-map.git"
+  },
+  "workspaces": [
+    "spec"
+  ],
+  "scripts": {
+    "spec:index": "node scripts/build-spec-index.mjs",
+    "spec:check": "node scripts/build-spec-index.mjs --check",
+    "site:build": "node scripts/build-site.mjs",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "changeset:publish": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.9"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

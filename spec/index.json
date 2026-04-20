@@ -4,53 +4,197 @@
   "canonicalUrlPrefix": "https://skill-map.dev/spec/v0",
   "schemas": {
     "topLevel": [
-      { "id": "node", "path": "schemas/node.schema.json" },
-      { "id": "link", "path": "schemas/link.schema.json" },
-      { "id": "issue", "path": "schemas/issue.schema.json" },
-      { "id": "scan-result", "path": "schemas/scan-result.schema.json" },
-      { "id": "execution-record", "path": "schemas/execution-record.schema.json" },
-      { "id": "project-config", "path": "schemas/project-config.schema.json" },
-      { "id": "plugins-registry", "path": "schemas/plugins-registry.schema.json" },
-      { "id": "job", "path": "schemas/job.schema.json" },
-      { "id": "report-base", "path": "schemas/report-base.schema.json" },
-      { "id": "conformance-case", "path": "schemas/conformance-case.schema.json" }
+      {
+        "id": "node",
+        "path": "schemas/node.schema.json"
+      },
+      {
+        "id": "link",
+        "path": "schemas/link.schema.json"
+      },
+      {
+        "id": "issue",
+        "path": "schemas/issue.schema.json"
+      },
+      {
+        "id": "scan-result",
+        "path": "schemas/scan-result.schema.json"
+      },
+      {
+        "id": "execution-record",
+        "path": "schemas/execution-record.schema.json"
+      },
+      {
+        "id": "project-config",
+        "path": "schemas/project-config.schema.json"
+      },
+      {
+        "id": "plugins-registry",
+        "path": "schemas/plugins-registry.schema.json"
+      },
+      {
+        "id": "job",
+        "path": "schemas/job.schema.json"
+      },
+      {
+        "id": "report-base",
+        "path": "schemas/report-base.schema.json"
+      },
+      {
+        "id": "conformance-case",
+        "path": "schemas/conformance-case.schema.json"
+      }
     ],
     "frontmatter": [
-      { "id": "frontmatter/base", "path": "schemas/frontmatter/base.schema.json" },
-      { "id": "frontmatter/skill", "path": "schemas/frontmatter/skill.schema.json" },
-      { "id": "frontmatter/agent", "path": "schemas/frontmatter/agent.schema.json" },
-      { "id": "frontmatter/command", "path": "schemas/frontmatter/command.schema.json" },
-      { "id": "frontmatter/hook", "path": "schemas/frontmatter/hook.schema.json" },
-      { "id": "frontmatter/note", "path": "schemas/frontmatter/note.schema.json" }
+      {
+        "id": "frontmatter/base",
+        "path": "schemas/frontmatter/base.schema.json"
+      },
+      {
+        "id": "frontmatter/skill",
+        "path": "schemas/frontmatter/skill.schema.json"
+      },
+      {
+        "id": "frontmatter/agent",
+        "path": "schemas/frontmatter/agent.schema.json"
+      },
+      {
+        "id": "frontmatter/command",
+        "path": "schemas/frontmatter/command.schema.json"
+      },
+      {
+        "id": "frontmatter/hook",
+        "path": "schemas/frontmatter/hook.schema.json"
+      },
+      {
+        "id": "frontmatter/note",
+        "path": "schemas/frontmatter/note.schema.json"
+      }
     ],
     "summaries": [
-      { "id": "summaries/skill", "path": "schemas/summaries/skill.schema.json" },
-      { "id": "summaries/agent", "path": "schemas/summaries/agent.schema.json" },
-      { "id": "summaries/command", "path": "schemas/summaries/command.schema.json" },
-      { "id": "summaries/hook", "path": "schemas/summaries/hook.schema.json" },
-      { "id": "summaries/note", "path": "schemas/summaries/note.schema.json" }
+      {
+        "id": "summaries/skill",
+        "path": "schemas/summaries/skill.schema.json"
+      },
+      {
+        "id": "summaries/agent",
+        "path": "schemas/summaries/agent.schema.json"
+      },
+      {
+        "id": "summaries/command",
+        "path": "schemas/summaries/command.schema.json"
+      },
+      {
+        "id": "summaries/hook",
+        "path": "schemas/summaries/hook.schema.json"
+      },
+      {
+        "id": "summaries/note",
+        "path": "schemas/summaries/note.schema.json"
+      }
     ]
   },
   "prose": [
-    { "file": "README.md", "title": "README" },
-    { "file": "versioning.md", "title": "Versioning policy" },
-    { "file": "CHANGELOG.md", "title": "Spec changelog" },
-    { "file": "architecture.md", "title": "Architecture" },
-    { "file": "cli-contract.md", "title": "CLI contract" },
-    { "file": "dispatch-lifecycle.md", "title": "Dispatch lifecycle" },
-    { "file": "job-events.md", "title": "Job events" },
-    { "file": "prompt-preamble.md", "title": "Prompt preamble" },
-    { "file": "db-schema.md", "title": "Database schema" },
-    { "file": "plugin-kv-api.md", "title": "Plugin KV API" }
+    {
+      "file": "README.md",
+      "title": "README"
+    },
+    {
+      "file": "versioning.md",
+      "title": "Versioning policy"
+    },
+    {
+      "file": "CHANGELOG.md",
+      "title": "Spec changelog"
+    },
+    {
+      "file": "architecture.md",
+      "title": "Architecture"
+    },
+    {
+      "file": "cli-contract.md",
+      "title": "CLI contract"
+    },
+    {
+      "file": "dispatch-lifecycle.md",
+      "title": "Dispatch lifecycle"
+    },
+    {
+      "file": "job-events.md",
+      "title": "Job events"
+    },
+    {
+      "file": "prompt-preamble.md",
+      "title": "Prompt preamble"
+    },
+    {
+      "file": "db-schema.md",
+      "title": "Database schema"
+    },
+    {
+      "file": "plugin-kv-api.md",
+      "title": "Plugin KV API"
+    }
   ],
   "interfaces": [
-    { "file": "interfaces/security-scanner.md", "title": "Security scanner interface" }
+    {
+      "file": "interfaces/security-scanner.md",
+      "title": "Security scanner interface"
+    }
   ],
   "conformance": {
     "casesDir": "conformance/cases",
     "fixturesDir": "conformance/fixtures",
     "cases": [
-      { "id": "basic-scan", "file": "conformance/cases/basic-scan.json" }
+      {
+        "id": "basic-scan",
+        "file": "conformance/cases/basic-scan.json"
+      }
     ]
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "files": {
+      "CHANGELOG.md": "b0a4575c5a8d0b174be3181675977e99a0ab5b32342d5b2c8c2d5fc294437264",
+      "README.md": "d2b4c6debb9b7c4fdd34488e237672d8aff7687715744cf2c455977d5bc9813d",
+      "architecture.md": "fdb1ed50f12bf7b7fb89663c651277b7ba5ed729bd3dc02f3963c51e4d480b12",
+      "cli-contract.md": "ddb7d62f45398866dba2f25da544f8376d76582170712cb5a0010bb826ffb46a",
+      "conformance/README.md": "682716bd92559e61ec6795ac9d2a54c6cb417d946f0ec87a06880c0c12921288",
+      "conformance/cases/basic-scan.json": "24623da0cad8c8c54b3ff9b09820ea1276fe8b8f0fc680bf6e8abeb4edb8e424",
+      "conformance/fixtures/minimal-claude/agents/reviewer.md": "d0dd681ba63838301e480116aa09825329f01832b0116de5c5476fdd8a5dcf54",
+      "conformance/fixtures/minimal-claude/commands/status.md": "3f36e053fd1c059ffd902f84a55be8a458c26072f97cb37dd7e97314ae2a9bf5",
+      "conformance/fixtures/minimal-claude/hooks/pre-commit.md": "ec9cec8ac4ce34d40ec055ffd90e8f06ea3e5764d6ec3ee84e0d97de71b930c7",
+      "conformance/fixtures/minimal-claude/notes/architecture.md": "5a7e6fdbb1556733dacebad63758057dc1e19090b5a983292c0c65e90b98bcf1",
+      "conformance/fixtures/minimal-claude/skills/hello.md": "8598074020430f294ff1eac39876302448f004b6c48446d453092159319bcbee",
+      "conformance/fixtures/preamble-v1.txt": "1e0aeef224b64477bdc13a949c3ad402e68249caf499ecdba1302371677c068b",
+      "db-schema.md": "490e539f771fb9781fc97afef4f16d86b19eb9ecd9080eca9fcb8bc9605ae0a4",
+      "dispatch-lifecycle.md": "e2367bb51c638a9fbb20eec35c0603b2c4adb3668add50fec7be676521798f16",
+      "interfaces/security-scanner.md": "468f8ee412594b14b389c36cefa9ca75a5dec652adbf03ab8bbc7f57ca980253",
+      "job-events.md": "947d2124acc29f78df8f493549f0d1bdff8159caf621fe8307423c90d7d05f58",
+      "plugin-kv-api.md": "fb7cbaea6e18ad696e108fd6ec7a118dc9be6ffef4cf08cc92e511feafa9be30",
+      "prompt-preamble.md": "12f7489b5d9886070cfa43cf1f3871b46f2b478f3ead0db292f13e46239b417b",
+      "schemas/conformance-case.schema.json": "2740874e00269de6d8121300339401d0283197b6d97dcd77538ec5d108b14de2",
+      "schemas/execution-record.schema.json": "ec0f3acf1d0ce099c059d73eb434936bfd1bcf12023693bd572efb2a7352faa6",
+      "schemas/frontmatter/agent.schema.json": "3c7ff5e485c1edd40d643ba0e0669fb920a511dfc174b91caff63473585b993d",
+      "schemas/frontmatter/base.schema.json": "d5cb9460e855a9a1e5e6afb509e0d44165e2fbe02cd2cfc8f4a437906260f980",
+      "schemas/frontmatter/command.schema.json": "7b8463ce9c83edd2e3073dd4cd1bbeec4b42e53b03b48bc9a59e540136c2de89",
+      "schemas/frontmatter/hook.schema.json": "4f935bb2a94c6b08795e7e10a473d5185e5abaa8c215152d41036291835b7aad",
+      "schemas/frontmatter/note.schema.json": "9806b371193c802803638682f9a625f8277152ad3ef68939eb5f05fff2ef65f4",
+      "schemas/frontmatter/skill.schema.json": "b99b8ab23bee01333b4a04946cd9fc13d373d827ef6ddfc7d058daf637f2f80b",
+      "schemas/issue.schema.json": "40f6f8abadcce0fd8eac9df27ffcc20b2fc9fda6970142ddb8e7e56b1760b9b1",
+      "schemas/job.schema.json": "6e6e791b63cf72591a5a9c72f469b803a69d9bdb6687d780d797ee1f47f8b9f4",
+      "schemas/link.schema.json": "3e92f5c9def61a857a2c7b22846d82b988157de083463615144ddc92403a489e",
+      "schemas/node.schema.json": "14f345fac450f5728c895d1b878e0015eabb9d72ba9da4a8d2236c82933d3fcf",
+      "schemas/plugins-registry.schema.json": "69388548a51496f2597145154911a208bef12d5c805ed71901e236525dccadf9",
+      "schemas/project-config.schema.json": "a2aa639f123f303b086683d41f350ccf3929eb23d7f7c9de296da5fbe96d3e0e",
+      "schemas/report-base.schema.json": "a1021e9a59b4df9f99cd92454d797e88469766e7d49f52d231c4645ffdfdad8f",
+      "schemas/scan-result.schema.json": "5efe9b1954c5e729c4b55dbc4dd51263d97967d16c0b3cea398877ace74d37b7",
+      "schemas/summaries/agent.schema.json": "3d22558eeb170e00c4fc32018a810d27333cc632c9e528ff386100cfdfded087",
+      "schemas/summaries/command.schema.json": "2bffd606b24f7df9ccd13890af8725adfbfb8a2d7782fee1e0ac5250b9059117",
+      "schemas/summaries/hook.schema.json": "36f876f3b1a60d45be97a0848c79fd18744b434dfdcefc366f033b253d56268c",
+      "schemas/summaries/note.schema.json": "ae510f3ee1b6092c1061625e425c9bb7de9c9caa3f3774770c148f658d505753",
+      "schemas/summaries/skill.schema.json": "f01bab92c51d64ee23e61587e42cf0dc5b37a2f518f5b12b3d1d456390338aa8",
+      "versioning.md": "c526fb0068672016411a6660fe4a0ec5ef78086da96ba5e8277ce4e6adfec4bc"
+    }
   }
 }

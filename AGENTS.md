@@ -239,7 +239,8 @@ Step 0a is **in progress**. The `spec/` tree is partially populated. Work was do
 
 - **Never run `git push`** — pushing is manual.
 - **Never commit automatically** — completing work ≠ commit. Commit only when explicitly asked.
-- **Never bump versions manually** — CI (`.github/workflows/bump-version.yml`) handles it.
+- **Never bump versions manually** — every PR that touches a workspace (`spec/` today, `src/` later) ships a `.changeset/*.md` (`npm run changeset`). The `release` workflow opens a "Version Packages" PR; merging it bumps versions and publishes. See `CONTRIBUTING.md`.
+- **Regenerate `spec/index.json` after any `spec/` change** — `npm run spec:index`. CI runs `npm run spec:check` and fails on drift. The integrity block is deterministic; do not hand-edit.
 - **All artifacts in English** — code, commits, PRs, docs. Conversation language follows `CLAUDE.md` activation rule.
 - **Paths**: prefer relative over absolute in bash commands and agent prompts.
 - **Temp files**: use `.tmp/` (project-local, gitignored), not `/tmp/` or `/var/tmp/`. **This applies to every temp path an AI agent writes**, including intermediate files for `awk`, `sed`, `diff`, `grep`, piped scripts, and extracted snippets. If `.tmp/` does not exist, create it (`mkdir -p .tmp`). Never write a temp file outside the repo.
