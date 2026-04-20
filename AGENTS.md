@@ -163,6 +163,72 @@ Mandatory for MVP:
 
 Cursor support, remote scanning, graph diff across commits, live-system sync, query language, invocation metrics, MCP server as primary interface, hook-based activation, Python runtime, `br` task tracking, custom snapshot system for undo (use Git directly).
 
+## Spec bootstrap status
+
+Step 0a is **in progress**. The `spec/` tree is partially populated. Work was done collaboratively with `Arquitecto` (owner) across focused review phases. Any AI agent that modifies or extends `spec/` MUST read this section first.
+
+### What exists (done)
+
+- **Foundation** (`spec/README.md`, `spec/CHANGELOG.md`, `spec/versioning.md`) — full.
+- **JSON Schemas** (`spec/schemas/`) — 20 files, all JSON Schema **draft 2020-12**:
+  - 9 top-level: `node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`.
+  - 6 frontmatter: `base` + `skill` / `agent` / `command` / `hook` / `note` (kind schemas extend base via `allOf`).
+  - 5 summaries: `skill` / `agent` / `command` / `hook` / `note` (all extend `report-base` via `allOf`).
+- **Prose docs** (all 7): `architecture.md`, `cli-contract.md`, `dispatch-lifecycle.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`.
+- **Interfaces**: `spec/interfaces/security-scanner.md` (convention over the Action kind; no new extension kind).
+- Placeholder dirs: `spec/conformance/{cases,fixtures}/`.
+
+### What's pending (closes Step 0a)
+
+- Conformance stub: a minimal fixture set (one MD per kind) + 1–2 declarative cases under `spec/conformance/cases/`.
+- `@skill-map/spec` npm package skeleton: `spec/package.json` with `name`, `exports` for schemas, `files` whitelist.
+- Domain provisioning for `skill-map.dev` so that `$id` URLs resolve. Scheduled right after this bootstrap commit.
+
+### Conventions locked during bootstrap (do NOT change unilaterally)
+
+- **Casing**: camelCase for every JSON key (domain types, config files, plugin manifests, reports). File names remain kebab-case. Rationale discussed and decided — JS/TS ecosystem, JSON Schema self-convention, Kysely `CamelCasePlugin` alignment.
+- **`$id` scheme**: `https://skill-map.dev/spec/v0/<path>.schema.json`. `v0` stays until the first stable cut; then bumps to `v1`. Domain not yet provisioned — registration is a follow-up.
+- **Schema dialect**: JSON Schema 2020-12 everywhere.
+- **Identity**: `node.path` is the canonical node identifier in v0 (relative path from scope root). A sibling `id` field (UUID in frontmatter) lands with write-back, post-v1.
+- **Required frontmatter**: `name`, `description`, `metadata`, `metadata.version`. Everything else optional.
+- **Permissive-shape / strict-rule split**: frontmatter schemas use `additionalProperties: true` because user-authored — policy (`unknown-field` rule) is separate from shape. Summary schemas use `additionalProperties: false` because kernel controls the output shape and strictness catches model hallucinations.
+- **Execution record id**: `e-YYYYMMDD-HHMMSS-XXXX`. Run id: `r-YYYYMMDD-HHMMSS-XXXX`. Job id: `d-YYYYMMDD-HHMMSS-XXXX`. Same shape, different prefix per scope.
+- **Exit codes**: 0 ok / 1 issues / 2 error / 3 duplicate / 4 nonce-mismatch / 5 not-found. 6–15 reserved.
+- **Deprecation window**: 3 minors between `stable → deprecated` and removal.
+- **Stability tags**: inline in schema `description` and in prose as `**Stability: experimental**`. No dedicated machine-readable field.
+- **Prompt preamble**: the text in `prompt-preamble.md` is **verbatim normative** — byte-for-byte reproducible, hashed into `promptTemplateHash`, conformance suite will store it as `conformance/fixtures/preamble-v1.txt`.
+- **Escape of `</user-content>` inside user content**: insert zero-width space before `>` (`</user-content&#x200B;>`). Reversed only for display, never when hashing.
+- **Storage mode per plugin**: exactly one (`kv` OR `dedicated`). Mixing is forbidden. A plugin that needs both KV-like and relational access uses mode B and implements KV-style rows as a dedicated table.
+- **Security scanners**: convention over the Action kind (id prefix `security-`, report extends `report-base` with `scanner` / `findings` / `stats`). NOT a new extension kind — the six kinds remain locked. Marked `Stability: experimental` across v0.x.
+- **Exit codes extended**: 4 = nonce-mismatch, 5 = not-found (on top of ROADMAP's 0/1/2/3). 6–15 reserved for future spec use. ≥16 free for verb-specific use.
+- **Env vars normativos**: `SKILL_MAP_SCOPE`, `SKILL_MAP_JSON`, `SKILL_MAP_DB`, `NO_COLOR`. Precedence: flag > env > config > default.
+
+### Rules for AI agents editing `spec/`
+
+1. **Spec is the source of truth**. When spec and `ROADMAP.md` disagree, spec wins. ROADMAP is the design narrative; it may lag.
+2. **Every normative change → `spec/CHANGELOG.md` entry** in the `[Unreleased]` section, classified as patch / minor / major per `spec/versioning.md`.
+3. **Breaking changes → major bump required**. Do not sneak breaking changes into a minor. The semver policy in `versioning.md` is strict — read it before any structural change.
+4. **Update spec first, then `src/`**. The inverse is a policy violation caught in review. If a proposed feature cannot land in spec (because the shape isn't clear yet), it is not ready for implementation.
+5. **JSON Schema files MUST parse**. Run `node -e "JSON.parse(require('fs').readFileSync('<file>','utf8'))"` after every edit. A future conformance CI job will enforce this.
+6. **Never hand-edit `conformance/fixtures/preamble-v*.txt`**. The text in `prompt-preamble.md` is authoritative; regenerate fixtures from it.
+7. **Cross-schema references**: use relative paths in `$ref` (e.g. `"base.schema.json"`, `"../report-base.schema.json"`). Do NOT use absolute URLs in `$ref` — those are reserved for `$id`.
+8. **Prose docs follow the convention**: each ends with a `## Stability` section stating what is stable as of v1.0.0 and what bump is required for future changes.
+9. **Schemas under `schemas/frontmatter/*` extend `base.schema.json` via `allOf`**. Schemas under `schemas/summaries/*` extend `../report-base.schema.json` via `allOf`. Do not copy fields; reference them.
+10. **Conformance tests** (`spec/conformance/cases/`) MUST exist for every schema before the spec cuts v1.0.0. Missing conformance case → missing release.
+
+### Maintenance checklist (apply on any `spec/` PR)
+
+- [ ] JSON Schema files parse.
+- [ ] `$id` is present, uses the canonical scheme, matches file path.
+- [ ] Any new required field has a migration note in CHANGELOG.
+- [ ] camelCase for JSON keys; kebab-case for file names.
+- [ ] Stability tag set where non-obvious (`experimental` / `stable` / `deprecated`).
+- [ ] `CHANGELOG.md` updated under `[Unreleased]` with the correct classification.
+- [ ] If the preamble text changed: conformance fixture regenerated and tests re-run.
+- [ ] Prose doc ends with a `## Stability` section.
+- [ ] No absolute URL in `$ref`.
+- [ ] Extends `base` / `report-base` via `allOf` where applicable; no field duplication.
+
 ## Rules for agents working in this repo
 
 - **Never run `git push`** — pushing is manual.

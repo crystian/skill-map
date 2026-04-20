@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/execution-record.schema.json",
+  "title": "ExecutionRecord",
+  "description": "A single row in the execution history (`state_executions`). One record per action or audit invocation — regardless of whether the runner was CLI, Skill, or in-process.",
+  "type": "object",
+  "required": ["id", "kind", "extensionId", "extensionVersion", "status", "startedAt", "finishedAt"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Unique execution id. Format: `e-YYYYMMDD-HHMMSS-XXXX`."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["action", "audit"],
+      "description": "Which extension kind was executed."
+    },
+    "extensionId": {
+      "type": "string",
+      "description": "Id of the action or audit that ran (e.g. `skill-summarizer`, `validate-all`)."
+    },
+    "extensionVersion": {
+      "type": "string",
+      "description": "Semver of the extension implementation at execution time."
+    },
+    "nodeIds": {
+      "type": "array",
+      "description": "Target `node.path` values. Empty for audits that evaluate the whole graph.",
+      "items": { "type": "string" }
+    },
+    "contentHash": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Duplicate-prevention hash used at submit time: sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash). Null for audits."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed", "cancelled"],
+      "description": "Terminal status. History never stores `queued` or `running` — those live in `state_jobs` until they reach a terminal state."
+    },
+    "failureReason": {
+      "type": ["string", "null"],
+      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-cancelled", null],
+      "description": "Normalized reason when `status = failed` or `cancelled`. Null for `completed`."
+    },
+    "exitCode": {
+      "type": ["integer", "null"],
+      "description": "Subprocess exit code for CLI-runner executions. Null for in-process or Skill-runner executions."
+    },
+    "runner": {
+      "type": ["string", "null"],
+      "enum": ["cli", "skill", "in-process", null],
+      "description": "Which runner executed this job. Null for audits."
+    },
+    "startedAt": {
+      "type": "integer",
+      "description": "Unix milliseconds."
+    },
+    "finishedAt": {
+      "type": "integer",
+      "description": "Unix milliseconds."
+    },
+    "durationMs": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Finished - started. Stored denormalized for query speed."
+    },
+    "tokensIn": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Input tokens reported by the runner. Null if not applicable or not reported."
+    },
+    "tokensOut": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Output tokens reported by the runner."
+    },
+    "reportPath": {
+      "type": ["string", "null"],
+      "description": "Path to the written report, relative to scope root. Null for actions that don't produce a report file."
+    },
+    "jobId": {
+      "type": ["string", "null"],
+      "description": "Originating job id when applicable. Null for audits and in-process actions."
+    }
+  }
+}

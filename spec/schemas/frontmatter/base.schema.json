@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json",
+  "title": "FrontmatterBase",
+  "description": "Base shape of the YAML frontmatter block on every node, across all kinds. Kind-specific schemas (`skill`, `agent`, `command`, `hook`, `note`) extend this via `allOf`. camelCase keys throughout. `additionalProperties` is intentionally permissive; the deterministic `unknown-field` rule emits warnings for keys outside the catalog so that the JSON Schema remains shape-only and policy lives in rules.",
+  "type": "object",
+  "required": ["name", "description", "metadata"],
+  "additionalProperties": true,
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Short human-readable identifier. REQUIRED."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-to-three-sentence description. REQUIRED."
+    },
+    "type": {
+      "type": "string",
+      "description": "User-declared kind hint. Optional; the adapter may use it to tie-break classification. Free-form string so that new kinds introduced by adapters don't require a spec bump."
+    },
+    "author": {
+      "type": "string",
+      "description": "Primary author. Denormalized into `node.author` for query speed."
+    },
+    "authors": {
+      "type": "array",
+      "description": "Additional authors. MAY include the primary author; consumers dedupe on display.",
+      "items": { "type": "string" }
+    },
+    "license": {
+      "type": "string",
+      "description": "SPDX license identifier (e.g. `MIT`, `Apache-2.0`)."
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Structured metadata. REQUIRED. `version` inside is REQUIRED; all other fields are optional.",
+      "required": ["version"],
+      "additionalProperties": true,
+      "properties": {
+        "github": { "type": "string", "description": "GitHub handle or profile URL." },
+        "homepage": { "type": "string", "format": "uri" },
+        "linkedin": { "type": "string" },
+        "twitter": { "type": "string" },
+
+        "version": {
+          "type": "string",
+          "description": "Semver of this node's content. REQUIRED. Denormalized into `node.version`."
+        },
+        "specCompat": {
+          "type": "string",
+          "description": "Semver range of spec versions this node targets."
+        },
+        "stability": {
+          "type": "string",
+          "enum": ["experimental", "stable", "deprecated"],
+          "description": "Maturity tag. Denormalized into `node.stability`."
+        },
+        "supersedes": {
+          "type": "array",
+          "description": "`node.path` values this node replaces. Feeds the `supersedes` link kind.",
+          "items": { "type": "string" }
+        },
+        "supersededBy": {
+          "type": "string",
+          "description": "`node.path` that replaces this one. Inverse of `supersedes`."
+        },
+
+        "source": {
+          "type": "string",
+          "format": "uri",
+          "description": "Canonical origin URL (e.g. GitHub blob). Consumed by enrichment plugins for hash verification."
+        },
+        "sourceVersion": {
+          "type": "string",
+          "description": "Tag, SHA, or branch at the source. Branches are resolved dynamically by enrichment."
+        },
+
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "category": { "type": "string" },
+        "keywords": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+
+        "created": { "$ref": "#/$defs/IsoDate", "description": "ISO 8601 date (`YYYY-MM-DD`) or date-time." },
+        "updated": { "$ref": "#/$defs/IsoDate", "description": "ISO 8601 date (`YYYY-MM-DD`) or date-time." },
+        "released": { "$ref": "#/$defs/IsoDate", "description": "ISO 8601 date (`YYYY-MM-DD`) or date-time." },
+
+        "requires": {
+          "type": "array",
+          "description": "`node.path` or plugin id values this node depends on.",
+          "items": { "type": "string" }
+        },
+        "conflictsWith": {
+          "type": "array",
+          "description": "Nodes or plugin ids that MUST NOT be co-enabled with this one.",
+          "items": { "type": "string" }
+        },
+        "provides": {
+          "type": "array",
+          "description": "Capability tokens this node advertises (free-form strings).",
+          "items": { "type": "string" }
+        },
+        "related": {
+          "type": "array",
+          "description": "`node.path` values for see-also navigation. No strict semantics.",
+          "items": { "type": "string" }
+        },
+
+        "icon": { "type": "string", "description": "Free-form icon hint (emoji, lucide name, URL)." },
+        "color": { "type": "string", "description": "CSS color or predefined palette token." },
+        "priority": { "type": "integer", "description": "Higher = surface earlier in UI listings." },
+        "hidden": { "type": "boolean", "description": "UI hint: hide from default lists." },
+
+        "docsUrl": { "type": "string", "format": "uri" },
+        "readme": { "type": "string", "description": "Relative or absolute path to an extended README for this node." },
+        "examplesUrl": { "type": "string", "format": "uri" }
+      }
+    }
+  },
+  "$defs": {
+    "IsoDate": {
+      "type": "string",
+      "anyOf": [
+        { "format": "date" },
+        { "format": "date-time" }
+      ]
+    }
+  }
+}

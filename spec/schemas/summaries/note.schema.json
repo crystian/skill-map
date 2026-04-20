@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/summaries/note.schema.json",
+  "title": "SummaryNote",
+  "description": "Report produced by `note-summarizer` for a single `note` node. Extends `report-base.schema.json`. Stability: experimental.",
+  "allOf": [
+    { "$ref": "../report-base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["whatItCovers"],
+  "additionalProperties": false,
+  "properties": {
+    "confidence": true,
+    "safety": true,
+    "whatItCovers": {
+      "type": "string",
+      "description": "One-sentence summary of the note's subject matter. REQUIRED. Named distinctly from `whatItDoes` since notes describe, not act."
+    },
+    "topics": {
+      "type": "array",
+      "description": "Topical tags inferred from the body. Feed into tag-based discovery and `related` link inference.",
+      "items": { "type": "string" }
+    },
+    "keyFacts": {
+      "type": "array",
+      "description": "Discrete claims or data points the note asserts. Useful for search and diffing over time.",
+      "items": { "type": "string" }
+    },
+    "relatedNodes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "qualityNotes": {
+      "type": "string"
+    }
+  }
+}

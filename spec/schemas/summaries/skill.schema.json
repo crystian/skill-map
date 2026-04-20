@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/summaries/skill.schema.json",
+  "title": "SummarySkill",
+  "description": "Report produced by `skill-summarizer` for a single `skill` node. Extends `report-base.schema.json`. Stability: experimental — field set may tighten as real summarizer output stabilizes.",
+  "allOf": [
+    { "$ref": "../report-base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["whatItDoes"],
+  "additionalProperties": false,
+  "properties": {
+    "confidence": true,
+    "safety": true,
+    "whatItDoes": {
+      "type": "string",
+      "description": "One-sentence summary of what the skill accomplishes. REQUIRED."
+    },
+    "recipe": {
+      "type": "array",
+      "description": "Ordered steps inferred from the skill body. Optional; empty array when the skill is declarative rather than procedural.",
+      "items": {
+        "type": "object",
+        "required": ["step", "description"],
+        "additionalProperties": false,
+        "properties": {
+          "step": { "type": "integer", "minimum": 1 },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "preconditions": {
+      "type": "array",
+      "description": "Conditions that must be true before the skill can run productively.",
+      "items": { "type": "string" }
+    },
+    "outputs": {
+      "type": "array",
+      "description": "Artifacts or observable effects the skill produces when it completes successfully.",
+      "items": { "type": "string" }
+    },
+    "sideEffects": {
+      "type": "array",
+      "description": "State changes outside the immediate output: files touched, processes spawned, network calls.",
+      "items": { "type": "string" }
+    },
+    "relatedNodes": {
+      "type": "array",
+      "description": "`node.path` values the summarizer inferred as related. Feeds `related` links at medium confidence.",
+      "items": { "type": "string" }
+    },
+    "qualityNotes": {
+      "type": "string",
+      "description": "Free-form notes: ambiguity in the source, potentially misleading wording, outdated references."
+    }
+  }
+}

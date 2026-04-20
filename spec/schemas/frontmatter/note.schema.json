@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/frontmatter/note.schema.json",
+  "title": "FrontmatterNote",
+  "description": "Frontmatter shape for nodes classified as `note`. Extends `base.schema.json` with no additional fields. Exists so that every kind has a matching schema for uniform routing.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "additionalProperties": true
+}

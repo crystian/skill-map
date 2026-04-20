@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/project-config.schema.json",
+  "title": "ProjectConfig",
+  "description": "Shape of `.skill-map.json` at the project root. All fields optional; defaults apply when absent. camelCase keys throughout — consistent with the rest of the spec.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Config file shape version. Bumped on breaking changes to this schema."
+    },
+    "adapters": {
+      "type": "array",
+      "description": "Adapter ids to enable, in priority order when multiple match. Empty/absent = use all registered.",
+      "items": { "type": "string" }
+    },
+    "roots": {
+      "type": "array",
+      "description": "Directories (relative to the config file) to scan. Defaults to the scope root.",
+      "items": { "type": "string" }
+    },
+    "ignore": {
+      "type": "array",
+      "description": "Glob patterns to exclude, in addition to `.skill-mapignore`.",
+      "items": { "type": "string" }
+    },
+    "scan": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "tokenize": { "type": "boolean", "description": "Whether to compute token counts. Default true." },
+        "strict": { "type": "boolean", "description": "Promote frontmatter warnings to errors. Default false." },
+        "followSymlinks": { "type": "boolean", "description": "Default false." }
+      }
+    },
+    "plugins": {
+      "type": "object",
+      "description": "Per-plugin enable/disable overrides. Keys are plugin ids. Absent = use installed default (enabled).",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "config": { "type": "object", "description": "Plugin-specific config passed to extensions at load time. Shape defined by the plugin.", "additionalProperties": true }
+        }
+      }
+    },
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "share": {
+          "type": "boolean",
+          "description": "When true, `./.skill-map/history.json` is intended to be committed. Stability: experimental. Default false."
+        },
+        "retentionDays": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long to keep execution records before GC."
+        }
+      }
+    },
+    "jobs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "graceMultiplier": { "type": "number", "minimum": 1, "description": "Default grace multiplier applied to `expectedDurationSeconds`. Default 3." },
+        "minimumTtlSeconds": { "type": "integer", "minimum": 1, "description": "Floor for computed TTL. Default 60." },
+        "perActionTtl": {
+          "type": "object",
+          "description": "Per-action TTL overrides (seconds). Keys are action ids.",
+          "additionalProperties": { "type": "integer", "minimum": 1 }
+        }
+      }
+    },
+    "i18n": {
+      "type": "object",
+      "description": "Stability: experimental.",
+      "additionalProperties": false,
+      "properties": {
+        "locale": { "type": "string", "description": "BCP-47 tag. Default `en`." }
+      }
+    }
+  }
+}

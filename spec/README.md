@@ -1,0 +1,105 @@
+# skill-map spec
+
+The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Obsidian vaults, docs sites, and any future platform).
+
+This document is the **source of truth**. The reference implementation under `../src/` conforms to this spec. Third parties can build alternative implementations (any language, any UI, any CLI) using only `spec/`, without reading the reference source.
+
+## What this spec defines
+
+- The **domain model**: nodes, links, issues, scan results.
+- The **extension contract**: six extension kinds (detector, adapter, rule, action, audit, renderer) with their input/output shapes.
+- The **CLI contract**: verb set, flags, exit codes, JSON introspection.
+- The **persistence contract**: table catalog owned by the kernel, plugin key-value API.
+- The **job contract**: lifecycle states, event stream, prompt preamble, dispatch semantics.
+- The **frontmatter standard**: base fields and per-kind extensions.
+- The **summary standard**: shape of action-produced summaries per kind.
+- The **plugin manifest**: metadata, spec-compat range, storage mode, security declarations.
+
+## What this spec does not define
+
+- Language or runtime of the implementation.
+- Database engine (spec assumes a relational, SQL-like store; engine-agnostic).
+- UI framework, theming, layout.
+- Test framework (conformance suite is language-neutral data, not code).
+- Logging format, telemetry, or distribution channels.
+- Plugin marketplace mechanics.
+
+These are implementation decisions. The reference impl picks them (see `../CLAUDE.md` and `../ROADMAP.md`); other implementations may pick differently and still conform.
+
+## Properties
+
+- **Machine-readable**: all domain shapes are JSON Schemas. Validate from any language that has a JSON Schema validator.
+- **Human-readable**: prose documents for each subsystem, with examples.
+- **Independently versioned**: spec `v1.0.0` can be implemented by CLI `v0.3.2`. See `versioning.md`.
+- **Platform-neutral**: no platform (Claude Code, Obsidian, …) is privileged. Each is expressed as an adapter extension.
+- **Conformance-tested**: every conforming implementation passes the suite under `conformance/`. Pass/fail is binary.
+
+## Repo layout
+
+```
+spec/
+├── README.md                   ← this file
+├── CHANGELOG.md                ← spec history (independent from CLI)
+├── versioning.md               ← evolution policy
+├── architecture.md             ← hexagonal ports & adapters                    (Step 0a phase 3)
+├── cli-contract.md             ← verbs, flags, exit codes, JSON introspection  (Step 0a phase 3)
+├── job-events.md               ← canonical event stream schema                 (Step 0a phase 3)
+├── prompt-preamble.md          ← canonical injection-mitigation preamble      (Step 0a phase 3)
+├── db-schema.md                ← table catalog (kernel-owned)                  (Step 0a phase 3)
+├── plugin-kv-api.md            ← ctx.store contract for storage mode A        (Step 0a phase 3)
+├── dispatch-lifecycle.md       ← queued → running → completed | failed        (Step 0a phase 3)
+├── schemas/                    ← JSON Schemas (Step 0a phase 2)
+│   ├── node.schema.json
+│   ├── link.schema.json
+│   ├── issue.schema.json
+│   ├── scan-result.schema.json
+│   ├── execution-record.schema.json
+│   ├── project-config.schema.json
+│   ├── plugins-registry.schema.json
+│   ├── job.schema.json
+│   ├── report-base.schema.json
+│   ├── frontmatter/
+│   │   ├── base.schema.json
+│   │   ├── skill.schema.json
+│   │   ├── agent.schema.json
+│   │   ├── command.schema.json
+│   │   ├── hook.schema.json
+│   │   └── note.schema.json
+│   └── summaries/
+│       ├── skill.schema.json
+│       ├── agent.schema.json
+│       ├── command.schema.json
+│       ├── hook.schema.json
+│       └── note.schema.json
+├── interfaces/
+│   └── security-scanner.md     ← contract for third-party security plugins
+└── conformance/
+    ├── fixtures/               ← controlled MD corpora
+    └── cases/                  ← declarative test cases (JSON)
+```
+
+## How to read this spec
+
+- **Building a tool or plugin that consumes skill-map output?** Start with `schemas/scan-result.schema.json` and `schemas/node.schema.json`.
+- **Building a custom detector, rule, or renderer?** Read `architecture.md`, then the relevant schema.
+- **Building an alternative CLI implementation?** Read `cli-contract.md` and run `conformance/`.
+- **Integrating a new platform (adapter)?** Read `architecture.md` §adapters, then the Claude adapter source in `../src/extensions/adapters/claude/` as a worked example.
+- **Shipping a job-running runner?** Read `job-events.md`, `dispatch-lifecycle.md`, `prompt-preamble.md`.
+
+## Relationship to the reference implementation
+
+The reference implementation (`../src/`) is one conforming consumer of this spec. It ships the CLI binary `sm`, a built-in SQLite storage adapter, and a bundle of default extensions.
+
+The reference impl has no privileged access to the spec. Breaking changes to the spec must follow `versioning.md` regardless of reference-impl convenience.
+
+When spec and reference impl disagree, the spec wins. File an issue; one of them is wrong.
+
+## Distribution
+
+- This directory is published to npm as `@skill-map/spec`.
+- Schemas are also published to JSON Schema Store when the domain is live.
+- Canonical URLs (stable across versions) land with Step 13.
+
+## License
+
+MIT. See `../LICENSE`.

@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/summaries/command.schema.json",
+  "title": "SummaryCommand",
+  "description": "Report produced by `command-summarizer` for a single `command` node. Extends `report-base.schema.json`. Stability: experimental.",
+  "allOf": [
+    { "$ref": "../report-base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["whatItDoes"],
+  "additionalProperties": false,
+  "properties": {
+    "confidence": true,
+    "safety": true,
+    "whatItDoes": {
+      "type": "string",
+      "description": "One-sentence summary of the command's effect. REQUIRED."
+    },
+    "invocationExample": {
+      "type": "string",
+      "description": "Canonical example invocation, including arguments. Opaque platform-formatted string."
+    },
+    "argsObserved": {
+      "type": "array",
+      "description": "Argument structure as inferred from the body. MAY differ from declared `frontmatter.args`; rules can emit drift issues.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "required": { "type": "boolean" }
+        }
+      }
+    },
+    "sideEffects": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "relatedNodes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "qualityNotes": {
+      "type": "string"
+    }
+  }
+}

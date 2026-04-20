@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/link.schema.json",
+  "title": "Link",
+  "description": "Directed relation between two nodes, produced by one or more detectors during a scan.",
+  "type": "object",
+  "required": ["source", "target", "kind", "confidence", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "`node.path` of the origin."
+    },
+    "target": {
+      "type": "string",
+      "description": "`node.path` of the destination. MAY point to a missing node; rules detect broken refs."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["invokes", "references", "mentions", "supersedes"],
+      "description": "Nature of the relation. `invokes` = execution-level call (e.g. slash command). `references` = explicit link (e.g. wikilink, @-directive). `mentions` = informal textual mention. `supersedes` = replaces another node (from `metadata.supersedes`)."
+    },
+    "confidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Detector's self-assessed confidence. Rules MAY filter by confidence."
+    },
+    "sources": {
+      "type": "array",
+      "description": "Detector ids that produced this link. At least one. Multiple detectors may converge on the same link; kernel merges them.",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "trigger": {
+      "type": ["object", "null"],
+      "description": "Trigger-style link metadata (e.g. slash-command keyword, @-directive keyword). Null for links without a textual trigger.",
+      "required": ["originalTrigger", "normalizedTrigger"],
+      "additionalProperties": false,
+      "properties": {
+        "originalTrigger": {
+          "type": "string",
+          "description": "Exact string as it appears in the source body."
+        },
+        "normalizedTrigger": {
+          "type": "string",
+          "description": "NFD → strip diacritics → lowercase → hyphen/underscore → space → collapse whitespace → trim. Used for collision detection and lookup."
+        }
+      }
+    },
+    "location": {
+      "type": ["object", "null"],
+      "description": "Where in the source body the link was found. Null if the detector didn't track location.",
+      "required": ["line"],
+      "additionalProperties": false,
+      "properties": {
+        "line": { "type": "integer", "minimum": 1 },
+        "column": { "type": "integer", "minimum": 1 },
+        "offset": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "raw": {
+      "type": ["string", "null"],
+      "description": "Verbatim matched substring from the source body. Optional, for debugging and UI display."
+    }
+  }
+}

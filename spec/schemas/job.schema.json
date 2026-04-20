@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/job.schema.json",
+  "title": "Job",
+  "description": "Row in `state_jobs`. Non-terminal state until it reaches `completed` or `failed`, at which point an `ExecutionRecord` is also written.",
+  "type": "object",
+  "required": ["id", "actionId", "actionVersion", "nodeId", "contentHash", "nonce", "status", "ttlSeconds", "createdAt"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^d-\\d{8}-\\d{6}-[0-9a-f]{4}$",
+      "description": "Job id: `d-YYYYMMDD-HHMMSS-XXXX`. Human-readable, sortable."
+    },
+    "actionId": {
+      "type": "string"
+    },
+    "actionVersion": {
+      "type": "string",
+      "description": "Semver of the action implementation at submit time. Frozen for this job."
+    },
+    "nodeId": {
+      "type": "string",
+      "description": "Target `node.path`. `--all` submissions fan out into one job per node."
+    },
+    "contentHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash). Duplicate detection key."
+    },
+    "nonce": {
+      "type": "string",
+      "description": "Unique per-job token. `sm record` requires it to close the job — mismatch rejects with exit code 4."
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Higher = claimed first. Default 0.",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": ["queued", "running", "completed", "failed"],
+      "description": "Lifecycle state. See `dispatch-lifecycle.md` for allowed transitions."
+    },
+    "failureReason": {
+      "type": ["string", "null"],
+      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-cancelled", null],
+      "description": "Populated when `status = failed`."
+    },
+    "runner": {
+      "type": ["string", "null"],
+      "enum": ["cli", "skill", "in-process", null]
+    },
+    "ttlSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Resolved TTL at submit time: max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds). Frozen."
+    },
+    "filePath": {
+      "type": ["string", "null"],
+      "description": "Relative path to the rendered job file (usually `.skill-map/jobs/<id>.md`). Null before rendering."
+    },
+    "createdAt": { "type": "integer", "description": "Unix ms. Submit time." },
+    "claimedAt": { "type": ["integer", "null"], "description": "Unix ms. Null while queued." },
+    "finishedAt": { "type": ["integer", "null"], "description": "Unix ms. Null while not terminal." },
+    "expiresAt": {
+      "type": ["integer", "null"],
+      "description": "Derived = claimedAt + ttlSeconds × 1000. Used by auto-reap. Null while queued."
+    },
+    "submittedBy": {
+      "type": ["string", "null"],
+      "description": "Free-form: username, CI job id, or `skill:<skill-id>`. Optional provenance."
+    }
+  }
+}

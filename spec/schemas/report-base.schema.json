@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/report-base.schema.json",
+  "title": "ReportBase",
+  "description": "Base shape for any probabilistic report produced by an LLM-backed action (summarizers, `sm what`, `sm cluster-triggers`, etc.). All per-kind summary schemas under `summaries/` extend this. Kernel validates the `confidence` and `safety` fields regardless of action-specific extensions.",
+  "type": "object",
+  "required": ["confidence", "safety"],
+  "properties": {
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Model's self-assessed confidence in its own output, 0–1. Not calibrated across models; compare within the same action."
+    },
+    "safety": {
+      "type": "object",
+      "required": ["injectionDetected", "contentQuality"],
+      "additionalProperties": false,
+      "properties": {
+        "injectionDetected": {
+          "type": "boolean",
+          "description": "True when the model flagged a prompt-injection attempt inside the node content. See `prompt-preamble.md` for the contract the model was primed with."
+        },
+        "injectionType": {
+          "type": ["string", "null"],
+          "enum": ["direct-override", "role-swap", "hidden-instruction", "other", null],
+          "description": "Classification. Null when `injectionDetected = false`."
+        },
+        "injectionDetails": {
+          "type": ["string", "null"],
+          "description": "Free-form notes from the model about the injection attempt."
+        },
+        "contentQuality": {
+          "type": "string",
+          "enum": ["clean", "suspicious", "malformed"],
+          "description": "`clean` = normal input. `suspicious` = unusual patterns without a concrete injection. `malformed` = unparseable or structurally broken."
+        }
+      }
+    }
+  }
+}

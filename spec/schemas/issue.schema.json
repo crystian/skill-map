@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/issue.schema.json",
+  "title": "Issue",
+  "description": "Deterministic finding emitted by a rule when evaluating the graph. Not to be confused with `Finding`, which is probabilistic (LLM-produced).",
+  "type": "object",
+  "required": ["ruleId", "severity", "nodeIds", "message"],
+  "additionalProperties": false,
+  "properties": {
+    "ruleId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "Kebab-case identifier of the rule that emitted this issue (e.g. `trigger-collision`, `broken-ref`, `superseded`)."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warn", "info"],
+      "description": "Severity level. `info` is emitted by `--strict` mode for recommendations."
+    },
+    "nodeIds": {
+      "type": "array",
+      "description": "`node.path` values involved in this issue. Most rules emit 1 or 2; trigger-collision may emit N. Field name uses `id` generically to remain stable across future identifier changes.",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "linkIndices": {
+      "type": "array",
+      "description": "Optional indices into the sibling `links[]` array (in the same scan result) that the issue refers to.",
+      "items": { "type": "integer", "minimum": 0 }
+    },
+    "message": {
+      "type": "string",
+      "description": "Short one-line description, human-readable."
+    },
+    "detail": {
+      "type": ["string", "null"],
+      "description": "Longer explanation, markdown-friendly. Optional."
+    },
+    "fix": {
+      "type": ["object", "null"],
+      "description": "Machine-readable fix hint. Stability: experimental — shape may change before v1.",
+      "additionalProperties": false,
+      "properties": {
+        "summary": { "type": "string" },
+        "autofixable": { "type": "boolean" }
+      }
+    },
+    "data": {
+      "type": "object",
+      "description": "Rule-specific structured payload (e.g. the colliding trigger string, the missing target). Free-form.",
+      "additionalProperties": true
+    }
+  }
+}

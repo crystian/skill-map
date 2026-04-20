@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/frontmatter/skill.schema.json",
+  "title": "FrontmatterSkill",
+  "description": "Frontmatter shape for nodes classified as `skill`. Extends `base.schema.json`. Kind-specific fields: `inputs`, `outputs`. Stability: experimental — the parameter shape may tighten once summarizer needs emerge.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "inputs": {
+      "type": "array",
+      "description": "Declared inputs for this skill. Optional structured. Stability: experimental.",
+      "items": { "$ref": "#/$defs/Parameter" }
+    },
+    "outputs": {
+      "type": "array",
+      "description": "Declared outputs. Optional structured. Stability: experimental.",
+      "items": { "$ref": "#/$defs/Parameter" }
+    }
+  },
+  "$defs": {
+    "Parameter": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": { "type": "string", "description": "Free-form type hint (e.g. `string`, `integer`, `path`, `glob`)." },
+        "description": { "type": "string" },
+        "required": { "type": "boolean", "default": false },
+        "default": { "description": "Any JSON value, or a templated string." }
+      }
+    }
+  }
+}

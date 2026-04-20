@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/node.schema.json",
+  "title": "Node",
+  "description": "A single markdown file in the graph (skill, agent, command, hook, note). Identified by its relative path from the scope root.",
+  "type": "object",
+  "required": ["path", "kind", "adapter", "bodyHash", "frontmatterHash", "bytes", "linksOutCount", "linksInCount", "externalRefsCount"],
+  "additionalProperties": false,
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Relative path from the scope root. Canonical node identifier in v0. Survives frontmatter edits; breaks on file moves (rare enough). FUTURE: a sibling `id` field (UUID stored in frontmatter) lands with write-back to decouple identity from location; `path` will remain as display metadata at that point. Stability: stable."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["skill", "agent", "command", "hook", "note"],
+      "description": "Category assigned by the adapter. Stability: stable. New kinds may be added in a minor bump."
+    },
+    "adapter": {
+      "type": "string",
+      "description": "Identifier of the adapter extension that classified this node (e.g. `claude`)."
+    },
+    "title": {
+      "type": ["string", "null"],
+      "description": "Human-readable title. Sourced from frontmatter `name` or falls back to filename. Null if neither is usable."
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "Short description from frontmatter `description`. Null if absent."
+    },
+    "stability": {
+      "type": ["string", "null"],
+      "enum": ["experimental", "stable", "deprecated", null],
+      "description": "Denormalized from `metadata.stability` for fast queries."
+    },
+    "version": {
+      "type": ["string", "null"],
+      "description": "Denormalized from `metadata.version` for fast queries. Must be a valid semver if present."
+    },
+    "author": {
+      "type": ["string", "null"],
+      "description": "Denormalized from `metadata.author` for fast queries."
+    },
+    "frontmatter": {
+      "type": "object",
+      "description": "Full parsed frontmatter. See `frontmatter/base.schema.json` and `frontmatter/<kind>.schema.json`.",
+      "additionalProperties": true
+    },
+    "bodyHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "sha256 of the body content (post-frontmatter), hex-encoded lowercase. Used for rename heuristic (high confidence) and stale detection."
+    },
+    "frontmatterHash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "sha256 of the raw frontmatter block, hex-encoded lowercase. Used for rename heuristic (medium confidence)."
+    },
+    "bytes": {
+      "$ref": "#/$defs/tripleSplit",
+      "description": "Size breakdown in bytes: frontmatter, body, total."
+    },
+    "tokens": {
+      "$ref": "#/$defs/tripleSplit",
+      "description": "Size breakdown in tokens (via `js-tiktoken`): frontmatter, body, total. Optional; MAY be absent if tokenization was disabled."
+    },
+    "linksOutCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Outgoing links from this node to other graph nodes."
+    },
+    "linksInCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Incoming links from other graph nodes to this one."
+    },
+    "externalRefsCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "http/https URLs in the body after normalization and exact-match dedup."
+    }
+  },
+  "$defs": {
+    "tripleSplit": {
+      "type": "object",
+      "required": ["frontmatter", "body", "total"],
+      "additionalProperties": false,
+      "properties": {
+        "frontmatter": { "type": "integer", "minimum": 0 },
+        "body": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

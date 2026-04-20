@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/plugins-registry.schema.json",
+  "title": "PluginsRegistry",
+  "description": "Two shapes in one file: (1) the per-plugin manifest that authors ship as `plugin.json` (see `$defs/PluginManifest`); (2) the aggregate registry the implementation produces on disk (e.g. `~/.skill-map/plugins.json`), which lists all discovered plugins with their compat status. Both shapes are normative. camelCase keys throughout.",
+  "type": "object",
+  "oneOf": [
+    { "$ref": "#/$defs/PluginsRegistry" },
+    { "$ref": "#/$defs/PluginManifest" }
+  ],
+  "$defs": {
+    "PluginManifest": {
+      "type": "object",
+      "required": ["id", "version", "specCompat", "extensions"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+          "description": "Kebab-case, globally unique plugin identifier."
+        },
+        "version": {
+          "type": "string",
+          "description": "Plugin semver."
+        },
+        "specCompat": {
+          "type": "string",
+          "description": "Semver range this plugin is compatible with (e.g. `^1.0.0`, `>=0.3.0 <0.4.0`). Checked via `semver.satisfies(specVersion, this)` at load time."
+        },
+        "description": {
+          "type": "string"
+        },
+        "extensions": {
+          "type": "array",
+          "description": "Relative paths to extension files, resolved from the plugin directory.",
+          "minItems": 1,
+          "items": { "type": "string" }
+        },
+        "storage": {
+          "type": "object",
+          "description": "Persistence mode for this plugin. Absent = plugin does not persist state.",
+          "oneOf": [
+            {
+              "required": ["mode"],
+              "additionalProperties": false,
+              "properties": {
+                "mode": { "const": "kv", "description": "Shared `state_plugin_kv` table, scoped by plugin id." }
+              }
+            },
+            {
+              "required": ["mode", "tables", "migrations"],
+              "additionalProperties": false,
+              "properties": {
+                "mode": { "const": "dedicated", "description": "Plugin-owned tables, prefixed `plugin_<normalizedId>_`." },
+                "tables": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                "migrations": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Relative paths to `.sql` migration files." }
+              }
+            }
+          ]
+        },
+        "author": { "type": "string" },
+        "license": { "type": "string", "description": "SPDX identifier." },
+        "homepage": { "type": "string", "format": "uri" },
+        "repository": { "type": "string", "format": "uri" }
+      }
+    },
+    "PluginsRegistry": {
+      "type": "object",
+      "required": ["schemaVersion", "plugins"],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "type": "integer", "const": 1 },
+        "plugins": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/DiscoveredPlugin" }
+        }
+      }
+    },
+    "DiscoveredPlugin": {
+      "type": "object",
+      "required": ["id", "path", "manifest", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string" },
+        "path": { "type": "string", "description": "Absolute path to the plugin directory." },
+        "manifest": { "$ref": "#/$defs/PluginManifest" },
+        "status": {
+          "type": "string",
+          "enum": ["enabled", "disabled", "incompatible-spec", "invalid-manifest", "load-error"],
+          "description": "Resolved state after discovery. `disabled` = user-disabled via config; others = automatic."
+        },
+        "statusReason": {
+          "type": ["string", "null"],
+          "description": "Human-readable detail when status is anything other than `enabled`."
+        }
+      }
+    }
+  }
+}

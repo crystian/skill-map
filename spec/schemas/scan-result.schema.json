@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/scan-result.schema.json",
+  "title": "ScanResult",
+  "description": "Canonical output of `sm scan --json` (and the data shape sent over WebSocket scan events). Self-describing and versioned; consumers MUST check `schemaVersion` before parsing.",
+  "type": "object",
+  "required": ["schemaVersion", "scannedAt", "scope", "roots", "nodes", "links", "issues", "stats"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Scan result shape version. Bumped only on breaking changes to this schema."
+    },
+    "scannedAt": {
+      "type": "integer",
+      "description": "Unix milliseconds when the scan started."
+    },
+    "scannedBy": {
+      "type": ["object", "null"],
+      "description": "Implementation metadata. Optional so that synthetic fixtures can omit it.",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "description": "Implementation name (e.g. `skill-map`)." },
+        "version": { "type": "string", "description": "Implementation semver." },
+        "specVersion": { "type": "string", "description": "Spec version that this scan conforms to (e.g. `0.1.0`)." }
+      }
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["project", "global"],
+      "description": "Scan scope. `project` walks the cwd repo; `global` walks user-level skill directories."
+    },
+    "roots": {
+      "type": "array",
+      "description": "Filesystem roots that were walked during this scan, as absolute or scope-root-relative paths.",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "adapters": {
+      "type": "array",
+      "description": "Adapter ids that participated in classification. Empty if no adapter matched.",
+      "items": { "type": "string" }
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "node.schema.json" }
+    },
+    "links": {
+      "type": "array",
+      "items": { "$ref": "link.schema.json" }
+    },
+    "issues": {
+      "type": "array",
+      "items": { "$ref": "issue.schema.json" }
+    },
+    "stats": {
+      "type": "object",
+      "required": ["filesWalked", "filesSkipped", "nodesCount", "linksCount", "issuesCount", "durationMs"],
+      "additionalProperties": false,
+      "properties": {
+        "filesWalked": { "type": "integer", "minimum": 0 },
+        "filesSkipped": { "type": "integer", "minimum": 0, "description": "Files walked but not classified by any adapter." },
+        "nodesCount": { "type": "integer", "minimum": 0 },
+        "linksCount": { "type": "integer", "minimum": 0 },
+        "issuesCount": { "type": "integer", "minimum": 0 },
+        "durationMs": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

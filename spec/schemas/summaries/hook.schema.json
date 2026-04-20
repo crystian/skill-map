@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/summaries/hook.schema.json",
+  "title": "SummaryHook",
+  "description": "Report produced by `hook-summarizer` for a single `hook` node. Extends `report-base.schema.json`. Stability: experimental.",
+  "allOf": [
+    { "$ref": "../report-base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["whatItDoes"],
+  "additionalProperties": false,
+  "properties": {
+    "confidence": true,
+    "safety": true,
+    "whatItDoes": {
+      "type": "string",
+      "description": "One-sentence summary of what the hook does when triggered. REQUIRED."
+    },
+    "triggerInferred": {
+      "type": "string",
+      "description": "Event or condition the summarizer inferred from the body. MAY differ from declared `frontmatter.event`/`condition`; rules can emit drift issues."
+    },
+    "sideEffects": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "blockingInferred": {
+      "type": "boolean",
+      "description": "Whether execution appears to block host flow. Compare against declared `frontmatter.blocking`."
+    },
+    "idempotentInferred": {
+      "type": "boolean",
+      "description": "Whether the hook appears safe to run multiple times. Compare against declared `frontmatter.idempotent`."
+    },
+    "relatedNodes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "qualityNotes": {
+      "type": "string"
+    }
+  }
+}
