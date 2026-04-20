@@ -1,5 +1,28 @@
 # Spec changelog
 
+## 0.1.0
+
+### Minor Changes
+
+- 5b3829a: Add conformance case `kernel-empty-boot`:
+
+  - New file: `spec/conformance/cases/kernel-empty-boot.json`.
+  - Exercises the boot invariant from `architecture.md`: with every adapter, detector, and rule disabled, scanning an empty scope MUST return a valid `ScanResult` with `schemaVersion: 1` and zero-filled stats.
+  - Referenced in `conformance/README.md` (§"Cases explicitly referenced elsewhere in the spec"). Entry moved from "pending" to "current" in the case inventory.
+  - Registered in `spec/index.json` and the integrity block (SHA256 regenerated).
+
+  The second pending case, `preamble-bitwise-match`, is deferred to Step 9 (requires `sm job preview` from the job subsystem).
+
+- 4e0aec4: Initial public spec surface (`v0.1.0`):
+
+  - 21 JSON Schemas (draft 2020-12): 10 top-level, 6 frontmatter, 5 summaries.
+  - 7 prose contracts (architecture, cli-contract, dispatch-lifecycle, job-events, prompt-preamble, db-schema, plugin-kv-api).
+  - 1 interface doc (security-scanner).
+  - Conformance stub: `basic-scan` case, `minimal-claude` fixture, verbatim `preamble-v1.txt`.
+  - Machine-readable `index.json` with integrity hashes per file.
+
+  This is the first tagged release of the skill-map specification.
+
 Changelog for the **skill-map specification**, tracked independently from the reference CLI. See `versioning.md` for the policy that governs what constitutes a patch / minor / major change.
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) as refined in `versioning.md`.
@@ -35,7 +58,7 @@ Initial public spec bootstrap (Step 0a phases 1–3).
   - `dispatch-lifecycle.md` — job state machine (queued → running → completed | failed), atomic claim (`UPDATE ... RETURNING id`), duplicate prevention via `contentHash`, TTL with auto-reap, nonce authentication for `sm record`, sequential concurrency for MVP, retention and GC.
   - `job-events.md` — canonical event stream: envelope (`type`, `timestamp`, `runId`, `jobId`, `data`), 10 event types (`run.started`, `run.reap.started`, `run.reap.completed`, `job.claimed`, `job.skipped`, `job.spawning`, `model.delta`, `job.callback.received`, `job.completed`, `job.failed`, `run.summary`), three output adapters (`pretty`, `stream-output`, `json`), ordering rules.
   - `prompt-preamble.md` — verbatim normative preamble text that the kernel prepends to every rendered job file; `<user-content id="...">` delimiter contract with zero-width-space escaping; `safety` + `confidence` contract on model output; conformance fixture at `conformance/fixtures/preamble-v1.txt`.
-  - `db-schema.md` — engine-agnostic table catalog: three zones (`scan_*`, `state_*`, `config_*`), naming conventions (snake_case, zone prefix, `_at` / `_ms` / `_hash` / `_json` / `_count` suffixes, `is_` / `has_` prefixes), kernel table list per zone, migration rules (`.sql` files, `NNN_snake_case.sql`, up-only, auto-backup), plugin storage modes.
+  - `db-schema.md` — engine-agnostic table catalog: three zones (`scan_*`, `state_*`, `config_*`), naming conventions (snake*case, zone prefix, `_at` / `_ms` / `_hash` / `_json` / `_count` suffixes, `is*`/`has\_` prefixes), kernel table list per zone, migration rules (`.sql`files,`NNN_snake_case.sql`, up-only, auto-backup), plugin storage modes.
   - `plugin-kv-api.md` — `ctx.store` contract for mode A (`KvStore.get/set/delete/list`, plugin-scoped, optional node-scoped), mode B dedicated-tables rules (prefix injection, DDL validation, scoped Database wrapper), typed errors (`KvKeyInvalidError`, `KvValueNotSerializableError`, `KvValueTooLargeError`, `KvOperationFailedError`, `ScopedDbViolationError`). Mixing modes in a plugin is forbidden.
 - Interfaces:
   - `interfaces/security-scanner.md` — convention over the Action kind (id prefix `security-`) for third-party security scanners (Snyk, Socket, custom). Defines `SecurityReport` shape extending `report-base.schema.json`, normative finding categories, deduplication rules, aggregation via `sm findings --security`. Marked `Stability: experimental` through v0.x.
