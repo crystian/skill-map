@@ -21,7 +21,7 @@
     "typecheck": "npm run typecheck --workspace=skill-map",
     "test": "npm run test --workspace=skill-map",
     "changeset": "changeset",
-    "changeset:version": "changeset version",
+    "changeset:version": "changeset version && npm run spec:index",
     "changeset:publish": "changeset publish"
   },
   "devDependencies": {
