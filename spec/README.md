@@ -96,9 +96,44 @@ When spec and reference impl disagree, the spec wins. File an issue; one of them
 
 ## Distribution
 
-- This directory is published to npm as `@skill-map/spec`.
-- Schemas are also published to JSON Schema Store when the domain is live.
-- Canonical URLs (stable across versions) land with Step 13.
+Published to npm as [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec).
+
+### Install
+
+```bash
+npm i @skill-map/spec
+```
+
+### Use — load a schema
+
+```js
+import specIndex from '@skill-map/spec';
+import nodeSchema from '@skill-map/spec/schemas/node.schema.json' with { type: 'json' };
+
+console.log(specIndex.specVersion);        // → "0.0.1" (payload version, tracks file shape)
+console.log(specIndex.integrity.algorithm); // → "sha256"
+console.log(nodeSchema.$id);                // → "https://skill-map.dev/spec/v0/node.schema.json"
+```
+
+Every JSON Schema is exported individually via `@skill-map/spec/schemas/*.json`. Prose documents ship in the tarball for reference but are not `exports`-surfaced.
+
+### Verify integrity
+
+The package ships `index.json` with a sha256 per file. To verify a local installation matches what was published:
+
+```js
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import index from '@skill-map/spec';
+
+const file = 'schemas/node.schema.json';
+const actual = createHash('sha256').update(readFileSync(`node_modules/@skill-map/spec/${file}`)).digest('hex');
+console.log(actual === index.integrity.files[file] ? 'ok' : 'drift');
+```
+
+### JSON Schema Store
+
+The schemas will be registered on JSON Schema Store once the canonical URLs under `skill-map.dev/spec/v0/` are stable (Step 13).
 
 ## License
 
