@@ -26,3 +26,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - `Dockerfile` + `Caddyfile` — multi-stage Caddy-based image. Schemas served with `Content-Type: application/schema+json` and CORS `*`. Hardening headers (HSTS, `X-Content-Type-Options`, `Referrer-Policy`).
   - `.github/workflows/spec-validate.yml` — CI on every push/PR touching `spec/`. JSON parse check + build + `$id` verification.
   - Deployment: Railway reads the `Dockerfile`, DNS at Vercel points `skill-map.dev` at Railway.
+- **Reference implementation bootstrap (Step 0b)**:
+  - Kernel hexagonal skeleton: 5 ports (Storage, Filesystem, PluginLoader, Runner, ProgressEmitter) powering the Registry and Orchestrator.
+  - Registry for all 6 extension kinds (Detector, Adapter, Rule, Action, Audit, Renderer) with immutable contract.
+  - `createKernel()` factory and `runScan()` entry point returning a well-formed `ScanResult` with zero extensions.
+  - CLI via Clipanion v4: `sm --version`, `sm --help`, `sm scan [roots...] [--json]`. Binary at `src/bin/sm.mjs` shebangs to `dist/cli.js`.
+  - Contract runner (`src/conformance/index.ts`): loads conformance case JSON, provisions tmp scope, invokes binary, evaluates 5 of 6 assertion types (NYI: `file-matches-schema`).
+  - 13 tests passing end-to-end (Registry, kernel, CLI, conformance runner).
+  - CI job: `build-test` (typecheck + tsup build + node:test).
+  - Spec conformance case `kernel-empty-boot` added; `preamble-bitwise-match` deferred to Step 9 (requires `sm job preview`).
+  - `.changeset/README.md` rewritten as operational cheat sheet (everyday flow, status, CI behavior, manual commands, recovery).
+  - AGENTS.md updated to describe Step 0b progress.

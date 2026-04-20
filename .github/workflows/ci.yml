@@ -44,6 +44,32 @@ jobs:
       - name: Build site + validate $id alignment
         run: node scripts/build-site.mjs
 
+  build-test:
+    name: build + test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: npm ci --ignore-scripts
+
+      - name: Typecheck
+        run: npm run typecheck --workspace=skill-map
+
+      - name: Build (tsup)
+        run: npm run build --workspace=skill-map
+
+      - name: Test
+        run: npm run test:ci --workspace=skill-map
+
   changeset:
     name: require changeset on PR
     if: github.event_name == 'pull_request'

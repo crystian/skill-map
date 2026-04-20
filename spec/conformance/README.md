@@ -100,13 +100,13 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 | Id | Verifies |
 |---|---|
 | `basic-scan` | Scanning `minimal-claude` detects one node per kind with no issues. |
+| `kernel-empty-boot` | With every adapter/detector/rule disabled, scanning an empty scope returns a valid empty graph. |
 
 Cases explicitly referenced elsewhere in the spec (landing before v1.0):
 
 | Id | Source | Verifies |
 |---|---|---|
-| `kernel-empty-boot` | `architecture.md` | Kernel with zero extensions boots and returns an empty graph. |
-| `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job files contain `preamble-v1.txt` byte-for-byte. |
+| `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job files contain `preamble-v1.txt` byte-for-byte. Deferred to Step 9 (requires `sm job preview`). |
 
 ---
 

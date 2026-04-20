@@ -149,6 +149,10 @@
       {
         "id": "basic-scan",
         "file": "conformance/cases/basic-scan.json"
+      },
+      {
+        "id": "kernel-empty-boot",
+        "file": "conformance/cases/kernel-empty-boot.json"
       }
     ]
   },
@@ -159,8 +163,9 @@
       "README.md": "d2b4c6debb9b7c4fdd34488e237672d8aff7687715744cf2c455977d5bc9813d",
       "architecture.md": "fdb1ed50f12bf7b7fb89663c651277b7ba5ed729bd3dc02f3963c51e4d480b12",
       "cli-contract.md": "ddb7d62f45398866dba2f25da544f8376d76582170712cb5a0010bb826ffb46a",
-      "conformance/README.md": "682716bd92559e61ec6795ac9d2a54c6cb417d946f0ec87a06880c0c12921288",
+      "conformance/README.md": "1f576362cb43a475b104e398ab3f9d2ac7451ac931ac067a5deaebb9e076f596",
       "conformance/cases/basic-scan.json": "24623da0cad8c8c54b3ff9b09820ea1276fe8b8f0fc680bf6e8abeb4edb8e424",
+      "conformance/cases/kernel-empty-boot.json": "175524674b14d993d29f10080d7697074b3a2eee25b359ff903344d73c6acc98",
       "conformance/fixtures/minimal-claude/agents/reviewer.md": "d0dd681ba63838301e480116aa09825329f01832b0116de5c5476fdd8a5dcf54",
       "conformance/fixtures/minimal-claude/commands/status.md": "3f36e053fd1c059ffd902f84a55be8a458c26072f97cb37dd7e97314ae2a9bf5",
       "conformance/fixtures/minimal-claude/hooks/pre-commit.md": "ec9cec8ac4ce34d40ec055ffd90e8f06ea3e5764d6ec3ee84e0d97de71b930c7",

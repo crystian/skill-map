@@ -1,0 +1,69 @@
+{
+  "name": "skill-map",
+  "version": "0.0.0",
+  "private": true,
+  "description": "skill-map reference implementation — kernel + CLI + adapters.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://skill-map.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crystian/skill-map.git",
+    "directory": "src"
+  },
+  "bugs": {
+    "url": "https://github.com/crystian/skill-map/issues"
+  },
+  "keywords": [
+    "skill-map",
+    "markdown",
+    "ai-agents",
+    "claude-code",
+    "graph"
+  ],
+  "bin": {
+    "sm": "bin/sm.mjs",
+    "skill-map": "bin/sm.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./kernel": {
+      "types": "./dist/kernel/index.d.ts",
+      "import": "./dist/kernel/index.js"
+    },
+    "./conformance": {
+      "types": "./dist/conformance/index.d.ts",
+      "import": "./dist/conformance/index.js"
+    }
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-reporter=spec 'test/**/*.test.ts'",
+    "test:ci": "node --import tsx --test 'test/**/*.test.ts'",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@skill-map/spec": "*",
+    "clipanion": "^4.0.0-rc.4",
+    "typanion": "^3.14.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

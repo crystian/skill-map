@@ -10,12 +10,16 @@
     "url": "git+https://github.com/crystian/skill-map.git"
   },
   "workspaces": [
-    "spec"
+    "spec",
+    "src"
   ],
   "scripts": {
     "spec:index": "node scripts/build-spec-index.mjs",
     "spec:check": "node scripts/build-spec-index.mjs --check",
     "site:build": "node scripts/build-site.mjs",
+    "build": "npm run build --workspace=skill-map",
+    "typecheck": "npm run typecheck --workspace=skill-map",
+    "test": "npm run test --workspace=skill-map",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish"

@@ -165,7 +165,7 @@ Cursor support, remote scanning, graph diff across commits, live-system sync, qu
 
 ## Spec bootstrap status
 
-Step 0a is **in progress**. The `spec/` tree is partially populated. Work was done collaboratively with `Arquitecto` (owner) across focused review phases. Any AI agent that modifies or extends `spec/` MUST read this section first.
+Step 0a is **done**. Step 0b (reference implementation bootstrap) is **in progress**. The `spec/` tree and the `src/` kernel shell were authored collaboratively with `Arquitecto` (owner) across focused review phases. Any AI agent that modifies or extends `spec/` MUST read this section first.
 
 ### What exists (done)
 
@@ -185,10 +185,22 @@ Step 0a is **in progress**. The `spec/` tree is partially populated. Work was do
 - **Spec index** (`spec/index.json`): machine-readable manifest of the spec surface (schemas, prose, interfaces, conformance). Kept in sync with the file system by hand; drift will be caught by CI once a generator lands.
 - **Public site** — Railway deploys the `Dockerfile` at the repo root. `scripts/build-site.mjs` copies every `.schema.json` to `site/spec/v0/...` and validates that each `$id` equals its served URL. DNS at Vercel points `skill-map.dev` at Railway.
 
-### What's pending (closes Step 0a)
+### Step 0b — what exists (done)
 
-- Additional conformance cases referenced in prose: `kernel-empty-boot` (in `architecture.md`), `preamble-bitwise-match` (in `prompt-preamble.md`). Land alongside Step 0b (implementation has something to run them against).
-- First tagged spec release: `spec-v0.1.0`. Happens after Step 0b CI is green against the conformance stub.
+- **Workspace**: root `package.json` with npm workspaces (`spec`, `src`). Changesets-based versioning (`.changeset/`, `ci.yml` gate, `release.yml` pipeline).
+- **Kernel shell** (`src/kernel/`): 5 port interfaces (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`), `Registry` over the 6 extension kinds, `createKernel()`, `runScan()` stub. Domain types (`Node`, `Link`, `Issue`, `ScanResult`) aligned with spec schemas.
+- **CLI** (`src/cli/`): Clipanion v4 binary wired; `sm --version`, `sm --help`, `sm scan [roots...] [--json]` all functional. `bin/sm.mjs` wrapper drops a shebang into `dist/cli.js`.
+- **Build**: `tsup` (esbuild) produces ESM `dist/` + `.d.ts`. `tsconfig.json` strict with `verbatimModuleSyntax`.
+- **Tests** (`src/test/`): `node:test` + `tsx` loader. 13 tests green covering Registry, `createKernel`, `runScan` stub, CLI spawn, and the conformance runner.
+- **Contract runner** (`src/conformance/index.ts`): reads a case JSON, provisions a tmp scope (copies fixture when present), invokes the binary, evaluates the six assertion types (`exit-code`, `json-path`, `file-exists`, `file-contains-verbatim`, `file-matches-schema`, `stderr-matches`). `file-matches-schema` marked NYI until Step 2 (ajv lands with rules).
+- **Conformance case** `kernel-empty-boot` implemented and passing end-to-end against the stub CLI.
+- **CI**: `ci.yml` extended with `build-test` job (typecheck + tsup + node:test).
+
+### What's pending
+
+- **`preamble-bitwise-match` conformance case** — moved to **Step 9** (requires `sm job preview` to render a job file; job system lands at Step 9). This contradicts the original Step 0a closure plan; reality beat optimism.
+- **First tagged spec release**: `spec-v0.1.0`. Happens when `@skill-map/spec` is ready to publish through the changesets release workflow.
+- **Tech stack locks** originally listed in Step 0b (YAML parser, MD parser, templating, pretty CLI, globbing, diff) are **deferred to the step that first needs them**. Lockin-in-abstract rejected; locks land with use cases.
 
 ### Conventions locked during bootstrap (do NOT change unilaterally)
 
