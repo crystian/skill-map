@@ -163,7 +163,7 @@
       "README.md": "d2b4c6debb9b7c4fdd34488e237672d8aff7687715744cf2c455977d5bc9813d",
       "architecture.md": "fdb1ed50f12bf7b7fb89663c651277b7ba5ed729bd3dc02f3963c51e4d480b12",
       "cli-contract.md": "ddb7d62f45398866dba2f25da544f8376d76582170712cb5a0010bb826ffb46a",
-      "conformance/README.md": "1f576362cb43a475b104e398ab3f9d2ac7451ac931ac067a5deaebb9e076f596",
+      "conformance/README.md": "4e41ff823b55ce3c274a033c5152ae0b2759fc714a714d7815593d8be84c8a4c",
       "conformance/cases/basic-scan.json": "24623da0cad8c8c54b3ff9b09820ea1276fe8b8f0fc680bf6e8abeb4edb8e424",
       "conformance/cases/kernel-empty-boot.json": "175524674b14d993d29f10080d7697074b3a2eee25b359ff903344d73c6acc98",
       "conformance/fixtures/minimal-claude/agents/reviewer.md": "d0dd681ba63838301e480116aa09825329f01832b0116de5c5476fdd8a5dcf54",

@@ -2,7 +2,7 @@
 
 Language-neutral test suite the specification demands. A conforming implementation passes every case; failing any case is a conformance bug.
 
-This directory is **stub-level** as of spec v0.1.0-alpha.0. Exactly one fixture and one case ship. The shape below is normative; the case count expands before spec-v1.0.0 (see `versioning.md`).
+This directory is **stub-level** as of spec v0.1.0. Two cases ship (`basic-scan`, `kernel-empty-boot`) with a single shared fixture (`minimal-claude`). The shape below is normative; the case count expands before spec-v1.0.0 (see `versioning.md`).
 
 ---
 
