@@ -88,7 +88,7 @@ The second `AND status = 'queued'` guards against a race where two runners selec
 
 **Non-SQLite implementations**: MUST provide an equivalent single-statement atomic transition. A two-step `SELECT then UPDATE` is NOT acceptable — it is observable as a double-claim bug.
 
-`sm job claim` exposes this primitive to Skill runners: returns the id on stdout (exit 0) or exits 1 if the queue is empty.
+`sm job claim` exposes this primitive to Skill agents (and any driving adapter that wants to drain from outside a CLI-runner loop): returns the id on stdout (exit 0) or exits 1 if the queue is empty.
 
 ---
 

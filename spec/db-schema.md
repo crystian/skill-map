@@ -285,7 +285,7 @@ The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a 
 - **Location**: kernel migrations in `src/migrations/` (reference impl); plugin migrations in `<plugin-dir>/migrations/`.
 - **Wrapping**: the kernel wraps each file in `BEGIN; ... ; COMMIT;`. Files contain DDL only.
 - **Strict versioning**: no idempotency is required. `CREATE TABLE IF NOT EXISTS` is DISCOURAGED in kernel migrations (but permitted in plugin migrations, at the plugin author's discretion).
-- **Auto-apply**: on startup, unless `auto_migrate: false` in config. A backup is written to `.skill-map/backups/skill-map-pre-migrate-v<N>.db` before applying.
+- **Auto-apply**: on startup, unless `autoMigrate: false` in config. A backup is written to `.skill-map/backups/skill-map-pre-migrate-v<N>.db` before applying.
 - **Plugin migration order**: plugins are migrated after kernel migrations and in stable alphabetical order by plugin id. A failing plugin migration disables only that plugin; other plugins and the kernel continue.
 
 `sm db migrate` controls migration flow manually: `--dry-run`, `--status`, `--to <n>`, `--kernel-only`, `--plugin <id>`, `--no-backup`.
@@ -314,11 +314,19 @@ Collisions after normalization are a load-time error; both plugins are disabled 
 
 ### Triple protection for mode B
 
-The kernel MUST enforce all three layers:
+The kernel MUST enforce all three layers **in this exact order** for every plugin migration:
 
-1. **Prefix injection**: the kernel rewrites the `CREATE TABLE` statements in the plugin migration to inject `plugin_<id>_` into every table name that doesn't already have it. A plugin CANNOT create un-prefixed tables.
-2. **DDL validation**: plugin migrations are parsed before application. The kernel MUST reject: foreign keys to kernel tables, triggers on kernel tables, `DROP` / `ALTER` against kernel tables, `ATTACH` statements, global `PRAGMA` statements (except `PRAGMA <plugin>_*` if applicable to the backend).
-3. **Scoped connection**: at runtime, the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects queries that touch tables outside the plugin's own prefix.
+1. **Parse** — the kernel parses each plugin migration SQL file into an AST. Parse errors disable the plugin with status `load-error`.
+2. **DDL validation (pre-rewrite)** — the AST is validated against the original table names authored by the plugin. Kernel MUST reject, before any rewrite:
+   - References (FK / trigger / view) to any kernel table (prefix `scan_`, `state_`, `config_`) or to another plugin's table (prefix `plugin_<other-id>_`).
+   - `DROP` / `ALTER` / `TRUNCATE` against anything outside the plugin's own logical table names.
+   - `ATTACH DATABASE` statements.
+   - Global `PRAGMA` statements (anything not scoped to a plugin-owned table).
+   Rejection here is intentional: validation runs **before** prefix injection so kernel tables are named as the plugin wrote them, making the reject test straightforward.
+3. **Prefix injection (rewrite)** — the kernel rewrites the AST so every table name the plugin authored becomes `plugin_<normalizedId>_<originalName>` if it doesn't already carry the prefix. Index and constraint names get the same treatment. A plugin CANNOT create un-prefixed tables.
+4. **Scoped connection (runtime)** — at runtime, the plugin receives a `Database` wrapper (not a raw handle). The wrapper rejects any query that touches tables whose name doesn't start with this plugin's prefix. This is the last-line defense: even if a migration-time layer were bypassed, runtime queries still cannot reach out-of-namespace data.
+
+Step 4 is separate from 1–3 because it applies at query time, not migration time. Together the four steps form the "triple protection" referenced across the spec (the name predates the explicit parse step).
 
 Honest note: plugins are user-placed code. Protection guards against accidents (a plugin that mistakenly names a table `state_jobs`), not against hostile plugins. A malicious plugin running in the same process can bypass any JS-level guard. Post-v1.0 evaluates sandboxing (worker threads, VM contexts) and/or signing.
 
@@ -332,6 +340,27 @@ Honest note: plugins are user-placed code. Protection guards against accidents (
 - `sm db restore <path>` swaps the current DB with the supplied file. Interactive confirmation required unless `--force`.
 
 Backups include `state_*` + `config_*` only; `scan_*` is regenerated after restore by running `sm scan`.
+
+---
+
+## Rename detection (automatic)
+
+`scan_nodes.path` is the canonical node identifier in v0. Moving a file therefore rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichment.node_id`).
+
+Implementations MUST apply a rename heuristic at scan time **before** committing the new scan transaction:
+
+1. Compute the set `deletedPaths` (rows present in the previous `scan_nodes` but absent from the new walk) and `newPaths` (rows present in the new walk but absent from the previous scan).
+2. For each pair `(deletedPath, newPath)` where `newPath.body_hash == deletedPath.body_hash` → classify as **high-confidence rename**. The kernel MUST:
+   - Update every `state_*` row whose `node_id` equals `deletedPath` to reference `newPath`.
+   - Emit no issue. Log at `info` level.
+3. Remaining pairs where `newPath.frontmatter_hash == deletedPath.frontmatter_hash` (body differs, frontmatter is a perfect match) → classify as **medium-confidence rename**. The kernel MUST:
+   - Apply the same FK migration.
+   - Emit an issue `rule_id: auto-rename-medium` (severity `warn`) pointing to both paths so the user can verify or revert via `sm orphans reconcile --to <old.path>`.
+4. Any `deletedPath` left without a match after steps 2–3 becomes an **orphan**: the kernel emits an issue `rule_id: orphan` (severity `info`) and keeps the `state_*` rows referencing the dead path untouched until the user runs `sm orphans reconcile <dead.path> --to <new.path>` or accepts the orphan.
+
+Matching is 1-to-1: once a `newPath` is claimed as the rename target of some `deletedPath`, no other deletion can match it in the same scan. Ambiguity (two deletions share a body hash with the same new path) → fall back to the orphan path for all candidates, with issue `auto-rename-ambiguous` listing every conflict.
+
+The heuristic runs inside the scan transaction, so either all renames land or none do. Implementations MUST NOT expose a separate "rename" verb — `sm scan` is the only surface that triggers automatic rename detection; `sm orphans reconcile` is strictly the manual override for cases the heuristic missed or classified wrong.
 
 ---
 

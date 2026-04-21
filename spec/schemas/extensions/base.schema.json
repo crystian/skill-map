@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/base.schema.json",
+  "title": "ExtensionBase",
+  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`adapter`, `detector`, `rule`, `action`, `audit`, `renderer`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. `additionalProperties: false` — the extension manifest shape is kernel-controlled and unknown keys are a bug.",
+  "type": "object",
+  "required": ["id", "kind", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "description": "Kebab-case identifier unique within the extension's kind across all loaded plugins. The built-in default set uses bare ids (`claude`, `frontmatter`, `trigger-collision`). Third-party extensions SHOULD namespace with their plugin id (`my-plugin/foo-detector`) to avoid collisions."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["adapter", "detector", "rule", "action", "audit", "renderer"],
+      "description": "Discriminant. MUST match the file exporting this manifest; kind mismatch → load-error."
+    },
+    "version": {
+      "type": "string",
+      "description": "Extension semver. Bumped independently from the plugin version; frozen into `state_executions.extension_version` on every run for audit reproducibility."
+    },
+    "description": {
+      "type": "string",
+      "description": "One-to-three sentences explaining what the extension does. Rendered by `sm <kind>s list`."
+    },
+    "stability": {
+      "type": "string",
+      "enum": ["experimental", "stable", "deprecated"],
+      "default": "stable",
+      "description": "Maturity tag. The kernel MAY warn when an `experimental` extension is used in CI (`--strict`)."
+    },
+    "preconditions": {
+      "type": "array",
+      "description": "Free-form predicates the kernel evaluates before offering this extension. Canonical keys: `kind=<node-kind>`, `adapter=<adapter-id>`, `frontmatter.<path>=<value>`. Unknown keys are skipped with a warning, not rejected.",
+      "items": { "type": "string" }
+    },
+    "entry": {
+      "type": "string",
+      "description": "Optional path to the module exporting this extension (relative to the plugin root). Absent → the kernel uses the path listed in the plugin manifest's `extensions[]` array."
+    }
+  }
+}

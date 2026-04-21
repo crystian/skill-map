@@ -58,12 +58,12 @@
     "typanion": "^3.14.0"
   },
   "devDependencies": {
-    "@types/node": "^22.10.2",
+    "@types/node": "^24.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },
   "engines": {
-    "node": ">=22"
+    "node": ">=24.0"
   }
 }

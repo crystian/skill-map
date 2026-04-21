@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/rule.schema.json",
+  "title": "ExtensionRule",
+  "description": "Manifest shape for a `Rule` extension. A rule consumes the full graph (nodes + links) after all detectors have run and emits `Issue[]`. Rules MUST be deterministic: same graph in → same issues out, byte-for-byte. Any source of non-determinism (time, random, network) is forbidden and is a conformance violation.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "emitsRuleIds", "defaultSeverity"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "rule" },
+    "emitsRuleIds": {
+      "type": "array",
+      "description": "List of `rule_id` values this rule may emit on issues. Typically a singleton (`trigger-collision` → emits `trigger-collision`). A rule emitting a `rule_id` not in this list → kernel logs `rule-id-violation` but keeps the issue (forward compatibility).",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "defaultSeverity": {
+      "type": "string",
+      "enum": ["error", "warn", "info"],
+      "description": "Severity attached by default to emitted issues. Rules MAY override per-issue."
+    },
+    "consumes": {
+      "type": "string",
+      "enum": ["nodes", "links", "both"],
+      "default": "both",
+      "description": "Which slices of the graph the rule reads. The kernel MAY pass a restricted view when this is a strict subset."
+    },
+    "configurable": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, the rule reads its own config from `config_preferences` under the key `rules.<id>.<field>`. Implementations MAY surface these in `sm config`."
+    }
+  }
+}

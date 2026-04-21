@@ -143,7 +143,7 @@ Full step-by-step in `ROADMAP.md §Execution plan`. The completeness marker ther
 
 ### Kernel / CLI / BFF (`src/`)
 
-- **Runtime**: Node ≥ 22 today; will bump to ≥ 22.5 when Step 1 lands (required for stable `node:sqlite`).
+- **Runtime**: Node ≥ 24 (active LTS; `node:sqlite` stable; built-in WebSocket).
 - **Language**: TypeScript strict + ESM; `verbatimModuleSyntax: true`.
 - **Build**: `tsup` (esbuild) → `dist/` ESM + `.d.ts`.
 - **Distribution**: npm package name is **`skill-map`** (not `sm`). Install: `npm i -g skill-map` or `npx skill-map`. After install, both `sm` and `skill-map` are available as binaries.
@@ -196,7 +196,7 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerates on demand.
 - Enum values: kebab-case lowercase with CHECK constraint. No lookup tables.
 - Migrations: `.sql` files, `NNN_snake_case.sql`, up-only, auto-wrapped in a transaction. Kernel migrations in `src/migrations/`; plugin migrations in `<plugin-dir>/migrations/`.
 - Version tracking: `PRAGMA user_version` (fast check) + `config_schema_versions(scope, version, description, applied_at)` (multi-scope).
-- Auto-apply on startup with auto-backup (`.skill-map/backups/skill-map-pre-migrate-v<N>.db`). Config flag `auto_migrate: true` default.
+- Auto-apply on startup with auto-backup (`.skill-map/backups/skill-map-pre-migrate-v<N>.db`). Config flag `autoMigrate: true` default.
 
 ### Node identity
 

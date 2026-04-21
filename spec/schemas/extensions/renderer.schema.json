@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/renderer.schema.json",
+  "title": "ExtensionRenderer",
+  "description": "Manifest shape for a `Renderer` extension. A renderer serializes the graph (or a filtered subgraph) into a string in a declared format. Renderers are invoked by `sm graph --format <format>` and `sm export`. Output MUST be byte-deterministic for the same input graph — the snapshot-test suite relies on this.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "format"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "renderer" },
+    "format": {
+      "type": "string",
+      "description": "Format identifier consumed by `--format`. Built-in set: `ascii`, `mermaid`, `dot`, `json`. Third-party renderers MAY register new format ids; collisions are a load-time error."
+    },
+    "contentType": {
+      "type": "string",
+      "description": "MIME-like hint used by the Server when streaming rendered output over HTTP (e.g. `text/plain`, `image/svg+xml`, `application/json`). Advisory.",
+      "default": "text/plain"
+    },
+    "supportsFilter": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, the renderer accepts the `--filter` expression used by `sm export`. If false, `sm export --format <this>` rejects `--filter` with exit 2."
+    }
+  }
+}

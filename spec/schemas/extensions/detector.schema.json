@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/detector.schema.json",
+  "title": "ExtensionDetector",
+  "description": "Manifest shape for a `Detector` extension. A detector consumes a parsed node (frontmatter + body) and emits `Link[]` pointing to other nodes or to external URLs (the latter only if it is the designated URL-counter detector). Detectors run in isolation: they MUST NOT read other nodes, the graph, or the DB. Cross-node reasoning lives in Rules.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "emitsLinkKinds", "defaultConfidence"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "detector" },
+    "emitsLinkKinds": {
+      "type": "array",
+      "description": "Subset of `Link.kind` values this detector is allowed to emit. Emitting an unlisted kind at runtime → kernel rejects the link and logs `detector-kind-violation`.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["invokes", "references", "mentions", "supersedes"]
+      }
+    },
+    "defaultConfidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Confidence attached to emitted links by default. Detectors MAY override per-link at emission time."
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["frontmatter", "body", "both"],
+      "default": "both",
+      "description": "Which part of the node this detector consumes. The kernel passes only the declared scope to the detector — a `frontmatter` detector that tries to read `body` receives an empty string."
+    }
+  }
+}

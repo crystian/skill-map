@@ -13,7 +13,7 @@ This document is the **source of truth**. The reference implementation under `..
 - The **job contract**: lifecycle states, event stream, prompt preamble, submit/claim/record semantics.
 - The **frontmatter standard**: base fields and per-kind extensions.
 - The **summary standard**: shape of action-produced summaries per kind.
-- The **plugin manifest**: metadata, spec-compat range, storage mode, security declarations.
+- The **plugin manifest**: metadata, `specCompat` range, storage mode, security declarations.
 
 ## What this spec does not define
 

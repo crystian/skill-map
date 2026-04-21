@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # ------------ build stage ------------
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 
 # Only what the build script needs. Keeps the build cache tight.

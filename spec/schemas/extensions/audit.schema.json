@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/audit.schema.json",
+  "title": "ExtensionAudit",
+  "description": "Manifest shape for an `Audit` extension. An audit is a hardcoded, deterministic workflow that composes rules and/or local actions into a single report. Audits MUST NOT submit LLM-backed actions — their defining property is reproducibility. An audit that needs probabilistic signal is the wrong shape; emit a `Findings` surface via LLM verbs instead.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "composes", "reportSchemaRef"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "audit" },
+    "composes": {
+      "type": "array",
+      "description": "Ordered list of rule ids and/or local action ids the audit executes in sequence. The kernel resolves each id in the registry at load time; a dangling reference disables the audit with status `invalid-manifest`.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["kind", "id"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": { "type": "string", "enum": ["rule", "action"] },
+          "id": { "type": "string" },
+          "failFast": {
+            "type": "boolean",
+            "default": false,
+            "description": "If true, the audit stops at the first error-severity issue this step emits. Default: collect everything and continue."
+          }
+        }
+      }
+    },
+    "reportSchemaRef": {
+      "type": "string",
+      "description": "Reference to the JSON Schema of the audit's report shape. Audits do NOT extend `report-base.schema.json` — they are deterministic and therefore carry no `safety` / `confidence`. Their shape is kind-specific."
+    },
+    "exitCodeMap": {
+      "type": "object",
+      "description": "How the audit report maps to CLI exit codes. Absent → standard behaviour: exit 0 on pass, 1 on any error-severity issue, 2 on operational error.",
+      "additionalProperties": false,
+      "properties": {
+        "pass": { "type": "integer", "default": 0 },
+        "fail": { "type": "integer", "default": 1 }
+      }
+    }
+  }
+}

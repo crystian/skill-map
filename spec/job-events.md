@@ -200,7 +200,20 @@ Emitted inside `sm record` when the callback arrives and passes nonce validation
 }
 ```
 
-`runId` on this event is the run that originally claimed the job. If the record is called from outside a run (interactive skill), `runId` is a synthetic id prefixed `r-ext-`.
+`runId` on this event is the run that originally claimed the job. If the record is called from outside a CLI run — the canonical case being a Skill agent that called `sm job claim` + `sm record` without ever entering `sm job run` — the kernel MUST synthesize a `runId` of the form `r-ext-YYYYMMDD-HHMMSS-XXXX` (same timestamp + 4-hex shape as real run ids, with the `r-ext-` prefix reserved for externally-driven claims).
+
+Synthetic-run envelope: when a Skill agent claims a job, the kernel MUST emit — on the server's WebSocket and in the `--json` ndjson stream if active — a full envelope covering that claim:
+
+```
+run.started (mode="external")
+  → job.claimed
+  → (no job.spawning — the claim itself is the spawn signal for external runs)
+  → job.callback.received
+  → (job.completed | job.failed)
+  → run.summary
+```
+
+The `run.started.data.mode` carries the literal string `external` so UI consumers can render skill-driven work differently from CLI-driven work. `run.summary` closes the synthetic run as soon as the callback is processed; one synthetic run always wraps exactly one job. This keeps the WebSocket broadcaster's contract ("every job event lives inside a run envelope") intact across both runner paths.
 
 ### `job.completed`
 

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/action.schema.json",
+  "title": "ExtensionAction",
+  "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `local` (code runs in-process, returns a report JSON directly) or `invocation-template` (kernel renders a prompt, a runner executes it, the callback closes the job). The `mode` discriminator drives which additional fields are required.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "mode", "reportSchemaRef"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "const": "action" },
+    "mode": {
+      "type": "string",
+      "enum": ["local", "invocation-template"],
+      "description": "`local`: the plugin's code computes the report synchronously, no job file, no runner. `invocation-template`: the kernel renders a prompt + preamble into a job file; a runner executes it; `sm record` closes the job."
+    },
+    "reportSchemaRef": {
+      "type": "string",
+      "description": "Absolute or relative reference to the JSON Schema the report MUST validate against. MUST extend `report-base.schema.json` (directly or transitively). Validation failure → job transitions to `failed` with reason `report-invalid`."
+    },
+    "expectedDurationSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Best-effort estimate of wall-clock duration. Drives TTL (`ttl = max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `invocation-template`; advisory for `local`."
+    },
+    "promptTemplateRef": {
+      "type": "string",
+      "description": "Path (relative to the extension file) to the prompt template the kernel renders at `sm job submit`. REQUIRED when `mode: invocation-template`; FORBIDDEN when `mode: local`. The template MUST NOT interpolate user text outside `<user-content>` blocks (see `prompt-preamble.md`)."
+    },
+    "precondition": {
+      "type": "object",
+      "description": "Declarative filter that nodes must satisfy for this action to be applicable. Consumed by `--all` fan-out, UI button gating, `sm actions show`.",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["skill", "agent", "command", "hook", "note"] },
+          "description": "Node kinds this action accepts. Omitted → any kind."
+        },
+        "adapter": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Adapter ids whose nodes this action accepts. Omitted → any adapter."
+        },
+        "stability": {
+          "type": "array",
+          "items": { "type": "string", "enum": ["experimental", "stable", "deprecated"] },
+          "description": "Node stability filter."
+        },
+        "custom": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Free-form precondition strings the kernel forwards to the action for runtime evaluation. Example: `frontmatter.metadata.source != null`."
+        }
+      }
+    },
+    "expectedTools": {
+      "type": "array",
+      "description": "Hint to a Skill agent / CLI runner about what tools the rendered prompt expects access to (`Bash`, `Read`, `WebSearch`, …). Host MAY filter or warn. No normative enforcement in v0.",
+      "items": { "type": "string" }
+    },
+    "fanOutPolicy": {
+      "type": "string",
+      "enum": ["per-node", "batch"],
+      "default": "per-node",
+      "description": "`per-node` (default): `sm job submit --all` produces one job per matching node. `batch`: produces one job whose prompt template receives the full list. Batch actions tend to hit context limits; use sparingly."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "mode": { "const": "invocation-template" } } },
+      "then": { "required": ["promptTemplateRef", "expectedDurationSeconds"] }
+    },
+    {
+      "if": { "properties": { "mode": { "const": "local" } } },
+      "then": { "not": { "required": ["promptTemplateRef"] } }
+    }
+  ]
+}

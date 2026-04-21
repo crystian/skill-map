@@ -114,11 +114,12 @@ Pre-implementación. Diseño consolidado en este documento.
 | **Action (tipo)** | Definido por un plugin. Lo que el user puede invocar. |
 | **Job** | Instancia de ejecución de una action sobre uno o más nodos (reemplaza al término "dispatch"). Vive en `state_jobs`. |
 | **Job file** | MD generado por `sm` en `.skill-map/jobs/<id>.md`. Contiene prompt renderizado + instrucción de callback. Efímero. |
-| **Runner** | Proceso que ejecuta jobs. Dos tipos: CLI (subprocess `claude -p`) y Skill (agente in-session). |
+| **Runner** | Implementación de `RunnerPort` invocada por el kernel para ejecutar un job. En MVP solo existe el **CLI runner** (subprocess `claude -p`). |
+| **Skill agent** | Driving adapter que corre dentro de una sesión de LLM y consume `sm job claim` + `sm record` como un cliente más. NO implementa `RunnerPort`; es peer de CLI / Server. |
 | **Report** | JSON producido por un job, validado contra el schema declarado por el action. |
 | **Callback** | Llamada a `sm record` que cierra el job: status, tokens, duration. |
 | **Nonce** | Token único en frontmatter del job file. Requerido por `sm record` para evitar forgeo de callbacks. |
-| **Content hash** | Hash identificador de un job para deduplicación: `sha256(action_id + action_version + node_body_hash + node_frontmatter_hash + prompt_template_hash)`. |
+| **Content hash** | Hash identificador de un job para deduplicación: `sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`. |
 | **Atomic claim** | Operación `UPDATE ... RETURNING id` que permite a un runner tomar un job queued sin race condition. |
 | **Reap** | Proceso automático al inicio de `sm job run` que detecta jobs running con TTL vencido y los marca como failed (abandoned). |
 
@@ -168,7 +169,7 @@ Pre-implementación. Diseño consolidado en este documento.
 | Concepto | Descripción |
 |---|---|
 | **Enrichment** | Obtención de datos externos (stars de GitHub, última actividad) para augmentar info de un nodo. Action con TTL de refresh. |
-| **Provenance** | Sección del frontmatter: `metadata.source` (URL canónica) + `metadata.source_version` (tag o SHA). |
+| **Provenance** | Sección del frontmatter: `metadata.source` (URL canónica) + `metadata.sourceVersion` (tag o SHA). |
 | **Hash verification** | Comparación de body_hash local vs hash computado sobre raw GitHub para determinar `verified: true/false`. |
 
 ### Scope y persistencia
@@ -366,9 +367,9 @@ skill-map/
 ├── src/
 │   ├── kernel/              Registry, Orchestrator, domain types, use cases
 │   ├── cli/                 Clipanion commands, thin wrappers over kernel
-│   ├── server/              Hono + WebSocket, thin wrapper over kernel
-│   ├── testkit/             Kernel mocks for plugin authors
-│   └── adapters/
+│   ├── server/              (Step 12) Hono + WebSocket, thin wrapper over kernel
+│   ├── testkit/             (Step 8) Kernel mocks for plugin authors
+│   └── adapters/            (Step 1+) port implementations
 │       ├── sqlite/          node:sqlite + Kysely + CamelCasePlugin
 │       ├── filesystem/      real fs
 │       ├── plugin-loader/   drop-in discovery
@@ -376,9 +377,9 @@ skill-map/
 ├── bin/sm.mjs               CLI entry, imports from dist/cli
 └── package.json
     {
-      "engines": { "node": ">=22.5" },
+      "engines": { "node": ">=24.0" },
       "main": "./dist/index.js",
-      "bin": { "sm": "./bin/sm.mjs" },
+      "bin": { "sm": "./bin/sm.mjs", "skill-map": "./bin/sm.mjs" },
       "exports": {
         ".":         "./dist/index.js",
         "./kernel":  "./dist/kernel/index.js",
@@ -387,6 +388,8 @@ skill-map/
       }
     }
 ```
+
+Folders marked with a step tag (`src/server/`, `src/testkit/`, `src/adapters/*`) are part of the target layout and land at the step indicated; they are not yet on disk as of Step 0b.
 
 Plugin authors: `import { registerDetector } from 'skill-map/kernel'`. Split to real `@skill-map/*` workspaces deferred until a concrete external consumer justifies it.
 
@@ -443,7 +446,7 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerated on demand.
 - Kernel auto-wraps each migration in `BEGIN` / `COMMIT`. Files contain only DDL.
 - Strict versioning — no idempotency required.
 - Location: `src/migrations/` (kernel), `<plugin-dir>/migrations/` (plugins).
-- Auto-apply on startup with auto-backup (`.skill-map/backups/skill-map-pre-migrate-v<N>.db`). Config flag `auto_migrate: true` default.
+- Auto-apply on startup with auto-backup (`.skill-map/backups/skill-map-pre-migrate-v<N>.db`). Config flag `autoMigrate: true` default.
 
 ### DB management commands
 
@@ -489,29 +492,31 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerated on demand.
 
 ### TTL per action
 
-- Action manifest declares optional `expected_duration_seconds`.
-- Kernel computes: `ttl_seconds = max(expected_duration_seconds × grace_multiplier, minimum_ttl_seconds)` at submit time.
-- Defaults: `grace_multiplier: 3`, `minimum_ttl_seconds: 60`.
-- Override precedence: global default → action manifest → user config (`jobs.per_action_ttl`) → `sm job submit --ttl`.
+- Action manifest declares optional `expectedDurationSeconds`.
+- Kernel computes: `ttlSeconds = max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds)` at submit time.
+- Defaults: `graceMultiplier: 3`, `minimumTtlSeconds: 60`.
+- Override precedence: global default → action manifest → user config (`jobs.perActionTtl`) → `sm job submit --ttl`.
 - Resolved TTL frozen into `state_jobs.ttl_seconds` (determinism).
 
 ### Duplicate prevention
 
-- On submit, check for active `(action_id, action_version, node_id, content_hash)` in status `queued|running`. If exists: refuse with exit code 3 and display existing job-id.
+- On submit, check for active `(actionId, actionVersion, nodeId, contentHash)` in status `queued|running`. If exists: refuse with exit code 3 and display existing job-id.
 - `--force` override bypasses the check.
-- `content_hash = sha256(action_id + action_version + node_body_hash + node_frontmatter_hash + prompt_template_hash)`.
+- `contentHash = sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`.
 - Post-completion: no check; re-submit always allowed.
 
 ### Runners
 
-Two runner paths, shared primitives via CLI:
+Two execution paths:
 
-| Runner | Execution engine | Isolation | Use case |
-|---|---|---|---|
-| **CLI** (`sm job run`) | `claude -p < jobfile.md` subprocess per item | Context-free (clean) | CI, cron, batch |
-| **Skill** (`/skill-map:run-queue`) | Agent executes in-session using its own LLM + tools | Context bleeds between items | Interactive |
+| Path | Implements `RunnerPort`? | Execution engine | Isolation | Use case |
+|---|---|---|---|---|
+| **CLI runner** (`sm job run`) | Yes — driven adapter | `claude -p < jobfile.md` subprocess per item | Context-free (clean) | CI, cron, batch |
+| **Skill agent** (`/skill-map:run-queue`) | **No** — driving adapter that consumes `sm job claim` + `sm record` from inside an LLM session | Agent executes in-session using its own LLM + tools | Context bleeds between items | Interactive |
 
-Skill runner flow:
+Only the **CLI runner** is a `RunnerPort` implementation (i.e. something the kernel invokes). The **Skill agent** is a peer driving adapter to CLI / Server: it calls the CLI verbs `sm job claim` and `sm record` as if it were any other user of the binary. The name "runner" applied to the skill path is purely descriptive — the kernel does not own its execution.
+
+Skill agent flow:
 ```
 loop:
   1. bash: sm job claim         → <id> or exit 1 (queue empty)
@@ -546,7 +551,11 @@ Two kernel-enforced layers:
 
 ### Concurrency
 
-MVP runs jobs **sequentially** (one at a time). Event schema carries `id` so parallel execution is a non-breaking post-MVP extension.
+MVP runs jobs **sequentially within a single runner** — one claim / spawn / record cycle at a time. There is no pool or scheduler.
+
+Multiple runners MAY coexist (e.g. a cron `sm job run --all` in parallel with an interactive Skill agent draining via `sm job claim`). The atomic-claim semantics exist precisely for this case: the `UPDATE ... WHERE status='queued' RETURNING id` guarantees that no two runners ever claim the same row, even when they race.
+
+The event schema carries `runId` + `jobId` so parallel per-runner sequences can be interleaved without losing order per `jobId`. True in-runner parallelism (a pool inside `sm job run`) is a non-breaking post-MVP extension.
 
 ### Progress events
 
@@ -608,7 +617,7 @@ Manifest:
 {
   "id": "my-cluster-plugin",
   "version": "1.0.0",
-  "spec-compat": ">=1.0.0 <2.0.0",
+  "specCompat": ">=1.0.0 <2.0.0",
   "extensions": [
     "extensions/foo.action.mjs",
     "extensions/foo.detector.mjs"
@@ -624,7 +633,7 @@ Manifest:
 On boot or `sm plugins list`:
 1. Walk `<scope>/.skill-map/plugins/*` and `~/.skill-map/plugins/*`.
 2. Read `plugin.json`.
-3. Run `semver.satisfies(specVersion, plugin['spec-compat'])`.
+3. Run `semver.satisfies(specVersion, plugin.specCompat)`.
 4. If compat fails: `disabled` with reason `incompatible-spec`. Skip.
 5. Dynamic-import each extension. Validate against kind schema. Register in kernel.
 6. If plugin has storage mode dedicated: kernel provisions tables (prefix-enforced) and runs migrations.
@@ -654,7 +663,7 @@ Honest note: drop-in plugins are user-placed code; protection guards accidents, 
 | `sm plugins show <id>` | Manifest + compat status. |
 | `sm plugins enable <id>` | Toggle on (persisted in `config_plugins`). |
 | `sm plugins disable <id>` | Toggle off without deleting. |
-| `sm plugins doctor` | Revalidate spec-compat. |
+| `sm plugins doctor` | Revalidate specCompat. |
 
 ### Default plugin pack
 
@@ -747,9 +756,9 @@ All fields optional except `name` and `description`. Spec artifacts: `spec/schem
 
 **Authorship**: `author`, `authors[]`, `license` (SPDX), `metadata.github`, `metadata.homepage`, `metadata.linkedin`, `metadata.twitter`.
 
-**Versioning**: `metadata.version` (semver), `metadata.spec-compat` (semver range), `metadata.stability` (`experimental` | `stable` | `deprecated`), `metadata.supersedes[]`, `metadata.superseded_by`.
+**Versioning**: `metadata.version` (semver), `metadata.specCompat` (semver range), `metadata.stability` (`experimental` | `stable` | `deprecated`), `metadata.supersedes[]`, `metadata.supersededBy`.
 
-**Provenance**: `metadata.source` (URL to canonical origin, e.g., GitHub blob), `metadata.source_version` (tag or SHA; branch name allowed but dynamically resolved).
+**Provenance**: `metadata.source` (URL to canonical origin, e.g., GitHub blob), `metadata.sourceVersion` (tag or SHA; branch name allowed but dynamically resolved).
 
 **Taxonomy**: `metadata.tags[]`, `metadata.category`, `metadata.keywords[]`.
 
@@ -793,8 +802,8 @@ High-query fields stored as columns on `scan_nodes`: `stability`, `version`, `au
 
 Three layers:
 
-1. **SHA pin**: if `metadata.source_version` is a SHA or tag, plugin resolves to immutable raw URL `raw.githubusercontent.com/<owner>/<repo>/<sha>/<path>`. Deterministic.
-2. **Branch resolution**: if `source_version` is a branch or absent, plugin queries GitHub API for current SHA of the branch. Stores `resolved_sha` in `state_enrichment.data_json`. Next refresh compares SHA; only re-fetches if changed.
+1. **SHA pin**: if `metadata.sourceVersion` is a SHA or tag, plugin resolves to immutable raw URL `raw.githubusercontent.com/<owner>/<repo>/<sha>/<path>`. Deterministic.
+2. **Branch resolution**: if `sourceVersion` is a branch or absent, plugin queries GitHub API for current SHA of the branch. Stores `resolvedSha` in `state_enrichment.data_json`. Next refresh compares SHA; only re-fetches if changed.
 3. **ETag / `If-None-Match`** (post-MVP): saves bandwidth within rate limit.
 
 ### State storage
@@ -811,7 +820,7 @@ CREATE TABLE state_enrichment (
 );
 ```
 
-`verified: true` if local `body_hash` matches hash computed over remote raw content. `false` with implicit `locally_modified: true` on mismatch.
+`verified: true` if local `body_hash` matches hash computed over remote raw content. `false` with implicit `locallyModified: true` on mismatch.
 
 ### Invocation
 
@@ -859,16 +868,16 @@ Deep merge at load. User config can be partial. Validated by `spec/schemas/proje
 
 ### Notable config keys
 
-- `auto_migrate: true` — apply pending migrations at startup.
+- `autoMigrate: true` — apply pending migrations at startup.
 - `tokenizer: "cl100k_base"` — offline token estimator.
-- `jobs.ttl_seconds: 3600` — global fallback TTL.
-- `jobs.grace_multiplier: 3` — TTL grace on top of expected duration.
-- `jobs.minimum_ttl_seconds: 60` — TTL floor.
-- `jobs.per_action_ttl: { <action-id>: <seconds> }` — per-action override.
+- `jobs.ttlSeconds: 3600` — global fallback TTL.
+- `jobs.graceMultiplier: 3` — TTL grace on top of expected duration.
+- `jobs.minimumTtlSeconds: 60` — TTL floor.
+- `jobs.perActionTtl: { <actionId>: <seconds> }` — per-action override.
 - `jobs.retention.completed: 2592000` — 30 days default.
 - `jobs.retention.failed: null` — never auto-purge.
-- `scan.ignore_patterns: [...]` — default `.skill-mapignore` contents.
-- `scan.max_file_size_bytes: 1048576`.
+- `scan.ignorePatterns: [...]` — default `.skill-mapignore` contents.
+- `scan.maxFileSizeBytes: 1048576`.
 
 ---
 
@@ -880,7 +889,7 @@ Global flags: `-g` scope · `--json` output · `-v`/`-q` · `--no-color` · `-h`
 
 | Command | Purpose |
 |---|---|
-| `sm init` | Bootstrap scope (creates `.skill-map/`, DB, runs first scan). |
+| `sm init [--no-scan] [--force]` | Bootstrap scope (creates `.skill-map/`, DB, runs first scan). `--no-scan` skips the initial scan. `--force` rewrites an existing config. |
 | `sm version` | CLI / kernel / spec / DB schema versions. |
 | `sm doctor` | DB integrity, pending migrations, orphan files, plugins in error, LLM runner availability. |
 | `sm help [<verb>] [--format human\|md\|json]` | Self-describing introspection. |
@@ -965,6 +974,31 @@ See [Persistence](#persistence).
 
 ---
 
+## Skills catalog
+
+Single source of truth for every skill-shaped artifact shipped alongside `skill-map`. All use the `/skill-map:` namespace inside host agents (Claude Code today; future hosts register under the same namespace).
+
+| Id | Type | Host | Ships at | Purpose |
+|---|---|---|---|---|
+| `/skill-map:explore` | Meta-skill (conversational) | Claude Code | Step 10 | Wraps every `sm … --json` verb into a single slash-command. Maintains follow-ups with the user, feeds CLI introspection to the agent, orchestrates multi-step exploration. Replaces the earlier per-verb `explore-*` idea. |
+| `/skill-map:run-queue` | Skill agent (driving adapter) | Claude Code | Step 9 | Drains the job queue in-session: loops `sm job claim` → Read → [agent reasons] → Write report → `sm record`. Does NOT implement `RunnerPort`; peer of CLI runner. |
+| `sm-cli-run-queue` | npm package (skill bundle) | Claude Code (installable) | Step 9 | Distributable package that a user drops into their Claude Code plugin folder to get `/skill-map:run-queue`. Wraps the skill manifest + any host-specific glue (e.g. `TaskCreate` integration for progress). |
+| `sm-cli` | Agent integration package | Claude Code (installable) | Step 13 | Feeds `sm help --format json` to the agent so it can compose CLI invocations without hand-maintained knowledge. Mentioned in Decision #65; ships at distribution polish. |
+| `skill-optimizer` | Dual-surface action + skill | Claude Code (skill) + any runner (action) | Pre-MVP (skill exists); action wrapper Step 9 | Canonical dual-mode example: exists as a Claude Code skill AND is wrapped as a `skill-map` Action in `invocation-template` mode. Serves as the reference pattern for "same capability, two surfaces". |
+
+Naming rules:
+
+- **Slash-command ids** (`/skill-map:<verb>`) are what the user types inside the host.
+- **Package ids** (`sm-cli`, `sm-cli-run-queue`) are what the user installs. One package MAY register multiple slash-commands; one slash-command is registered by exactly one package.
+- **Host-specific** skills live under `sm-cli-*` namespace. When a second host (Codex, Gemini) lands as an adapter, its skill packages get their own prefix (`sm-codex-*`, `sm-gemini-*`) — the namespace is owned by the host, not by the skill.
+
+Non-skills shipped for context (listed here to prevent confusion, do NOT register as skills):
+
+- **CLI runner** — the `sm job run` command itself. Driven adapter. Not a skill.
+- **Default plugin pack** — `github-enrichment`, plus TBD detectors/rules. Not skills, but installable via drop-in.
+
+---
+
 ## UI (Step 0c prototype → Step 12 full)
 
 ### Step 0c — Prototype (Flavor A)
@@ -1041,9 +1075,9 @@ From commit 1. Same rigor as kernel-first.
 | CLI | Spawn binary, assert stdout / stderr / exit codes | CI |
 | Snapshot | Renderers produce byte-exact output | CI |
 
-Framework: **`node:test`** (built-in, zero deps, Node 22+).
+Framework: **`node:test`** (built-in, zero deps, Node 24+).
 
-Every extension in `src/extensions/` ships a sibling `*.test.mjs`. Missing test → contract check fails → tool does not boot.
+Every extension in `src/extensions/` ships a sibling `*.test.ts`. Missing test → contract check fails → tool does not boot.
 
 Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for third-party plugin tests.
 
@@ -1051,7 +1085,7 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 
 ## Stack conventions
 
-- **Runtime**: Node 22.5+ (required — uses `node:sqlite` stable).
+- **Runtime**: Node 24+ (required — active LTS since Oct 2025; `node:sqlite` stable; WebSocket built-in; modern ESM loader).
 - **Language**: TypeScript strict + ESM.
 - **Build**: `tsup` / `esbuild`.
 - **CLI framework**: **Clipanion** (pragmatic pick — introspection built-in, used by Yarn Berry).
@@ -1100,7 +1134,7 @@ Sequential build path. Each step ships green tests before the next begins.
 - Clipanion CLI binary prints version.
 - Contract test infrastructure runs conformance suite against impl.
 - CI green with 0 real features.
-- Tech stack remaining picks locked here (YAML, MD parsing, templating, pretty CLI, globbing, diff).
+- Remaining tech stack picks (YAML parser, MD parsing, templating, pretty CLI, globbing, diff) are deferred to the step that first needs them — lock-in-abstract rejected.
 
 ### Step 0c — UI prototype (Flavor A) — ▶ next
 
@@ -1133,7 +1167,7 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 
 ### Step 3 — Scan end-to-end
 
-- `sm scan` full + `-n` + `--changed` + `--compare-with`.
+- `sm scan` full + `-n` + `--changed`.
 - `sm list`, `sm show`, `sm check`.
 - Triple-split bytes + tokens per node (`js-tiktoken`).
 - `links_out_count`, `links_in_count`, `external_refs_count` denormalized.
@@ -1144,8 +1178,8 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 - Execution table `state_executions`.
 - `sm history` + filters + `stats`.
 - Orphan detection.
-- Rename heuristic via `body_hash` (high) and `frontmatter_hash` (medium).
-- `sm orphans reconcile`.
+- **Automatic rename heuristic**: on scan, when a deleted `node.path` and a newly-seen `node.path` share the same `body_hash`, the scan migrates `state_*` FK rows (executions, jobs, summaries, enrichment) from the old path to the new one at **high** confidence without prompt. `frontmatter_hash`-only match → **medium** confidence → emits an `auto-rename-medium` issue so the user can inspect / revert via `sm orphans reconcile`. Any residual unmatched deletion → `orphan` issue.
+- `sm orphans reconcile <orphan.path> --to <new.path>` remains as the manual override for semantic-only matches or history repair.
 
 ### Step 5 — Config + onboarding
 
@@ -1183,9 +1217,9 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 - `sm job submit / list / show / preview / claim / run / run --all / status / cancel / prune`.
 - `sm record` with nonce authentication.
 - CLI runner (`claude -p` subprocess).
-- Skill runner (`/skill-map:run-queue` + `sm-cli-run-queue` skill package).
+- Skill agent (`/skill-map:run-queue` + `sm-cli-run-queue` skill package).
 - `skill-summarizer` built-in (first summarizer).
-- Duplicate detection via `content_hash` + `--force`.
+- Duplicate detection via `contentHash` + `--force`.
 - Per-action TTL + auto-reap.
 - Progress events (pretty / `--stream-output` / `--json`).
 - `github-enrichment` bundled plugin (hash verification).
@@ -1243,7 +1277,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 
 | # | Item | Resolution |
 |---|---|---|
-| 1 | Target runtime | Node 22.5+ required. |
+| 1 | Target runtime | Node 24+ required (active LTS). |
 | 2 | Kernel-first principle | Non-negotiable from commit 1. All 6 extension kinds wired. |
 | 3 | Architecture pattern | **Hexagonal (ports & adapters)** — named explicitly. |
 | 4 | Kernel-as-library | CLI, Server, Skill are peer wrappers over the same kernel lib. |
@@ -1285,7 +1319,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 |---|---|---|
 | 26 | Frontmatter catalog | Full field catalog across identity / authorship / versioning / provenance / taxonomy / lifecycle / integration / display / documentation / kind-specific. |
 | 27 | Validation default | Warn (permissive). `--strict` flag promotes to error. |
-| 28 | Provenance fields | `metadata.source` (canonical URL) + `metadata.source_version` (tag or SHA). Consumed by `github-enrichment`. |
+| 28 | Provenance fields | `metadata.source` (canonical URL) + `metadata.sourceVersion` (tag or SHA). Consumed by `github-enrichment`. |
 | 29 | Per-surface visibility | Rendering-config decision, resolved during Step 0c prototype. Not a blocker. |
 
 ### Jobs and runners
@@ -1296,13 +1330,13 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 | 31 | Job file | Single flat folder `.skill-map/jobs/<id>.md`. No maildir. State in DB. |
 | 32 | Atomic claim | `UPDATE ... RETURNING id` via SQLite ≥3.35. Zero-row return = another runner won; retry. |
 | 33 | Nonce | In job file frontmatter. Required by `sm record` for callback auth. Never in user files. |
-| 34 | Runner dual | CLI = `claude -p` subprocess per item; Skill = in-session via `sm job claim` + Read + agent + Write + `sm record`. Both share primitives. |
+| 34 | CLI runner + Skill agent | **CLI runner** = `claude -p` subprocess per item, implements `RunnerPort` (driven adapter). **Skill agent** = in-session via `sm job claim` + Read + agent + Write + `sm record`, driving adapter (peer of CLI / Server), does NOT implement `RunnerPort`. Both share the kernel primitives `claim` + `record`. |
 | 35 | Sequential MVP | MVP runs jobs sequentially. Event schema supports parallel post-MVP. |
 | 36 | Prompt injection mitigation | User-content delimiters + auto-prepended preamble (kernel-enforced). |
 | 37 | Job concurrency (same action, same node) | Refuse duplicate with `--force` override. Content hash over action+version+node hashes+template hash. |
-| 38 | Exit code | 0 ok, 1 issues, 2 error, 3 duplicate-conflict. |
-| 39 | TTL per action | `expected_duration_seconds` in manifest. `ttl = max(expected × grace_multiplier, minimum_ttl)`. Frozen at submit. |
-| 40 | TTL override precedence | Global default → manifest → user `jobs.per_action_ttl` → CLI `--ttl`. |
+| 38 | Exit codes | `0` ok · `1` issues · `2` error · `3` duplicate · `4` nonce-mismatch · `5` not-found. `6–15` reserved for future spec use. `≥16` free for verb-specific use. |
+| 39 | TTL per action | `expectedDurationSeconds` in manifest. `ttl = max(expected × graceMultiplier, minimumTtl)`. Frozen at submit. |
+| 40 | TTL override precedence | Global default → manifest → user `jobs.perActionTtl` → CLI `--ttl`. |
 | 41 | Auto-reap | At start of `sm job run`. `running` with vencido TTL → failed(abandoned). |
 | 42 | Atomicity edge cases | Per-scenario policy: missing file → failed(job-file-missing); orphan file → reported by doctor, user prunes; edited file → by design. |
 
@@ -1324,8 +1358,8 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 | # | Item | Resolution |
 |---|---|---|
 | 51 | Drop-in | Default. No `add`/`remove` verbs. User drops files. `enable`/`disable` persisted. |
-| 52 | Spec-compat | `semver.satisfies(specVersion, plugin['spec-compat'])`. Fail → `disabled` with reason `incompatible-spec`. |
-| 53 | Storage dual mode | Mode A (KV via `ctx.store`) and Mode B (dedicated tables, plugin declares). |
+| 52 | specCompat | `semver.satisfies(specVersion, plugin.specCompat)`. Fail → `disabled` with reason `incompatible-spec`. |
+| 53 | Storage dual mode | Mode A (KV via `ctx.store`) and Mode B (dedicated tables, plugin declares). **A plugin MUST declare exactly one storage mode.** Mixing is forbidden; a plugin that needs KV-like and relational access uses mode B and implements KV rows as a dedicated table. |
 | 54 | Mode B triple protection | Prefix enforcement + DDL validation + scoped connection wrapper. Guards accidents, not hostile plugins. |
 | 55 | Tool permissions per job | Frontmatter `expected-tools: []`. Host filters/warns. |
 | 56 | Default plugin pack | Pattern confirmed. Contents TBD. Only `github-enrichment` firm commitment. Security scanner as spec'd interface for third-parties. |
@@ -1337,7 +1371,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 | 57 | Enrichment scope | GitHub only for MVP. Skills.sh dropped (no API). npm dropped. |
 | 58 | Hash verification | Explicit declaration + compare. No reverse-lookup (no API). |
 | 59 | GitHub idempotency | SHA pin + branch resolution cache + optional ETag. |
-| 60 | Enrichment invocation | No dedicated verb. Uses `sm job submit <action> --all`. `--all` promoted as universal flag. |
+| 60 | Enrichment invocation | No dedicated verb. Uses `sm job submit <action> --all`. **`--all` is a universal flag**: any verb that takes a target identifier (`-n <node.path>`, `<job.id>`, `<plugin.id>`, etc.) MUST accept `--all` as "apply to every eligible target matching the verb's preconditions" (e.g. `sm scan --all` = every root; `sm plugins disable --all` = every plugin; `sm job cancel --all` = every running job). Verbs that inherently target everything (`sm list`, `sm check`, `sm doctor`) ignore `--all`. |
 | 61 | `state_enrichment` table | Dedicated. `node_id + provider_id` PK. |
 
 ### CLI and introspection
@@ -1421,7 +1455,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 - **npm + other registry enrichment plugins**. When registries publish documented APIs.
 - **ETag / conditional GET** for GitHub enrichment. Bandwidth optimization.
 - **Governance / RFC process**. When external contributors appear.
-- **Claude Code hook auto-record**. A PostToolUse hook that auto-calls `sm record` after an action completes. Partial coverage already via the skill runner; full auto-record hook deferred.
+- **Claude Code hook auto-record**. A PostToolUse hook that auto-calls `sm record` after an action completes. Partial coverage already via the Skill agent; full auto-record hook deferred.
 - **Adversarial testing suite** for prompt injection. Fixtures with known payloads.
 - **Parallel job execution**. Event schema already supports demuxing by id.
 - **Multi-turn conversational jobs in DB**. If a strong case appears.
