@@ -3,6 +3,7 @@ export type { FilesystemPort, NodeStat, WalkOptions } from './filesystem.js';
 export type {
   PluginLoaderPort,
   PluginManifest,
+  PluginStorage,
   LoadedExtension,
 } from './plugin-loader.js';
 export type { RunnerPort, RunOptions, RunResult } from './runner.js';

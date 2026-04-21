@@ -15,7 +15,8 @@
   ],
   "scripts": {
     "spec:index": "node scripts/build-spec-index.mjs",
-    "spec:check": "node scripts/build-spec-index.mjs --check",
+    "spec:check": "node scripts/build-spec-index.mjs --check && node scripts/check-coverage.mjs",
+    "spec:coverage": "node scripts/check-coverage.mjs",
     "site:build": "node scripts/build-site.mjs",
     "build": "npm run build --workspace=skill-map",
     "typecheck": "npm run typecheck --workspace=skill-map",

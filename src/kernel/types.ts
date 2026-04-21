@@ -1,38 +1,83 @@
 /**
- * Domain types — minimal shapes required by Step 0b.
+ * Domain types — byte-aligned with `spec/schemas/{node,link,issue,scan-result}.schema.json`.
  *
- * These are hand-aligned with `spec/schemas/*.schema.json`. Step 3 will refine
- * them (Node frontmatter fields, Link discriminators, etc.); for the scan stub
- * the only mandatory surface is what the `kernel-empty-boot` conformance case
- * asserts: a ScanResult with `schemaVersion: 1` and zeroed stats.
+ * The kernel is the reference consumer of the spec; these types are therefore
+ * derived from the schemas, not invented. When a schema changes, this file
+ * follows. Step 2 introduces ajv + automatic derivation; until then the mapping
+ * is hand-maintained, and the release gate is the conformance suite.
  */
 
 export type NodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
+
+export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
+
+export type Confidence = 'high' | 'medium' | 'low';
+
+export type Severity = 'error' | 'warn' | 'info';
+
+export type Stability = 'experimental' | 'stable' | 'deprecated';
+
+export interface TripleSplit {
+  frontmatter: number;
+  body: number;
+  total: number;
+}
+
+export interface LinkTrigger {
+  originalTrigger: string;
+  normalizedTrigger: string;
+}
+
+export interface LinkLocation {
+  line: number;
+  column?: number;
+  offset?: number;
+}
 
 export interface Node {
   path: string;
   kind: NodeKind;
   adapter: string;
-  name: string;
-  description: string;
-  metadata: { version: string } & Record<string, unknown>;
+  bodyHash: string;
+  frontmatterHash: string;
+  bytes: TripleSplit;
+  linksOutCount: number;
+  linksInCount: number;
+  externalRefsCount: number;
+  title?: string | null;
+  description?: string | null;
+  stability?: Stability | null;
+  version?: string | null;
+  author?: string | null;
+  frontmatter?: Record<string, unknown>;
+  tokens?: TripleSplit;
 }
 
 export interface Link {
-  from: string;
-  to: string | null;
-  detector: string;
-  confidence: 'exact' | 'fuzzy';
-  originalTrigger?: string;
-  normalizedTrigger?: string;
+  source: string;
+  target: string;
+  kind: LinkKind;
+  confidence: Confidence;
+  sources: string[];
+  trigger?: LinkTrigger | null;
+  location?: LinkLocation | null;
+  raw?: string | null;
+}
+
+export interface IssueFix {
+  summary?: string;
+  autofixable?: boolean;
 }
 
 export interface Issue {
-  id: string;
-  rule: string;
-  severity: 'error' | 'warning' | 'info';
-  nodes: string[];
+  ruleId: string;
+  severity: Severity;
+  nodeIds: string[];
   message: string;
+  linkIndices?: number[];
+  detail?: string | null;
+  fix?: IssueFix | null;
+  data?: Record<string, unknown>;
 }
 
 export interface ScanStats {

@@ -1,10 +1,17 @@
 /**
  * Extension registry — six kinds, first-class, loaded through a single API.
  *
+ * The `Extension` shape is aligned with `spec/schemas/extensions/base.schema.json`.
+ * Kind-specific manifests (adapter / detector / rule / action / audit / renderer)
+ * extend this base structurally; the registry stores the base view and each
+ * kind's code carries its own fuller type where needed.
+ *
  * Boot invariant: `new Registry()` is empty. `registry.totalCount() === 0`
  * when the kernel boots with zero extensions. This is the data side of the
  * `kernel-empty-boot` conformance contract.
  */
+
+import type { Stability } from './types.js';
 
 export type ExtensionKind =
   | 'adapter'
@@ -26,6 +33,11 @@ export const EXTENSION_KINDS: readonly ExtensionKind[] = Object.freeze([
 export interface Extension {
   id: string;
   kind: ExtensionKind;
+  version: string;
+  description?: string;
+  stability?: Stability;
+  preconditions?: string[];
+  entry?: string;
 }
 
 export class DuplicateExtensionError extends Error {

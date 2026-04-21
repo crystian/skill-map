@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { describe, it } from 'node:test';
 
-import { runConformanceCase } from '../conformance/index.ts';
+import { runConformanceCase } from '../conformance/index.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = resolve(HERE, '..');

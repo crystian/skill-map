@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/history-stats.schema.json",
+  "title": "HistoryStats",
+  "description": "Machine-readable output of `sm history stats --json`. Aggregates over `state_executions` within a time window. camelCase keys throughout. The `elapsedMs` top-level field is the command's own wall-clock (see `cli-contract.md` §Elapsed time) — distinct from `totals.durationMsTotal`, which is the sum of every execution record's duration.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "range",
+    "totals",
+    "tokensPerAction",
+    "executionsPerPeriod",
+    "topNodes",
+    "errorRates",
+    "elapsedMs"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "range": {
+      "type": "object",
+      "required": ["since", "until"],
+      "additionalProperties": false,
+      "properties": {
+        "since": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Inclusive lower bound (ISO-8601). `null` means all-time — the earliest execution record is used."
+        },
+        "until": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Exclusive upper bound (ISO-8601). Defaults to `now()` at command invocation."
+        }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "required": [
+        "executionsCount",
+        "completedCount",
+        "failedCount",
+        "tokensIn",
+        "tokensOut",
+        "durationMsTotal"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "executionsCount": { "type": "integer", "minimum": 0 },
+        "completedCount":  { "type": "integer", "minimum": 0 },
+        "failedCount":     { "type": "integer", "minimum": 0 },
+        "tokensIn":        { "type": "integer", "minimum": 0, "description": "Sum of `state_executions.tokens_in`. `null` values in the source are treated as 0." },
+        "tokensOut":       { "type": "integer", "minimum": 0 },
+        "durationMsTotal": { "type": "integer", "minimum": 0, "description": "Sum of every execution's `duration_ms`. NOT the command's wall-clock — see `elapsedMs`." }
+      }
+    },
+    "tokensPerAction": {
+      "type": "array",
+      "description": "One row per distinct `(actionId, actionVersion)` pair in the window. Sorted by `tokensIn + tokensOut` descending.",
+      "items": {
+        "type": "object",
+        "required": ["actionId", "actionVersion", "executionsCount", "tokensIn", "tokensOut"],
+        "additionalProperties": false,
+        "properties": {
+          "actionId":        { "type": "string" },
+          "actionVersion":   { "type": "string" },
+          "executionsCount": { "type": "integer", "minimum": 0 },
+          "tokensIn":        { "type": "integer", "minimum": 0 },
+          "tokensOut":       { "type": "integer", "minimum": 0 },
+          "durationMsMean":   { "type": ["integer", "null"], "minimum": 0, "description": "Rounded mean duration over the action's executions. `null` when `executionsCount == 0`." },
+          "durationMsMedian": { "type": ["integer", "null"], "minimum": 0, "description": "Median duration. `null` when `executionsCount == 0`." }
+        }
+      }
+    },
+    "executionsPerPeriod": {
+      "type": "array",
+      "description": "Time-bucketed counts. Bucket granularity follows the `--period` flag (`day` | `week` | `month`). `periodStart` always ISO-8601; `periodUnit` present so consumers can group without parsing the date shape.",
+      "items": {
+        "type": "object",
+        "required": ["periodStart", "periodUnit", "executionsCount", "tokensIn", "tokensOut"],
+        "additionalProperties": false,
+        "properties": {
+          "periodStart": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Start of the bucket (UTC). For `day`: `YYYY-MM-DDT00:00:00.000Z`. For `week`: Monday 00:00 UTC. For `month`: day-1 00:00 UTC."
+          },
+          "periodUnit": {
+            "type": "string",
+            "enum": ["day", "week", "month"]
+          },
+          "executionsCount": { "type": "integer", "minimum": 0 },
+          "tokensIn":        { "type": "integer", "minimum": 0 },
+          "tokensOut":       { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "topNodes": {
+      "type": "array",
+      "description": "Most-frequently-executed nodes in the window. Sorted by `executionsCount` descending, tie-broken by `lastExecutedAt` descending. Length controlled by `--top N` (default 10).",
+      "items": {
+        "type": "object",
+        "required": ["nodePath", "executionsCount", "lastExecutedAt"],
+        "additionalProperties": false,
+        "properties": {
+          "nodePath": {
+            "type": "string",
+            "description": "Canonical node identifier (relative path from scope root). MAY point to a node that no longer exists (orphan in history)."
+          },
+          "executionsCount": { "type": "integer", "minimum": 1 },
+          "lastExecutedAt":  { "type": "integer", "minimum": 0, "description": "Unix ms of the most recent execution against this node within the window." }
+        }
+      }
+    },
+    "errorRates": {
+      "type": "object",
+      "required": ["global", "perAction", "perFailureReason"],
+      "additionalProperties": false,
+      "properties": {
+        "global": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "`failedCount / executionsCount` across the window. `0` when `executionsCount == 0`."
+        },
+        "perAction": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["actionId", "rate", "executionsCount", "failedCount"],
+            "additionalProperties": false,
+            "properties": {
+              "actionId":        { "type": "string" },
+              "rate":            { "type": "number", "minimum": 0, "maximum": 1 },
+              "executionsCount": { "type": "integer", "minimum": 0 },
+              "failedCount":     { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "perFailureReason": {
+          "type": "object",
+          "description": "Counts (not ratios) per failure reason. Every enum value of `state_executions.failure_reason` appears, with `0` when no occurrences — predictable shape for dashboards.",
+          "required": [
+            "runner-error",
+            "report-invalid",
+            "timeout",
+            "abandoned",
+            "job-file-missing",
+            "user-cancelled"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "runner-error":     { "type": "integer", "minimum": 0 },
+            "report-invalid":   { "type": "integer", "minimum": 0 },
+            "timeout":          { "type": "integer", "minimum": 0 },
+            "abandoned":        { "type": "integer", "minimum": 0 },
+            "job-file-missing": { "type": "integer", "minimum": 0 },
+            "user-cancelled":   { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "elapsedMs": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Command's own wall-clock in milliseconds, from invocation to emission. Per `cli-contract.md` §Elapsed time: reported on stdout whenever the shape is an object (like this one), and always on stderr as `done in <formatted>`."
+    }
+  }
+}

@@ -36,6 +36,7 @@ This file is hand-maintained. A CI check at spec cut-time compares the schema in
 | 26 | `extensions/action.schema.json` | — | 🔴 missing | Case: a `local` action manifest validates; an `invocation-template` action WITHOUT `promptTemplateRef` fails. |
 | 27 | `extensions/audit.schema.json` | — | 🔴 missing | Case: `validate-all` audit manifest validates; an audit referencing a non-existent rule id in `composes` fails at load with `invalid-manifest`. |
 | 28 | `extensions/renderer.schema.json` | — | 🔴 missing | Case: `ascii` renderer manifest validates. |
+| 29 | `history-stats.schema.json` | — | 🔴 missing | Blocked by Step 4 (history). Case: seed `state_executions` with a deterministic fixture, run `sm history stats --json --since <T0> --until <T1> --period month --top 5`, assert the document validates and that `totals.executionsCount == sum(perAction.executionsCount)` and `errorRates.global == totals.failedCount / totals.executionsCount`. Percentiles (`p95`/`p99`) intentionally omitted in v1 — add later as a minor bump without breaking consumers. |
 
 Status legend: 🟢 covered (at least one case asserts the schema end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) · 🔴 missing.
 
@@ -56,9 +57,10 @@ These have their own conformance cases even though they are not JSON Schemas.
 | I | Rename heuristic | — | 🔴 missing | Blocked by Step 4. Move a file; same-`body_hash` → high-confidence auto-rename; `state_*` FK rows migrated; no issue emitted. |
 | J | Plugin DDL rejection | — | 🔴 missing | Blocked by Step 8. Plugin migration referencing `state_jobs` → disabled with `invalid-manifest`. |
 | K | Plugin prefix injection | — | 🔴 missing | Blocked by Step 8. Plugin declares `CREATE TABLE foo` → kernel applies as `plugin_<id>_foo`. |
+| L | Elapsed-time reporting | — | 🔴 missing | Blocked by Step 3 (first real verb work). Run any in-scope verb; stderr last line MUST match `/^done in (\d+ms\|\d+\.\d+s\|\d+m \d+s)$/`. In-scope verb with `--json` returning an object MUST carry `elapsedMs`. Exempt verb (`sm version`) MUST NOT emit the line. |
 
 ## Release gates
 
 - **spec v0.x**: partial coverage acceptable. Every case added as the reference impl lands the verb that makes it runnable.
 - **spec v1.0.0 cut**: all rows above MUST be 🟢 covered or explicitly 🟠 deferred to v1.1 with a linked issue.
-- **CI check**: a script (`scripts/check-coverage.mjs`, to land with Step 3) compares `spec/schemas/**/*.schema.json` against this file; any new schema without a row here fails CI.
+- **CI check**: [`scripts/check-coverage.mjs`](../../scripts/check-coverage.mjs) compares `spec/schemas/**/*.schema.json` against the matrix above on every PR. A schema without a row here, or a row pointing at a missing schema, fails CI (exit 1 with a `::error::` annotation). Wired into `ci.yml` §validate and into `npm run spec:check`.

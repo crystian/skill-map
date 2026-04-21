@@ -16,7 +16,7 @@ export function createKernel(): Kernel {
 
 export { Registry, EXTENSION_KINDS, DuplicateExtensionError } from './registry.js';
 export type { Extension, ExtensionKind } from './registry.js';
-export * from './types.js';
+export type * from './types.js';
 export { runScan } from './orchestrator.js';
 export type { RunScanOptions } from './orchestrator.js';
 export type * from './ports/index.js';

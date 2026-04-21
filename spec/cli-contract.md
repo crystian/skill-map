@@ -238,8 +238,8 @@ Authentication: the nonce is the sole credential. An implementation MUST reject 
 
 | Command | Purpose |
 |---|---|
-| `sm history [-n <node.path>] [--action <id>] [--status ...] [--since <date>]` | Filter execution records. `--json` emits an array of `execution-record.schema.json` objects. |
-| `sm history stats` | Aggregates: tokens per action, executions per month, top nodes by frequency, error rates. |
+| `sm history [-n <node.path>] [--action <id>] [--status ...] [--since <date>] [--until <date>]` | Filter execution records. `--json` emits an array of `execution-record.schema.json` objects. |
+| `sm history stats [--since <date>] [--until <date>] [--period day\|week\|month] [--top N]` | Aggregates over `state_executions` in the window. `--json` emits a document conforming to `history-stats.schema.json`: totals, tokens per action, executions per period (granularity from `--period`, default `month`), top N nodes by frequency (default 10), error rates (global + per-action + per failure reason). |
 
 ---
 
@@ -322,6 +322,46 @@ When `--json` is set:
    ```
 
 5. Streaming verbs MUST flush after each line (ndjson).
+
+---
+
+## Elapsed time
+
+Every verb that does non-trivial work MUST report its own wall-clock duration. Coverage is broad on purpose — operators and agents need to notice regressions without instrumenting the host.
+
+### Scope
+
+**In scope**: any verb that walks the filesystem, hits the DB, spawns a subprocess, or renders a report. Examples: `sm scan`, `sm check`, `sm list`, `sm show`, `sm findings`, `sm history`, `sm history stats`, `sm graph`, `sm export`, `sm audit run`, `sm job submit`, `sm job run`, `sm job claim`, `sm job preview`, `sm record`, `sm doctor`, `sm db backup`, `sm db restore`, `sm db dump`, `sm db migrate`, `sm plugins list`, `sm plugins doctor`, `sm init`.
+
+**Exempt**: informational verbs that return in well under a millisecond and would clutter the output — `sm --version`, `sm --help`, `sm version`, `sm help`, `sm config get`, `sm config list`, `sm config show`.
+
+### Pretty output (TTY)
+
+The last line written to stderr MUST be `done in <formatted>` where `<formatted>` is:
+
+- `< 1000ms` → `<N>ms` (integer, no decimals).
+- `≥ 1s` and `< 60s` → `<N.N>s` (one decimal).
+- `≥ 60s` → `<M>m <S>s` (integer minutes + integer seconds).
+
+Examples: `done in 34ms`, `done in 2.4s`, `done in 1m 42s`.
+
+The line is suppressed by `--quiet`. It goes to stderr so it never pollutes stdout, including in `--json` mode.
+
+### JSON output (`--json`)
+
+When the verb's `--json` output is a top-level **object**, the schema includes an `elapsedMs` top-level field (integer, milliseconds). Stdout then carries the timing inside the document. Stderr still emits the `done in …` line unless `--quiet`.
+
+When the verb's `--json` output is a top-level **array** or an **ndjson stream**, the schema does NOT include `elapsedMs` (there is no object to attach it to). Stderr is the sole carrier of the timing line.
+
+Schemas that already express the command's wall-clock under a nested field (e.g. `scan-result.schema.json` → `stats.durationMs`) MUST treat that field as the elapsed time of the scan command itself. Adding a top-level `elapsedMs` to those schemas for redundancy is a minor bump and MAY happen later for consistency; until then, consumers read the nested field.
+
+### Implementations
+
+Implementations MUST measure from the moment the verb starts its own work (after Clipanion / arg-parsing overhead) to the moment before writing the terminal output. Sub-millisecond verbs exempt per §Scope MAY skip the measurement entirely.
+
+### Stability
+
+The `done in …` stderr line, its format grammar, and the `elapsedMs` field contract are **stable** as of spec v1.0.0. Changing the grammar, the time units, or the location (stderr ↔ stdout) is a major bump. Adding `elapsedMs` to a schema that previously omitted it is a minor bump.
 
 ---
 

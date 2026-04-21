@@ -41,6 +41,9 @@ jobs:
       - name: Verify spec index integrity (sha256 per file)
         run: node scripts/build-spec-index.mjs --check
 
+      - name: Verify coverage matrix ↔ schemas sync
+        run: node scripts/check-coverage.mjs
+
       - name: Build site + validate $id alignment
         run: node scripts/build-site.mjs
 

@@ -8,7 +8,7 @@ export default defineConfig({
     cli: 'cli/entry.ts',
   },
   format: ['esm'],
-  target: 'node22',
+  target: 'node24',
   platform: 'node',
   splitting: false,
   sourcemap: true,

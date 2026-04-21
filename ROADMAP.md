@@ -1090,7 +1090,7 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 - **Build**: `tsup` / `esbuild`.
 - **CLI framework**: **Clipanion** (pragmatic pick — introspection built-in, used by Yarn Berry).
 - **HTTP server**: **Hono** (lightweight, ESM-native). Acts as the BFF for the Angular UI and any future client.
-- **WebSocket**: `ws` or Hono's built-in (TBD at Step 12).
+- **WebSocket**: server side uses `hono/ws` + `@hono/node-ws` (co-located with the Hono router so REST and WS share a single listener — single-port mandate). Client side uses the browser-native `WebSocket` (browser) or the Node 24 global `WebSocket` (Node-side tests and consumers — no extra dep). The standalone `ws` library is rejected: it duplicates glue for the HTTP/WS multiplex.
 - **Single-port mandate**: `sm serve` exposes SPA + BFF + WS under one listener. Dev uses Angular dev server + proxy; prod uses Hono + `serveStatic`.
 - **UI framework**: **Angular** (latest stable, standalone components).
 - **Node-based UI library**: **Foblex Flow**.
@@ -1277,7 +1277,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 
 | # | Item | Resolution |
 |---|---|---|
-| 1 | Target runtime | Node 24+ required (active LTS). |
+| 1 | Target runtime | Node 24+ required (active LTS). **Enforcement**: (a) runtime guard in `bin/sm.mjs` fails fast with a human message and exit code 2 before any import — guarantees clear UX on Node 20 / 22; (b) `engines.node: ">=24.0"` in `package.json` gives npm an `EBADENGINE` warning (non-blocking unless the user sets `engine-strict=true`); (c) `sm version` and `sm doctor` both report the detected Node; (d) `tsup.target: "node24"` matches the runtime floor at build time. |
 | 2 | Kernel-first principle | Non-negotiable from commit 1. All 6 extension kinds wired. |
 | 3 | Architecture pattern | **Hexagonal (ports & adapters)** — named explicitly. |
 | 4 | Kernel-as-library | CLI, Server, Skill are peer wrappers over the same kernel lib. |
@@ -1400,6 +1400,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 | 74b | UI workspace layout | `ui/` is an npm workspace peer of `spec/` and `src/`. Kernel stays Angular-agnostic; UI imports only typed contracts from `spec/`. No cross-import from `src/` into `ui/` or vice versa. |
 | 74c | BFF mandate | Single-port: `sm serve` exposes SPA + REST + WS under one listener. Dev uses Angular dev server with `proxy.conf.json` → Hono for `/api` and `/ws`; prod uses Hono + `serveStatic`. |
 | 74d | BFF framework | **Hono**, thin proxy over the kernel. No domain logic, no second DI. NestJS considered and rejected as over-engineered for a single-client BFF. |
+| 74e | WebSocket library | Server: `hono/ws` + `@hono/node-ws` — co-located with the Hono router, same listener as REST (single-port). Client: browser-native `WebSocket` or Node 24 global `WebSocket` — no extra dep. `ws` rejected (duplicates multiplex glue). |
 | 75 | Det vs prob refresh | Two buttons per node in UI, two verbs in CLI, two distinct pipes. |
 
 ### Spec

@@ -14,8 +14,7 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join, resolve } from 'node:path';
 
 export type AssertionResult =
   | { ok: true; type: string }
@@ -279,19 +278,6 @@ function deepEqual(a: unknown, b: unknown): boolean {
   }
   return false;
 }
-
-/**
- * Convenience: resolve `<spec-root>/conformance/cases/<id>.json` given a
- * caller module URL — useful from tests that sit next to the runner.
- */
-export function caseFixturePath(callerUrl: string, specRoot: string, id: string): string {
-  const callerDir = dirname(fileURLToPath(callerUrl));
-  void callerDir;
-  return join(specRoot, 'conformance', 'cases', `${id}.json`);
-}
-
-/** Platform-specific path separator convenience re-export. */
-export const PATH_SEP: string = sep;
 
 /** Verifies the spec root looks sane (contains `index.json`). */
 export function assertSpecRoot(specRoot: string): void {

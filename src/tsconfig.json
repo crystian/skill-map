@@ -23,6 +23,6 @@
     "outDir": "./dist",
     "rootDir": "."
   },
-  "include": ["kernel/**/*", "cli/**/*", "conformance/**/*", "extensions/**/*", "index.ts"],
-  "exclude": ["dist", "node_modules", "test"]
+  "include": ["kernel/**/*", "cli/**/*", "conformance/**/*", "extensions/**/*", "test/**/*", "index.ts"],
+  "exclude": ["dist", "node_modules"]
 }
