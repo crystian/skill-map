@@ -110,7 +110,7 @@ npm i @skill-map/spec
 import specIndex from '@skill-map/spec';
 import nodeSchema from '@skill-map/spec/schemas/node.schema.json' with { type: 'json' };
 
-console.log(specIndex.specVersion);        // → "0.0.1" (payload version, tracks file shape)
+console.log(specIndex.specVersion);        // → "0.0.1" (payload shape version; distinct from the npm package version)
 console.log(specIndex.integrity.algorithm); // → "sha256"
 console.log(nodeSchema.$id);                // → "https://skill-map.dev/spec/v0/node.schema.json"
 ```
