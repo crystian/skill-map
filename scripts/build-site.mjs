@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 import { join, dirname, relative } from 'node:path';
 
 const SCHEMA_SRC = 'spec/schemas';
+const SPEC_PKG_PATH = 'spec/package.json';
 const SITE_DST = 'site';
 const SCHEMA_DST = 'site/spec/v0';
 
@@ -24,6 +25,8 @@ const SPEC_URL = `${DOMAIN}/spec/${MAJOR}`;
 
 const REPO_URL = 'https://github.com/crystian/skill-map';
 const PROSE_BASE = `${REPO_URL}/blob/main/spec`;
+const NPM_PKG_URL = 'https://www.npmjs.com/package/@skill-map/spec';
+const CHANGELOG_URL = `${PROSE_BASE}/CHANGELOG.md`;
 
 const PROSE_DOCS = [
   { file: 'README.md', title: 'README', summary: 'Overview of the spec and what it defines.' },
@@ -127,29 +130,45 @@ const BASE_CSS = `
   ul.items .desc { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
   .canonical { background: var(--code-bg); border: 1px solid var(--border); padding: 16px; border-radius: 8px; margin: 24px 0; }
   .canonical code { background: transparent; border: none; padding: 0; color: var(--accent); }
+  .version-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    margin-left: 10px;
+    background: var(--code-bg);
+    border: 1px solid var(--accent);
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 400;
+    vertical-align: middle;
+  }
+  .version-badge a { color: var(--accent); }
+  .version-badge a:hover { text-decoration: none; color: var(--fg); }
+  .release-line { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
   footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 `;
 
-function renderLanding(items) {
+function renderLanding(items, version) {
   const g = groupSchemas(items);
+  const npmVersionUrl = `${NPM_PKG_URL}/v/${version}`;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>skill-map spec</title>
+<title>skill-map spec v${escapeHtml(version)}</title>
 <meta name="description" content="Vendor-neutral specification for mapping and managing AI-agent markdown ecosystems.">
 <style>${BASE_CSS}</style>
 </head>
 <body>
 <main>
-  <h1>skill-map <span class="dim">spec</span></h1>
+  <h1>skill-map <span class="dim">spec</span> <span class="version-badge"><a href="${escapeHtml(npmVersionUrl)}">v${escapeHtml(version)}</a></span></h1>
+  <p class="release-line">Current release: <a href="${escapeHtml(npmVersionUrl)}"><code>@skill-map/spec@${escapeHtml(version)}</code></a> &middot; <a href="${escapeHtml(CHANGELOG_URL)}">changelog</a> &middot; <a href="${escapeHtml(NPM_PKG_URL)}">all versions on npm</a></p>
   <p class="lead">Vendor-neutral specification for mapping, inspecting, and managing collections of interrelated markdown files — skills, agents, commands, hooks, and notes.</p>
 
   <div class="canonical">
     <strong>Canonical URL</strong><br>
     <code>${escapeHtml(SPEC_URL)}/&lt;path&gt;.schema.json</code>
-    <p style="margin: 8px 0 0; color: var(--muted); font-size: 12px;">Pre-1.0. <code>v0</code> throughout the unstable lifecycle; becomes <code>v1</code> at first stable cut.</p>
+    <p style="margin: 8px 0 0; color: var(--muted); font-size: 12px;">Pre-1.0. <code>v0</code> is the URL major prefix and stays until the first stable cut; the package version on npm bumps per changeset.</p>
   </div>
 
   <h2>Top-level schemas</h2>
@@ -184,19 +203,20 @@ ${renderProseList()}
 `;
 }
 
-function renderSchemaIndex(items) {
+function renderSchemaIndex(items, version) {
   const g = groupSchemas(items);
+  const npmVersionUrl = `${NPM_PKG_URL}/v/${version}`;
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>skill-map spec / ${MAJOR}</title>
+<title>skill-map spec / ${MAJOR} (v${escapeHtml(version)})</title>
 <style>${BASE_CSS}</style>
 </head>
 <body>
 <main>
-  <h1>spec <span class="dim">/ ${MAJOR}</span></h1>
+  <h1>spec <span class="dim">/ ${MAJOR}</span> <span class="version-badge"><a href="${escapeHtml(npmVersionUrl)}">v${escapeHtml(version)}</a></span></h1>
   <p class="lead">${items.length} JSON Schemas served from this path. Each <code>$id</code> equals its URL.</p>
 
   <h2>Top-level</h2>
@@ -226,6 +246,10 @@ ${renderSchemaList(g.summaries)}
 async function main() {
   if (existsSync(SITE_DST)) await rm(SITE_DST, { recursive: true });
   await mkdir(SCHEMA_DST, { recursive: true });
+
+  const pkg = JSON.parse(await readFile(SPEC_PKG_PATH, 'utf8'));
+  const version = pkg.version;
+  if (!version) throw new Error(`${SPEC_PKG_PATH} has no "version" field`);
 
   const files = await walkSchemas(SCHEMA_SRC);
   if (files.length === 0) throw new Error(`no schemas found under ${SCHEMA_SRC}/`);
@@ -263,11 +287,11 @@ async function main() {
     process.exit(1);
   }
 
-  await writeFile(join(SITE_DST, 'index.html'), renderLanding(validated));
-  await writeFile(join(SCHEMA_DST, 'index.html'), renderSchemaIndex(validated));
+  await writeFile(join(SITE_DST, 'index.html'), renderLanding(validated, version));
+  await writeFile(join(SCHEMA_DST, 'index.html'), renderSchemaIndex(validated, version));
 
   console.log(`✓ Validated ${validated.length} schemas.`);
-  console.log(`✓ Site built at ${SITE_DST}/`);
+  console.log(`✓ Site built at ${SITE_DST}/ (spec v${version}).`);
   console.log(`  Landing: ${SITE_DST}/index.html`);
   console.log(`  Schemas: ${SCHEMA_DST}/`);
 }
