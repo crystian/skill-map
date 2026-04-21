@@ -66,12 +66,7 @@
       "properties": {
         "share": {
           "type": "boolean",
-          "description": "When true, `./.skill-map/history.json` is intended to be committed. Stability: experimental. Default false."
-        },
-        "retentionDays": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "How long to keep execution records before GC."
+          "description": "When true, `./.skill-map/skill-map.db` is expected to be committed — teams remove it from `.gitignore` so the execution log becomes a shared artefact. Stability: experimental. Default false."
         }
       }
     },

@@ -64,7 +64,7 @@ Driven adapters (secondary, implement a port): SQLite storage, FS, Plugin loader
 | Adapter | Recognizes a platform and defines its domain (claude, codex, gemini, obsidian-vault, generic) |
 | Rule | Produces issues over the graph (trigger collisions, broken refs, etc.) |
 | Action | Executable action over a node (`local` or `invocation-template` mode) |
-| Audit | Hardcoded workflow (`validate-all`, `find-duplicates`, etc.) |
+| Audit | Hardcoded workflow composing rules and actions (`validate-all`) |
 | Renderer | Serializes the graph (ascii, mermaid, dot, json) |
 
 **Kernel boundary**: types, registry, orchestrator, storage, CLI dispatcher. With all extensions removed, the kernel must still boot and return an empty graph (enforced by conformance case `kernel-empty-boot`).
@@ -99,7 +99,7 @@ skill-map/
 │   ├── extensions/         built-in extensions (empty until Step 2)
 │   ├── test/               node:test + tsx (pattern: *.test.ts)
 │   └── bin/sm.mjs          CLI shim
-├── scripts/                build-site.mjs · build-spec-index.mjs · check-changeset.mjs
+├── scripts/                build-site.mjs · build-spec-index.mjs · check-changeset.mjs · check-coverage.mjs
 ├── site/                   generated public website (served by Railway)
 ├── .changeset/             changesets configuration
 └── .github/workflows/      ci.yml (spec validate + build-test) · release.yml
@@ -113,7 +113,9 @@ skill-map/
 
 **Workspace boundary**: the kernel in `src/` never imports Angular; the UI in `ui/` never imports `src/` internals. The only contract between them is `spec/` (JSON Schemas + typed DTOs). At Step 12, the Hono BFF inside `src/server/` exposes kernel operations over HTTP/WS, and `sm serve` serves the built Angular SPA from the same listener (single-port mandate).
 
-## MVP floor (not locked)
+## CUT 1 floor (not locked)
+
+Scope of the first shippable cut (`v0.5.0`, deterministic core, zero LLM):
 
 1. 4 CLI verbs: `sm scan`, `sm list`, `sm show`, `sm check`.
 2. All 6 extension kinds wired in the kernel.
@@ -126,16 +128,18 @@ skill-map/
    - 1 Renderer: `ascii`.
 4. JSON output with `schemaVersion: 1`.
 5. History + `sm record` CLI.
-6. **No web UI shipped in v0.1.0** (the Step 0c Angular prototype is a pre-MVP design validation, not released). **No LLM layer. No workflows beyond audits.**
+6. **No web UI shipped in CUT 1 / `v0.5.0`** (the Step 0c Angular prototype is a pre-CUT-1 design validation, not released). **No LLM layer. No workflows beyond audits.**
 
 ## Execution plan (summary)
 
 | Phase | Steps | Ships | LLM |
 |---|---|---|---|
-| A — Core deterministic | 0–8 | **v0.1.0** (CUT 1) | none |
-| B — LLM layer (optional) | 9–10 | **v0.5.0** (CUT 2) | optional |
-| C — UI + distribution | 11–13 | **v1.0.0** (CUT 3) | optional |
+| A — Core deterministic | 0–8 | **v0.5.0** (CUT 1) | none |
+| B — LLM layer (optional) | 9–10 | **v0.8.0** (CUT 2) | optional |
+| C — Surface & distribution | 11–13 | **v1.0.0** (CUT 3) | optional |
 | D — Deferred | 14+ | on demand | varies |
+
+Note on the 0.x numbering: `v0.1.0` was the Step 0b implementation bootstrap and is already published. Intermediate minors (`v0.2.0` … `v0.4.x`) cover Steps 0c / 1a / 1b / 1c / 2–8 as they land; each shipped minor is driven by a changeset, never by a hand bump.
 
 Full step-by-step in `ROADMAP.md §Execution plan`. The completeness marker there flags the last fully-done step.
 
@@ -161,7 +165,7 @@ Full step-by-step in `ROADMAP.md §Execution plan`. The completeness marker ther
 
 ### UI (`ui/`, from Step 0c)
 
-- **Framework**: **Angular** (latest stable, standalone components, SCSS, routing).
+- **Framework**: **Angular ≥ 21** (standalone components, SCSS, routing). Pin: `^21.0.0` at scaffold.
 - **Node-based UI library**: **Foblex Flow** (Angular-native) for the graph view. Cards are Angular components with arbitrary HTML (title, kind badge, version, triggers, link counts).
 - **Component library**: **PrimeNG** (tables, forms, dialogs, menus, overlays).
 - **Styling**: SCSS **scoped per component**. **No utility CSS** (no Tailwind, no PrimeFlex). PrimeFlex is in maintenance mode; Tailwind overlaps with PrimeNG theming. Utilities return only if real friction appears.
@@ -206,14 +210,14 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerates on demand.
 
 Pyramid: contract, unit, integration, self-scan, CLI, snapshot.
 
-Mandatory for MVP:
+Mandatory for CUT 1:
 1. Contract tests for the 6 kinds.
 2. **Self-scan test** — `sm scan` on skill-map's own repo produces a valid graph, no critical issues.
 3. Adapter conformance against controlled fixtures.
 4. Detector isolation (MD input → expected edges).
 5. Rule isolation (mini graph → expected issues).
 6. JSON Schema validation (scanner output vs `schemaVersion: 1`).
-7. CLI smoke tests for all MVP verbs.
+7. CLI smoke tests for all CUT 1 verbs.
 
 **Per-extension rule**: every extension in `src/extensions/` ships a sibling `*.test.ts` file. Missing test → contract check fails → tool does not boot.
 
@@ -227,13 +231,13 @@ Mandatory for MVP:
 - Naming: Node, Action, Audit (not Task / Workflow).
 - `skill-optimizer` kept as a Claude Code skill **and** wrapped as a `skill-map` Action (dual surface).
 - First adapter: `claude` only.
-- MVP audit set: only `validate-all`.
+- CUT 1 audit set: only `validate-all`.
 - Documentation site: Astro Starlight, implemented at Step 13.
 - Triggers normalization: NFD → strip diacritics → lowercase → hyphen/underscore → space → collapse whitespace → trim. Edges keep both `originalTrigger` and `normalizedTrigger`.
 - **DB engine**: SQLite via `node:sqlite`.
 - **Data-access**: Kysely + CamelCasePlugin.
 - **CLI framework**: Clipanion v4.
-- **UI framework**: Angular (latest stable, standalone). Replaces the earlier SolidJS lean.
+- **UI framework**: Angular ≥ 21 (standalone). Pin `^21.0.0`. Replaces the earlier SolidJS lean.
 - **Node-based UI library**: Foblex Flow. Replaces Cytoscape.js (which was graph-oriented, not card-oriented).
 - **UI component library**: PrimeNG.
 - **UI styling**: SCSS scoped per component. No Tailwind, no PrimeFlex.
@@ -244,7 +248,7 @@ Mandatory for MVP:
 
 ## Explicitly rejected (do not propose)
 
-Cursor support · remote scanning · graph diff across commits · live-system sync · query language · invocation metrics · MCP server as primary interface · hook-based activation · Python runtime · `br` task tracking · custom snapshot system for undo (use Git directly) · NestJS for the BFF · Tailwind or PrimeFlex as utility CSS on top of PrimeNG · full ORMs (Prisma, Drizzle, TypeORM) · soft deletes (`deleted_at` columns) · audit columns (`created_by` / `updated_by`) · lookup tables for enums · `sm db reset --nuke` · Skills.sh enrichment · URL liveness in MVP · multi-turn jobs in MVP · `skill-manager` / `skillctl` naming · per-verb `explore-*` skills.
+Cursor support · remote scanning · graph diff across commits · live-system sync · query language · invocation metrics · MCP server as primary interface · hook-based activation · Python runtime · `br` task tracking · custom snapshot system for undo (use Git directly) · NestJS for the BFF · Tailwind or PrimeFlex as utility CSS on top of PrimeNG · full ORMs (Prisma, Drizzle, TypeORM) · soft deletes (`deleted_at` columns) · audit columns (`created_by` / `updated_by`) · lookup tables for enums · `sm db reset --nuke` · Skills.sh enrichment · URL liveness in the core product · multi-turn jobs in the kernel · `skill-manager` / `skillctl` naming · per-verb `explore-*` skills.
 
 ## Spec bootstrap status
 

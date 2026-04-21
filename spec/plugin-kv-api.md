@@ -184,8 +184,10 @@ A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plu
 
 - Mode A rows are stored in `state_plugin_kv` and are backed up with `sm db backup`.
 - Mode B rows live in the plugin's dedicated tables, prefixed `plugin_<id>_`, and are likewise backed up.
-- `sm plugins disable <id>` does NOT drop the plugin's data — disabled plugins keep their KV rows and dedicated tables. `sm plugins forget <id>` (post-MVP) is the verb that wipes.
-- `sm db reset` drops `scan_*` + `state_*`. This includes `state_plugin_kv` (mode A) AND every `plugin_<id>_*` table (mode B). Users MUST be warned by the CLI before `reset` proceeds.
+- `sm plugins disable <id>` does NOT drop the plugin's data — disabled plugins keep their KV rows and dedicated tables. `sm plugins forget <id>` (deferred to post-`v1.0`) is the verb that wipes.
+- `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows (mode A) and plugin-dedicated tables (mode B) are **preserved** — the reset is non-destructive to plugin storage.
+- `sm db reset --state` drops `state_*` AND every `plugin_<normalized_id>_*` table, which includes `state_plugin_kv` (mode A) AND the plugin-dedicated tables (mode B). The CLI MUST require interactive confirmation unless `--yes` is passed.
+- `sm db reset --hard` deletes the DB file entirely, destroying all plugin storage regardless of mode.
 
 ---
 

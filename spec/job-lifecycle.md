@@ -53,7 +53,7 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 2. Resolve the target node (`bodyHash`, `frontmatterHash`). Fail with exit 5 if the node does not exist.
 3. Compute `contentHash = sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`.
 4. **Duplicate check**: query `state_jobs` for any row with `(actionId, actionVersion, nodeId, contentHash)` AND `status IN ('queued', 'running')`. If found, refuse with exit 3 and print the existing job id (unless `--force`).
-5. Compute `ttlSeconds = max(action.expectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`. Frozen for the life of this job. User overrides via `--ttl`.
+5. Compute `ttlSeconds` per §TTL resolution below. Frozen on `state_jobs.ttlSeconds` for the life of this job.
 6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): action manifest `defaultPriority` → user config `jobs.perActionPriority.<actionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. The resolved value is frozen on `state_jobs.priority` at submit time and is immutable for the life of the job.
 7. Generate `nonce` (implementation-chosen; MUST be cryptographically random, ≥ 128 bits of entropy).
 8. Render the job file at `.skill-map/jobs/<id>.md`, applying the canonical preamble (see `prompt-preamble.md`).
@@ -114,16 +114,47 @@ Number of rows affected is reported as `run.reap.completed.reapedCount` in the e
 
 Implementations MAY expose `sm job reap` as an explicit verb for diagnostics, but MUST perform reaping automatically inside `sm job run`.
 
-### TTL precedence
+### TTL resolution
 
-When computing the TTL at submit time (in order):
+The kernel resolves the effective TTL for a new job in three conceptual steps. The resolved value is written to `state_jobs.ttlSeconds` at submit time and is immutable for the life of the job.
 
-1. Global default (`minimumTtlSeconds` from config).
-2. Action manifest (`expectedDurationSeconds`).
-3. User config override (`jobs.perActionTtl.<actionId>`).
-4. Flag (`sm job submit --ttl <seconds>`).
+#### Step 1 — Base duration
 
-Later wins. The resolved value is written to `state_jobs.ttlSeconds` and is immutable for the life of the job.
+A seconds integer that represents how long the action is expected to run before the grace multiplier kicks in:
+
+1. Action manifest `expectedDurationSeconds`, if declared.
+2. Otherwise, config `jobs.ttlSeconds` (default: `3600`).
+
+The base duration exists even for actions that cannot estimate their own runtime (typically `mode: local`); the global config value ensures the formula below is always well-defined.
+
+#### Step 2 — Computed TTL
+
+```
+computed = max(base × jobs.graceMultiplier, jobs.minimumTtlSeconds)
+```
+
+Config defaults: `jobs.graceMultiplier = 3`, `jobs.minimumTtlSeconds = 60`.
+
+`minimumTtlSeconds` is a **floor**, not a default. It guarantees no job is claimed with a sub-minute deadline regardless of how small the base duration is. It never participates as an initial value.
+
+#### Step 3 — User overrides
+
+Two optional overrides, evaluated in order; the later one wins and replaces everything above it:
+
+1. Config `jobs.perActionTtl.<actionId>` — integer seconds. Replaces the computed TTL entirely; the formula is skipped for that action id.
+2. Flag `sm job submit --ttl <seconds>` — integer seconds. Highest precedence. Replaces anything.
+
+Negative or zero values MUST be rejected with exit 2 at submit time.
+
+#### Worked examples
+
+| Action manifest | Config | Flag | Result |
+|---|---|---|---|
+| `expectedDurationSeconds: 120` | defaults | — | `max(120 × 3, 60) = 360` |
+| none | defaults | — | `max(3600 × 3, 60) = 10800` |
+| `expectedDurationSeconds: 10` | defaults | — | `max(10 × 3, 60) = 60` (floor bites) |
+| `expectedDurationSeconds: 120` | `jobs.perActionTtl.foo: 900` | — | `900` (override skips formula) |
+| any | any | `--ttl 45` | `45` (flag wins outright) |
 
 ---
 
@@ -159,7 +190,7 @@ Post-completion, the check is NOT performed: resubmitting a completed job is alw
 
 ## Concurrency
 
-MVP (v0.x): **one job at a time**. `sm job run --all` drains sequentially. Enforced by the claim semantics above — there is no pool or scheduler.
+Through `v1.0` (spec `v0.x`): **one job at a time**. `sm job run --all` drains sequentially. Enforced by the claim semantics above — there is no pool or scheduler.
 
 The event schema carries a `jobId` on every event specifically so that parallel execution becomes a non-breaking extension. A future implementation MAY spawn multiple claim/run loops concurrently and interleave events; consumers identify which job an event belongs to by `jobId`.
 
@@ -212,3 +243,5 @@ The state machine diagram above is **stable** as of spec v1.0.0. Adding a new st
 The `contentHash` formula is **stable**. Changing what goes into the hash breaks duplicate detection across versions and is a major bump.
 
 The atomic-claim semantics are **stable**. A double-claim would be a silent correctness bug observable through event-stream anomalies.
+
+The TTL resolution procedure (§TTL resolution) is **stable** as of the next spec release. The three-step structure (base → computed → overrides) and the four config keys (`jobs.ttlSeconds`, `jobs.graceMultiplier`, `jobs.minimumTtlSeconds`, `jobs.perActionTtl`) are locked; adding a new override source is a minor bump, changing the formula shape is a major bump.

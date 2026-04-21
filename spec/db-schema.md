@@ -35,7 +35,7 @@ Every kernel table belongs to exactly one zone, identified by a mandatory name p
 | State | `state_` | Persistent operational data: jobs, executions, summaries, enrichment, plugin KV. | No | Yes | `state_jobs` |
 | Config | `config_` | User-owned configuration: plugin enable/disable, preferences, migration ledger. | No | Yes | `config_plugins` |
 
-`sm db reset` drops `scan_*` + `state_*`, keeps `config_*`. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is regenerated on demand.
+`sm db reset` drops `scan_*` only (non-destructive — equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` preserves `state_*` + `config_*`; `scan_*` is always regenerated on demand and is never included in backups.
 
 ---
 

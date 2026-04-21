@@ -2,7 +2,7 @@
 
 > Map, inspect and manage collections of interconnected Markdown files — especially skills, agents, commands, hooks and documents that compose AI agent ecosystems.
 
-**Status**: Steps **0a** (spec bootstrap) and **0b** (reference-implementation bootstrap) are **complete**. The `@skill-map/spec` npm package is live (currently `0.1.1`); the `skill-map` CLI ships a stub scan verb and boots cleanly. Next up: **0c — UI prototype**. See [ROADMAP.md](./ROADMAP.md) for the completeness marker and full execution plan.
+**Status**: Steps **0a** (spec bootstrap) and **0b** (reference-implementation bootstrap) are **complete**. The `@skill-map/spec` npm package is live (version tracked in [`spec/package.json`](./spec/package.json) and [`spec/CHANGELOG.md`](./spec/CHANGELOG.md)); the `skill-map` CLI ships a stub scan verb and boots cleanly. Next up: **0c — UI prototype**. See [ROADMAP.md](./ROADMAP.md) for the completeness marker and full execution plan.
 
 ## In a sentence
 
@@ -23,25 +23,30 @@ The specification lives in [`spec/`](./spec/) and is the source of truth. It is 
 - Canonical URL: **[skill-map.dev](https://skill-map.dev)** (schemas served at `https://skill-map.dev/spec/v0/<path>.schema.json`).
 - npm package: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec) (live; version tracked in `spec/package.json` and `spec/CHANGELOG.md`).
 - Contents:
-  - 21 JSON Schemas (draft 2020-12): domain (`node`, `link`, `issue`, `scan-result`, …), frontmatter (`base` + 5 kinds), summaries (5 kinds), plus `conformance-case`.
+  - 29 JSON Schemas (draft 2020-12): 11 top-level (`node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`, `conformance-case`, `history-stats`) + 7 extension schemas (`base` + one per extension kind) + 6 frontmatter (`base` + 5 node kinds) + 5 summaries.
   - 7 prose contracts: `architecture`, `cli-contract`, `job-lifecycle`, `job-events`, `prompt-preamble`, `db-schema`, `plugin-kv-api`.
-  - 1 interface: `security-scanner`.
-  - Conformance suite stub: fixtures + 1 declarative case.
+  - 1 interface: `security-scanner` (convention over the Action kind, not a 7th extension kind).
+  - Conformance suite: fixtures (`minimal-claude`, `preamble-v1.txt`) + 2 cases (`basic-scan`, `kernel-empty-boot`); `preamble-bitwise-match` deferred to Step 9.
 
 ## Repo layout
 
 ```
-skill-map/
-├── spec/                      specification (schemas + prose + conformance)
-├── scripts/build-site.mjs     builds the public site from spec/
+skill-map/                     npm workspaces root (private)
+├── spec/                      specification — published as @skill-map/spec
+├── src/                       reference implementation — published as skill-map (bins: sm, skill-map)
+├── scripts/                   build-site.mjs · build-spec-index.mjs · check-changeset.mjs · check-coverage.mjs
+├── site/                      generated public site output (served by Caddy on Railway)
+├── .changeset/                changesets config + pending release notes (one file per change)
+├── .github/workflows/         ci.yml (spec validate + build-test) · release.yml
 ├── Dockerfile                 Caddy-based image deployed to Railway
 ├── Caddyfile                  serves schemas at the canonical URLs
-├── .github/workflows/         spec-validate CI (JSON parse + $id alignment)
 ├── AGENTS.md                  agent conventions + current bootstrap status
-├── CLAUDE.md                  persona activation (alias of AGENTS.md)
-├── ROADMAP.md                 design narrative (decisions, phases, deferred)
-└── CHANGELOG.md               project-wide change log
+├── CLAUDE.md                  persona activation (pointer to AGENTS.md)
+├── CONTRIBUTING.md            PR workflow + changeset rules
+└── ROADMAP.md                 design narrative (decisions, phases, deferred)
 ```
+
+The `ui/` workspace joins as a third peer at Step 0c (Angular SPA + Foblex Flow + PrimeNG).
 
 ## Links
 

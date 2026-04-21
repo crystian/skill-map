@@ -46,45 +46,64 @@ The SQL persistence layer is the sole exception: tables, columns, and migration 
 ## Repo layout
 
 ```
-spec/
-├── README.md                   ← this file
-├── CHANGELOG.md                ← spec history (independent from CLI)
-├── versioning.md               ← evolution policy
-├── architecture.md             ← hexagonal ports & adapters                    (Step 0a phase 3)
-├── cli-contract.md             ← verbs, flags, exit codes, JSON introspection  (Step 0a phase 3)
-├── job-events.md               ← canonical event stream schema                 (Step 0a phase 3)
-├── prompt-preamble.md          ← canonical injection-mitigation preamble      (Step 0a phase 3)
-├── db-schema.md                ← table catalog (kernel-owned)                  (Step 0a phase 3)
-├── plugin-kv-api.md            ← ctx.store contract for storage mode A        (Step 0a phase 3)
-├── job-lifecycle.md       ← queued → running → completed | failed        (Step 0a phase 3)
-├── schemas/                    ← JSON Schemas (Step 0a phase 2)
-│   ├── node.schema.json
-│   ├── link.schema.json
-│   ├── issue.schema.json
-│   ├── scan-result.schema.json
-│   ├── execution-record.schema.json
-│   ├── project-config.schema.json
-│   ├── plugins-registry.schema.json
-│   ├── job.schema.json
-│   ├── report-base.schema.json
-│   ├── frontmatter/
-│   │   ├── base.schema.json
-│   │   ├── skill.schema.json
-│   │   ├── agent.schema.json
-│   │   ├── command.schema.json
-│   │   ├── hook.schema.json
-│   │   └── note.schema.json
-│   └── summaries/
-│       ├── skill.schema.json
-│       ├── agent.schema.json
-│       ├── command.schema.json
-│       ├── hook.schema.json
-│       └── note.schema.json
+spec/                              ← published as @skill-map/spec
+├── README.md                      ← this file
+├── CHANGELOG.md                   ← spec history (independent from CLI)
+├── versioning.md                  ← evolution policy
+├── package.json                   ← npm manifest for @skill-map/spec
+├── index.json                     ← machine-readable manifest + per-file sha256 (generated)
+│
+├── architecture.md                ← hexagonal ports & adapters
+├── cli-contract.md                ← verbs, flags, exit codes, JSON introspection
+├── job-events.md                  ← canonical event stream schema
+├── prompt-preamble.md             ← canonical injection-mitigation preamble (verbatim normative)
+├── db-schema.md                   ← table catalog (kernel-owned)
+├── plugin-kv-api.md               ← ctx.store contract for storage mode A
+├── job-lifecycle.md               ← queued → running → completed | failed
+│
+├── schemas/                       ← 29 JSON Schemas, draft 2020-12, camelCase keys
+│   ├── node.schema.json                     ┐
+│   ├── link.schema.json                     │
+│   ├── issue.schema.json                    │
+│   ├── scan-result.schema.json              │
+│   ├── execution-record.schema.json         │ 11 top-level
+│   ├── project-config.schema.json           │
+│   ├── plugins-registry.schema.json         │
+│   ├── job.schema.json                      │
+│   ├── report-base.schema.json              │
+│   ├── conformance-case.schema.json         │
+│   ├── history-stats.schema.json            ┘
+│   │
+│   ├── extensions/                          ← one per extension kind; validated at plugin load
+│   │   ├── base.schema.json                 ┐
+│   │   ├── adapter.schema.json              │
+│   │   ├── detector.schema.json             │ 7 extension schemas
+│   │   ├── rule.schema.json                 │ (base + 6 kinds)
+│   │   ├── action.schema.json               │
+│   │   ├── audit.schema.json                │
+│   │   └── renderer.schema.json             ┘
+│   │
+│   ├── frontmatter/                         ← user-authored; additionalProperties: true
+│   │   ├── base.schema.json                 ┐
+│   │   ├── skill.schema.json                │
+│   │   ├── agent.schema.json                │ 6 frontmatter schemas
+│   │   ├── command.schema.json              │ (base + 5 kinds; each kind
+│   │   ├── hook.schema.json                 │ extends base via allOf)
+│   │   └── note.schema.json                 ┘
+│   │
+│   └── summaries/                           ← kernel-controlled; additionalProperties: false
+│       ├── skill.schema.json                ┐
+│       ├── agent.schema.json                │ 5 summaries (each extends
+│       ├── command.schema.json              │ report-base via allOf)
+│       ├── hook.schema.json                 │
+│       └── note.schema.json                 ┘
+│
 ├── interfaces/
-│   └── security-scanner.md     ← contract for third-party security plugins
+│   └── security-scanner.md        ← convention over the Action kind (NOT a 7th extension kind)
 └── conformance/
-    ├── fixtures/               ← controlled MD corpora
-    └── cases/                  ← declarative test cases (JSON)
+    ├── fixtures/                  ← controlled MD corpora + preamble-v1.txt
+    └── cases/                     ← declarative test cases: basic-scan, kernel-empty-boot
+                                     (preamble-bitwise-match deferred to ../ROADMAP.md Step 9)
 ```
 
 ## How to read this spec

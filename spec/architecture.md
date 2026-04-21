@@ -132,6 +132,41 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 
 Every `Adapter` extension MUST declare a map `defaultRefreshAction: { <kind>: <actionId> }` covering every `kind` it emits. The referenced action MUST exist in the registry by the time the graph is queried; a dangling reference is a load-time error for the adapter. Consumers (CLI `🧠 prob` buttons in `sm show`, Web UI inspector) dispatch `sm job submit <defaultRefreshAction[kind]> -n <nodePath>` when the user asks for a probabilistic refresh on a node. Implementations MAY allow plugins to override the default per-node via `metadata.refreshAction`, but the adapter default is normative.
 
+### Detector · trigger normalization
+
+Detectors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in `schemas/link.schema.json`:
+
+- `originalTrigger` — the exact source text the detector saw, byte-for-byte. Used only for display.
+- `normalizedTrigger` — the output of the pipeline below. Used for equality and collision detection — the built-in `trigger-collision` rule keys on this field.
+
+Both fields MUST be present whenever `link.trigger` is non-null. Implementations MUST produce byte-identical `normalizedTrigger` output for byte-identical input across platforms and locales.
+
+#### Normalization pipeline (normative)
+
+Applied in exactly this order:
+
+1. **Unicode NFD** — canonical decomposition (`String.prototype.normalize('NFD')` in JS).
+2. **Strip diacritics** — remove every code point in Unicode category `Mn` (Nonspacing_Mark).
+3. **Lowercase** — locale-independent Unicode lowercase.
+4. **Separator unification** — replace every hyphen (`-`), underscore (`_`), and run of whitespace (space, tab, newline, NBSP, …) with a single ASCII space.
+5. **Collapse whitespace** — runs of two or more spaces become one.
+6. **Trim** — strip leading and trailing whitespace.
+
+Characters outside the separator set that are not letters or digits (e.g. `/`, `@`, `:`, `.`) are **preserved**. Stripping them is the detector's concern, not the normalizer's — the normalizer operates on whatever the detector classifies as "the trigger text". This keeps namespaced invocations like `/skill-map:explore` or `@my-plugin/foo` comparable in their intended form.
+
+#### Examples
+
+| `originalTrigger` | `normalizedTrigger` |
+|---|---|
+| `Hacer Review` | `hacer review` |
+| `hacer-review` | `hacer review` |
+| `hacer_review` | `hacer review` |
+| `  hacer   review  ` | `hacer review` |
+| `Clúster` | `cluster` |
+| `/MyCommand` | `/mycommand` |
+| `@FooDetector` | `@foodetector` |
+| `skill-map:explore` | `skill map:explore` |
+
 ### Contract rules
 
 1. An extension declares its kind in its module export and its manifest. Kind mismatch → load-error.
@@ -220,3 +255,5 @@ The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bu
 The **extension kind list** (6 kinds) is stable as of spec v1.0.0. Adding a seventh kind is a major bump.
 
 The **dependency rules** above are stable as of spec v1.0.0. Relaxing any is a major bump; tightening (forbidding an allowed import) is a minor bump.
+
+The **Detector · trigger normalization** pipeline (six steps, in order) is stable from the next spec release. Adding a new step at the end is a minor bump; reordering, removing, or changing any existing step (including the character classes in step 4) is a major bump. Implementations that produce different `normalizedTrigger` output for equivalent input are non-conforming.

@@ -50,7 +50,7 @@ Unknown fields in `data` MUST be ignored by consumers (forward compatibility).
 
 ## Event catalog
 
-Emitted in roughly this order during a `sm job run --all` invocation. The exact sequence may interleave for parallel runs (post-MVP).
+Emitted in roughly this order during a `sm job run --all` invocation. The exact sequence may interleave for parallel runs (deferred to post-`v1.0`).
 
 ### `run.started`
 

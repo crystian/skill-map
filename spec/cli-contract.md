@@ -202,7 +202,7 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 | `sm job preview <job.id>` | Render the job MD file without executing. |
 | `sm job claim [--filter <action>]` | Atomic primitive: return next queued job id, mark it running. Exit 0 with id on stdout; exit 1 if queue empty. |
 | `sm job run` | Full CLI-runner loop: claim + spawn + record. Runs one job. |
-| `sm job run --all` | Drain the queue (MVP: sequential). |
+| `sm job run --all` | Drain the queue (sequential through `v1.0`; in-runner parallelism deferred). |
 | `sm job run --max N` | Drain at most N jobs. |
 | `sm job status [<job.id>]` | Counts (per status) or single-job status. |
 | `sm job cancel <job.id>` | Force a running job to `failed` state with reason `user-cancelled`. |
@@ -274,15 +274,16 @@ See `db-schema.md` for the table catalog.
 
 | Command | Purpose |
 |---|---|
-| `sm db reset` | Drop `scan_*` + `state_*`, keep `config_*`. |
-| `sm db reset --hard` | Delete the DB file entirely. |
+| `sm db reset` | Drop `scan_*` only. Keep `state_*` and `config_*`. Non-destructive — no confirmation required. |
+| `sm db reset --state` | Drop `scan_*` AND `state_*` (including `state_plugin_kv` and every `plugin_<id>_*` table). Keep `config_*`. Destructive. |
+| `sm db reset --hard` | Delete the DB file entirely. Keep the plugins folder so the next boot re-discovers them. Destructive. |
 | `sm db backup [--out <path>]` | WAL checkpoint + file copy. |
 | `sm db restore <path>` | Swap the DB. |
 | `sm db shell` | Interactive SQL shell (implementations backed by SQLite use `sqlite3`; others use equivalent). |
 | `sm db dump [--tables ...]` | SQL dump. |
 | `sm db migrate [--dry-run \| --status \| --to <n> \| --kernel-only \| --plugin <id> \| --no-backup]` | Migration controls. |
 
-All destructive verbs (`reset`, `reset --hard`, `restore`) require interactive confirmation unless `--force`.
+Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interactive confirmation unless `--yes` (non-interactive mode for scripts) or `--force` (alias, kept for backward compatibility) is passed. `sm db reset` without a modifier is non-destructive and never prompts.
 
 ---
 
