@@ -10,7 +10,7 @@ This document is the **source of truth**. The reference implementation under `..
 - The **extension contract**: six extension kinds (detector, adapter, rule, action, audit, renderer) with their input/output shapes.
 - The **CLI contract**: verb set, flags, exit codes, JSON introspection.
 - The **persistence contract**: table catalog owned by the kernel, plugin key-value API.
-- The **job contract**: lifecycle states, event stream, prompt preamble, dispatch semantics.
+- The **job contract**: lifecycle states, event stream, prompt preamble, submit/claim/record semantics.
 - The **frontmatter standard**: base fields and per-kind extensions.
 - The **summary standard**: shape of action-produced summaries per kind.
 - The **plugin manifest**: metadata, spec-compat range, storage mode, security declarations.
@@ -47,7 +47,7 @@ spec/
 ├── prompt-preamble.md          ← canonical injection-mitigation preamble      (Step 0a phase 3)
 ├── db-schema.md                ← table catalog (kernel-owned)                  (Step 0a phase 3)
 ├── plugin-kv-api.md            ← ctx.store contract for storage mode A        (Step 0a phase 3)
-├── dispatch-lifecycle.md       ← queued → running → completed | failed        (Step 0a phase 3)
+├── job-lifecycle.md       ← queued → running → completed | failed        (Step 0a phase 3)
 ├── schemas/                    ← JSON Schemas (Step 0a phase 2)
 │   ├── node.schema.json
 │   ├── link.schema.json
@@ -84,7 +84,7 @@ spec/
 - **Building a custom detector, rule, or renderer?** Read `architecture.md`, then the relevant schema.
 - **Building an alternative CLI implementation?** Read `cli-contract.md` and run `conformance/`.
 - **Integrating a new platform (adapter)?** Read `architecture.md` §adapters, then the Claude adapter source in `../src/extensions/adapters/claude/` as a worked example.
-- **Shipping a job-running runner?** Read `job-events.md`, `dispatch-lifecycle.md`, `prompt-preamble.md`.
+- **Shipping a job-running runner?** Read `job-events.md`, `job-lifecycle.md`, `prompt-preamble.md`.
 
 ## Relationship to the reference implementation
 

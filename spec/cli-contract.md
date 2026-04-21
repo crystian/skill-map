@@ -186,7 +186,7 @@ Actions are not invoked via `sm actions`; invocation is via `sm job submit` (see
 
 ### Jobs
 
-See `dispatch-lifecycle.md` for the state machine; this table is the CLI surface.
+See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 
 | Command | Purpose |
 |---|---|

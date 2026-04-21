@@ -4,7 +4,7 @@ Normative catalog of tables owned by the kernel. Plugins MAY add their own table
 
 The spec assumes a relational, SQL-like store but is **engine-agnostic**. The reference implementation uses SQLite (`node:sqlite`) + Kysely + `CamelCasePlugin`. Alternative backends (Postgres, DuckDB, in-memory) are permitted as long as:
 
-- Atomic single-statement transitions are available for the job claim (see `dispatch-lifecycle.md`).
+- Atomic single-statement transitions are available for the job claim (see `job-lifecycle.md`).
 - Migrations track applied versions per scope.
 - Read isolation avoids phantom reads inside a single scan write.
 

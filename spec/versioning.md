@@ -28,7 +28,7 @@ Rule of thumb: if a strict v1 implementation could fail a v1.X conformance run, 
 All of the following are normative and governed by this policy:
 
 - Every JSON Schema in `schemas/` (fields, types, required, enums, defaults, `additionalProperties`).
-- Every MUST / SHOULD / MAY statement in prose documents (`architecture.md`, `cli-contract.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`, `dispatch-lifecycle.md`).
+- Every MUST / SHOULD / MAY statement in prose documents (`architecture.md`, `cli-contract.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`, `job-lifecycle.md`).
 - Exit codes, verb names, required flags, canonical error messages marked "normative".
 - Conformance fixtures and cases — removing or tightening a case is major.
 

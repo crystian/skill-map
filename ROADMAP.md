@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-04-20
+**Last updated**: 2026-04-21
 
 ---
 
@@ -204,8 +204,11 @@ Pre-implementación. Diseño consolidado en este documento.
 ═══════════════════════════════════════════════════════════════════════════
   PHASE A · DETERMINISTIC CORE (no LLM)
 ═══════════════════════════════════════════════════════════════════════════
-   0a  Spec bootstrap          schemas, conformance, spec-pkg skeleton
-   0b  Implementation          package scaffolding, hexagonal skeleton
+✅ 0a  Spec bootstrap          schemas, conformance, @skill-map/spec published
+✅ 0b  Implementation          workspace + kernel shell + CLI + CI green
+  ────────────────────────────────────────────────────────────────────────
+   ▶ YOU ARE HERE (2026-04-21) — complete through 0b · next: 0c
+  ────────────────────────────────────────────────────────────────────────
    0c  UI prototype            Flavor A with mocked data (iteration checkpoint)
    1   Kernel skeleton         graph, orchestrator, SQLite, Clipanion CLI, migrations
    2   First extensions        1 adapter, 3 detectors, 3 rules, 1 renderer, 1 audit
@@ -276,7 +279,7 @@ skill-map/
 │   ├── prompt-preamble.md       ← canonical injection-mitigation preamble
 │   ├── db-schema.md             ← table catalog (kernel-owned)
 │   ├── plugin-kv-api.md         ← ctx.store contract for storage mode A
-│   ├── dispatch-lifecycle.md    ← queued → running → completed | failed
+│   ├── job-lifecycle.md    ← queued → running → completed | failed
 │   ├── schemas/
 │   │   ├── node.schema.json
 │   │   ├── link.schema.json
@@ -969,22 +972,39 @@ See [Persistence](#persistence).
 Build order inversion: UI prototype **before** kernel implementation. Mocked JSON fixtures from real skills in `_plugins/`. Iterates design cheaply before committing to kernel API.
 
 Scope:
-- Graph view (Cytoscape.js) with nodes + links, color/icon per kind.
+- Graph view (Foblex Flow) — card-style nodes with title, kind badge, version, triggers, link counts.
 - List view with frontmatter-driven columns.
 - Inspector panel: weight, summary (mocked), links, issues, findings, 🔄 det + 🧠 prob buttons.
 - Filters by kind / stability / issue.
 - Simulated event flow: fake run-queue emitting canonical events.
 
 Tech picks locked at Step 0c start:
-- Frontend framework: **SolidJS** (pragmatic lean).
-- Graph library: **Cytoscape.js** (pragmatic lean).
-- Styling: **Tailwind** (pragmatic lean).
+- Frontend framework: **Angular** (latest stable, standalone components).
+- Node-based UI library: **Foblex Flow** (Angular-native). Cards as Angular components with arbitrary HTML.
+- Component library: **PrimeNG** (tables, forms, dialogs, menus, overlays).
+- Styling: **SCSS scoped per component**. No utility CSS framework (no Tailwind, no PrimeFlex) — avoided overlap with PrimeNG's own theming.
+- Workspace: `ui/` as an npm workspace peer of `spec/` and `src/`. The kernel never imports Angular; the UI never imports kernel internals (only typed DTOs from `spec/`).
 
 After Step 0c: roadmap review pass. Adjust decisions; surface new gaps if any.
 
 ### Step 12 — Full UI (Flavor B)
 
 Vertical slice with real kernel. Same prototype upgraded to consume the actual Hono server.
+
+**Single-port mandate (non-negotiable)**: `sm serve` exposes the SPA, the BFF and the WebSocket under **one listener**. Consumers never need to know two ports exist.
+
+```
+sm serve --port 7777
+│
+├── GET  /api/*     → BFF endpoints (thin wrappers over kernel)
+├── WS   /ws        → canonical job / scan / issue events
+├── GET  /assets/*  → Angular bundles (JS/CSS/fonts)
+└── GET  /*         → fallback to ui/dist/index.html (SPA routing)
+```
+
+- **Production**: Hono serves the Angular build via `serveStatic` alongside the API and WS. One process, one port, one command.
+- **Development**: Angular dev server with HMR (its own port) proxies `/api` and `/ws` to Hono via `proxy.conf.json`. The SPA still sees a single origin.
+- BFF role: **thin proxy** over the kernel. No domain logic. No second DI. Keep it minimal — that is why Hono was chosen over NestJS / Express.
 
 WebSocket `/ws` endpoint:
 - Server pushes canonical job events + scan updates + issue changes.
@@ -1035,8 +1055,14 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 - **Language**: TypeScript strict + ESM.
 - **Build**: `tsup` / `esbuild`.
 - **CLI framework**: **Clipanion** (pragmatic pick — introspection built-in, used by Yarn Berry).
-- **HTTP server**: **Hono** (lightweight, ESM-native).
+- **HTTP server**: **Hono** (lightweight, ESM-native). Acts as the BFF for the Angular UI and any future client.
 - **WebSocket**: `ws` or Hono's built-in (TBD at Step 12).
+- **Single-port mandate**: `sm serve` exposes SPA + BFF + WS under one listener. Dev uses Angular dev server + proxy; prod uses Hono + `serveStatic`.
+- **UI framework**: **Angular** (latest stable, standalone components).
+- **Node-based UI library**: **Foblex Flow**.
+- **Component library**: **PrimeNG**.
+- **UI styling**: **SCSS scoped per component**. No utility CSS (no Tailwind, no PrimeFlex).
+- **UI workspace**: `ui/` as npm workspace peer of `spec/` and `src/`. Kernel is Angular-agnostic; UI imports only typed contracts from `spec/`.
 - **DB**: SQLite via `node:sqlite` (zero native deps).
 - **Data-access**: **Kysely + CamelCasePlugin** (typed query builder, not an ORM).
 - **Logger**: `pino` (JSON lines).
@@ -1055,16 +1081,18 @@ YAML parser (`yaml` vs `js-yaml`) · MD parsing strategy (regex vs `remark`/`uni
 
 Sequential build path. Each step ships green tests before the next begins.
 
-### Step 0a — Spec bootstrap
+> ▶ **Completeness marker (2026-04-21)**: Steps **0a** and **0b** are **complete**. Next step: **0c — UI prototype**. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 9, needs `sm job preview`) and remaining tech-stack picks (YAML parser, MD parser, templating, pretty CLI, globbing, diff — each lands with the step that first needs it).
+
+### Step 0a — Spec bootstrap — ✅ complete
 
 - `spec/` scaffolded and public from commit 1.
 - `spec/README.md`, `spec/CHANGELOG.md`, `spec/versioning.md`.
 - First draft of JSON Schemas (node, link, scan-result, issue, execution-record, project-config, job, report-base, frontmatter/*, summaries/*).
-- `spec/architecture.md`, `cli-contract.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`, `dispatch-lifecycle.md`.
+- `spec/architecture.md`, `cli-contract.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`, `job-lifecycle.md`.
 - Conformance test suite stub.
-- npm package `@skill-map/spec` skeleton.
+- npm package `@skill-map/spec` published via changesets (currently `0.1.1`).
 
-### Step 0b — Implementation bootstrap
+### Step 0b — Implementation bootstrap — ✅ complete
 
 - Repo scaffolding: `package.json`, Node ESM, `node:test` wired.
 - Package layout (single npm with `exports`).
@@ -1074,11 +1102,12 @@ Sequential build path. Each step ships green tests before the next begins.
 - CI green with 0 real features.
 - Tech stack remaining picks locked here (YAML, MD parsing, templating, pretty CLI, globbing, diff).
 
-### Step 0c — UI prototype (Flavor A)
+### Step 0c — UI prototype (Flavor A) — ▶ next
 
-- SolidJS + Cytoscape + Tailwind locked here.
-- Mocked data from real skills in `_plugins/`.
-- Graph view, list view, inspector, filters, simulated event flow.
+- **Stack locked here**: Angular (latest stable, standalone) + Foblex Flow (node-based UI) + PrimeNG (components) + SCSS scoped (no utility CSS).
+- `ui/` npm workspace created as peer of `spec/` and `src/`.
+- No backend. No BFF. Data mocked in-memory from skills/agents/commands/hooks in `_plugins/`.
+- Graph view (Foblex cards), list view, inspector, filters, simulated event flow.
 - Roadmap review pass after completion.
 
 ### Step 1 — Kernel skeleton
@@ -1181,7 +1210,9 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 
 ### Step 12 — Full Web UI
 
-- Hono server with WebSocket `/ws`.
+- **Hono** BFF with WebSocket `/ws` — thin proxy over the kernel, no domain logic.
+- **Single-port mandate**: Hono serves the Angular SPA (`serveStatic` over `ui/dist/browser/`), the REST endpoints, and the WS under one listener. Dev uses Angular dev server + `proxy.conf.json` pointing to Hono for `/api` and `/ws`.
+- `sm serve --port N` is the single entry point: one process, one port, one command.
 - UI consumes real kernel (Flavor B vertical slice, upgrading Step 0c prototype).
 - Inspector panel with enrichment + summary + findings.
 - Command submit from UI via WS.
@@ -1206,7 +1237,7 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 
 ## Decision log
 
-Canonical log. 83 decisions across session 2026-04-19/20 plus pre-session. Merged. Presented in thematic groups.
+Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presented in thematic groups. The numbering is sparse on purpose (sub-items like `74a–74d` land where they belong thematically).
 
 ### Architecture
 
@@ -1216,7 +1247,7 @@ Canonical log. 83 decisions across session 2026-04-19/20 plus pre-session. Merge
 | 2 | Kernel-first principle | Non-negotiable from commit 1. All 6 extension kinds wired. |
 | 3 | Architecture pattern | **Hexagonal (ports & adapters)** — named explicitly. |
 | 4 | Kernel-as-library | CLI, Server, Skill are peer wrappers over the same kernel lib. |
-| 5 | Package layout | Single npm package with internal modules + multiple `exports`. Workspace split deferred. |
+| 5 | Package layout | npm workspaces: `spec/` (published as `@skill-map/spec`) and `src/` (published as `skill-map`). `ui/` joins as a third workspace at Step 0c. Changesets manage the bumps. |
 | 6 | `sm` LLM dependency | **Zero**. `sm` never makes LLM calls. LLM lives in runner process. |
 
 ### Data and persistence
@@ -1328,9 +1359,13 @@ Canonical log. 83 decisions across session 2026-04-19/20 plus pre-session. Merge
 |---|---|---|
 | 70 | Build order inversion | Step 0c UI prototype before kernel implementation. Flavor A mocked, Flavor B in Step 12. |
 | 71 | Live sync protocol | **WebSocket** (bidirectional). REST HTTP for discrete CRUD only. |
-| 72 | Frontend framework | **SolidJS** (pragmatic lean, locked at Step 0c). |
-| 73 | Graph viz library | **Cytoscape.js** (pragmatic lean, locked at Step 0c). |
-| 74 | Styling | **Tailwind** (pragmatic lean, locked at Step 0c). |
+| 72 | Frontend framework | **Angular** (latest stable, standalone components). Locked at Step 0c. Replaces original SolidJS pick — driven by Foblex Flow being the only Angular-native node-based UI library in the market. |
+| 73 | Node-based UI library | **Foblex Flow** — chosen for card-style nodes with arbitrary HTML, active maintenance, and Angular-native design. Replaces Cytoscape.js (which was dot/graph-oriented, not card-oriented). |
+| 74 | Component library | **PrimeNG** for tables, forms, dialogs, menus, overlays. |
+| 74a | UI styling | **SCSS scoped per component**. No utility CSS framework (no Tailwind, no PrimeFlex) — PrimeFlex is in maintenance mode, Tailwind overlaps with PrimeNG theming. Utilities come back later only if real friction appears. |
+| 74b | UI workspace layout | `ui/` is an npm workspace peer of `spec/` and `src/`. Kernel stays Angular-agnostic; UI imports only typed contracts from `spec/`. No cross-import from `src/` into `ui/` or vice versa. |
+| 74c | BFF mandate | Single-port: `sm serve` exposes SPA + REST + WS under one listener. Dev uses Angular dev server with `proxy.conf.json` → Hono for `/api` and `/ws`; prod uses Hono + `serveStatic`. |
+| 74d | BFF framework | **Hono**, thin proxy over the kernel. No domain logic, no second DI. NestJS considered and rejected as over-engineered for a single-client BFF. |
 | 75 | Det vs prob refresh | Two buttons per node in UI, two verbs in CLI, two distinct pipes. |
 
 ### Spec

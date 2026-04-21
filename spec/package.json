@@ -33,7 +33,7 @@
     "versioning.md",
     "architecture.md",
     "cli-contract.md",
-    "dispatch-lifecycle.md",
+    "job-lifecycle.md",
     "job-events.md",
     "prompt-preamble.md",
     "db-schema.md",

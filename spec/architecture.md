@@ -47,7 +47,7 @@ An implementation MUST expose these five ports. Each is an interface (TypeScript
 
 Persistence for all kernel tables in all three zones (`scan_*`, `state_*`, `config_*`). Exposes typed repositories, not raw SQL. Implementations MAY back this with SQLite, Postgres, in-memory, or anything else, as long as:
 
-- Transactional semantics for atomic claim (see `dispatch-lifecycle.md`).
+- Transactional semantics for atomic claim (see `job-lifecycle.md`).
 - Migration application with `PRAGMA user_version`-equivalent tracking.
 - Read isolation sufficient to avoid phantom reads across a single scan write.
 
@@ -77,7 +77,7 @@ Two reference implementations:
 - `ClaudeCliRunner` — subprocess `claude -p < jobfile`.
 - `MockRunner` — deterministic fake for tests.
 
-The Skill runner does NOT implement this port: it runs inside an agent session and closes jobs via `sm record` callback. See `dispatch-lifecycle.md`.
+The Skill runner does NOT implement this port: it runs inside an agent session and closes jobs via `sm record` callback. See `job-lifecycle.md`.
 
 ### `ProgressEmitterPort`
 

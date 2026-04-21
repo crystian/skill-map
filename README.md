@@ -2,7 +2,7 @@
 
 > Map, inspect and manage collections of interconnected Markdown files — especially skills, agents, commands, hooks and documents that compose AI agent ecosystems.
 
-**Status**: pre-implementation. The public specification is bootstrapped (`spec/v0.0.1`); the reference CLI implementation has not started yet. See [ROADMAP.md](./ROADMAP.md) for full design, architecture decisions, and execution plan.
+**Status**: Steps **0a** (spec bootstrap) and **0b** (reference-implementation bootstrap) are **complete**. The `@skill-map/spec` npm package is live (currently `0.1.1`); the `skill-map` CLI ships a stub scan verb and boots cleanly. Next up: **0c — UI prototype**. See [ROADMAP.md](./ROADMAP.md) for the completeness marker and full execution plan.
 
 ## In a sentence
 
@@ -21,10 +21,10 @@ A graph explorer for Markdown-based AI agent ecosystems (Claude Code, Codex, Gem
 The specification lives in [`spec/`](./spec/) and is the source of truth. It is separated from the reference implementation from day zero so third parties can build alternative implementations using only `spec/`.
 
 - Canonical URL: **[skill-map.dev](https://skill-map.dev)** (schemas served at `https://skill-map.dev/spec/v0/<path>.schema.json`).
-- npm package: `@skill-map/spec` (publishing queued for Step 0b).
+- npm package: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec) (live; version tracked in `spec/package.json` and `spec/CHANGELOG.md`).
 - Contents:
   - 21 JSON Schemas (draft 2020-12): domain (`node`, `link`, `issue`, `scan-result`, …), frontmatter (`base` + 5 kinds), summaries (5 kinds), plus `conformance-case`.
-  - 7 prose contracts: `architecture`, `cli-contract`, `dispatch-lifecycle`, `job-events`, `prompt-preamble`, `db-schema`, `plugin-kv-api`.
+  - 7 prose contracts: `architecture`, `cli-contract`, `job-lifecycle`, `job-events`, `prompt-preamble`, `db-schema`, `plugin-kv-api`.
   - 1 interface: `security-scanner`.
   - Conformance suite stub: fixtures + 1 declarative case.
 

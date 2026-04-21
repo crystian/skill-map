@@ -31,7 +31,7 @@ const PROSE_DOCS = [
   { file: 'CHANGELOG.md', title: 'Changelog', summary: 'Normative history of spec changes.' },
   { file: 'architecture.md', title: 'Architecture', summary: 'Hexagonal ports & adapters, 6 extension kinds.' },
   { file: 'cli-contract.md', title: 'CLI contract', summary: 'Verbs, flags, exit codes, JSON introspection.' },
-  { file: 'dispatch-lifecycle.md', title: 'Dispatch lifecycle', summary: 'Job state machine, atomic claim, TTL, reap.' },
+  { file: 'job-lifecycle.md', title: 'Job lifecycle', summary: 'Job state machine, atomic claim, TTL, reap.' },
   { file: 'job-events.md', title: 'Job events', summary: 'Canonical event stream emitted during execution.' },
   { file: 'prompt-preamble.md', title: 'Prompt preamble', summary: 'Verbatim injection-mitigation text prepended to every job.' },
   { file: 'db-schema.md', title: 'DB schema', summary: 'Zoned table catalog, naming conventions, migrations.' },

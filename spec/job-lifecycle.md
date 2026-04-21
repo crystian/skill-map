@@ -1,4 +1,4 @@
-# Dispatch lifecycle
+# Job lifecycle
 
 Normative state machine for jobs. A `Job` (see `schemas/job.schema.json`) is the runtime instance of an `Action` applied to one or more `Node`s. Every job moves through this lifecycle exactly once.
 

@@ -40,7 +40,7 @@
     "status": {
       "type": "string",
       "enum": ["queued", "running", "completed", "failed"],
-      "description": "Lifecycle state. See `dispatch-lifecycle.md` for allowed transitions."
+      "description": "Lifecycle state. See `job-lifecycle.md` for allowed transitions."
     },
     "failureReason": {
       "type": ["string", "null"],

@@ -102,7 +102,7 @@ The preamble establishes a promise from the model:
 - `safety` MUST conform to `schemas/report-base.schema.json#/properties/safety`.
 - `confidence` MUST be a number in `[0.0, 1.0]`.
 
-The kernel validates every report against the action's declared schema (which MUST extend `report-base.schema.json`). A report that lacks `safety` or `confidence`, or whose values are of the wrong shape, is rejected; the job transitions to `failed` with reason `report-invalid` (see `dispatch-lifecycle.md`).
+The kernel validates every report against the action's declared schema (which MUST extend `report-base.schema.json`). A report that lacks `safety` or `confidence`, or whose values are of the wrong shape, is rejected; the job transitions to `failed` with reason `report-invalid` (see `job-lifecycle.md`).
 
 Implementations MUST NOT tolerate the absence of `safety`. If a model returns a report without it, the failure is the runner's problem to surface, not the kernel's to tolerate.
 
