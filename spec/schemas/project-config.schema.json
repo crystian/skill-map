@@ -11,6 +11,14 @@
       "const": 1,
       "description": "Config file shape version. Bumped on breaking changes to this schema."
     },
+    "autoMigrate": {
+      "type": "boolean",
+      "description": "Apply pending kernel and plugin migrations automatically at startup, after auto-backing-up the DB. Default true. When false, startup fails with exit 2 if migrations are pending; the user runs `sm db migrate` manually."
+    },
+    "tokenizer": {
+      "type": "string",
+      "description": "Name of the offline tokenizer used to compute per-node token counts during scan. Default `cl100k_base`. Stored alongside each token count in `scan_nodes` so consumers know which encoder produced the numbers. Changing this invalidates prior counts on next scan."
+    },
     "adapters": {
       "type": "array",
       "description": "Adapter ids to enable, in priority order when multiple match. Empty/absent = use all registered.",
@@ -32,7 +40,12 @@
       "properties": {
         "tokenize": { "type": "boolean", "description": "Whether to compute token counts. Default true." },
         "strict": { "type": "boolean", "description": "Promote frontmatter warnings to errors. Default false." },
-        "followSymlinks": { "type": "boolean", "description": "Default false." }
+        "followSymlinks": { "type": "boolean", "description": "Default false." },
+        "maxFileSizeBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Files larger than this are skipped with an `info`-level log entry. Default 1048576 (1 MiB). Protects against scanning accidental binary drops or generated artefacts."
+        }
       }
     },
     "plugins": {
@@ -66,12 +79,39 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "ttlSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Global fallback TTL (seconds) used when an action manifest omits `expectedDurationSeconds` — typically `mode: local` actions where the field is advisory. Default 3600. The submit-time resolution still applies `graceMultiplier` and `minimumTtlSeconds`."
+        },
         "graceMultiplier": { "type": "number", "minimum": 1, "description": "Default grace multiplier applied to `expectedDurationSeconds`. Default 3." },
         "minimumTtlSeconds": { "type": "integer", "minimum": 1, "description": "Floor for computed TTL. Default 60." },
         "perActionTtl": {
           "type": "object",
           "description": "Per-action TTL overrides (seconds). Keys are action ids.",
           "additionalProperties": { "type": "integer", "minimum": 1 }
+        },
+        "perActionPriority": {
+          "type": "object",
+          "description": "Per-action priority overrides. Keys are action ids, values are integers (higher runs first, negatives allowed). Frozen on `state_jobs.priority` at submit time. Overrides `defaultPriority` from the action manifest; `--priority` on `sm job submit` overrides both.",
+          "additionalProperties": { "type": "integer" }
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Garbage-collection policy for `state_jobs` rows and their job files. `sm job prune` reads this; no implicit pruning during normal verbs.",
+          "properties": {
+            "completed": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "Seconds after `finishedAt` before a `completed` job is eligible for pruning. `null` = never auto-prune. Default 2592000 (30 days)."
+            },
+            "failed": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "Seconds after `finishedAt` before a `failed` job is eligible for pruning. `null` = never auto-prune. Default `null` — failed jobs are kept for post-mortem."
+            }
+          }
         }
       }
     },

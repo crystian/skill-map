@@ -304,6 +304,111 @@ A parallel implementation MAY interleave per-job sequences across different `job
 
 ---
 
+## Non-job events (Stability: experimental)
+
+These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation that produced the event — a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan gets an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill synthetic envelope (`r-ext-...`).
+
+The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 12 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping them to `stable` is a minor spec bump; changes to field shapes before `stable` are allowed without a major bump (per `versioning.md` §Pre-1.0).
+
+### Scan events
+
+#### `scan.started`
+
+Emitted once when a scan begins (full, `--changed`, or `-n <node.path>`).
+
+```json
+{
+  "type": "scan.started",
+  "timestamp": 1745159455123,
+  "runId": "r-scan-20260420-143055-a3f2",
+  "jobId": null,
+  "data": {
+    "mode": "full | changed | single",
+    "target": "<node.path> | null",
+    "rootsCount": 1
+  }
+}
+```
+
+#### `scan.progress`
+
+Emitted periodically during a scan (implementation-defined cadence; SHOULD throttle to ≥250 ms apart to keep WS traffic cheap).
+
+```json
+{
+  "type": "scan.progress",
+  "timestamp": 1745159455500,
+  "runId": "...",
+  "jobId": null,
+  "data": {
+    "filesSeen": 128,
+    "filesProcessed": 64,
+    "filesSkipped": 3
+  }
+}
+```
+
+#### `scan.completed`
+
+Emitted once at scan end.
+
+```json
+{
+  "type": "scan.completed",
+  "timestamp": 1745159456000,
+  "runId": "...",
+  "jobId": null,
+  "data": {
+    "nodes": 187,
+    "links": 421,
+    "issues": 12,
+    "durationMs": 877
+  }
+}
+```
+
+### Issue events
+
+Emitted by the scan after `scan.completed` when the new scan's issue set differs from the previous one. Enables a UI "issue inbox" to update incrementally without re-fetching the full list.
+
+#### `issue.added`
+
+```json
+{
+  "type": "issue.added",
+  "timestamp": 1745159456100,
+  "runId": "...",
+  "jobId": null,
+  "data": {
+    "ruleId": "trigger-collision",
+    "severity": "warn",
+    "nodeIds": ["skills/a.md", "skills/b.md"],
+    "message": "..."
+  }
+}
+```
+
+#### `issue.resolved`
+
+Emitted when an issue present in the previous scan is absent from the new one.
+
+```json
+{
+  "type": "issue.resolved",
+  "timestamp": 1745159456101,
+  "runId": "...",
+  "jobId": null,
+  "data": {
+    "ruleId": "broken-ref",
+    "nodeIds": ["skills/c.md"]
+  }
+}
+```
+
+Issue diffing is keyed on `(ruleId, nodeIds sorted, message)` — same key → same issue. A payload change on the same key emits no event; consumers re-read full issue detail from `sm check` when needed.
+
+---
+
 ## Error handling
 
 If an event payload cannot be serialized (internal bug), the implementation MUST emit a synthetic event:
@@ -326,10 +431,12 @@ Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implem
 
 ## Stability
 
-The **event type list** above is stable as of spec v1.0.0. Adding a new event type is a minor bump. Removing or renaming one is a major bump.
+The **job event type list** (`run.*`, `job.*`, `model.delta`, `emitter.error`) is stable as of spec v1.0.0. Adding a new event type is a minor bump. Removing or renaming one is a major bump.
 
 **Adding** fields to `data` is a minor bump. Changing a field's type or removing a field is a major bump.
 
 Consumers MUST ignore unknown fields (forward compatibility).
 
 The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding an envelope field is a major bump because every consumer would need to handle it.
+
+The **non-job event families** (`scan.*`, `issue.*`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 12 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.

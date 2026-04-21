@@ -34,6 +34,16 @@
       "type": "string",
       "description": "SPDX license identifier (e.g. `MIT`, `Apache-2.0`)."
     },
+    "tools": {
+      "type": "array",
+      "description": "Tools this node requires when executed by a host. Allowlist semantics: if present, the host MUST restrict the node to exactly these tools (matching Claude Code subagent `tools` frontmatter). Free-form strings — token vocabulary is platform-specific (e.g. `Read`, `Grep`, `Bash`, `Bash(git add *)`). Kind-specific interpretation: an `agent` node's allowlist constrains the spawned subagent; a `skill` node's allowlist is a hint for the host since skills typically inherit their parent's tools. Omit to inherit the host's default. Denormalized into `node.tools_json` for query.",
+      "items": { "type": "string" }
+    },
+    "allowedTools": {
+      "type": "array",
+      "description": "Tools the host MAY use without triggering a per-use permission prompt while this node is active (matching Claude Code skill `allowed-tools` frontmatter). Pre-approval semantics, distinct from `tools` (allowlist): every tool not listed remains callable, but governed by the host's normal permission settings. Accepts argument-scoped patterns where the host supports them (`Bash(git add *)`). Free-form strings. Omit to defer to host defaults.",
+      "items": { "type": "string" }
+    },
     "metadata": {
       "type": "object",
       "description": "Structured metadata. REQUIRED. `version` inside is REQUIRED; all other fields are optional.",
