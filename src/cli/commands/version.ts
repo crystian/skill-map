@@ -50,7 +50,8 @@ export class VersionCommand extends Command {
 async function resolveSpecVersion(): Promise<string> {
   try {
     const mod = await import('@skill-map/spec', { with: { type: 'json' } });
-    const version = (mod as { default?: { specVersion?: string } }).default?.specVersion;
+    const version = (mod as { default?: { specPackageVersion?: string } }).default
+      ?.specPackageVersion;
     return version ?? 'unknown';
   } catch {
     return 'unknown';

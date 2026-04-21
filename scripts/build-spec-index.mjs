@@ -100,9 +100,14 @@ async function main() {
     console.error('spec/package.json has no `files` array — nothing to hash.');
     process.exit(2);
   }
+  if (typeof pkg.version !== 'string' || pkg.version.length === 0) {
+    console.error('spec/package.json has no `version` — cannot stamp manifest.');
+    process.exit(2);
+  }
 
   const indexDoc = await readJson(INDEX_PATH);
   const { rest, integrity: existing } = stripIntegrity(indexDoc);
+  rest.specPackageVersion = pkg.version;
   const fresh = await buildIntegrity(pkg.files);
   const next = { ...rest, integrity: fresh };
   const serialized = stableStringify(next);

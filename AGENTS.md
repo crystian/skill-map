@@ -88,7 +88,7 @@ skill-map/
 │   ├── prompt-preamble.md
 │   ├── db-schema.md
 │   ├── plugin-kv-api.md
-│   ├── schemas/            21 JSON Schemas (draft 2020-12)
+│   ├── schemas/            29 JSON Schemas (draft 2020-12): 11 top-level + 7 extensions + 6 frontmatter + 5 summaries
 │   ├── conformance/        suite: cases + fixtures
 │   ├── interfaces/         security-scanner convention
 │   └── index.json          machine-readable manifest
@@ -253,8 +253,9 @@ Step 0a (spec) and Step 0b (reference implementation bootstrap) are **done**. An
 ### Spec surface (Step 0a)
 
 - **Foundation**: `spec/README.md`, `spec/CHANGELOG.md`, `spec/versioning.md`.
-- **21 JSON Schemas** (draft 2020-12):
-  - 10 top-level: `node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`, `conformance-case`.
+- **29 JSON Schemas** (draft 2020-12):
+  - 11 top-level: `node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`, `conformance-case`, `history-stats`.
+  - 7 extensions: `base` + one per kind (`adapter`, `detector`, `rule`, `action`, `audit`, `renderer`) — each manifest validated at load time (`architecture.md` §Extension kinds).
   - 6 frontmatter: `base` + `skill` / `agent` / `command` / `hook` / `note` (kind schemas extend `base` via `allOf`).
   - 5 summaries: `skill` / `agent` / `command` / `hook` / `note` (all extend `report-base` via `allOf`).
 - **7 prose docs**: `architecture.md`, `cli-contract.md`, `job-lifecycle.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`.

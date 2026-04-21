@@ -54,10 +54,11 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 3. Compute `contentHash = sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`.
 4. **Duplicate check**: query `state_jobs` for any row with `(actionId, actionVersion, nodeId, contentHash)` AND `status IN ('queued', 'running')`. If found, refuse with exit 3 and print the existing job id (unless `--force`).
 5. Compute `ttlSeconds = max(action.expectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`. Frozen for the life of this job. User overrides via `--ttl`.
-6. Generate `nonce` (implementation-chosen; MUST be cryptographically random, ≥ 128 bits of entropy).
-7. Render the job file at `.skill-map/jobs/<id>.md`, applying the canonical preamble (see `prompt-preamble.md`).
-8. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`.
-9. Return the job id.
+6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): action manifest `defaultPriority` → user config `jobs.perActionPriority.<actionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. The resolved value is frozen on `state_jobs.priority` at submit time and is immutable for the life of the job.
+7. Generate `nonce` (implementation-chosen; MUST be cryptographically random, ≥ 128 bits of entropy).
+8. Render the job file at `.skill-map/jobs/<id>.md`, applying the canonical preamble (see `prompt-preamble.md`).
+9. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`.
+10. Return the job id.
 
 `--all` fans out one job per node matching the action's `preconditions`. Each fan-out job is independent: some may be duplicates and be refused, others succeed. The CLI reports a summary.
 

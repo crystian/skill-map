@@ -1,5 +1,6 @@
 {
-  "specVersion": "0.0.1",
+  "indexPayloadVersion": "0.0.1",
+  "specPackageVersion": "0.2.0",
   "dialect": "https://json-schema.org/draft/2020-12/schema",
   "canonicalUrlPrefix": "https://skill-map.dev/spec/v0",
   "schemas": {
@@ -43,6 +44,40 @@
       {
         "id": "conformance-case",
         "path": "schemas/conformance-case.schema.json"
+      },
+      {
+        "id": "history-stats",
+        "path": "schemas/history-stats.schema.json"
+      }
+    ],
+    "extensions": [
+      {
+        "id": "extensions/base",
+        "path": "schemas/extensions/base.schema.json"
+      },
+      {
+        "id": "extensions/adapter",
+        "path": "schemas/extensions/adapter.schema.json"
+      },
+      {
+        "id": "extensions/detector",
+        "path": "schemas/extensions/detector.schema.json"
+      },
+      {
+        "id": "extensions/rule",
+        "path": "schemas/extensions/rule.schema.json"
+      },
+      {
+        "id": "extensions/action",
+        "path": "schemas/extensions/action.schema.json"
+      },
+      {
+        "id": "extensions/audit",
+        "path": "schemas/extensions/audit.schema.json"
+      },
+      {
+        "id": "extensions/renderer",
+        "path": "schemas/extensions/renderer.schema.json"
       }
     ],
     "frontmatter": [
@@ -159,10 +194,10 @@
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "88908b684eabb5f508d6fe65a49e0786d1789ca9c8d2eb4195103c837ece1160",
-      "README.md": "e927a170c6f9c2428c1ef9c42876ffedcdc85864a563dd599f725b2ce0ec6d19",
+      "CHANGELOG.md": "d92c9fd8fad57be6e32399350b0293cc656317067e5e25294787e21dbb782a0b",
+      "README.md": "bbcd5df8773a7656fa201eba3770958bd5f943b96432f1634b5d03c5bdc0e039",
       "architecture.md": "6aca411a1593ddd9ad4d9e38a5cf320ac1169ff55f996c07bda301a660fc19a3",
-      "cli-contract.md": "0a3134daa31d72bc398444e2c209308da2941e2d5a9c7dbcb3c1e6c7954aecf8",
+      "cli-contract.md": "2f348c4cf4e169bb095bc539c85ca1a740c56911e91c412ddf4e97ae4016e910",
       "conformance/README.md": "4e41ff823b55ce3c274a033c5152ae0b2759fc714a714d7815593d8be84c8a4c",
       "conformance/cases/basic-scan.json": "24623da0cad8c8c54b3ff9b09820ea1276fe8b8f0fc680bf6e8abeb4edb8e424",
       "conformance/cases/kernel-empty-boot.json": "175524674b14d993d29f10080d7697074b3a2eee25b359ff903344d73c6acc98",
@@ -173,10 +208,10 @@
       "conformance/fixtures/minimal-claude/notes/architecture.md": "5a7e6fdbb1556733dacebad63758057dc1e19090b5a983292c0c65e90b98bcf1",
       "conformance/fixtures/minimal-claude/skills/hello.md": "8598074020430f294ff1eac39876302448f004b6c48446d453092159319bcbee",
       "conformance/fixtures/preamble-v1.txt": "1e0aeef224b64477bdc13a949c3ad402e68249caf499ecdba1302371677c068b",
-      "db-schema.md": "3784e626a7dab73e78b7ade5146b1075c8e9753921d3c12d1383e5bd33023772",
+      "db-schema.md": "bb558e2a6a2b9a002c12f9de92b88dd712678692a0dc3134bc08fb6c2a1ccaa2",
       "interfaces/security-scanner.md": "468f8ee412594b14b389c36cefa9ca75a5dec652adbf03ab8bbc7f57ca980253",
       "job-events.md": "41c984506dd4690ba13a52c89c381a29fae8f89ef247b6db8bb36ac9266ab1f7",
-      "job-lifecycle.md": "1079dc405a4c266cd02441dde18886c4640fb3747f080a4b1215fe3bc2641349",
+      "job-lifecycle.md": "009543924ae66a7c845cc4b26c9b287c12abb764ee83cd6acc736adaffb7342f",
       "plugin-kv-api.md": "fb7cbaea6e18ad696e108fd6ec7a118dc9be6ffef4cf08cc92e511feafa9be30",
       "prompt-preamble.md": "9b7478ddce0a77043983f35932677d702319348048fe5d6b1c60257bd1c9f605",
       "schemas/conformance-case.schema.json": "2740874e00269de6d8121300339401d0283197b6d97dcd77538ec5d108b14de2",

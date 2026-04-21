@@ -355,12 +355,17 @@ Implementations MUST apply a rename heuristic at scan time **before** committing
    - Emit no issue. Log at `info` level.
 3. Remaining pairs where `newPath.frontmatter_hash == deletedPath.frontmatter_hash` (body differs, frontmatter is a perfect match) → classify as **medium-confidence rename**. The kernel MUST:
    - Apply the same FK migration.
-   - Emit an issue `rule_id: auto-rename-medium` (severity `warn`) pointing to both paths so the user can verify or revert via `sm orphans reconcile --to <old.path>`.
+   - Emit an issue `rule_id: auto-rename-medium` (severity `warn`) pointing to both paths. The issue's `data_json` MUST include `{ from: <old.path>, to: <new.path>, confidence: "medium" }` so `sm orphans undo-rename <new.path>` can read the prior path without user input.
 4. Any `deletedPath` left without a match after steps 2–3 becomes an **orphan**: the kernel emits an issue `rule_id: orphan` (severity `info`) and keeps the `state_*` rows referencing the dead path untouched until the user runs `sm orphans reconcile <dead.path> --to <new.path>` or accepts the orphan.
 
-Matching is 1-to-1: once a `newPath` is claimed as the rename target of some `deletedPath`, no other deletion can match it in the same scan. Ambiguity (two deletions share a body hash with the same new path) → fall back to the orphan path for all candidates, with issue `auto-rename-ambiguous` listing every conflict.
+Matching is 1-to-1: once a `newPath` is claimed as the rename target of some `deletedPath`, no other deletion can match it in the same scan. Ambiguity (two deletions share a body hash with the same new path) → fall back to the orphan path for all candidates, with issue `auto-rename-ambiguous` listing every conflict. `auto-rename-ambiguous` issues MUST populate `data_json` with `{ to: <new.path>, candidates: [<old.path.a>, <old.path.b>, ...] }`; in this case `sm orphans undo-rename` requires the user to pass `--from <old.path>` to disambiguate.
 
-The heuristic runs inside the scan transaction, so either all renames land or none do. Implementations MUST NOT expose a separate "rename" verb — `sm scan` is the only surface that triggers automatic rename detection; `sm orphans reconcile` is strictly the manual override for cases the heuristic missed or classified wrong.
+The heuristic runs inside the scan transaction, so either all renames land or none do. `sm scan` is the only surface that triggers automatic rename detection. Two manual verbs exist for cases the heuristic missed or got wrong:
+
+- `sm orphans reconcile <orphan.path> --to <new.path>` — forward direction. Attaches FKs of an orphan to a live node. Use when the heuristic could not match (semantic rename, body rewrite).
+- `sm orphans undo-rename <new.path>` — reverse direction. Reads `issue.data_json.from` from the active `auto-rename-medium` (or `--from`-disambiguated `auto-rename-ambiguous`) issue on `<new.path>`, migrates `state_*` FKs back, and resolves the issue. The prior path becomes an `orphan`. Use when the heuristic matched two unrelated files that happened to share a frontmatter hash.
+
+Both verbs operate on FK ownership only; neither edits files on disk.
 
 ---
 

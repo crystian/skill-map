@@ -169,7 +169,8 @@ Exit: 0 on clean, 1 if error-severity issues exist, 2 on operational error.
 | `sm graph [--format ascii\|mermaid\|dot]` | Render the full graph via the named renderer. |
 | `sm export <query> --format json\|md\|mermaid` | Filtered export. Query syntax is implementation-defined pre-1.0. |
 | `sm orphans` | History rows whose target node is missing. |
-| `sm orphans reconcile <orphan.path> --to <new.path>` | Migrate history rows from the old path to the new one after a rename. |
+| `sm orphans reconcile <orphan.path> --to <new.path>` | Migrate history rows from the old path to the new one after a rename. Use case: the scan's rename heuristic missed a match (semantic-only rename, body rewrite) and the user wants to stitch history manually. |
+| `sm orphans undo-rename <new.path> [--force]` | Reverse a medium-confidence auto-rename. Requires an active `auto-rename-medium` or `auto-rename-ambiguous` issue on `<new.path>`; reads the previous path from `issue.data_json`, migrates `state_*` FKs back, and resolves the issue. The previous path becomes an `orphan` (its file no longer exists in FS). Destructive; prompts for confirmation unless `--force`. Exit `5` if no active auto-rename issue targets `<new.path>`. |
 
 ---
 
@@ -195,6 +196,7 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 | `sm job submit <action> --all` | Fan out to every node matching the action's preconditions. |
 | `sm job submit ... --force` | Bypass duplicate detection. |
 | `sm job submit ... --ttl <seconds>` | Override computed TTL. |
+| `sm job submit ... --priority <n>` | Override job priority. Integer; higher runs first. Default `0`. Negative allowed (deprioritize). Frozen on `state_jobs.priority` at submit time. |
 | `sm job list [--status ...] [--action ...] [--node ...]` | List jobs. |
 | `sm job show <job.id>` | Detail: current state, claim timestamp, TTL remaining, runner, content hash. |
 | `sm job preview <job.id>` | Render the job MD file without executing. |

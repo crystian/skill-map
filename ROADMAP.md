@@ -211,7 +211,9 @@ Pre-implementación. Diseño consolidado en este documento.
    ▶ YOU ARE HERE (2026-04-21) — complete through 0b · next: 0c
   ────────────────────────────────────────────────────────────────────────
    0c  UI prototype            Flavor A with mocked data (iteration checkpoint)
-   1   Kernel skeleton         graph, orchestrator, SQLite, Clipanion CLI, migrations
+   1a  Storage + migrations    SQLite adapter, kernel migrations, auto-backup, sm db *
+   1b  Registry + loader       6 kinds, drop-in plugin discovery, sm plugins list/show/doctor
+   1c  Orchestrator + CLI      scan skeleton, Clipanion dispatcher, cli-reference.md autogen, self-boot green
    2   First extensions        1 adapter, 3 detectors, 3 rules, 1 renderer, 1 audit
    3   Scan end-to-end         sm scan / list / show / check
    4   History + callback      sm record, orphans, rename heuristic via body_hash
@@ -225,8 +227,8 @@ Pre-implementación. Diseño consolidado en este documento.
 ═══════════════════════════════════════════════════════════════════════════
   PHASE B · JOB SUBSYSTEM + LLM VERBS (LLM optional, never required)
 ═══════════════════════════════════════════════════════════════════════════
-   9   Job subsystem           dispatch → jobs, maildir-flat, claim atomic,
-                               nonce, preamble, runners (CLI + Skill),
+   9   Job subsystem           state_jobs, flat-folder job files, atomic
+                               claim, nonce, preamble, runners (CLI + Skill),
                                first summarizer (skill-summarizer)
   10   Remaining summarizers   agent / command / hook / note. First LLM verbs
                                (sm what, sm cluster-triggers). sm findings.
@@ -365,31 +367,34 @@ Single npm package, internal modules, multiple `exports` entries — no workspac
 ```
 skill-map/
 ├── src/
-│   ├── kernel/              Registry, Orchestrator, domain types, use cases
+│   ├── kernel/              Registry, Orchestrator, domain types, ports, use cases
 │   ├── cli/                 Clipanion commands, thin wrappers over kernel
+│   ├── conformance/         Contract runner (loads a spec case, asserts against binary)
+│   ├── extensions/          Built-in extensions (empty until Step 2; populated on drop-in)
+│   ├── test/                node:test suites (*.test.ts)
+│   ├── bin/sm.mjs           CLI entry, imports from ../dist/cli
+│   ├── index.ts             Package entry (re-exports)
 │   ├── server/              (Step 12) Hono + WebSocket, thin wrapper over kernel
 │   ├── testkit/             (Step 8) Kernel mocks for plugin authors
+│   ├── migrations/          (Step 1) Kernel .sql migrations, up-only
 │   └── adapters/            (Step 1+) port implementations
 │       ├── sqlite/          node:sqlite + Kysely + CamelCasePlugin
 │       ├── filesystem/      real fs
 │       ├── plugin-loader/   drop-in discovery
-│       └── runner/          claude -p subprocess
-├── bin/sm.mjs               CLI entry, imports from dist/cli
+│       └── runner/          claude -p subprocess (ClaudeCliRunner) + MockRunner
 └── package.json
     {
       "engines": { "node": ">=24.0" },
-      "main": "./dist/index.js",
-      "bin": { "sm": "./bin/sm.mjs", "skill-map": "./bin/sm.mjs" },
+      "bin": { "sm": "bin/sm.mjs", "skill-map": "bin/sm.mjs" },
       "exports": {
-        ".":         "./dist/index.js",
-        "./kernel":  "./dist/kernel/index.js",
-        "./server":  "./dist/server/index.js",
-        "./testkit": "./dist/testkit/index.js"
+        ".":            "./dist/index.d.ts",
+        "./kernel":     "./dist/kernel/index.d.ts",
+        "./conformance":"./dist/conformance/index.d.ts"
       }
     }
 ```
 
-Folders marked with a step tag (`src/server/`, `src/testkit/`, `src/adapters/*`) are part of the target layout and land at the step indicated; they are not yet on disk as of Step 0b.
+Folders marked with a step tag (`src/server/`, `src/testkit/`, `src/migrations/`, `src/adapters/*`) are part of the target layout and land at the step indicated; they are not yet on disk as of Step 0b. `src/conformance/`, `src/extensions/`, `src/test/`, `src/bin/`, and `src/index.ts` already exist.
 
 Plugin authors: `import { registerDetector } from 'skill-map/kernel'`. Split to real `@skill-map/*` workspaces deferred until a concrete external consumer justifies it.
 
@@ -477,15 +482,19 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerated on demand.
                 ▼
         ┌──────────┐   atomic claim   ┌──────────┐
         │  queued  │ ───────────────▶ │ running  │
-        └──────────┘                  └─────┬────┘
-                                      │     │
-                              callback │     │  TTL expires
-                              success  │     │  (auto-reap)
-                                       ▼     ▼
-                                  ┌──────┐ ┌──────┐
-                                  │ done │ │failed│
-                                  └──────┘ └──────┘
+        └────┬─────┘                  └─────┬────┘
+             │                              │
+             │ cancel                       │ callback success
+             │                              │ callback failure
+             │                              │ TTL expires (auto-reap)
+             │                              │ runner-error / report-invalid
+             ▼                              ▼
+        ┌────────┐                    ┌──────────────────┐
+        │ failed │                    │ completed/failed │
+        └────────┘                    └──────────────────┘
 ```
+
+Terminal states: `completed`, `failed`. `queued → failed` is only reachable via `sm job cancel` (reason `user-cancelled`). Full transition table in `spec/job-lifecycle.md`.
 
 - Atomic claim: `UPDATE state_jobs SET status='running' WHERE id=(SELECT id FROM state_jobs WHERE status='queued' ORDER BY priority DESC, created_at ASC LIMIT 1) AND status='queued' RETURNING id`.
 - Auto-reap at start of every `sm job run`: marks `running` rows with `claimed_at + ttl_seconds * 1000 < now` as failed (reason `abandoned`).
@@ -509,12 +518,12 @@ Backups preserve `state_*` + `config_*`. `scan_*` regenerated on demand.
 
 Two execution paths:
 
-| Path | Implements `RunnerPort`? | Execution engine | Isolation | Use case |
-|---|---|---|---|---|
-| **CLI runner** (`sm job run`) | Yes — driven adapter | `claude -p < jobfile.md` subprocess per item | Context-free (clean) | CI, cron, batch |
-| **Skill agent** (`/skill-map:run-queue`) | **No** — driving adapter that consumes `sm job claim` + `sm record` from inside an LLM session | Agent executes in-session using its own LLM + tools | Context bleeds between items | Interactive |
+| Path | Role | `RunnerPort` impl | Execution engine | Isolation | Use case |
+|---|---|---|---|---|---|
+| **CLI runner loop** (`sm job run`) | Driving command that claims, invokes a `RunnerPort` impl, and records | `ClaudeCliRunner` (the driven adapter the loop uses in prod; `MockRunner` in tests) | `claude -p < jobfile.md` subprocess per item | Context-free (clean) | CI, cron, batch |
+| **Skill agent** (`/skill-map:run-queue`) | Driving adapter that consumes `sm job claim` + `sm record` from inside an LLM session | **None** — the agent IS the execution; it does not cross `RunnerPort` | Agent executes in-session using its own LLM + tools | Context bleeds between items | Interactive |
 
-Only the **CLI runner** is a `RunnerPort` implementation (i.e. something the kernel invokes). The **Skill agent** is a peer driving adapter to CLI / Server: it calls the CLI verbs `sm job claim` and `sm record` as if it were any other user of the binary. The name "runner" applied to the skill path is purely descriptive — the kernel does not own its execution.
+The `RunnerPort` interface is implemented by `ClaudeCliRunner` (plus `MockRunner` for tests). `sm job run` is the command loop that uses it — not the port impl itself. The **Skill agent** is a peer driving adapter to CLI / Server: it calls `sm job claim` + `sm record` as any other user of the binary would, and never crosses `RunnerPort`. The name "runner" applied to the skill path is descriptive, not structural.
 
 Skill agent flow:
 ```
@@ -1105,9 +1114,11 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 - **File watcher** (Step 6): `chokidar`.
 - **Package layout**: single npm package with internal modules + multiple `exports`. Workspace split deferred.
 
-### Tech picks pending (resolve during Step 0b)
+### Tech picks deferred (resolve at the step that first needs them)
 
 YAML parser (`yaml` vs `js-yaml`) · MD parsing strategy (regex vs `remark`/`unified`) · template engine for job MDs (template literals vs `mustache` vs `handlebars`) · pretty CLI output (`chalk` + `cli-table3` + `ora`) · path globbing (`glob` vs `fast-glob` vs `picomatch`) · diff lib (hand-written vs `deep-diff` vs `microdiff`).
+
+Lock-in-abstract rejected during Step 0b: each pick lands with the step that first requires it, so the decision is made against a concrete use case rather than in the void.
 
 ---
 
@@ -1122,9 +1133,9 @@ Sequential build path. Each step ships green tests before the next begins.
 - `spec/` scaffolded and public from commit 1.
 - `spec/README.md`, `spec/CHANGELOG.md`, `spec/versioning.md`.
 - First draft of JSON Schemas (node, link, scan-result, issue, execution-record, project-config, job, report-base, frontmatter/*, summaries/*).
-- `spec/architecture.md`, `cli-contract.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`, `job-lifecycle.md`.
+- `spec/architecture.md`, `cli-contract.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`, `job-lifecycle.md` (this file shipped as `dispatch-lifecycle.md` through spec v0.1.2; renamed in spec v0.2.0 to match decision #30).
 - Conformance test suite stub.
-- npm package `@skill-map/spec` published via changesets (currently `0.1.1`).
+- npm package `@skill-map/spec` published via changesets. Current version lives in `spec/package.json` and `spec/CHANGELOG.md` — do not duplicate it in this narrative.
 
 ### Step 0b — Implementation bootstrap — ✅ complete
 
@@ -1144,15 +1155,38 @@ Sequential build path. Each step ships green tests before the next begins.
 - Graph view (Foblex cards), list view, inspector, filters, simulated event flow.
 - Roadmap review pass after completion.
 
-### Step 1 — Kernel skeleton
+### Step 1 — Kernel skeleton (split into three sub-steps)
 
-- SQLite (node:sqlite) wired behind `StoragePort`.
-- Migrations system (`.sql` files, `config_schema_versions`, auto-apply + auto-backup).
-- Registry + Loader (6 kinds, validates, isolates).
-- Orchestrator running extension pipelines.
-- CLI dispatcher with Clipanion (verbs exist, do nothing yet).
-- `docs/cli-reference.md` auto-generated from `sm help --format md`, CI-enforced.
-- Self-boot test: empty kernel boots, runs empty scan, zero errors.
+The original "Step 1" bundled seven independent deliverables. Splitting keeps each sub-step testable on its own; the boundary between them is a green CI plus the specific acceptance criterion named below. All three must land before Step 2 starts.
+
+#### Step 1a — Storage + migrations
+
+- SQLite (`node:sqlite`) wired behind `StoragePort` via `SqliteStorageAdapter` (Kysely + `CamelCasePlugin`).
+- Kernel migrations in `src/migrations/` (`NNN_snake_case.sql`, up-only, transaction-wrapped).
+- `config_schema_versions` ledger populated; `PRAGMA user_version` kept in sync.
+- Auto-apply on startup with auto-backup to `.skill-map/backups/skill-map-pre-migrate-v<N>.db`.
+- `sm db backup / restore / reset / reset --hard / shell / dump / migrate` operational.
+
+Acceptance: spin a fresh scope, run `sm db migrate --dry-run`, apply, corrupt a row, restore from backup — round-trip green. No kernel logic yet beyond storage.
+
+#### Step 1b — Registry + plugin loader
+
+- `Registry` enforcing the 6 kinds + duplicate-id rejection within a kind (already stubbed in Step 0b; wire it to real validation).
+- `PluginLoaderPort` implementation: drop-in discovery in `<scope>/.skill-map/plugins/*` and `~/.skill-map/plugins/*`, `plugin.json` parse, `semver.satisfies(specPackageVersion, plugin.specCompat)` check, dynamic import of each extension, schema validation against `extensions/<kind>.schema.json`.
+- `sm plugins list / show / doctor` operational (enable/disable arrive in Step 5 with `config_plugins`).
+- Failure modes surface with clear statuses: `incompatible-spec`, `invalid-manifest`, `load-error`.
+
+Acceptance: drop a bogus plugin (bad manifest, wrong specCompat, invalid extension) — each case produces a precise diagnostic; the kernel still boots.
+
+#### Step 1c — Orchestrator + CLI dispatcher + introspection
+
+- Scan orchestrator skeleton running the (still-empty) registry pipeline end-to-end; emits `ProgressEmitterPort` events in the canonical order.
+- Full Clipanion verb registration (every verb from `cli-contract.md` stubs out and prints "not-implemented" with exit `2` until its Step fills it in).
+- `sm help --format json|md|human` fully operational.
+- `docs/cli-reference.md` auto-generated from `sm help --format md`; CI blocks drift.
+- Self-boot test green: with zero extensions installed, `sm scan` returns a zero-filled valid `ScanResult`.
+
+Acceptance: `sm help` covers every verb in the spec, and `docs/cli-reference.md` is byte-equal to `sm help --format md` output in CI. The kernel-empty-boot conformance case passes end-to-end via the real orchestrator (not the stub from Step 0b).
 
 ### Step 2 — First extension instances
 
@@ -1178,8 +1212,9 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 - Execution table `state_executions`.
 - `sm history` + filters + `stats`.
 - Orphan detection.
-- **Automatic rename heuristic**: on scan, when a deleted `node.path` and a newly-seen `node.path` share the same `body_hash`, the scan migrates `state_*` FK rows (executions, jobs, summaries, enrichment) from the old path to the new one at **high** confidence without prompt. `frontmatter_hash`-only match → **medium** confidence → emits an `auto-rename-medium` issue so the user can inspect / revert via `sm orphans reconcile`. Any residual unmatched deletion → `orphan` issue.
-- `sm orphans reconcile <orphan.path> --to <new.path>` remains as the manual override for semantic-only matches or history repair.
+- **Automatic rename heuristic**: on scan, when a deleted `node.path` and a newly-seen `node.path` share the same `body_hash`, the scan migrates `state_*` FK rows (executions, jobs, summaries, enrichment) from the old path to the new one at **high** confidence without prompt. `frontmatter_hash`-only match → **medium** confidence → emits an `auto-rename-medium` issue (with `data_json.from` + `data_json.to` for machine readback) so the user can inspect / revert. Any residual unmatched deletion → `orphan` issue.
+- `sm orphans reconcile <orphan.path> --to <new.path>` — forward manual override for semantic-only matches or history repair.
+- `sm orphans undo-rename <new.path> [--force]` — reverse a medium-confidence auto-rename. Reads the original path from the issue's `data_json`, migrates `state_*` FKs back, resolves the issue; the prior path becomes an `orphan`. For `auto-rename-ambiguous` issues, requires `--from <old.path>` to disambiguate.
 
 ### Step 5 — Config + onboarding
 
@@ -1216,13 +1251,14 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 - Job file rendering with kernel-enforced preamble + `<user-content>` delimiters.
 - `sm job submit / list / show / preview / claim / run / run --all / status / cancel / prune`.
 - `sm record` with nonce authentication.
-- CLI runner (`claude -p` subprocess).
+- CLI runner loop (`sm job run`) + `ClaudeCliRunner` (`claude -p` subprocess) as the default `RunnerPort` impl. Submission and claim MUST succeed even when `claude` is absent; only `sm job run` requires it, and MUST fail fast with a clear error (exit 2) pointing the user at installation docs when the binary is missing.
 - Skill agent (`/skill-map:run-queue` + `sm-cli-run-queue` skill package).
 - `skill-summarizer` built-in (first summarizer).
 - Duplicate detection via `contentHash` + `--force`.
 - Per-action TTL + auto-reap.
 - Progress events (pretty / `--stream-output` / `--json`).
 - `github-enrichment` bundled plugin (hash verification).
+- Close conformance case `preamble-bitwise-match` (deferred from Step 0a — needs `sm job preview` to render a job file for byte-exact comparison against `spec/conformance/fixtures/preamble-v1.txt`).
 
 ### Step 10 — Remaining summarizers + LLM verbs + findings
 
@@ -1250,7 +1286,7 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches.
 - UI consumes real kernel (Flavor B vertical slice, upgrading Step 0c prototype).
 - Inspector panel with enrichment + summary + findings.
 - Command submit from UI via WS.
-- Live validation via `chokidar` → WS broadcast.
+- Wire the `chokidar` watcher introduced in Step 6 into the WS broadcaster so file changes stream to the UI live.
 
 ### Step 13 — Distribution polish
 
@@ -1310,7 +1346,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 | 21 | Trigger normalization | NFD + strip diacritics + lowercase + hyphen/underscore/space unification + collapse + trim. `originalTrigger` preserved for display. |
 | 22 | External URL handling | **Count only** on `scan_nodes.external_refs_count`. No separate table. No liveness in MVP. |
 | 23 | Reference counts | Denormalized columns: `links_out_count`, `links_in_count`, `external_refs_count`. |
-| 24 | Orphan reconciliation | `body_hash` match → high confidence rename. `frontmatter_hash` → medium. Semantic → deferred. `sm orphans reconcile`. |
+| 24 | Orphan reconciliation | `body_hash` match → high confidence auto-rename (no issue, no prompt). `frontmatter_hash` match → medium, emits `auto-rename-medium` issue with `data_json.from/to`. No match → `orphan` issue. Manual verbs: `sm orphans reconcile <orphan> --to <new>` (forward, attach orphan to live node) and `sm orphans undo-rename <new> [--force]` (reverse a medium/ambiguous auto-rename; needs `--from` for ambiguous). |
 | 25 | Tokens + bytes | Triple-split per node (frontmatter / body / total). Tokenizer column. |
 
 ### Frontmatter
@@ -1337,6 +1373,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 | 38 | Exit codes | `0` ok · `1` issues · `2` error · `3` duplicate · `4` nonce-mismatch · `5` not-found. `6–15` reserved for future spec use. `≥16` free for verb-specific use. |
 | 39 | TTL per action | `expectedDurationSeconds` in manifest. `ttl = max(expected × graceMultiplier, minimumTtl)`. Frozen at submit. |
 | 40 | TTL override precedence | Global default → manifest → user `jobs.perActionTtl` → CLI `--ttl`. |
+| 40a | Job priority | `state_jobs.priority` (INTEGER, default `0`). Higher runs first; ties broken by `createdAt ASC`. Negatives allowed. Set via manifest `defaultPriority`, user config `jobs.perActionPriority.<id>`, or CLI `--priority <n>` (later wins). Frozen at submit. |
 | 41 | Auto-reap | At start of `sm job run`. `running` with vencido TTL → failed(abandoned). |
 | 42 | Atomicity edge cases | Per-scenario policy: missing file → failed(job-file-missing); orphan file → reported by doctor, user prunes; edited file → by design. |
 
@@ -1371,7 +1408,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 | 57 | Enrichment scope | GitHub only for MVP. Skills.sh dropped (no API). npm dropped. |
 | 58 | Hash verification | Explicit declaration + compare. No reverse-lookup (no API). |
 | 59 | GitHub idempotency | SHA pin + branch resolution cache + optional ETag. |
-| 60 | Enrichment invocation | No dedicated verb. Uses `sm job submit <action> --all`. **`--all` is a universal flag**: any verb that takes a target identifier (`-n <node.path>`, `<job.id>`, `<plugin.id>`, etc.) MUST accept `--all` as "apply to every eligible target matching the verb's preconditions" (e.g. `sm scan --all` = every root; `sm plugins disable --all` = every plugin; `sm job cancel --all` = every running job). Verbs that inherently target everything (`sm list`, `sm check`, `sm doctor`) ignore `--all`. |
+| 60 | Enrichment invocation | No dedicated verb. Uses `sm job submit <action> --all`. **`--all` is a universal flag**: any verb that takes a target identifier (`-n <node.path>`, `<job.id>`, `<plugin.id>`, etc.) MUST accept `--all` as "apply to every eligible target matching the verb's preconditions" (e.g. `sm plugins disable --all` = every plugin; `sm job cancel --all` = every running job). Verbs that inherently target everything (`sm scan` without `-n`, `sm list`, `sm check`, `sm doctor`) ignore `--all` — the flag is accepted for script-composition uniformity but is a no-op. |
 | 61 | `state_enrichment` table | Dedicated. `node_id + provider_id` PK. |
 
 ### CLI and introspection
@@ -1440,7 +1477,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 ### Gaps still open
 
 - **Per-surface frontmatter visibility** — resolves during Step 0c prototype.
-- **Remaining tech stack picks** (YAML parser, MD parsing, templating, pretty CLI libs, globbing, diff) — resolve during Step 0b.
+- **Remaining tech stack picks** (YAML parser, MD parsing, templating, pretty CLI libs, globbing, diff) — each lands with the step that first requires it (see §Tech picks deferred).
 
 ---
 
@@ -1484,7 +1521,7 @@ Canonical log. Decisions from sessions 2026-04-19/20/21 plus pre-session. Presen
 - **Lookup tables for enums** — CHECK constraints sufficient.
 - **`sm db reset --nuke`** — too destructive given drop-in plugins are user-placed code.
 - **`sm job reap` as explicit verb** — auto-reap on `sm job run` is sufficient.
-- **Skills.sh enrichment** — no public API after investigation.
+- **Skills.sh enrichment** — see §Enrichment (dropped from MVP; no public API after investigation).
 - **URL liveness in MVP** — post-MVP plugin if demand appears.
 - **Multi-turn jobs in MVP** — kernel stays single-turn; conversation lives in agent skill.
 - **`skill-manager` / `skillctl` naming** — `skill-map` preserved.
