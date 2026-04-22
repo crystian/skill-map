@@ -11,7 +11,8 @@
   },
   "workspaces": [
     "spec",
-    "src"
+    "src",
+    "ui"
   ],
   "scripts": {
     "spec:index": "node scripts/build-spec-index.mjs",

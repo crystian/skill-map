@@ -15,7 +15,7 @@ The project description, problem statement, target audience, philosophy, and Obs
 
 Each README also ships a short essentials-only glossary with a pointer back to the full [§Glossary](#glossary) below. This document (`ROADMAP.md`) is the design narrative — architecture decisions, execution plan, decision log, and deferred work — and sits beneath the READMEs; it is maintained in English only.
 
-**Status**: Steps **0a** (spec bootstrap) and **0b** (implementation bootstrap) complete. `@skill-map/spec` is published on npm (version in `spec/package.json` and `spec/CHANGELOG.md`); kernel shell + CLI skeleton boot and pass CI. Next: **Step 0c — UI prototype**. The canonical completeness marker lives in §Execution plan below.
+**Status**: Steps **0a** (spec bootstrap) and **0b** (implementation bootstrap) complete. `@skill-map/spec` is published on npm (version in `spec/package.json` and `spec/CHANGELOG.md`); kernel shell + CLI skeleton boot and pass CI. **Step 0c — UI prototype** is in progress: the `ui/` workspace is scaffolded (Angular 21 standalone, Foblex Flow, PrimeNG + `@primeuix/themes`, SCSS scoped) and a mock collection covering all five node kinds lives at `ui/mock-collection/`. Remaining Step 0c work: graph/list/inspector/filters views and simulated event flow, followed by the roadmap review pass. The canonical completeness marker lives in §Execution plan below.
 
 ---
 
@@ -1220,7 +1220,7 @@ Lock-in-abstract rejected during Step 0b: each pick lands with the step that fir
 
 Sequential build path. Each step ships green tests before the next begins.
 
-> ▶ **Completeness marker (2026-04-22)**: Steps **0a** and **0b** are **complete**. Next step: **0c — UI prototype**. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 9, needs `sm job preview`) and remaining tech-stack picks (YAML parser, MD parser, templating, pretty CLI, globbing, diff — each lands with the step that first needs it).
+> ▶ **Completeness marker (2026-04-22)**: Steps **0a** and **0b** are **complete**. **Step 0c — UI prototype** is **in progress**: workspace scaffolded, stack locked (Angular 21 standalone + Foblex Flow + PrimeNG + `@primeuix/themes` + SCSS scoped), mock collection landed at `ui/mock-collection/` covering all five kinds. Remaining: graph / list / inspector / filters views, simulated event flow, roadmap review pass. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 9, needs `sm job preview`) and remaining tech-stack picks (YAML parser, MD parser, templating, pretty CLI, globbing, diff — each lands with the step that first needs it).
 
 > ▶ **Release version scheme**: `v0.1.0` was spent on the Step 0b bootstrap — the impl package (`skill-map`) is `private: true` until `v0.5.0`, so changesets bump the version internally without publishing to npm. `v0.5.0` is the deterministic offline release, `v0.8.0` adds the optional LLM layer, and `v1.0.0` is the full distributable release. Intermediate `v0.2.0`–`v0.4.x` cover Steps 0c through 8, `v0.5.1`–`v0.7.x` cover Steps 9–10, and `v0.8.1`–`v0.9.x` cover Steps 11–13. Each minor is driven by a changeset, never by a hand bump. Numbers refer to the `skill-map` (impl) package; `@skill-map/spec` versions independently per decision #77 and may skip entries.
 
@@ -1245,13 +1245,14 @@ Sequential build path. Each step ships green tests before the next begins.
 - CI green with 0 real features.
 - Remaining tech stack picks (YAML parser, MD parsing, templating, pretty CLI, globbing, diff) are deferred to the step that first needs them — lock-in-abstract rejected.
 
-### Step 0c — UI prototype (Flavor A) — ▶ next
+### Step 0c — UI prototype (Flavor A) — ▶ in progress
 
-- **Stack locked here**: Angular 21 (standalone) + Foblex Flow (node-based UI) + PrimeNG (components) + SCSS scoped (no utility CSS).
-- `ui/` npm workspace created as peer of `spec/` and `src/`.
-- No backend. No BFF. Data mocked in-memory from a real on-disk collection spanning all five node kinds (skills, agents, commands, hooks, notes) — the specific path is an implementation detail of the prototype run.
-- Graph view (Foblex cards), list view, inspector, filters, simulated event flow.
-- Roadmap review pass after completion.
+- **Stack locked**: Angular 21 standalone + Foblex Flow (node-based UI) + PrimeNG + `@primeuix/themes` (the legacy `@primeng/themes` package is deprecated upstream and intentionally avoided) + SCSS scoped (no utility CSS). ✅ landed.
+- `ui/` npm workspace created as peer of `spec/` and `src/`. Root `package.json` workspaces array now `["spec", "src", "ui"]`; hoisted single-lockfile install verified. ✅ landed.
+- Mock collection at `ui/mock-collection/` — fictional `acme-toolkit` scope with 4 agents, 4 commands, 4 skills, 3 hooks, and 3 notes, all with frontmatter conforming to `spec/schemas/frontmatter/*`. Served as build assets via `angular.json` so the prototype can `fetch('/mock-collection/…')` at runtime, simulating an on-disk scope without wiring a backend. The collection also exercises `supersedes` / `supersededBy`, `requires`, `related`, `@agent` / `#skill` / `/command` tokens in bodies, and external URLs for the future `external-url-counter` detector. ✅ landed.
+- No backend. No BFF. Reading the mock collection at runtime stays the rule for the whole step — the specific path (`ui/mock-collection/`) is a prototype implementation detail and is NOT a fixture reused by any kernel test.
+- Graph view (Foblex cards), list view, inspector, filters, simulated event flow. ⏳ remaining.
+- Roadmap review pass after completion. ⏳ remaining.
 
 ### Step 1 — Kernel skeleton (split into three sub-steps)
 
