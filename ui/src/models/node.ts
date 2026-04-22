@@ -116,6 +116,7 @@ export interface TNodeView {
   frontmatter: TFrontmatter;
   body: string;
   raw: string;
+  mockSummary: string | null;
 }
 
 /**

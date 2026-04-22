@@ -13,6 +13,7 @@ metadata:
   version: 0.8.2
   stability: stable
   author: acme
+  priority: 6
   tags: [scan, diagnostics]
   created: 2025-12-05
   related:

@@ -21,3 +21,7 @@
 .filter-bar__ms {
   min-width: 180px;
 }
+
+.filter-bar__toggle {
+  flex-shrink: 0;
+}

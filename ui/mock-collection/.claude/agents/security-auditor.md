@@ -11,6 +11,7 @@ metadata:
   version: 1.1.4
   stability: stable
   author: acme
+  priority: 9
   tags: [security, audit, cwe]
   created: 2025-11-03
   related:

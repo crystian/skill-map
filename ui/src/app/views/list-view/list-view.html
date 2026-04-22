@@ -50,6 +50,9 @@
           <th pSortableColumn="stability" style="width: 140px">
             Stability <p-sortIcon field="stability" />
           </th>
+          <th pSortableColumn="priority" style="width: 90px">
+            Priority <p-sortIcon field="priority" />
+          </th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row>
@@ -67,11 +70,12 @@
               [rounded]="true"
             />
           </td>
+          <td class="list__cell-priority">{{ row.priority ?? '—' }}</td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="5" class="list__empty">
+          <td colspan="6" class="list__empty">
             @if (filtersActive()) {
               <p>No nodes match the current filters.</p>
               <p-button label="Reset filters" [text]="true" size="small" (onClick)="resetFilters()" />

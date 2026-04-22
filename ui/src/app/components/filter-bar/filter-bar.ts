@@ -5,6 +5,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { InputTextModule } from 'primeng/inputtext';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { ButtonModule } from 'primeng/button';
+import { ToggleButtonModule } from 'primeng/togglebutton';
 
 import {
   ALL_KINDS,
@@ -23,6 +24,7 @@ import type { TNodeKind, TStability } from '../../../models/node';
     InputTextModule,
     MultiSelectModule,
     ButtonModule,
+    ToggleButtonModule,
   ],
   templateUrl: './filter-bar.html',
   styleUrl: './filter-bar.css',
@@ -34,6 +36,7 @@ export class FilterBar {
   readonly searchText = this.store.searchText;
   readonly selectedKinds = this.store.selectedKinds;
   readonly selectedStabilities = this.store.selectedStabilities;
+  readonly hasIssuesOnly = this.store.hasIssuesOnly;
   readonly isActive = this.store.isActive;
 
   readonly kindOptions = ALL_KINDS.map((kind) => ({ label: kind, value: kind }));
@@ -49,6 +52,10 @@ export class FilterBar {
 
   onStabilitiesChange(values: TStability[]): void {
     this.store.setStabilities(values);
+  }
+
+  onIssuesToggle(value: boolean): void {
+    this.store.setHasIssuesOnly(value);
   }
 
   reset(): void {

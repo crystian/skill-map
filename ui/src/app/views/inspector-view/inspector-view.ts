@@ -5,8 +5,10 @@ import { ChipModule } from 'primeng/chip';
 import { CardModule } from 'primeng/card';
 import { DividerModule } from 'primeng/divider';
 import { ButtonModule } from 'primeng/button';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
+import { EventBusService } from '../../../services/event-bus';
 import type {
   IFrontmatterAgent,
   IFrontmatterCommand,
@@ -34,7 +36,7 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 @Component({
   selector: 'app-inspector-view',
   standalone: true,
-  imports: [RouterLink, TagModule, ChipModule, CardModule, DividerModule, ButtonModule],
+  imports: [RouterLink, TagModule, ChipModule, CardModule, DividerModule, ButtonModule, TooltipModule],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -42,6 +44,7 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 export class InspectorView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly router = inject(Router);
+  private readonly bus = inject(EventBusService);
 
   readonly path = input<string | undefined>(undefined);
 
@@ -84,5 +87,47 @@ export class InspectorView implements OnInit {
 
   pathExists(path: string): boolean {
     return this.loader.nodes().some((n) => n.path === path);
+  }
+
+  triggerDet(): void {
+    const n = this.node();
+    if (!n) return;
+    this.bus.emit({
+      family: 'scan',
+      name: 'scan.progress',
+      severity: 'info',
+      message: `[det] Re-scanning ${n.path}`,
+      data: { path: n.path, kind: n.kind },
+    });
+    setTimeout(() => {
+      this.bus.emit({
+        family: 'scan',
+        name: 'scan.completed',
+        severity: 'success',
+        message: `[det] ${n.path} — deterministic refresh done.`,
+        data: { path: n.path },
+      });
+    }, 300);
+  }
+
+  triggerProb(): void {
+    const n = this.node();
+    if (!n) return;
+    this.bus.emit({
+      family: 'job',
+      name: 'job.submitted',
+      severity: 'info',
+      message: `[prob] Submitted ${n.kind}-summarizer for ${n.path}`,
+      data: { path: n.path, kind: n.kind, action: `${n.kind}-summarizer` },
+    });
+    setTimeout(() => {
+      this.bus.emit({
+        family: 'job',
+        name: 'job.completed',
+        severity: 'success',
+        message: `[prob] ${n.kind}-summarizer completed for ${n.path}`,
+        data: { path: n.path },
+      });
+    }, 1500);
   }
 }

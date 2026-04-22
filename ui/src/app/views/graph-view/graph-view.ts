@@ -23,6 +23,8 @@ interface IGraphNode {
   label: string;
   kind: TNodeKind;
   position: { x: number; y: number };
+  linksOut: number;
+  linksIn: number;
 }
 
 type TEdgeKind = 'supersedes' | 'requires' | 'related';
@@ -40,7 +42,7 @@ interface IGraphData {
 }
 
 const NODE_WIDTH = 200;
-const NODE_HEIGHT = 80;
+const NODE_HEIGHT = 96;
 
 @Component({
   selector: 'app-graph-view',
@@ -147,6 +149,13 @@ function buildGraph(nodes: TNodeView[]): IGraphData {
   }
   dagreLayout(g);
 
+  const outCount = new Map<string, number>();
+  const inCount = new Map<string, number>();
+  for (const e of uniqueEdges) {
+    outCount.set(e.from, (outCount.get(e.from) ?? 0) + 1);
+    inCount.set(e.to, (inCount.get(e.to) ?? 0) + 1);
+  }
+
   const laidOut: IGraphNode[] = nodes.map((n) => {
     const pos = g.node(n.path);
     return {
@@ -158,6 +167,8 @@ function buildGraph(nodes: TNodeView[]): IGraphData {
         x: (pos?.x ?? 0) - NODE_WIDTH / 2,
         y: (pos?.y ?? 0) - NODE_HEIGHT / 2,
       },
+      linksOut: outCount.get(n.path) ?? 0,
+      linksIn: inCount.get(n.path) ?? 0,
     };
   });
 

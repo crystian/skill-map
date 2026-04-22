@@ -88,7 +88,7 @@
 /* Node cards inside the canvas. */
 .f-gnode {
   width: 200px;
-  min-height: 80px;
+  min-height: 96px;
   padding: 0.6rem 0.85rem;
   border-radius: 0.65rem;
   background: #ffffff;
@@ -124,6 +124,30 @@
   color: #1f2937;
   word-break: break-word;
   line-height: 1.25;
+}
+
+.f-gnode__links {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.f-gnode__link-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.f-gnode__link-badge--in {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.f-gnode__link-badge--out {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .f-gnode__connector {

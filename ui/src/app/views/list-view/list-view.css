@@ -51,6 +51,11 @@
   font-weight: 500;
 }
 
+.list__cell-priority {
+  text-align: center;
+  color: var(--p-text-muted-color, #666);
+}
+
 .list__row code {
   font-size: 0.8rem;
   font-family:

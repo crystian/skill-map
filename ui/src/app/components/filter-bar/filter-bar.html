@@ -34,6 +34,16 @@
     [showToggleAll]="false"
   />
 
+  <p-togglebutton
+    [ngModel]="hasIssuesOnly()"
+    (ngModelChange)="onIssuesToggle($event)"
+    onLabel="Has issues"
+    offLabel="Has issues"
+    onIcon="pi pi-exclamation-triangle"
+    offIcon="pi pi-exclamation-triangle"
+    styleClass="filter-bar__toggle"
+  />
+
   @if (isActive()) {
     <p-button
       label="Reset"

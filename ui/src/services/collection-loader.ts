@@ -85,6 +85,7 @@ export class CollectionLoaderService {
       frontmatter: parsed.frontmatter,
       body: parsed.body,
       raw,
+      mockSummary: deriveMockSummary(parsed.body, parsed.frontmatter),
     };
   }
 
@@ -109,6 +110,15 @@ export class CollectionLoaderService {
  * top-level README). Not a substitute for the real claude adapter in `src/` —
  * that one will classify based on the adapter's own rules at Step 2.
  */
+function deriveMockSummary(body: string, fm: TFrontmatter): string | null {
+  const lines = body
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0 && !l.startsWith('#'));
+  if (lines.length > 0) return lines[0];
+  return fm.description ?? null;
+}
+
 function classifyKind(path: string, fm: TFrontmatter): TNodeKind {
   if (path.startsWith('.claude/agents/')) return 'agent';
   if (path.startsWith('.claude/commands/')) return 'command';

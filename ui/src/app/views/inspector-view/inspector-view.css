@@ -210,3 +210,21 @@ h4:first-child {
   font-size: 0.8rem;
   word-break: break-all;
 }
+
+.inspector__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.inspector__summary-text {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.inspector__summary-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color, #999);
+  font-style: italic;
+}

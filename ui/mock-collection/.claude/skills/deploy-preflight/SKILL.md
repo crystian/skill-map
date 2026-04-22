@@ -15,6 +15,7 @@ metadata:
   version: 1.2.0
   stability: stable
   author: acme
+  priority: 10
   tags: [deploy, gate, safety]
   created: 2025-11-20
   updated: 2026-03-29

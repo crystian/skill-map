@@ -11,6 +11,7 @@ metadata:
   version: 1.3.0
   stability: stable
   author: acme
+  priority: 8
   tags: [backend, nestjs, architecture]
   created: 2025-09-14
   updated: 2026-03-02

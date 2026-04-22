@@ -15,12 +15,14 @@ export class FilterStoreService {
   readonly searchText = signal<string>('');
   readonly selectedKinds = signal<TNodeKind[]>([]);
   readonly selectedStabilities = signal<TStability[]>([]);
+  readonly hasIssuesOnly = signal<boolean>(false);
 
   readonly isActive = computed(
     () =>
       this.searchText().trim().length > 0 ||
       this.selectedKinds().length > 0 ||
-      this.selectedStabilities().length > 0,
+      this.selectedStabilities().length > 0 ||
+      this.hasIssuesOnly(),
   );
 
   setSearchText(value: string): void {
@@ -35,10 +37,15 @@ export class FilterStoreService {
     this.selectedStabilities.set([...stabilities]);
   }
 
+  setHasIssuesOnly(value: boolean): void {
+    this.hasIssuesOnly.set(value);
+  }
+
   reset(): void {
     this.searchText.set('');
     this.selectedKinds.set([]);
     this.selectedStabilities.set([]);
+    this.hasIssuesOnly.set(false);
   }
 
   /**
@@ -50,6 +57,7 @@ export class FilterStoreService {
     const text = this.searchText().trim().toLowerCase();
     const kinds = this.selectedKinds();
     const stabilities = this.selectedStabilities();
+    const issuesOnly = this.hasIssuesOnly();
 
     return nodes.filter((n) => {
       if (text) {
@@ -67,7 +75,14 @@ export class FilterStoreService {
         const s = n.frontmatter.metadata?.stability;
         if (!s || !stabilities.includes(s)) return false;
       }
+      if (issuesOnly && !nodeHasIssues(n)) return false;
       return true;
     });
   }
+}
+
+function nodeHasIssues(n: TNodeView): boolean {
+  const meta = n.frontmatter.metadata;
+  if (!meta) return false;
+  return meta.stability === 'deprecated' || !!meta.supersededBy;
 }

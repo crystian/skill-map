@@ -10,6 +10,7 @@ metadata:
   version: 1.0.0
   stability: stable
   author: acme
+  priority: 5
   tags: [git, lint, hook]
   created: 2025-10-15
   requires:

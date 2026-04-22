@@ -11,6 +11,7 @@ metadata:
   version: 2.0.1
   stability: stable
   author: acme
+  priority: 7
   tags: [frontend, angular, a11y]
   created: 2025-07-01
   updated: 2026-04-10

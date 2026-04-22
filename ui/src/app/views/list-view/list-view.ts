@@ -17,6 +17,7 @@ interface IListRow {
   name: string;
   version: string;
   stability: TStability | '—';
+  priority: number | null;
   node: TNodeView;
 }
 
@@ -68,6 +69,7 @@ export class ListView implements OnInit {
       name: node.frontmatter.name ?? '—',
       version: node.frontmatter.metadata?.version ?? '—',
       stability: (node.frontmatter.metadata?.stability as TStability | undefined) ?? '—',
+      priority: node.frontmatter.metadata?.priority ?? null,
       node,
     }));
   });

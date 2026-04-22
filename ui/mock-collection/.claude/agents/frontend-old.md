@@ -8,6 +8,7 @@ metadata:
   stability: deprecated
   supersededBy: .claude/agents/frontend-specialist.md
   author: acme
+  priority: 1
   tags: [frontend, angular, legacy]
   created: 2024-02-20
   updated: 2025-06-30

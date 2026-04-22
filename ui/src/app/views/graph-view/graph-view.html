@@ -53,6 +53,16 @@
             >
               <span class="f-gnode__kind">{{ node.kind }}</span>
               <span class="f-gnode__label">{{ node.label }}</span>
+              @if (node.linksIn > 0 || node.linksOut > 0) {
+                <span class="f-gnode__links">
+                  @if (node.linksIn > 0) {
+                    <span class="f-gnode__link-badge f-gnode__link-badge--in">↓{{ node.linksIn }}</span>
+                  }
+                  @if (node.linksOut > 0) {
+                    <span class="f-gnode__link-badge f-gnode__link-badge--out">↑{{ node.linksOut }}</span>
+                  }
+                </span>
+              }
               <div
                 fNodeOutput
                 [fOutputId]="node.id"
