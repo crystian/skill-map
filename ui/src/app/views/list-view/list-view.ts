@@ -9,12 +9,21 @@ import { ButtonModule } from 'primeng/button';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
-import type { TNodeKind, TNodeView, TStability } from '../../../models/node';
+import type {
+  TNodeKind,
+  TNodeView,
+  TStability,
+  IFrontmatterAgent,
+  IFrontmatterCommand,
+  IFrontmatterHook,
+  IFrontmatterSkill,
+} from '../../../models/node';
 
 interface IListRow {
   path: string;
   kind: TNodeKind;
   name: string;
+  detail: string | null;
   version: string;
   stability: TStability | '—';
   priority: number | null;
@@ -67,6 +76,7 @@ export class ListView implements OnInit {
       path: node.path,
       kind: node.kind,
       name: node.frontmatter.name ?? '—',
+      detail: nodeDetail(node),
       version: node.frontmatter.metadata?.version ?? '—',
       stability: (node.frontmatter.metadata?.stability as TStability | undefined) ?? '—',
       priority: node.frontmatter.metadata?.priority ?? null,
@@ -96,5 +106,24 @@ export class ListView implements OnInit {
 
   resetFilters(): void {
     this.filters.reset();
+  }
+}
+
+function nodeDetail(n: TNodeView): string | null {
+  switch (n.kind) {
+    case 'agent':
+      return (n.frontmatter as IFrontmatterAgent).model ?? null;
+    case 'hook':
+      return (n.frontmatter as IFrontmatterHook).event ?? null;
+    case 'command':
+      return (n.frontmatter as IFrontmatterCommand).shortcut ?? null;
+    case 'skill': {
+      const fm = n.frontmatter as IFrontmatterSkill;
+      const ins = fm.inputs?.length ?? 0;
+      const outs = fm.outputs?.length ?? 0;
+      return ins || outs ? `${ins} in · ${outs} out` : null;
+    }
+    default:
+      return null;
   }
 }

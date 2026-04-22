@@ -3,7 +3,6 @@ import { Router, RouterLink } from '@angular/router';
 import { TagModule } from 'primeng/tag';
 import { ChipModule } from 'primeng/chip';
 import { CardModule } from 'primeng/card';
-import { DividerModule } from 'primeng/divider';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
@@ -36,7 +35,7 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 @Component({
   selector: 'app-inspector-view',
   standalone: true,
-  imports: [RouterLink, TagModule, ChipModule, CardModule, DividerModule, ButtonModule, TooltipModule],
+  imports: [RouterLink, TagModule, ChipModule, CardModule, ButtonModule, TooltipModule],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

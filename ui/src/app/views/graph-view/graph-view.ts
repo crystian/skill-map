@@ -15,13 +15,21 @@ import { ButtonModule } from 'primeng/button';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
-import type { TNodeKind, TNodeView } from '../../../models/node';
+import type {
+  TNodeKind,
+  TNodeView,
+  IFrontmatterAgent,
+  IFrontmatterCommand,
+  IFrontmatterHook,
+  IFrontmatterSkill,
+} from '../../../models/node';
 
 interface IGraphNode {
   id: string;
   path: string;
   label: string;
   kind: TNodeKind;
+  subtitle: string | null;
   position: { x: number; y: number };
   linksOut: number;
   linksIn: number;
@@ -42,7 +50,7 @@ interface IGraphData {
 }
 
 const NODE_WIDTH = 200;
-const NODE_HEIGHT = 96;
+const NODE_HEIGHT = 110;
 
 @Component({
   selector: 'app-graph-view',
@@ -163,6 +171,7 @@ function buildGraph(nodes: TNodeView[]): IGraphData {
       path: n.path,
       label: n.frontmatter.name ?? n.path,
       kind: n.kind,
+      subtitle: nodeSubtitle(n),
       position: {
         x: (pos?.x ?? 0) - NODE_WIDTH / 2,
         y: (pos?.y ?? 0) - NODE_HEIGHT / 2,
@@ -178,4 +187,23 @@ function buildGraph(nodes: TNodeView[]): IGraphData {
 function edgeId(prefix: string, from: string, to: string): string {
   const [a, b] = [from, to].sort();
   return `${prefix}:${a}::${b}`;
+}
+
+function nodeSubtitle(n: TNodeView): string | null {
+  switch (n.kind) {
+    case 'agent':
+      return (n.frontmatter as IFrontmatterAgent).model ?? null;
+    case 'hook':
+      return (n.frontmatter as IFrontmatterHook).event ?? null;
+    case 'command':
+      return (n.frontmatter as IFrontmatterCommand).shortcut ?? null;
+    case 'skill': {
+      const fm = n.frontmatter as IFrontmatterSkill;
+      const ins = fm.inputs?.length ?? 0;
+      const outs = fm.outputs?.length ?? 0;
+      return ins || outs ? `${ins} in · ${outs} out` : null;
+    }
+    default:
+      return null;
+  }
 }

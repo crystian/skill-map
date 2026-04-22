@@ -105,3 +105,34 @@
   width: 100%;
   margin: 0 auto;
 }
+
+@media (max-width: 1280px) {
+  .shell__topbar {
+    gap: 1rem;
+    padding: 0.5rem 1rem;
+  }
+  .shell__tag {
+    display: none;
+  }
+  .shell__nav a {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.85rem;
+  }
+  .shell__main {
+    padding: 1rem 1rem 5rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  .shell__topbar {
+    flex-wrap: wrap;
+  }
+  .shell__nav {
+    order: 3;
+    width: 100%;
+    margin-left: 0;
+  }
+  .shell__actions {
+    margin-left: auto;
+  }
+}

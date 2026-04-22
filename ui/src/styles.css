@@ -1,5 +1,79 @@
 /* Global base styles. PrimeNG's Aura preset is registered in app.config.ts. */
 
+:root {
+  /* Kind accent — border */
+  --sm-kind-skill: #3b82f6;
+  --sm-kind-agent: #10b981;
+  --sm-kind-command: #f59e0b;
+  --sm-kind-hook: #ef4444;
+  --sm-kind-note: #9ca3af;
+
+  /* Kind accent — badge bg / fg */
+  --sm-kind-skill-bg: #dbeafe;
+  --sm-kind-skill-fg: #1e3a8a;
+  --sm-kind-agent-bg: #d1fae5;
+  --sm-kind-agent-fg: #065f46;
+  --sm-kind-command-bg: #fef3c7;
+  --sm-kind-command-fg: #92400e;
+  --sm-kind-hook-bg: #fee2e2;
+  --sm-kind-hook-fg: #991b1b;
+
+  /* Edge colors */
+  --sm-edge-supersedes: #f59e0b;
+  --sm-edge-requires: #3b82f6;
+  --sm-edge-related: #9ca3af;
+
+  /* Link badge — in / out */
+  --sm-link-in-bg: #e0e7ff;
+  --sm-link-in-fg: #3730a3;
+  --sm-link-out-bg: #fef3c7;
+  --sm-link-out-fg: #92400e;
+
+  /* Severity — foreground */
+  --sm-severity-info: #1e3a8a;
+  --sm-severity-success: #065f46;
+  --sm-severity-warn: #92400e;
+  --sm-severity-error: #991b1b;
+
+  /* Severity — row tint */
+  --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
+  --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
+}
+
+.app-dark {
+  --sm-kind-skill: #60a5fa;
+  --sm-kind-agent: #34d399;
+  --sm-kind-command: #fbbf24;
+  --sm-kind-hook: #f87171;
+  --sm-kind-note: #6b7280;
+
+  --sm-kind-skill-bg: #1e3a5a;
+  --sm-kind-skill-fg: #93c5fd;
+  --sm-kind-agent-bg: #064e3b;
+  --sm-kind-agent-fg: #6ee7b7;
+  --sm-kind-command-bg: #78350f;
+  --sm-kind-command-fg: #fcd34d;
+  --sm-kind-hook-bg: #7f1d1d;
+  --sm-kind-hook-fg: #fca5a5;
+
+  --sm-edge-supersedes: #fbbf24;
+  --sm-edge-requires: #60a5fa;
+  --sm-edge-related: #6b7280;
+
+  --sm-link-in-bg: #312e81;
+  --sm-link-in-fg: #a5b4fc;
+  --sm-link-out-bg: #78350f;
+  --sm-link-out-fg: #fcd34d;
+
+  --sm-severity-info: #93c5fd;
+  --sm-severity-success: #6ee7b7;
+  --sm-severity-warn: #fcd34d;
+  --sm-severity-error: #fca5a5;
+
+  --sm-severity-warn-bg: rgba(120, 53, 15, 0.2);
+  --sm-severity-error-bg: rgba(127, 29, 29, 0.2);
+}
+
 html,
 body {
   margin: 0;
@@ -31,4 +105,34 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+/* Shared empty-state pattern */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 3rem 2rem;
+  text-align: center;
+}
+
+.empty-state__icon {
+  font-size: 2rem;
+  color: var(--p-text-muted-color);
+  opacity: 0.5;
+}
+
+.empty-state__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--p-text-color);
+  margin: 0;
+}
+
+.empty-state__desc {
+  font-size: 0.9rem;
+  color: var(--p-text-muted-color);
+  max-width: 40ch;
+  margin: 0;
 }

@@ -69,6 +69,10 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
 - [ ] Extends `base` / `report-base` via `allOf` where applicable; no field duplication.
 - [ ] `npm run spec:index` run; `spec/index.json` reflects the change.
 
+## UI library reference
+
+The `ui/` workspace uses **Foblex Flow** (`@foblex/flow`) for the graph visualization layer. The library is poorly documented upstream, so a curated API reference lives at `docs/f-flow.md`. **Read that file before touching any graph-related template or component** — it covers the mental model, every directive/component, the event system, styling tokens, and working examples. Do NOT assume React Flow–style APIs (`[nodes]`, `[edges]`, `setNodes()`); Foblex uses connector-to-connector connections (`fOutputId` → `fInputId`) and the app owns all state.
+
 ## Further reading
 
 - `README.md` — product overview, philosophy, repo layout, specification surface, glossary pointers.

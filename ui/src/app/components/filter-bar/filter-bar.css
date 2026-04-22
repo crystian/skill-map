@@ -25,3 +25,13 @@
 .filter-bar__toggle {
   flex-shrink: 0;
 }
+
+@media (max-width: 1280px) {
+  .filter-bar__search {
+    flex: 1 1 200px;
+    min-width: 200px;
+  }
+  .filter-bar__ms {
+    min-width: 140px;
+  }
+}

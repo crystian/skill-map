@@ -41,13 +41,20 @@
 }
 
 .graph__hint--error {
-  color: #b91c1c;
+  color: var(--sm-severity-error);
+}
+
+.graph__defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .graph__canvas-wrap {
   position: relative;
   height: calc(100dvh - 280px);
-  min-height: 480px;
+  min-height: 400px;
   border: 1px solid var(--p-surface-200, #e5e7eb);
   border-radius: 0.75rem;
   background: var(--p-surface-0, #ffffff);
@@ -76,13 +83,13 @@
 }
 
 .swatch--supersedes {
-  background: #f59e0b;
+  background: var(--sm-edge-supersedes);
 }
 .swatch--requires {
-  background: #3b82f6;
+  background: var(--sm-edge-requires);
 }
 .swatch--related {
-  background: #9ca3af;
+  background: var(--sm-edge-related);
 }
 
 /* Node cards inside the canvas. */
@@ -91,8 +98,8 @@
   min-height: 96px;
   padding: 0.6rem 0.85rem;
   border-radius: 0.65rem;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
+  background: var(--p-surface-0, #ffffff);
+  border: 1px solid var(--p-surface-200, #e5e7eb);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   cursor: pointer;
   display: flex;
@@ -114,16 +121,25 @@
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--p-surface-100, #f3f4f6);
+  color: var(--p-text-muted-color, #4b5563);
 }
 
 .f-gnode__label {
   font-weight: 500;
   font-size: 0.95rem;
-  color: #1f2937;
+  color: var(--p-text-color, #1f2937);
   word-break: break-word;
   line-height: 1.25;
+}
+
+.f-gnode__subtitle {
+  font-size: 0.7rem;
+  color: var(--p-text-muted-color, #6b7280);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .f-gnode__links {
@@ -141,13 +157,13 @@
 }
 
 .f-gnode__link-badge--in {
-  background: #e0e7ff;
-  color: #3730a3;
+  background: var(--sm-link-in-bg);
+  color: var(--sm-link-in-fg);
 }
 
 .f-gnode__link-badge--out {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--sm-link-out-bg);
+  color: var(--sm-link-out-fg);
 }
 
 .f-gnode__connector {
@@ -155,8 +171,8 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #9ca3af;
-  border: 2px solid #ffffff;
+  background: var(--sm-kind-note);
+  border: 2px solid var(--p-surface-0, #ffffff);
   pointer-events: none;
 }
 
@@ -168,50 +184,56 @@
 
 /* Kind-specific accents. */
 .f-gnode--skill {
-  border-left: 3px solid #3b82f6;
+  border-left: 3px solid var(--sm-kind-skill);
 }
 .f-gnode--skill .f-gnode__kind {
-  background: #dbeafe;
-  color: #1e3a8a;
+  background: var(--sm-kind-skill-bg);
+  color: var(--sm-kind-skill-fg);
 }
 
 .f-gnode--agent {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid var(--sm-kind-agent);
 }
 .f-gnode--agent .f-gnode__kind {
-  background: #d1fae5;
-  color: #065f46;
+  background: var(--sm-kind-agent-bg);
+  color: var(--sm-kind-agent-fg);
 }
 
 .f-gnode--command {
-  border-left: 3px solid #f59e0b;
+  border-left: 3px solid var(--sm-kind-command);
 }
 .f-gnode--command .f-gnode__kind {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--sm-kind-command-bg);
+  color: var(--sm-kind-command-fg);
 }
 
 .f-gnode--hook {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid var(--sm-kind-hook);
 }
 .f-gnode--hook .f-gnode__kind {
-  background: #fee2e2;
-  color: #991b1b;
+  background: var(--sm-kind-hook-bg);
+  color: var(--sm-kind-hook-fg);
 }
 
 .f-gnode--note {
-  border-left: 3px solid #9ca3af;
+  border-left: 3px solid var(--sm-kind-note);
 }
 
 /* Connection accent by edge type. Foblex paints the SVG path under the
    hood; we target f-connection by class name for a subtle color tweak. */
 ::ng-deep .f-conn--supersedes .f-path {
-  stroke: #f59e0b;
+  stroke: var(--sm-edge-supersedes);
+  stroke-width: 2.5;
+  marker-end: url(#arrow-supersedes);
 }
 ::ng-deep .f-conn--requires .f-path {
-  stroke: #3b82f6;
+  stroke: var(--sm-edge-requires);
+  stroke-width: 2;
+  marker-end: url(#arrow-requires);
 }
 ::ng-deep .f-conn--related .f-path {
-  stroke: #9ca3af;
+  stroke: var(--sm-edge-related);
+  stroke-width: 1.5;
   stroke-dasharray: 4 3;
+  marker-end: url(#arrow-related);
 }

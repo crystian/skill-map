@@ -20,12 +20,36 @@
   <app-filter-bar />
 
   @if (loading()) {
-    <p class="graph__hint">Loading collection…</p>
+    <div class="empty-state">
+      <span class="empty-state__icon pi pi-spin pi-spinner"></span>
+      <p class="empty-state__title">Loading collection</p>
+    </div>
   } @else if (error()) {
-    <p class="graph__hint graph__hint--error">{{ error() }}</p>
+    <div class="empty-state">
+      <span class="empty-state__icon pi pi-exclamation-circle" style="color: var(--sm-severity-error); opacity: 1"></span>
+      <p class="empty-state__title">Failed to load</p>
+      <p class="empty-state__desc">{{ error() }}</p>
+    </div>
   } @else if (!hasData()) {
-    <p class="graph__hint">No nodes match the current filters.</p>
+    <div class="empty-state">
+      <span class="empty-state__icon pi pi-filter-slash"></span>
+      <p class="empty-state__title">No nodes match</p>
+      <p class="empty-state__desc">Adjust or reset the filters above.</p>
+    </div>
   } @else {
+    <svg class="graph__defs" aria-hidden="true">
+      <defs>
+        <marker id="arrow-supersedes" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="var(--sm-edge-supersedes)" />
+        </marker>
+        <marker id="arrow-requires" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="var(--sm-edge-requires)" />
+        </marker>
+        <marker id="arrow-related" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="var(--sm-edge-related)" />
+        </marker>
+      </defs>
+    </svg>
     <div class="graph__canvas-wrap">
       <f-flow fDraggable (fLoaded)="onLoaded()">
         <f-canvas>
@@ -53,6 +77,9 @@
             >
               <span class="f-gnode__kind">{{ node.kind }}</span>
               <span class="f-gnode__label">{{ node.label }}</span>
+              @if (node.subtitle) {
+                <span class="f-gnode__subtitle">{{ node.subtitle }}</span>
+              }
               @if (node.linksIn > 0 || node.linksOut > 0) {
                 <span class="f-gnode__links">
                   @if (node.linksIn > 0) {

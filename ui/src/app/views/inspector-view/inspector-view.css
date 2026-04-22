@@ -69,12 +69,16 @@
 
 .inspector__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
 
 .inspector__card--full {
   grid-column: 1 / -1;
+}
+
+::ng-deep .inspector__card--hero .p-card {
+  border-left: 3px solid var(--p-primary-color, #3b82f6);
 }
 
 .inspector__body {
@@ -166,8 +170,8 @@ h4:first-child {
 }
 
 ::ng-deep .chip--warn .p-chip {
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--sm-kind-command-bg);
+  color: var(--sm-kind-command-fg);
 }
 
 .args {
@@ -198,8 +202,8 @@ h4:first-child {
   margin-left: 0.5rem;
   padding: 0 0.4rem;
   font-size: 0.7rem;
-  background: #fef3c7;
-  color: #92400e;
+  background: var(--sm-kind-command-bg);
+  color: var(--sm-kind-command-fg);
   border-radius: 0.25rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -227,4 +231,10 @@ h4:first-child {
   font-size: 0.75rem;
   color: var(--p-text-muted-color, #999);
   font-style: italic;
+}
+
+@media (max-width: 1280px) {
+  .inspector__grid {
+    grid-template-columns: 1fr;
+  }
 }

@@ -60,7 +60,12 @@
           <td>
             <p-tag [value]="row.kind" [severity]="kindSeverity(row.kind)" />
           </td>
-          <td class="list__cell-name">{{ row.name }}</td>
+          <td class="list__cell-name">
+            {{ row.name }}
+            @if (row.detail) {
+              <span class="list__cell-detail">{{ row.detail }}</span>
+            }
+          </td>
           <td><code>{{ row.path }}</code></td>
           <td>{{ row.version }}</td>
           <td>

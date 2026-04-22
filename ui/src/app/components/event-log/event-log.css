@@ -57,7 +57,7 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.75rem;
-  color: #065f46;
+  color: var(--sm-severity-success);
   font-weight: 500;
 }
 
@@ -65,7 +65,7 @@
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: #10b981;
+  background: var(--sm-kind-agent);
   animation: pulse 1.2s infinite;
 }
 
@@ -105,11 +105,21 @@
   line-height: 1.55;
 }
 
-.eventlog__empty {
+.eventlog__empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   color: var(--p-text-muted-color, #6b7280);
   text-align: center;
   margin: 1rem 0;
   font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.eventlog__empty-state .pi {
+  font-size: 1.1rem;
+  opacity: 0.5;
 }
 
 .eventlog__row {
@@ -139,20 +149,29 @@
 }
 
 .eventlog__row--info .name {
-  color: #1e3a8a;
+  color: var(--sm-severity-info);
 }
 .eventlog__row--success .name {
-  color: #065f46;
+  color: var(--sm-severity-success);
 }
 .eventlog__row--warn .name {
-  color: #92400e;
+  color: var(--sm-severity-warn);
 }
 .eventlog__row--warn {
-  background: rgba(254, 243, 199, 0.35);
+  background: var(--sm-severity-warn-bg);
 }
 .eventlog__row--error .name {
-  color: #991b1b;
+  color: var(--sm-severity-error);
 }
 .eventlog__row--error {
-  background: rgba(254, 226, 226, 0.35);
+  background: var(--sm-severity-error-bg);
+}
+
+@media (max-width: 1280px) {
+  .eventlog__row {
+    grid-template-columns: 60px 1fr;
+  }
+  .eventlog__row .name {
+    display: none;
+  }
 }
