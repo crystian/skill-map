@@ -13,6 +13,7 @@
 import { Builtins, Cli } from 'clipanion';
 
 import { DB_COMMANDS } from './commands/db.js';
+import { HelpCommand } from './commands/help.js';
 import { PLUGIN_COMMANDS } from './commands/plugins.js';
 import { ScanCommand } from './commands/scan.js';
 import { STUB_COMMANDS } from './commands/stubs.js';
@@ -28,6 +29,7 @@ const cli = new Cli({
 
 cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
+cli.register(HelpCommand);
 cli.register(ScanCommand);
 cli.register(VersionCommand);
 for (const cmd of DB_COMMANDS) cli.register(cmd);
