@@ -1,7 +1,7 @@
 /**
  * `RunnerPort` — executes an action against a rendered job file.
  *
- * Step 0b: shape-only. `ClaudeCliRunner` + `MockRunner` land with Step 9
+ * Step 0b: shape-only. `ClaudeCliRunner` + `MockRunner` land with Step 10
  * (job subsystem + first summarizer).
  */
 

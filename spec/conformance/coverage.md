@@ -12,10 +12,10 @@ This file is hand-maintained. A CI check before spec release compares the schema
 | 2 | `link.schema.json` | — | 🔴 missing | Needs fixture with at least one `invokes` + `references` + `mentions` link, both `high`/`medium`/`low` confidence. |
 | 3 | `issue.schema.json` | — | 🔴 missing | Needs fixture triggering `trigger-collision` + `broken-ref` + `superseded`. |
 | 4 | `scan-result.schema.json` | `basic-scan`, `kernel-empty-boot` | 🟢 covered | Zero-filled (empty-boot) + populated (minimal-claude) both asserted. |
-| 5 | `execution-record.schema.json` | — | 🔴 missing | Blocked by Step 4 (history). Needs a case that runs a `local` action and inspects `state_executions` via `sm history --json`. |
+| 5 | `execution-record.schema.json` | — | 🔴 missing | Blocked by Step 5 (history). Needs a case that runs a `local` action and inspects `state_executions` via `sm history --json`. |
 | 6 | `project-config.schema.json` | — | 🔴 missing | Case: init a scope, write a partial `.skill-map.json`, assert effective config after merge. |
 | 7 | `plugins-registry.schema.json` | — | 🔴 missing | Two sub-cases required: (a) `PluginManifest` validation via `sm plugins show --json`; (b) aggregate `PluginsRegistry` via `sm plugins list --json`. |
-| 8 | `job.schema.json` | — | 🔴 missing | Blocked by Step 9 (job system). Needs a case that submits a local action (no LLM), inspects `sm job show --json`. |
+| 8 | `job.schema.json` | — | 🔴 missing | Blocked by Step 10 (job system). Needs a case that submits a local action (no LLM), inspects `sm job show --json`. |
 | 9 | `report-base.schema.json` | — | 🔴 missing | Indirect coverage once any summarizer case lands. Direct contract case: validate a handcrafted minimal report ({confidence, safety}) against the base schema. |
 | 10 | `conformance-case.schema.json` | — | 🔴 missing | Self-referential: every `*.json` under `cases/` MUST validate against this schema. Add a meta-case that enumerates + validates all cases. |
 | 11 | `frontmatter/base.schema.json` | `basic-scan` (indirect) | 🟡 partial | Covered via every kind schema's `allOf`. Direct case: fixture with min-required frontmatter only. |
@@ -24,11 +24,11 @@ This file is hand-maintained. A CI check before spec release compares the schema
 | 14 | `frontmatter/command.schema.json` | `basic-scan` | 🟢 covered | One command in `minimal-claude`. |
 | 15 | `frontmatter/hook.schema.json` | `basic-scan` | 🟢 covered | One hook in `minimal-claude`. |
 | 16 | `frontmatter/note.schema.json` | `basic-scan` | 🟢 covered | One note in `minimal-claude`. |
-| 17 | `summaries/skill.schema.json` | — | 🔴 missing | Blocked by Step 9 (`skill-summarizer`). Case: submit summarizer, validate report. |
-| 18 | `summaries/agent.schema.json` | — | 🔴 missing | Blocked by Step 10. |
-| 19 | `summaries/command.schema.json` | — | 🔴 missing | Blocked by Step 10. |
-| 20 | `summaries/hook.schema.json` | — | 🔴 missing | Blocked by Step 10. |
-| 21 | `summaries/note.schema.json` | — | 🔴 missing | Blocked by Step 10. |
+| 17 | `summaries/skill.schema.json` | — | 🔴 missing | Blocked by Step 10 (`skill-summarizer`). Case: submit summarizer, validate report. |
+| 18 | `summaries/agent.schema.json` | — | 🔴 missing | Blocked by Step 11. |
+| 19 | `summaries/command.schema.json` | — | 🔴 missing | Blocked by Step 11. |
+| 20 | `summaries/hook.schema.json` | — | 🔴 missing | Blocked by Step 11. |
+| 21 | `summaries/note.schema.json` | — | 🔴 missing | Blocked by Step 11. |
 | 22 | `extensions/base.schema.json` | — | 🔴 missing | Meta-case: every manifest under `src/extensions/` validates against the appropriate kind schema (which extends base via `allOf`). |
 | 23 | `extensions/adapter.schema.json` | — | 🔴 missing | Case: the `claude` adapter manifest validates; a crafted invalid manifest (missing `defaultRefreshAction`) fails with `invalid-manifest`. |
 | 24 | `extensions/detector.schema.json` | — | 🔴 missing | Case: `frontmatter` + `slash` + `at-directive` detector manifests validate; a detector emitting a disallowed `emitsLinkKinds` value fails. |
@@ -36,7 +36,7 @@ This file is hand-maintained. A CI check before spec release compares the schema
 | 26 | `extensions/action.schema.json` | — | 🔴 missing | Case: a `local` action manifest validates; an `invocation-template` action WITHOUT `promptTemplateRef` fails. |
 | 27 | `extensions/audit.schema.json` | — | 🔴 missing | Case: `validate-all` audit manifest validates; an audit referencing a non-existent rule id in `composes` fails at load with `invalid-manifest`. |
 | 28 | `extensions/renderer.schema.json` | — | 🔴 missing | Case: `ascii` renderer manifest validates. |
-| 29 | `history-stats.schema.json` | — | 🔴 missing | Blocked by Step 4 (history). Case: seed `state_executions` with a deterministic fixture, run `sm history stats --json --since <T0> --until <T1> --period month --top 5`, assert the document validates and that `totals.executionsCount == sum(perAction.executionsCount)` and `errorRates.global == totals.failedCount / totals.executionsCount`. Percentiles (`p95`/`p99`) intentionally omitted in v1 — add later as a minor bump without breaking consumers. |
+| 29 | `history-stats.schema.json` | — | 🔴 missing | Blocked by Step 5 (history). Case: seed `state_executions` with a deterministic fixture, run `sm history stats --json --since <T0> --until <T1> --period month --top 5`, assert the document validates and that `totals.executionsCount == sum(perAction.executionsCount)` and `errorRates.global == totals.failedCount / totals.executionsCount`. Percentiles (`p95`/`p99`) intentionally omitted in v1 — add later as a minor bump without breaking consumers. |
 
 Status legend: 🟢 covered (at least one case asserts the schema end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) · 🔴 missing.
 
@@ -46,18 +46,18 @@ These have their own conformance cases even though they are not JSON Schemas.
 
 | # | Artifact | Case | Status | Notes |
 |---|---|---|---|---|
-| A | Preamble verbatim text | `preamble-bitwise-match` | 🟠 deferred | Deferred to Step 9 (needs `sm job preview` to render a job file). Fixture: `fixtures/preamble-v1.txt` (already present, byte-identical to `prompt-preamble.md` source). |
+| A | Preamble verbatim text | `preamble-bitwise-match` | 🟠 deferred | Deferred to Step 10 (needs `sm job preview` to render a job file). Fixture: `fixtures/preamble-v1.txt` (already present, byte-identical to `prompt-preamble.md` source). |
 | B | Kernel empty-boot invariant | `kernel-empty-boot` | 🟢 covered | All extensions disabled → empty ScanResult. |
-| C | Atomic-claim race safety | — | 🔴 missing | Blocked by Step 9. Two concurrent `sm job claim` invocations against a single queued row — exactly one MUST succeed. |
-| D | Duplicate detection | — | 🔴 missing | Blocked by Step 9. Two `sm job submit` with same `(action, version, node, contentHash)` — second exits 3. |
-| E | `--force` bypass | — | 🔴 missing | Blocked by Step 9. |
-| F | Nonce mismatch | — | 🔴 missing | Blocked by Step 9. `sm record` with wrong nonce → exit 4. |
-| G | Reap | — | 🔴 missing | Blocked by Step 9. Set TTL to 1s; claim; wait; next `sm job run` reaps with reason `abandoned`. |
-| H | `run.*` event envelope for Skill agent | — | 🔴 missing | Blocked by Step 9. Skill-agent flow emits synthetic `r-ext-*` run envelope around one job. |
-| I | Rename heuristic | — | 🔴 missing | Blocked by Step 4. Move a file; same-`body_hash` → high-confidence auto-rename; `state_*` FK rows migrated; no issue emitted. |
-| J | Plugin DDL rejection | — | 🔴 missing | Blocked by Step 8. Plugin migration referencing `state_jobs` → disabled with `invalid-manifest`. |
-| K | Plugin prefix injection | — | 🔴 missing | Blocked by Step 8. Plugin declares `CREATE TABLE foo` → kernel applies as `plugin_<id>_foo`. |
-| L | Elapsed-time reporting | — | 🔴 missing | Blocked by Step 3 (first real verb work). Run any in-scope verb; stderr last line MUST match `/^done in (\d+ms\|\d+\.\d+s\|\d+m \d+s)$/`. In-scope verb with `--json` returning an object MUST carry `elapsedMs`. Exempt verb (`sm version`) MUST NOT emit the line. |
+| C | Atomic-claim race safety | — | 🔴 missing | Blocked by Step 10. Two concurrent `sm job claim` invocations against a single queued row — exactly one MUST succeed. |
+| D | Duplicate detection | — | 🔴 missing | Blocked by Step 10. Two `sm job submit` with same `(action, version, node, contentHash)` — second exits 3. |
+| E | `--force` bypass | — | 🔴 missing | Blocked by Step 10. |
+| F | Nonce mismatch | — | 🔴 missing | Blocked by Step 10. `sm record` with wrong nonce → exit 4. |
+| G | Reap | — | 🔴 missing | Blocked by Step 10. Set TTL to 1s; claim; wait; next `sm job run` reaps with reason `abandoned`. |
+| H | `run.*` event envelope for Skill agent | — | 🔴 missing | Blocked by Step 10. Skill-agent flow emits synthetic `r-ext-*` run envelope around one job. |
+| I | Rename heuristic | — | 🔴 missing | Blocked by Step 5. Move a file; same-`body_hash` → high-confidence auto-rename; `state_*` FK rows migrated; no issue emitted. |
+| J | Plugin DDL rejection | — | 🔴 missing | Blocked by Step 9. Plugin migration referencing `state_jobs` → disabled with `invalid-manifest`. |
+| K | Plugin prefix injection | — | 🔴 missing | Blocked by Step 9. Plugin declares `CREATE TABLE foo` → kernel applies as `plugin_<id>_foo`. |
+| L | Elapsed-time reporting | — | 🔴 missing | Blocked by Step 4 (first real verb work). Run any in-scope verb; stderr last line MUST match `/^done in (\d+ms\|\d+\.\d+s\|\d+m \d+s)$/`. In-scope verb with `--json` returning an object MUST carry `elapsedMs`. Exempt verb (`sm version`) MUST NOT emit the line. |
 
 ## Release gates
 

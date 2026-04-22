@@ -103,7 +103,7 @@ spec/                              ← published as @skill-map/spec
 └── conformance/
     ├── fixtures/                  ← controlled MD corpora + preamble-v1.txt
     └── cases/                     ← declarative test cases: basic-scan, kernel-empty-boot
-                                     (preamble-bitwise-match deferred to ../ROADMAP.md Step 9)
+                                     (preamble-bitwise-match deferred to ../ROADMAP.md Step 10)
 ```
 
 ## How to read this spec
@@ -162,7 +162,7 @@ console.log(actual === index.integrity.files[file] ? 'ok' : 'drift');
 
 ### JSON Schema Store
 
-The schemas will be registered on JSON Schema Store once the canonical URLs under `skill-map.dev/spec/v0/` are stable (Step 13).
+The schemas will be registered on JSON Schema Store once the canonical URLs under `skill-map.dev/spec/v0/` are stable (Step 14).
 
 ## License
 

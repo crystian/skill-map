@@ -1,6 +1,6 @@
 /**
  * `sm plugins` — discover and inspect plugins. Does NOT enable/disable;
- * those arrive at Step 5 with the `config_plugins` ledger.
+ * those arrive at Step 6 with the `config_plugins` ledger.
  *
  *   sm plugins list     tabulate discovered plugins with status
  *   sm plugins show X   dump one plugin's manifest + extensions

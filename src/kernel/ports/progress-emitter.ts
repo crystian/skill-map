@@ -2,7 +2,7 @@
  * `ProgressEmitterPort` — emits progress events during long operations.
  *
  * Step 0b: shape-only. Full event catalog (`run.started`, `job.claimed`,
- * `model.delta`, etc.) lands with Step 9. See `spec/job-events.md`.
+ * `model.delta`, etc.) lands with Step 10. See `spec/job-events.md`.
  */
 
 export interface ProgressEvent {

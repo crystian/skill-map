@@ -6,7 +6,7 @@
 
 - a683c56: Bootstrap the `ui/` workspace — Step 0c of the ROADMAP execution plan.
 
-  **New workspace.** `ui/` is now registered as the third npm workspace alongside `spec/` and `src/`. Scaffolded with `ng new` (Angular 21.2, standalone components, SCSS, Vitest). The workspace is `private: true` — it never publishes to npm; the Flavor A prototype is consumed via `sm serve` once Step 12 lands, and as a local `ng serve` target in the meantime.
+  **New workspace.** `ui/` is now registered as the third npm workspace alongside `spec/` and `src/`. Scaffolded with `ng new` (Angular 21.2, standalone components, SCSS, Vitest). The workspace is `private: true` — it never publishes to npm; the Flavor A prototype is consumed via `sm serve` once Step 13 lands, and as a local `ng serve` target in the meantime.
 
   **Stack locked at Step 0c start** per the ROADMAP:
 

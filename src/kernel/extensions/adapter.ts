@@ -35,7 +35,7 @@ export interface IAdapter extends IExtensionBase {
   /**
    * Walk the given roots and yield every node the adapter recognises.
    * Non-matching files are silently skipped. Unreadable files produce
-   * a diagnostic via the emitter (Step 3+) but do not abort the walk.
+   * a diagnostic via the emitter (Step 4+) but do not abort the walk.
    */
   walk(roots: string[], options?: { ignore?: string[] }): AsyncIterable<IRawNode>;
 

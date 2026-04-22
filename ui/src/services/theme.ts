@@ -4,8 +4,8 @@
  * up the dark palette (the selector is registered in `providePrimeNG` at
  * `app.config.ts`).
  *
- * System-preference detection and tri-state (`system`) are Step 12 work
- * per ROADMAP §Step 12 open picks.
+ * System-preference detection and tri-state (`system`) are Step 13 work
+ * per ROADMAP §Step 13 open picks.
  */
 
 import { DOCUMENT } from '@angular/common';

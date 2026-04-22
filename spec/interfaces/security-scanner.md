@@ -202,7 +202,7 @@ The Web UI's Security panel:
 
 ## Schema file location
 
-The JSON Schema for `SecurityReport` lives at `spec/schemas/summaries/security.schema.json` once Step 3 of the spec bootstrap completes. Until then, this document is the normative source and vendors SHOULD derive their own validator from it.
+The JSON Schema for `SecurityReport` lives at `spec/schemas/summaries/security.schema.json` once Step 4 of the spec bootstrap completes. Until then, this document is the normative source and vendors SHOULD derive their own validator from it.
 
 This is the only `summaries/*` schema that does NOT correspond to a node kind; it corresponds to an action category instead.
 

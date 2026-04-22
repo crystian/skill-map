@@ -7,7 +7,7 @@
  * never both. Absent = plugin does not persist state.
  *
  * Step 0b: shape-only. Drop-in discovery (`.skill-map/plugins/`,
- * `~/.skill-map/plugins/`) lands with Step 8 (plugin author UX).
+ * `~/.skill-map/plugins/`) lands with Step 9 (plugin author UX).
  */
 
 import type { ExtensionKind } from '../registry.js';

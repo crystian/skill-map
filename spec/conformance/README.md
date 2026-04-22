@@ -106,7 +106,7 @@ Cases explicitly referenced elsewhere in the spec (landing before v1.0):
 
 | Id | Source | Verifies |
 |---|---|---|
-| `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job files contain `preamble-v1.txt` byte-for-byte. Deferred to Step 9 (requires `sm job preview`). |
+| `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job files contain `preamble-v1.txt` byte-for-byte. Deferred to Step 10 (requires `sm job preview`). |
 
 ---
 

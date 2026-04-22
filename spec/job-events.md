@@ -308,7 +308,7 @@ A parallel implementation MAY interleave per-job sequences across different `job
 
 These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation that produced the event — a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan gets an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill synthetic envelope (`r-ext-...`).
 
-The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 12 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping them to `stable` is a minor spec bump; changes to field shapes before `stable` are allowed without a major bump (per `versioning.md` §Pre-1.0).
+The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 13 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping them to `stable` is a minor spec bump; changes to field shapes before `stable` are allowed without a major bump (per `versioning.md` §Pre-1.0).
 
 ### Scan events
 
@@ -439,4 +439,4 @@ Consumers MUST ignore unknown fields (forward compatibility).
 
 The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding an envelope field is a major bump because every consumer would need to handle it.
 
-The **non-job event families** (`scan.*`, `issue.*`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 12 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
+The **non-job event families** (`scan.*`, `issue.*`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.

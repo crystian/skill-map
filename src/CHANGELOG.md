@@ -66,7 +66,7 @@
 
   Closes Step 1 (all three sub-steps done). Three deliverables land in this bump:
 
-  **Real scan orchestrator.** `src/kernel/orchestrator.ts` replaces the Step 0b stub with a pipeline that actually walks the Registry — pulling adapters, detectors, and rules from the registered set, iterating in canonical order, and emitting `scan.started` / `scan.completed` through a `ProgressEmitterPort`. The kernel-empty-boot invariant is preserved because with zero extensions the iteration produces a zero-filled valid `ScanResult`. Concrete extension runtime interfaces (`adapter.walk()`, `detector.detect()`, `rule.evaluate()`) are not yet defined; the iteration sites carry `TODO(step-2)` markers so the Step 2 drop-in test stays honoured. New adapter `InMemoryProgressEmitter` handles default in-process event fan-out; WebSocket-backed emitter lands at Step 12.
+  **Real scan orchestrator.** `src/kernel/orchestrator.ts` replaces the Step 0b stub with a pipeline that actually walks the Registry — pulling adapters, detectors, and rules from the registered set, iterating in canonical order, and emitting `scan.started` / `scan.completed` through a `ProgressEmitterPort`. The kernel-empty-boot invariant is preserved because with zero extensions the iteration produces a zero-filled valid `ScanResult`. Concrete extension runtime interfaces (`adapter.walk()`, `detector.detect()`, `rule.evaluate()`) are not yet defined; the iteration sites carry `TODO(step-2)` markers so the Step 2 drop-in test stays honoured. New adapter `InMemoryProgressEmitter` handles default in-process event fan-out; WebSocket-backed emitter lands at Step 13.
 
   **Full CLI surface.** `src/cli/commands/stubs.ts` ships 35 Clipanion command classes covering every verb from `spec/cli-contract.md` that doesn't yet have a real implementation. Each stub registers the final path with the contract's declared flags typed correctly (boolean vs string vs array) and a `Usage` block carrying category / description / details — so `sm help` sees the full surface today and the drift-check script has something to diff against. `execute()` writes a one-liner pointing at the Step that will implement it and returns exit 2. Grouped by module in contract order: setup (init, doctor), config (5), browse (list/show/check/findings/graph/export/orphans*), actions, jobs (submit/list/show/preview/claim/run/status/cancel/prune), record, history, plugins toggle (enable/disable), audits, serve. Real commands from Step 1a (`sm db *`) and Step 1b (`sm plugins list/show/doctor`) + `sm scan`+`sm version` stay on their real implementations.
 
@@ -100,7 +100,7 @@
 
   **`sm scan`** defaults to the built-in set and exits 1 when the scan surfaces issues (per `cli-contract.md` §Exit codes). A new `--no-built-ins` flag reproduces the kernel-empty-boot zero-filled parity for conformance.
 
-  **Drop-in proof.** The orchestrator iterates `registry.all('<kind>')` — adding a 4th detector is one new file under `src/extensions/detectors/` plus one entry in `src/extensions/built-ins.ts`. Zero kernel edits. Step 3's `external-url-counter` ships as the live proof.
+  **Drop-in proof.** The orchestrator iterates `registry.all('<kind>')` — adding a 4th detector is one new file under `src/extensions/detectors/` plus one entry in `src/extensions/built-ins.ts`. Zero kernel edits. Step 4's `external-url-counter` ships as the live proof.
 
   **Tests.** 52 new tests across normalization, claude adapter, three detectors, three rules, ascii renderer, validate-all audit, and an end-to-end scan against a fixture — 88 of 88 passing. The test glob widened to pick up the colocated `extensions/**/*.test.ts` and `kernel/**/*.test.ts` files that match the `src/extensions/README.md` convention ("each extension is a directory with a manifest + implementation + a sibling `*.test.ts`").
 
@@ -124,11 +124,11 @@
   - `@types/node` bumped to `^24.0.0`.
   - ROADMAP Decision #1, Stack conventions, and AGENTS.md aligned.
 
-  Rationale: Node 22.5 gave us stable `node:sqlite` but 24 is now the active LTS (Node 22 enters maintenance Oct 2026). The jump buys built-in WebSocket (unblocks Step 12 without a `ws` dependency), the modern ESM loader API, and several runtime improvements Kysely / Clipanion already rely on. No known dependency blocks the bump. Users still on Node 20 are already outside LTS and are not supported.
+  Rationale: Node 22.5 gave us stable `node:sqlite` but 24 is now the active LTS (Node 22 enters maintenance Oct 2026). The jump buys built-in WebSocket (unblocks Step 13 without a `ws` dependency), the modern ESM loader API, and several runtime improvements Kysely / Clipanion already rely on. No known dependency blocks the bump. Users still on Node 20 are already outside LTS and are not supported.
 
 ### Patch Changes
 
-- 5935948: Align kernel domain types with `spec/schemas/`. The Step 0b stub types for `Node`, `Link`, `Issue`, `Extension`, and `PluginManifest` were invented names that diverged from the normative schemas; they compiled only because the `runScan` stub never materialized any instance. This patch closes the drift before Step 3 starts consuming the types in earnest.
+- 5935948: Align kernel domain types with `spec/schemas/`. The Step 0b stub types for `Node`, `Link`, `Issue`, `Extension`, and `PluginManifest` were invented names that diverged from the normative schemas; they compiled only because the `runScan` stub never materialized any instance. This patch closes the drift before Step 4 starts consuming the types in earnest.
 
   - **`Node`** now matches `node.schema.json`: `path`, `kind`, `adapter`, `bodyHash`, `frontmatterHash`, `bytes` (triple-split `{ frontmatter, body, total }`), `linksOutCount`, `linksInCount`, `externalRefsCount` required; `title`, `description`, `stability`, `version`, `author`, `frontmatter`, `tokens` optional. Removed ad-hoc `name` / `metadata`.
   - **`Link`** now matches `link.schema.json`: `source` (was `from`), `target` (was `to`), `kind` (new discriminator `invokes | references | mentions | supersedes`), `confidence: 'high' | 'medium' | 'low'` (was `exact | fuzzy`), `sources: string[]` (was singular `detector`), `trigger: { originalTrigger, normalizedTrigger } | null` (was flat top-level), plus optional `location`, `raw`.

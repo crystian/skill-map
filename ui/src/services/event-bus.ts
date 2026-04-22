@@ -1,7 +1,7 @@
 /**
  * In-memory event bus for the Step 0c prototype. Mirrors the families
  * declared in spec/job-events.md (scan.*, issue.*) at a shape level, but
- * does NOT promise payload compatibility — the real scanner in Step 3
+ * does NOT promise payload compatibility — the real scanner in Step 4
  * owns the canonical shapes. This is a stub so the UI can observe an
  * event flow without a backend.
  */

@@ -201,7 +201,7 @@ function validateLink(detector: IDetector, link: Link): Link | null {
   if (!detector.emitsLinkKinds.includes(link.kind as LinkKind)) {
     // Detector emitted a kind outside its declared set — drop the link;
     // the orchestrator is the last line of defence against a misbehaving
-    // detector. A diagnostic event lands in Step 3+.
+    // detector. A diagnostic event lands in Step 4+.
     return null;
   }
   const confidence: Confidence = link.confidence ?? detector.defaultConfidence;

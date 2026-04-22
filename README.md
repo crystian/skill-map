@@ -99,7 +99,7 @@ The specification lives in [`spec/`](./spec/) and is the source of truth. It is 
   - 29 JSON Schemas (draft 2020-12): 11 top-level (`node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`, `conformance-case`, `history-stats`) + 7 extension schemas (`base` + one per extension kind) + 6 frontmatter (`base` + 5 node kinds) + 5 summaries.
   - 7 prose contracts: `architecture`, `cli-contract`, `job-lifecycle`, `job-events`, `prompt-preamble`, `db-schema`, `plugin-kv-api`.
   - 1 interface: `security-scanner` (convention over the Action kind, not a 7th extension kind).
-  - Conformance suite: fixtures (`minimal-claude`, `preamble-v1.txt`) + 2 cases (`basic-scan`, `kernel-empty-boot`); `preamble-bitwise-match` deferred to Step 9.
+  - Conformance suite: fixtures (`minimal-claude`, `preamble-v1.txt`) + 2 cases (`basic-scan`, `kernel-empty-boot`); `preamble-bitwise-match` deferred to Step 10.
 
 ## Repo layout
 

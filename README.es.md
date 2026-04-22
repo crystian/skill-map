@@ -99,7 +99,7 @@ El spec vive en [`spec/`](./spec/) y es la fuente de verdad. Está separado de l
   - 29 JSON Schemas (draft 2020-12): 11 top-level (`node`, `link`, `issue`, `scan-result`, `execution-record`, `project-config`, `plugins-registry`, `job`, `report-base`, `conformance-case`, `history-stats`) + 7 extension schemas (`base` + uno por extension kind) + 6 frontmatter (`base` + 5 node kinds) + 5 summaries.
   - 7 contratos prose: `architecture`, `cli-contract`, `job-lifecycle`, `job-events`, `prompt-preamble`, `db-schema`, `plugin-kv-api`.
   - 1 interface: `security-scanner` (convención sobre el Action kind, NO un 7° extension kind).
-  - Conformance suite: fixtures (`minimal-claude`, `preamble-v1.txt`) + 2 casos (`basic-scan`, `kernel-empty-boot`); `preamble-bitwise-match` diferido a Step 9.
+  - Conformance suite: fixtures (`minimal-claude`, `preamble-v1.txt`) + 2 casos (`basic-scan`, `kernel-empty-boot`); `preamble-bitwise-match` diferido a Step 10.
 
 ## Estructura del repo
 

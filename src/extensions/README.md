@@ -12,6 +12,6 @@ Bundled extensions ship here. Each is a directory with a manifest + implementati
 - Renderer: `ascii`.
 - Audit: `validate-all`.
 
-**Step 3** adds `external-url-counter` as the 4th detector (drop-in proof of Step 2's acceptance test). It feeds the `scan_nodes.external_refs_count` denormalization that also lands in Step 3.
+**Step 4** adds `external-url-counter` as the 4th detector (drop-in proof of Step 2's acceptance test). It feeds the `scan_nodes.external_refs_count` denormalization that also lands in Step 4.
 
 See `ROADMAP.md` §Execution plan for the full schedule.

@@ -31,7 +31,7 @@ Both `sm` and `skill-map` are registered as binaries after install.
 sm --version                    # single-line version
 sm version                      # multi-line matrix (sm / kernel / spec / runtime / db-schema)
 sm --help                       # top-level help
-sm scan [roots...] [--json]     # stub in 0b; full scan in Step 3
+sm scan [roots...] [--json]     # stub in 0b; full scan in Step 4
 ```
 
 Exit codes follow [`spec/cli-contract.md`](https://github.com/crystian/skill-map/blob/main/spec/cli-contract.md):

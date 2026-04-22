@@ -123,7 +123,7 @@
   - `issue.*`: `issue.added`, `issue.resolved` — emitted after `scan.completed` when the new scan's issue set differs from the previous one. Diff key: `(ruleId, nodeIds sorted, message)`.
   - Synthetic run ids follow the existing `r-<mode>-YYYYMMDD-HHMMSS-XXXX` pattern (`r-scan-...`, `r-check-...`) alongside `r-ext-...` for external Skill claims.
 
-  These families ship at Step 12 of the reference impl alongside the WebSocket broadcaster. Marking them experimental keeps the shape mutable until real UI consumers exercise the stream; promotion to `stable` is a later minor bump.
+  These families ship at Step 13 of the reference impl alongside the WebSocket broadcaster. Marking them experimental keeps the shape mutable until real UI consumers exercise the stream; promotion to `stable` is a later minor bump.
 
   Classification: minor per §Pre-1.0. All additions are optional fields in a permissive config schema and new event types outside the stable job family — zero impact on existing implementations. Matching `ROADMAP.md` §Notable config keys and §Progress events updates land in the same change.
 
@@ -149,7 +149,7 @@
     - **Exempt** verbs (sub-millisecond, informational): `sm --version`, `sm --help`, `sm version`, `sm help`, `sm config get`, `sm config list`, `sm config show`.
     - Measurement spans from after arg-parsing to before terminal write.
   - **cli-contract.md** `sm history stats` entry: flags enumerated (`--since`, `--until`, `--period`, `--top`) and schema referenced.
-  - **Coverage matrix**: row `29` for `history-stats.schema.json` (blocked by Step 4); artifact row `L` for the elapsed-time reporting invariant (blocked by Step 3).
+  - **Coverage matrix**: row `29` for `history-stats.schema.json` (blocked by Step 5); artifact row `L` for the elapsed-time reporting invariant (blocked by Step 4).
 
   Classification: minor per §Pre-1.0. The elapsed-time contract introduces a SHOULD-emit line that didn't exist before — no existing consumer breaks, and the line goes to stderr where it doesn't clash with stdout JSON.
 
@@ -225,7 +225,7 @@
 
   **Breaking (pre-1.0 minor per `versioning.md` §Pre-1.0):**
 
-  - **Remove** `history.retentionDays`. The field promised execution-record GC, but `ROADMAP.md` §Step 6 and the job-retention section make it explicit that `state_executions` is append-only in `v0.1` and that the kernel does not use this key. Declaring a config key whose behaviour is "silently ignored" is worse than not declaring it — consumers would wire it in and never see an effect. The field will be re-introduced in a later minor bump when the GC path actually lands, with a concrete default and enforcement semantics.
+  - **Remove** `history.retentionDays`. The field promised execution-record GC, but `ROADMAP.md` §Step 7 and the job-retention section make it explicit that `state_executions` is append-only in `v0.1` and that the kernel does not use this key. Declaring a config key whose behaviour is "silently ignored" is worse than not declaring it — consumers would wire it in and never see an effect. The field will be re-introduced in a later minor bump when the GC path actually lands, with a concrete default and enforcement semantics.
 
   **Editorial:**
 
@@ -237,7 +237,7 @@
 
 - 93ffe34: Promote the trigger-normalization pipeline (Decision #21) from implicit to normative in `spec/architecture.md`.
 
-  Before this change, `link.trigger` carried `originalTrigger` and `normalizedTrigger` fields (defined in `schemas/link.schema.json`), and the `trigger-collision` rule keyed on the normalized value — but no spec prose documented **how** to normalize. The pipeline lived only in `AGENTS.md §Decisions already locked` and in `ROADMAP.md` as a one-line Step 6 bullet. That left implementations free to diverge, which silently breaks the `trigger-collision` rule across implementations (two conforming CLIs could disagree on whether `hacer-review` and `Hacer Review` collide).
+  Before this change, `link.trigger` carried `originalTrigger` and `normalizedTrigger` fields (defined in `schemas/link.schema.json`), and the `trigger-collision` rule keyed on the normalized value — but no spec prose documented **how** to normalize. The pipeline lived only in `AGENTS.md §Decisions already locked` and in `ROADMAP.md` as a one-line Step 7 bullet. That left implementations free to diverge, which silently breaks the `trigger-collision` rule across implementations (two conforming CLIs could disagree on whether `hacer-review` and `Hacer Review` collide).
 
   Added under `architecture.md §Extension kinds`, paralleling the existing `Adapter · defaultRefreshAction` subsection:
 
@@ -390,7 +390,7 @@
   - Referenced in `conformance/README.md` (§"Cases explicitly referenced elsewhere in the spec"). Entry moved from "pending" to "current" in the case inventory.
   - Registered in `spec/index.json` and the integrity block (SHA256 regenerated).
 
-  The second pending case, `preamble-bitwise-match`, is deferred to Step 9 (requires `sm job preview` from the job subsystem).
+  The second pending case, `preamble-bitwise-match`, is deferred to Step 10 (requires `sm job preview` from the job subsystem).
 
 - 4e0aec4: Initial public spec surface (`v0.1.0`):
 
