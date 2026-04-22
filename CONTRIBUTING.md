@@ -58,6 +58,15 @@ A CI step runs `spec:check` on every PR. Drift → red build.
 
 The bot-opened branch `changeset-release/*` is exempt from the "changeset required" check — it consumes changesets rather than adding them.
 
+### README badges — manual version bump
+
+The `spec` and `impl` version badges at the top of `README.md` and `README.es.md` are hardcoded (shields.io does not read local `package.json` files). When you review the Version Packages PR, update both READMEs to match the new versions:
+
+- `spec-vX.Y.Z` → current `spec/package.json` `version`.
+- `impl-vX.Y.Z` → current `src/package.json` `version`.
+
+Bump both READMEs in the same commit (English and Spanish must stay in sync). This is a manual step — CI does not enforce it.
+
 ## License
 
 By contributing you agree that your contributions will be licensed under the [MIT License](./LICENSE).
