@@ -1,5 +1,47 @@
 # Spec changelog
 
+## 0.4.0
+
+### Minor Changes
+
+- 334c51a: Document `--all` as targeted fan-out, not a global flag, in `spec/cli-contract.md`.
+
+  `--all` is valid only on verbs whose contract explicitly lists it:
+
+  - `sm plugins enable <id> | --all` and `sm plugins disable <id> | --all`.
+  - `sm job cancel <job.id> | --all` (cancels every `queued` and `running` job).
+  - `sm job submit <action> --all` and `sm job run --all`.
+
+  Unsupported `--all` usage is an operational error (exit `2`), the same as any other unknown or invalid flag.
+
+  Classification: minor — targeted fan-out semantics are additive for the listed verbs, while avoiding a global flag contract.
+
+- 3e89d8f: Audit-driven alignment pass. Multiple normative additions and a casing cleanup:
+
+  - **Extension schemas**: add `spec/schemas/extensions/{base,adapter,detector,rule,action,audit,renderer}.schema.json` (7 new files). `architecture.md` §Extension kinds now points to them and mandates manifest validation at load time. Unblocks the "contract tests for the 6 kinds" invariant.
+  - **Adapter `defaultRefreshAction`**: normatively required on every `Adapter` extension. Maps node `kind` → `actionId` and drives the UI's `🧠 prob` button. Previously mentioned only in ROADMAP (Decision #45); now part of the schema.
+  - **Triple protection for mode B**: `db-schema.md` now specifies the exact order — parse → DDL validation → prefix injection → scoped connection. Validation runs **before** the rewrite so kernel-table references are caught under their authored names.
+  - **Automatic rename heuristic**: new `db-schema.md` §Rename detection. On scan, `body_hash` match → high-confidence auto-rename with `state_*` FK migration; `frontmatter_hash` match → medium-confidence, same migration + `auto-rename-medium` issue; no match → orphan with issue. Replaces the prior "scan emits orphans, user runs `sm orphans reconcile` manually" flow.
+  - **Skill agent envelope**: `job-events.md` now mandates a synthetic `r-ext-<ts>-<hex>` run envelope (`run.started mode=external` → `job.claimed` → `job.callback.received` → `job.completed|failed` → `run.summary`) around jobs claimed by a Skill agent without entering `sm job run`. Keeps the WebSocket broadcaster contract ("every job event inside a run envelope") intact across both runner paths.
+  - **"Skill runner" → "Skill agent"**: `architecture.md` and `job-lifecycle.md` clarify that the Skill path is a peer driving adapter (alongside CLI and Server), NOT a `RunnerPort` implementation. Only `ClaudeCliRunner` and its test fake implement the port. Name was misleading; structure unchanged.
+  - **Casing**: `db-schema.md` `auto_migrate` → `autoMigrate`; `README.md` prose mention `spec-compat` → `specCompat`. Brings prose into sync with the camelCase rule already enforced by the schemas.
+  - **Coverage matrix**: new `spec/conformance/coverage.md` tracks each schema (and each non-schema normative artifact) against its conformance case. 28 schemas + 11 artifact invariants catalogued; 19 schemas and 10 artifacts flagged as missing, each with a step-blocker note. Release gate: v1.0.0 requires every row 🟢 or explicitly deferred.
+
+  Classification: minor per §Pre-1.0 (`0.Y.Z`). The new required field `defaultRefreshAction` on the Adapter kind is technically breaking — no conforming Adapter ships in the reference impl yet, so the impact is zero. Post-1.0 the same change would be major.
+
+### Patch Changes
+
+- 93ffe34: Editorial pass: remove "MVP" terminology from four prose documents.
+
+  The project shipped two competing readings of "MVP" — sometimes "`v0.5.0`", sometimes "the whole product through `v1.0`". That drift produced contradictions in companion docs (e.g. the summarizer pattern: was `v0.8.0` or `v0.5.0` supposed to ship them?). To close the ambiguity once, `ROADMAP.md` and `AGENTS.md` standardised on explicit versioned releases and `post-v1.0` in the same audit window. This change brings the four spec prose touches that still said "MVP" into the same vocabulary.
+
+  - **`cli-contract.md` §Jobs**: `sm job run --all` description `(MVP: sequential)` → `(sequential through v1.0; in-runner parallelism deferred)`.
+  - **`job-events.md` §Event catalog**: `(post-MVP)` parallel-run note → `(deferred to post-v1.0)`.
+  - **`job-lifecycle.md` §Concurrency**: `MVP (v0.x): one job at a time.` → `Through v1.0 (spec v0.x): one job at a time.`
+  - **`plugin-kv-api.md` §Backup and retention**: `sm plugins forget <id> (post-MVP)` → `sm plugins forget <id> (deferred to post-v1.0)`.
+
+  Classification: patch. Editorial only — no schema, exit code, verb signature, or MUST/SHOULD statement changes meaning. All four replacements preserve the technical content; only the label changes from project-scoped ("MVP") to version-scoped (`v1.0`), which is the convention the rest of the spec already uses. Integrity block regenerated.
+
 ## 0.3.0
 
 ### Minor Changes
