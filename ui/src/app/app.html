@@ -14,12 +14,26 @@
       <a routerLink="/inspector" routerLinkActive="is-active">Inspector</a>
     </nav>
 
-    <div class="shell__badge" aria-live="polite">
-      <strong>{{ count() }}</strong> nodes
+    <div class="shell__actions">
+      <p-button
+        label="Simulate scan"
+        icon="pi pi-play"
+        severity="secondary"
+        [outlined]="true"
+        size="small"
+        [disabled]="scanRunning()"
+        [loading]="scanRunning()"
+        (onClick)="simulateScan()"
+      />
+      <div class="shell__badge" aria-live="polite">
+        <strong>{{ count() }}</strong> nodes
+      </div>
     </div>
   </header>
 
   <main class="shell__main">
     <router-outlet />
   </main>
+
+  <app-event-log />
 </div>

@@ -1,0 +1,38 @@
+<aside class="eventlog" [class.is-expanded]="expanded()">
+  <button type="button" class="eventlog__handle" (click)="toggle()" [attr.aria-expanded]="expanded()">
+    <span class="pi" [class.pi-chevron-down]="expanded()" [class.pi-chevron-up]="!expanded()"></span>
+    <strong>Events</strong>
+    <span class="eventlog__count">{{ count() }}</span>
+    @if (scanRunning()) {
+      <span class="eventlog__live">
+        <span class="dot"></span> scanning
+      </span>
+    }
+    <span class="eventlog__spacer"></span>
+    @if (expanded() && count() > 0) {
+      <span
+        class="eventlog__clear"
+        role="button"
+        tabindex="0"
+        (click)="$event.stopPropagation(); clear()"
+        (keydown.enter)="$event.stopPropagation(); clear()"
+      >Clear</span>
+    }
+  </button>
+
+  @if (expanded()) {
+    <div class="eventlog__body" #scroll>
+      @if (recent().length === 0) {
+        <p class="eventlog__empty">No events yet. Trigger a simulated scan from the topbar.</p>
+      } @else {
+        @for (e of recent(); track e.id) {
+          <div class="eventlog__row eventlog__row--{{ e.severity }}">
+            <time>{{ formatTime(e.timestamp) }}</time>
+            <span class="name">{{ e.name }}</span>
+            <span class="msg">{{ e.message }}</span>
+          </div>
+        }
+      }
+    </div>
+  }
+</aside>
