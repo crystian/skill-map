@@ -89,6 +89,11 @@ export interface ISchemaValidators {
   validate<T = unknown>(name: TSchemaName, data: unknown): { ok: true; data: T } | { ok: false; errors: string };
   getValidator(name: TSchemaName): ValidateFunction;
   validatorForExtension(kind: TExtensionKind): ValidateFunction;
+  /**
+   * Validate raw plugin.json against `$defs/PluginManifest` inside
+   * plugins-registry.schema.json. Returns the typed manifest on success.
+   */
+  validatePluginManifest<T = unknown>(data: unknown): { ok: true; data: T } | { ok: false; errors: string };
 }
 
 export function loadSchemaValidators(): ISchemaValidators {
@@ -126,6 +131,13 @@ export function loadSchemaValidators(): ISchemaValidators {
     renderer: 'extension-renderer',
   };
 
+  // Dedicated validator that targets PluginManifest inside the oneOf of
+  // plugins-registry.schema.json, so callers don't have to hand-filter
+  // against the combined schema.
+  const pluginManifestValidator = ajv.compile({
+    $ref: 'https://skill-map.dev/spec/v0/plugins-registry.schema.json#/$defs/PluginManifest',
+  });
+
   return {
     getValidator(name) {
       const v = validators.get(name);
@@ -140,6 +152,11 @@ export function loadSchemaValidators(): ISchemaValidators {
       if (!v) throw new Error(`Unknown schema: ${name}`);
       if (v(data)) return { ok: true as const, data: data as T };
       const errors = (v.errors ?? []).map(formatError).join('; ');
+      return { ok: false as const, errors };
+    },
+    validatePluginManifest<T = unknown>(data: unknown) {
+      if (pluginManifestValidator(data)) return { ok: true as const, data: data as T };
+      const errors = (pluginManifestValidator.errors ?? []).map(formatError).join('; ');
       return { ok: false as const, errors };
     },
   };
