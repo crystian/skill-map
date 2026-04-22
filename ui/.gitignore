@@ -42,3 +42,6 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Generated at prestart/prebuild — never commit.
+/mock-collection/index.json

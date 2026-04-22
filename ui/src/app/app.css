@@ -1,0 +1,129 @@
+:host {
+  display: block;
+  min-height: 100dvh;
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  color: #1a1a1a;
+  background: #fafafa;
+}
+
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+.shell__header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.shell__sub {
+  margin: 0;
+  color: #555;
+  font-size: 0.9rem;
+}
+
+.shell__status {
+  margin-top: 2rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: #eef2ff;
+  color: #3730a3;
+  font-size: 0.95rem;
+}
+
+.shell__status--error {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.shell__summary {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.shell__summary p {
+  margin: 0 0 0.5rem;
+}
+
+.shell__kinds {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.shell__list {
+  margin-top: 2rem;
+  padding: 1rem 1.25rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.75rem;
+}
+
+.shell__list h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.shell__list ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.shell__list code {
+  font-size: 0.85rem;
+  background: #f3f4f6;
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+}
+
+.kind {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.kind--skill {
+  background: #dbeafe;
+  color: #1e3a8a;
+}
+
+.kind--agent {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.kind--command {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.kind--hook {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.kind--note {
+  background: #f3f4f6;
+  color: #374151;
+}

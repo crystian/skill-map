@@ -1197,9 +1197,10 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 - **Single-port mandate**: `sm serve` exposes SPA + BFF + WS under one listener. Dev uses Angular dev server + proxy; prod uses Hono + `serveStatic`.
 - **UI framework**: **Angular ≥ 21** (standalone components). Scaffolded at `^21.0.0`.
 - **Node-based UI library**: **Foblex Flow**.
-- **Component library**: **PrimeNG**.
+- **Component library**: **PrimeNG** + `@primeuix/themes` for theming. The legacy `@primeng/themes` package is deprecated upstream (the registry marks it as `Deprecated. Please migrate to @primeuix/themes`) and is intentionally NOT used.
 - **UI styling**: **SCSS scoped per component**. No utility CSS (no Tailwind, no PrimeFlex).
-- **UI workspace**: `ui/` as npm workspace peer of `spec/` and `src/`. Kernel is Angular-agnostic; UI imports only typed contracts from `spec/`.
+- **UI workspace**: `ui/` as npm workspace peer of `spec/` and `src/`. Kernel is Angular-agnostic; UI imports only typed contracts from `spec/` once those exist — see the DTO gap note below.
+- **UI YAML parser**: **`js-yaml`** — locked at Step 0c when the prototype's mock-collection loader first needs to parse frontmatter in the browser. The second candidate (`yaml`) was dropped at pick time; revisit only if the impl-side pick diverges.
 - **DB**: SQLite via `node:sqlite` (zero native deps).
 - **Data-access**: **Kysely + CamelCasePlugin** (typed query builder, not an ORM).
 - **Logger**: `pino` (JSON lines).
@@ -1210,9 +1211,13 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 
 ### Tech picks deferred (resolve at the step that first needs them)
 
-YAML parser (`yaml` vs `js-yaml`) · MD parsing strategy (regex vs `remark`/`unified`) · template engine for job MDs (template literals vs `mustache` vs `handlebars`) · pretty CLI output (`chalk` + `cli-table3` + `ora`) · path globbing (`glob` vs `fast-glob` vs `picomatch`) · diff lib (hand-written vs `deep-diff` vs `microdiff`).
+~~YAML parser (`yaml` vs `js-yaml`)~~ — **resolved at Step 0c: `js-yaml`.** · MD parsing strategy (regex vs `remark`/`unified`) · template engine for job MDs (template literals vs `mustache` vs `handlebars`) · pretty CLI output (`chalk` + `cli-table3` + `ora`) · path globbing (`glob` vs `fast-glob` vs `picomatch`) · diff lib (hand-written vs `deep-diff` vs `microdiff`).
 
 Lock-in-abstract rejected during Step 0b: each pick lands with the step that first requires it, so the decision is made against a concrete use case rather than in the void.
+
+### DTO gap — pending Step 1b
+
+The §Architecture section ("The kernel never imports Angular; `ui/` never imports `src/` internals. The sole cross-workspace contract is `spec/` (JSON Schemas + typed DTOs)") promises typed TypeScript DTOs emitted by `@skill-map/spec`. As of Step 0c that promise is aspirational — `@skill-map/spec` exports only JSON Schemas and `index.json`, no `.d.ts`. The reason is ordering: generating types now would be a speculative pick (which generator, which naming convention, where the emitted file sits in the package layout) without a real consumer on the impl side to validate the ergonomics. The ui prototype hand-writes local mirror types under `ui/src/models/` to unblock Step 0c; the drift risk is accepted because the mock collection is the only consumer and the schemas are small. The real fix lands at **Step 1b** when the plugin loader in `src/` also needs these shapes: that is when a single source of truth must exist, and the pick (e.g. `json-schema-to-typescript` at build, or hand-curated `.d.ts` in `spec/dist/`) is made against two real consumers instead of one. Until then, any ui/src/models/ type that diverges from the schema surfaces as an issue at the Step 0c review pass.
 
 ---
 

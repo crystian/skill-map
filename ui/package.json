@@ -3,6 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "mock:index": "node scripts/build-mock-index.mjs",
+    "prestart": "npm run mock:index",
+    "prebuild": "npm run mock:index",
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
@@ -25,6 +28,7 @@
     "@foblex/platform": "^1.0.4",
     "@foblex/utils": "^1.1.1",
     "@primeuix/themes": "^2.0.3",
+    "js-yaml": "^4.1.1",
     "primeng": "^21.1.6",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
@@ -33,6 +37,7 @@
     "@angular/build": "^21.2.7",
     "@angular/cli": "^21.2.7",
     "@angular/compiler-cli": "^21.2.0",
+    "@types/js-yaml": "^4.0.9",
     "jsdom": "^28.0.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.2",
