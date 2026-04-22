@@ -228,8 +228,10 @@ function pathId(p: string): string {
  */
 export function installedSpecVersion(): string {
   const require = createRequire(import.meta.url);
-  const pkg = JSON.parse(
-    readFileSync(require.resolve('@skill-map/spec/package.json'), 'utf8'),
-  ) as { version: string };
+  // Spec exports index.json but not package.json; we use the former to
+  // locate the package root and then read package.json off disk directly.
+  const indexPath = require.resolve('@skill-map/spec/index.json');
+  const pkgPath = resolve(indexPath, '..', 'package.json');
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as { version: string };
   return pkg.version;
 }

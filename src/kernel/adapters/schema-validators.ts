@@ -174,9 +174,11 @@ function formatError(err: { instancePath: string; message?: string; keyword: str
  */
 function resolveSpecRoot(): string {
   const require = createRequire(import.meta.url);
+  // @skill-map/spec's exports field doesn't expose package.json, but
+  // ./index.json is always exported and always lives at the package root.
   try {
-    const pkgJsonPath = require.resolve('@skill-map/spec/package.json');
-    return dirname(pkgJsonPath);
+    const indexPath = require.resolve('@skill-map/spec/index.json');
+    return dirname(indexPath);
   } catch {
     throw new Error(
       '@skill-map/spec not resolvable — ensure the workspace is linked or the package is installed.',
