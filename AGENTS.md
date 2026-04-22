@@ -109,7 +109,7 @@ skill-map/
 
 - **Step 0c** adds `ui/` — Angular SPA as an npm workspace peer of `spec/` and `src/`.
 - **Step 12** adds `src/server/` — Hono BFF with WebSocket, served by `sm serve`.
-- **`src/migrations/`** and per-plugin `migrations/` folders land with Step 1 (SQLite).
+- **`src/migrations/`** and per-plugin `migrations/` folders land with Step 1a (SQLite storage + migrations).
 
 **Workspace boundary**: the kernel in `src/` never imports Angular; the UI in `ui/` never imports `src/` internals. The only contract between them is `spec/` (JSON Schemas + typed DTOs). At Step 12, the Hono BFF inside `src/server/` exposes kernel operations over HTTP/WS, and `sm serve` serves the built Angular SPA from the same listener (single-port mandate).
 
@@ -139,7 +139,7 @@ Scope of the first shippable cut (`v0.5.0`, deterministic core, zero LLM):
 | C — Surface & distribution | 11–13 | **v1.0.0** (CUT 3) | optional |
 | D — Deferred | 14+ | on demand | varies |
 
-Note on the 0.x numbering: `v0.1.0` was the Step 0b implementation bootstrap and is already published. Intermediate minors (`v0.2.0` … `v0.4.x`) cover Steps 0c / 1a / 1b / 1c / 2–8 as they land; each shipped minor is driven by a changeset, never by a hand bump.
+Note on the 0.x numbering: `v0.1.0` is the Step 0b implementation bootstrap. The impl package (`skill-map`) is `private: true` until CUT 1, so changesets bump the version internally without publishing to npm (only `@skill-map/spec` goes public in the pre-CUT-1 range). Intermediate minors (`v0.2.0` … `v0.4.x`) cover Steps 0c / 1a / 1b / 1c / 2–8 as they land; each shipped minor is driven by a changeset, never by a hand bump.
 
 Full step-by-step in `ROADMAP.md §Execution plan`. The completeness marker there flags the last fully-done step.
 
@@ -150,7 +150,7 @@ Full step-by-step in `ROADMAP.md §Execution plan`. The completeness marker ther
 - **Runtime**: Node ≥ 24 (active LTS; `node:sqlite` stable; built-in WebSocket).
 - **Language**: TypeScript strict + ESM; `verbatimModuleSyntax: true`.
 - **Build**: `tsup` (esbuild) → `dist/` ESM + `.d.ts`.
-- **Distribution**: npm package name is **`skill-map`** (not `sm`). Install: `npm i -g skill-map` or `npx skill-map`. After install, both `sm` and `skill-map` are available as binaries.
+- **Distribution**: npm package name is **`skill-map`** (not `sm`). The impl stays `private: true` until CUT 1 (`v0.5.0`); public install (`npm i -g skill-map` or `npx skill-map`, exposing both `sm` and `skill-map` as binaries) lands with that release. Pre-CUT-1 consumption is local-only (clone + `npm install`).
 - **CLI framework**: **Clipanion v4** (introspection built-in, used by Yarn Berry).
 - **BFF framework**: **Hono** (thin proxy over the kernel, no domain logic). NestJS rejected as over-engineered for a single-client BFF.
 - **Single-port mandate**: `sm serve` exposes the Angular SPA, the REST API, and the WebSocket under one listener. Dev uses Angular dev server + `proxy.conf.json` → Hono for `/api` and `/ws`; prod uses Hono + `serveStatic`.
@@ -187,7 +187,7 @@ Single **SQLite** database per scope. No JSON stores.
 | Zone | Nature | Regenerable | Examples |
 |---|---|---|---|
 | `scan_*` | last scan result | yes — `sm scan` truncates and repopulates | `scan_nodes`, `scan_links`, `scan_issues` |
-| `state_*` | persistent operational data | no — must back up | `state_jobs`, `state_executions`, `state_summaries`, `state_enrichment`, `state_plugin_kv` |
+| `state_*` | persistent operational data | no — must back up | `state_jobs`, `state_executions`, `state_summaries`, `state_enrichments`, `state_plugin_kvs` |
 | `config_*` | user-owned configuration | no | `config_plugins`, `config_preferences`, `config_schema_versions` |
 
 Backups preserve `state_*` + `config_*`. `scan_*` regenerates on demand.
@@ -297,7 +297,7 @@ Step 0a (spec) and Step 0b (reference implementation bootstrap) are **done**. An
 - **Identity**: `node.path` is the canonical node identifier in v0 (relative path from scope root). A sibling `id` field (UUID in frontmatter) lands with write-back, post-v1.
 - **Required frontmatter**: `name`, `description`, `metadata`, `metadata.version`. Everything else optional.
 - **Permissive-shape / strict-rule split**: frontmatter schemas use `additionalProperties: true` because user-authored — policy (`unknown-field` rule) is separate from shape. Summary schemas use `additionalProperties: false` because the kernel controls the output shape and strictness catches model hallucinations.
-- **ID formats**: execution record `e-YYYYMMDD-HHMMSS-XXXX`. Run `r-YYYYMMDD-HHMMSS-XXXX`. Job `d-YYYYMMDD-HHMMSS-XXXX`. Same shape, different prefix per scope.
+- **ID formats**: base shape `<prefix>-YYYYMMDD-HHMMSS-XXXX` (UTC timestamp + 4 lowercase hex chars). Prefixes: `d-` jobs (`state_jobs.id`), `e-` execution records (`state_executions.id`), `r-` runs (`runId` on progress events). Run ids accept one optional `<mode>` segment between the prefix and the timestamp: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes: `ext` (external Skill claim), `scan` (scan runs), `check` (standalone issue recomputations). Without `<mode>`, `r-YYYYMMDD-HHMMSS-XXXX` denotes the CLI runner's own loop. New modes are additive-minor; removing or repurposing one is a major spec bump. Full rule in ROADMAP decision #88.
 - **Exit codes**: `0` ok · `1` issues · `2` error · `3` duplicate · `4` nonce-mismatch · `5` not-found. `6–15` reserved for future spec use. `≥16` free for verb-specific use.
 - **Deprecation window**: 3 minors between `stable → deprecated` and removal.
 - **Stability tags**: inline in schema `description` and in prose as `**Stability: experimental**`. No dedicated machine-readable field.

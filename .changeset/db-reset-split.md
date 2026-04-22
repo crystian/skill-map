@@ -9,7 +9,7 @@ Before: `sm db reset` dropped BOTH `scan_*` and `state_*` in one command — so 
 After:
 
 - `sm db reset` — drops `scan_*` only. Keeps `state_*` and `config_*`. Non-destructive, no prompt. Equivalent to asking for a fresh scan.
-- `sm db reset --state` — also drops `state_*` and every `plugin_<normalized_id>_*` table (mode B) plus `state_plugin_kv` (mode A). Keeps `config_*`. Destructive; requires confirmation unless `--yes` (or `--force`, kept as an alias).
+- `sm db reset --state` — also drops `state_*` and every `plugin_<normalized_id>_*` table (mode B) plus `state_plugin_kvs` (mode A). Keeps `config_*`. Destructive; requires confirmation unless `--yes` (or `--force`, kept as an alias).
 - `sm db reset --hard` — deletes the DB file entirely. Keeps the plugins folder on disk. Destructive; requires confirmation unless `--yes`.
 
 Updated files:

@@ -25,6 +25,7 @@ These flags apply to every verb unless marked otherwise.
 | `--no-color` | boolean | Disable ANSI color codes. Implementations MUST also auto-disable color when stdout is not a TTY. |
 | `-h` / `--help` | boolean | Print verb-specific or top-level help, exit 0. |
 | `--db <path>` | string | Override the database file location (escape hatch; primarily for debugging). |
+| `--all` | boolean | Universal fan-out. Any verb that accepts a target identifier (node path, job id, plugin id, etc.) MUST accept `--all` as "apply to every eligible target matching the verb's preconditions". Mutually exclusive with a positional target or `-n <path>` on the same invocation. Verbs that inherently target everything (`sm scan` without `-n`, `sm list`, `sm check`, `sm doctor`) accept the flag for script-composition uniformity but treat it as a no-op. Verbs where fan-out is nonsensical (`sm record`, `sm init`, `sm version`, `sm help`, `sm config get/set/reset/show`, `sm db *`, `sm serve`) MUST reject `--all` with exit `2`. |
 
 Env-var equivalents are normative:
 
@@ -170,7 +171,7 @@ Exit: 0 on clean, 1 if error-severity issues exist, 2 on operational error.
 | `sm export <query> --format json\|md\|mermaid` | Filtered export. Query syntax is implementation-defined pre-1.0. |
 | `sm orphans` | History rows whose target node is missing. |
 | `sm orphans reconcile <orphan.path> --to <new.path>` | Migrate history rows from the old path to the new one after a rename. Use case: the scan's rename heuristic missed a match (semantic-only rename, body rewrite) and the user wants to stitch history manually. |
-| `sm orphans undo-rename <new.path> [--force]` | Reverse a medium-confidence auto-rename. Requires an active `auto-rename-medium` or `auto-rename-ambiguous` issue on `<new.path>`; reads the previous path from `issue.data_json`, migrates `state_*` FKs back, and resolves the issue. The previous path becomes an `orphan` (its file no longer exists in FS). Destructive; prompts for confirmation unless `--force`. Exit `5` if no active auto-rename issue targets `<new.path>`. |
+| `sm orphans undo-rename <new.path> [--from <old.path>] [--force]` | Reverse a medium- or ambiguous-confidence auto-rename. Requires an active `auto-rename-medium` or `auto-rename-ambiguous` issue on `<new.path>`. For `auto-rename-medium`, omit `--from` — the previous path is read from `issue.data_json`. For `auto-rename-ambiguous`, `--from <old.path>` is REQUIRED to pick one of the candidates listed in `data_json.candidates`. Migrates `state_*` FKs back and resolves the issue; the previous path becomes an `orphan` (its file no longer exists in FS). Destructive; prompts for confirmation unless `--force`. Exit `5` if no active auto-rename issue targets `<new.path>`, or if `--from` references a path not in `data_json.candidates`. |
 
 ---
 
@@ -205,7 +206,7 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 | `sm job run --all` | Drain the queue (sequential through `v1.0`; in-runner parallelism deferred). |
 | `sm job run --max N` | Drain at most N jobs. |
 | `sm job status [<job.id>]` | Counts (per status) or single-job status. |
-| `sm job cancel <job.id>` | Force a running job to `failed` state with reason `user-cancelled`. |
+| `sm job cancel <job.id> \| --all` | Force a running job to `failed` state with reason `user-cancelled`. `--all` cancels every `queued` and `running` job. |
 | `sm job prune` | Retention GC for completed/failed jobs (per config policy). |
 | `sm job prune --orphan-files` | Remove MD files with no matching DB row. |
 
@@ -251,8 +252,8 @@ Authentication: the nonce is the sole credential. An implementation MUST reject 
 |---|---|
 | `sm plugins list` | Auto-discovered plugins with status. `--json` emits an array of `DiscoveredPlugin`. |
 | `sm plugins show <id>` | Full manifest + compat detail. |
-| `sm plugins enable <id>` | Toggle on. Persists in `config_plugins`. |
-| `sm plugins disable <id>` | Toggle off; does not delete the plugin directory. |
+| `sm plugins enable <id> \| --all` | Toggle on. Persists in `config_plugins`. `--all` applies to every discovered plugin. |
+| `sm plugins disable <id> \| --all` | Toggle off; does not delete the plugin directory. `--all` applies to every discovered plugin. |
 | `sm plugins doctor` | Revalidate all plugins against current spec version; update `status` fields. |
 
 ---
@@ -275,7 +276,7 @@ See `db-schema.md` for the table catalog.
 | Command | Purpose |
 |---|---|
 | `sm db reset` | Drop `scan_*` only. Keep `state_*` and `config_*`. Non-destructive — no confirmation required. |
-| `sm db reset --state` | Drop `scan_*` AND `state_*` (including `state_plugin_kv` and every `plugin_<id>_*` table). Keep `config_*`. Destructive. |
+| `sm db reset --state` | Drop `scan_*` AND `state_*` (including `state_plugin_kvs` and every `plugin_<id>_*` table). Keep `config_*`. Destructive. |
 | `sm db reset --hard` | Delete the DB file entirely. Keep the plugins folder so the next boot re-discovers them. Destructive. |
 | `sm db backup [--out <path>]` | WAL checkpoint + file copy. |
 | `sm db restore <path>` | Swap the DB. |

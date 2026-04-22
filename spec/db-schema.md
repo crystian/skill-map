@@ -206,7 +206,7 @@ One row per `(node_id, summarizer_action_id)`. See `schemas/summaries/`.
 
 Primary key: `(node_id, summarizer_action_id)`. Indexes: `ix_state_summaries_generated_at`.
 
-### `state_enrichment`
+### `state_enrichments`
 
 One row per `(node_id, provider_id)`.
 
@@ -219,9 +219,9 @@ One row per `(node_id, provider_id)`.
 | `fetched_at` | INTEGER | NOT NULL |
 | `stale_after` | INTEGER | NULL |
 
-Primary key: `(node_id, provider_id)`. Indexes: `ix_state_enrichment_stale_after`.
+Primary key: `(node_id, provider_id)`. Indexes: `ix_state_enrichments_stale_after`.
 
-### `state_plugin_kv`
+### `state_plugin_kvs`
 
 Shared key-value store for plugins that declared storage mode `kv`. See `plugin-kv-api.md` for the accessor contract.
 
@@ -233,7 +233,7 @@ Shared key-value store for plugins that declared storage mode `kv`. See `plugin-
 | `value_json` | TEXT | NOT NULL |
 | `updated_at` | INTEGER | NOT NULL |
 
-Primary key: `(plugin_id, node_id, key)` with `node_id` using a sentinel empty string when NULL to satisfy PK constraints on engines that reject NULL in PK columns. Indexes: `ix_state_plugin_kv_plugin_id`.
+Primary key: `(plugin_id, node_id, key)` with `node_id` using a sentinel empty string when NULL to satisfy PK constraints on engines that reject NULL in PK columns. Indexes: `ix_state_plugin_kvs_plugin_id`.
 
 ---
 
@@ -298,7 +298,7 @@ Two modes declared in `plugin.json` (see `schemas/plugins-registry.schema.json`)
 
 | Mode | Manifest | Backing |
 |---|---|---|
-| **KV** (mode A) | `"storage": { "mode": "kv" }` | Shared `state_plugin_kv`. See `plugin-kv-api.md`. |
+| **KV** (mode A) | `"storage": { "mode": "kv" }` | Shared `state_plugin_kvs`. See `plugin-kv-api.md`. |
 | **Dedicated** (mode B) | `"storage": { "mode": "dedicated", "tables": [...], "migrations": [...] }` | Plugin-owned tables, prefixed `plugin_<normalized_id>_`. |
 
 Normalization of `plugin_id` for the prefix:
@@ -345,7 +345,7 @@ Backups include `state_*` + `config_*` only; `scan_*` is regenerated after resto
 
 ## Rename detection (automatic)
 
-`scan_nodes.path` is the canonical node identifier in v0. Moving a file therefore rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichment.node_id`).
+`scan_nodes.path` is the canonical node identifier in v0. Moving a file therefore rewrites the primary key, which would orphan every `state_*` row referencing the old path (`state_executions.node_ids_json`, `state_jobs.node_id`, `state_summaries.node_id`, `state_enrichments.node_id`).
 
 Implementations MUST apply a rename heuristic at scan time **before** committing the new scan transaction:
 

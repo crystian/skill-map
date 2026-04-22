@@ -44,7 +44,7 @@
               "required": ["mode"],
               "additionalProperties": false,
               "properties": {
-                "mode": { "const": "kv", "description": "Shared `state_plugin_kv` table, scoped by plugin id." }
+                "mode": { "const": "kv", "description": "Shared `state_plugin_kvs` table, scoped by plugin id." }
               }
             },
             {

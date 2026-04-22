@@ -2,7 +2,7 @@
 
 Normative contract for plugin-accessible persistence. Two modes exist (see `db-schema.md` for the catalog entries):
 
-- **Mode A — KV**: plugin uses the kernel-provided `ctx.store.*` accessor. Backed by the shared `state_plugin_kv` table.
+- **Mode A — KV**: plugin uses the kernel-provided `ctx.store.*` accessor. Backed by the shared `state_plugin_kvs` table.
 - **Mode B — Dedicated**: plugin owns its own tables with the `plugin_<normalizedId>_` prefix, migrated by the kernel.
 
 This document defines mode A in full and clarifies the boundary with mode B. Implementations MUST expose this API to every plugin that declares `"storage": { "mode": "kv" }` in its manifest.
@@ -54,7 +54,7 @@ Operations MAY be additionally scoped by `nodePath`:
 - **Global KV (no `nodePath`)**: `{pluginId, nodePath: null, key}`. One row per plugin + key.
 - **Node-scoped KV (with `nodePath`)**: `{pluginId, nodePath: "<path>", key}`. One row per plugin + node + key.
 
-Both scopes share the same underlying `state_plugin_kv` table (see `db-schema.md`). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys.
+Both scopes share the same underlying `state_plugin_kvs` table (see `db-schema.md`). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys.
 
 ### Semantics
 
@@ -182,11 +182,11 @@ A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plu
 
 ## Backup and retention
 
-- Mode A rows are stored in `state_plugin_kv` and are backed up with `sm db backup`.
+- Mode A rows are stored in `state_plugin_kvs` and are backed up with `sm db backup`.
 - Mode B rows live in the plugin's dedicated tables, prefixed `plugin_<id>_`, and are likewise backed up.
 - `sm plugins disable <id>` does NOT drop the plugin's data — disabled plugins keep their KV rows and dedicated tables. `sm plugins forget <id>` (deferred to post-`v1.0`) is the verb that wipes.
 - `sm db reset` (no modifier) drops only `scan_*`. Plugin KV rows (mode A) and plugin-dedicated tables (mode B) are **preserved** — the reset is non-destructive to plugin storage.
-- `sm db reset --state` drops `state_*` AND every `plugin_<normalized_id>_*` table, which includes `state_plugin_kv` (mode A) AND the plugin-dedicated tables (mode B). The CLI MUST require interactive confirmation unless `--yes` is passed.
+- `sm db reset --state` drops `state_*` AND every `plugin_<normalized_id>_*` table, which includes `state_plugin_kvs` (mode A) AND the plugin-dedicated tables (mode B). The CLI MUST require interactive confirmation unless `--yes` is passed.
 - `sm db reset --hard` deletes the DB file entirely, destroying all plugin storage regardless of mode.
 
 ---

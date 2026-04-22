@@ -1,20 +1,81 @@
+**🇬🇧 English** · [🇦🇷 Español](./README.es.md)
+
 # skill-map
 
-> Map, inspect and manage collections of interconnected Markdown files — especially skills, agents, commands, hooks and documents that compose AI agent ecosystems.
+> Map, inspect, and manage collections of interconnected Markdown files — especially skills, agents, commands, hooks, and notes that compose AI-agent ecosystems.
 
-**Status**: Steps **0a** (spec bootstrap) and **0b** (reference-implementation bootstrap) are **complete**. The `@skill-map/spec` npm package is live (version tracked in [`spec/package.json`](./spec/package.json) and [`spec/CHANGELOG.md`](./spec/CHANGELOG.md)); the `skill-map` CLI ships a stub scan verb and boots cleanly. Next up: **0c — UI prototype**. See [ROADMAP.md](./ROADMAP.md) for the completeness marker and full execution plan.
+**Status**: Steps **0a** (spec bootstrap) and **0b** (reference-implementation bootstrap) are **complete**. The `@skill-map/spec` npm package is live (version tracked in [`spec/package.json`](./spec/package.json) and [`spec/CHANGELOG.md`](./spec/CHANGELOG.md)); the `skill-map` CLI ships a stub scan verb and boots cleanly. Next up: **Step 0c — UI prototype**. See [ROADMAP.md](./ROADMAP.md) for the completeness marker and full execution plan.
 
 ## In a sentence
 
-A graph explorer for Markdown-based AI agent ecosystems (Claude Code, Codex, Gemini, Copilot and others). Detects references between files, trigger collisions, orphans, external dependencies, and token/byte weight. CLI-first, fully deterministic offline, with optional LLM layer for semantic analysis.
+A graph explorer for Markdown-based AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, and others). It detects cross-file references, trigger collisions, orphans, external dependencies, and token/byte weight. CLI-first, fully deterministic offline, with an optional LLM layer for semantic analysis.
 
-## Non-negotiables
+## The problem it solves
 
-- **Kernel-first** from day zero — six extension kinds (Detector, Adapter, Rule, Action, Audit, Renderer). Kernel never contains platform-specific logic.
-- **Spec as a public standard** — JSON Schemas + conformance suite live in `spec/`. Any implementation (CLI, UI, bindings in other languages) consumes the spec, not the reference implementation.
-- **Deterministic by default** — LLM is never required. Full product works offline up to the LLM layer milestone.
-- **Test suite from commit 1** — contract, unit, integration, self-scan, CLI, snapshot.
-- **CLI-first** — every feature exposed via `sm` / `skill-map`. Web UI is a consumer of the same surface.
+Developers working with AI agents accumulate dozens of skills, agents, commands, and loose documents. Nobody has visibility into:
+
+- What exists and where it lives.
+- Who invokes whom (dependencies, cross-references).
+- Which triggers overlap or step on each other.
+- What is alive vs obsolete.
+- What can be deleted without breaking anything.
+- When each skill was last optimized or validated.
+
+No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. Obsidian offers note management but does not semantically understand that a file is an executable skill. `skill-map` fills that gap.
+
+## Who it's for
+
+- Advanced users of Claude Code (or other agents) who maintain several plugins / skills of their own.
+- Teams that share skill collections and need auditing.
+- Plugin / action authors who want to test and validate their work.
+- Developers who want to build tooling on top of the graph (via CLI, JSON, or plugins).
+
+## How it works (high level)
+
+1. **Deterministic scanner** walks files, parses frontmatter, detects references, and emits structured graph data (nodes, links, issues).
+2. **Optional LLM layer** consumes that data and adds semantic intelligence: validates ambiguous references, clusters equivalent triggers, compares nodes, answers questions.
+3. **`sm` CLI** exposes every operation. It is the primary surface.
+4. **Web UI** (pre-CUT-1 prototype in Step 0c with mocked data; full integration at `v1.0`) consumes the same kernel and offers visual navigation, inspector, and execution. The prototype does **not** ship in CUT 1 (`v0.5.0`).
+5. **Plugin system** (drop-in, kernel + extensions) lets third parties add detectors, rules, actions, adapters, or renderers without touching the kernel.
+
+## Philosophy
+
+- **CLI-first** — everything the UI does is reachable from the command line.
+- **Deterministic by default** — the LLM is optional, never required. The product works offline.
+- **Kernel-first from commit 1** — the core contains no platform knowledge or specific detectors. Everything lives as an extension.
+- **Hexagonal architecture** (ports & adapters) — the kernel is pure; the adapters (CLI, Server, Skill, SQLite, FS, Plugins, Runner) are swappable.
+- **Tests from commit 1** — full pyramid (contract, unit, integration, self-scan, CLI, snapshot). Every extension ships with its test or does not boot.
+- **Platform-agnostic** — the first adapter is Claude Code, but the architecture supports any MD ecosystem.
+- **Distributable** — semantic versioning, docs, plugin security, marketplace — designed for external users, not only the author.
+- **Public standard** — the spec (JSON Schemas + conformance suite + contracts) lives in `spec/`. Anyone can build an alternative UI, an implementation in another language, or complementary tooling consuming only the spec.
+- **`sm` never touches an LLM** — the binary is pure template rendering + DB + filesystem. The LLM lives in the external runner process.
+
+## Differences from Obsidian (closest competitor)
+
+Obsidian maps notes, not executables. `skill-map`:
+
+1. Understands skills / agents as **actionable units** (executables with inputs, outputs, tools, triggers).
+2. **CLI-first and headless** — runs in CI, pipelines, shell scripts. Obsidian is GUI-first.
+3. **AI-semantic layer** integrated into the core (summarizers, probabilistic verbs), not a third-party plugin.
+4. **Executable actions** — run actions over a selected node (optimize, validate, compare) via jobs.
+5. **Official testkit** for plugin authors — something Obsidian does not have.
+
+Positioning framing: *"Obsidian for AI agents, not for notes"*. The other candidate features (DataView, Templater, Graph View with filters) are already covered by Obsidian plugins — we do not compete there.
+
+## Glossary (essentials)
+
+Full vocabulary in [ROADMAP §Glossary](./ROADMAP.md#glossary).
+
+- **Node** — a Markdown file the scanner tracks (skill, agent, command, hook, note); identified by path relative to the scope root.
+- **Link** — a directed relation between two nodes (`invokes` / `references` / `mentions` / `supersedes`).
+- **Issue** — deterministic problem emitted by a rule.
+- **Finding** — probabilistic analysis output (injection detection, low confidence, stale summary).
+- **Extension kinds** (six, stable) — **Adapter** (platform recognizer), **Detector** (link extractor), **Rule** (issue producer), **Action** (executable operation), **Audit** (deterministic workflow), **Renderer** (graph serializer).
+- **Kernel** — pure domain core; imports no platform knowledge.
+- **Port** — interface the kernel declares (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`).
+- **Job** — runtime instance of an Action over one or more nodes; lives in `state_jobs`.
+- **Plugin** — drop-in bundle registering extensions at `<scope>/.skill-map/plugins/<id>/`.
+- **Scope** — `project` (default, scans the current repo; DB at `./.skill-map/skill-map.db`) or `global` (opt-in via `-g`; DB at `~/.skill-map/skill-map.db`).
 
 ## Specification
 
@@ -43,6 +104,8 @@ skill-map/                     npm workspaces root (private)
 ├── AGENTS.md                  agent conventions + current bootstrap status
 ├── CLAUDE.md                  persona activation (pointer to AGENTS.md)
 ├── CONTRIBUTING.md            PR workflow + changeset rules
+├── README.md                  this file (English landing)
+├── README.es.md               Spanish mirror of this file
 └── ROADMAP.md                 design narrative (decisions, phases, deferred)
 ```
 
@@ -51,8 +114,10 @@ The `ui/` workspace joins as a third peer at Step 0c (Angular SPA + Foblex Flow 
 ## Links
 
 - Full design and roadmap: [ROADMAP.md](./ROADMAP.md)
+- Full glossary: [ROADMAP §Glossary](./ROADMAP.md#glossary)
 - Spec surface and maintenance rules: [AGENTS.md](./AGENTS.md) (section "Spec bootstrap status")
 - Spec changelog: [spec/CHANGELOG.md](./spec/CHANGELOG.md) (versioned independently from this repo)
+- Spanish version of this README: [README.es.md](./README.es.md)
 - License: [MIT](./LICENSE)
 
 ## License

@@ -3,7 +3,7 @@
  *
  * `PluginManifest` matches `spec/schemas/plugins-registry.schema.json#/$defs/PluginManifest`.
  * Storage modes follow the normative `oneOf`: a plugin declares either `kv`
- * (shared `state_plugin_kv`) or `dedicated` (plugin-owned prefixed tables + SQL migrations),
+ * (shared `state_plugin_kvs`) or `dedicated` (plugin-owned prefixed tables + SQL migrations),
  * never both. Absent = plugin does not persist state.
  *
  * Step 0b: shape-only. Drop-in discovery (`.skill-map/plugins/`,
