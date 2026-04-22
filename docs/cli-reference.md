@@ -241,15 +241,15 @@ Show a single plugin's manifest + loaded extensions.
 
 Scan roots for markdown nodes, run detectors and rules.
 
-Walks the given roots, classifies files as nodes, runs all registered detectors 
-and rules, and emits a scan result.
-
-In Step 0b this command returns an empty scan result regardless of input, 
-confirming the kernel's boot invariant (zero extensions → empty graph).
+Walks the given roots with the built-in claude adapter, runs the frontmatter / 
+slash / at-directive detectors per node, then the trigger-collision / broken-ref 
+/ superseded rules over the full graph. Emits a ScanResult conforming to 
+scan-result.schema.json.
 
 **Flags:**
 
 - `--json` `boolean` — Emit a machine-readable ScanResult document on stdout.
+- `--no-built-ins` `boolean` — Skip the built-in extension set. Yields a zero-filled ScanResult (kernel-empty-boot parity).
 
 **Examples:**
 
@@ -260,6 +260,10 @@ confirming the kernel's boot invariant (zero extensions → empty graph).
 - Scan multiple roots and print JSON
   ```
   sm scan ./docs ./skills --json
+  ```
+- Empty-pipeline conformance
+  ```
+  sm scan --no-built-ins --json
   ```
 
 ## Server
