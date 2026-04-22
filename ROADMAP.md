@@ -15,7 +15,7 @@ The project description, problem statement, target audience, philosophy, and Obs
 
 Each README also ships a short essentials-only glossary with a pointer back to the full [§Glossary](#glossary) below. This document (`ROADMAP.md`) is the design narrative — architecture decisions, execution plan, decision log, and deferred work — and sits beneath the READMEs; it is maintained in English only.
 
-**Status**: Steps **0a** (spec bootstrap) and **0b** (implementation bootstrap) complete. `@skill-map/spec` is published on npm (version in `spec/package.json` and `spec/CHANGELOG.md`); kernel shell + CLI skeleton boot and pass CI. **Step 0c — UI prototype** is near complete: the `ui/` workspace is scaffolded (Angular 21 standalone, Foblex Flow, PrimeNG + `@primeuix/themes`, SCSS scoped), the mock collection covers all five kinds, and every Flavor A surface is implemented — list view (PrimeNG Table), inspector (full frontmatter surface with clickable relations), graph view (Foblex Flow + Dagre TB layout), cross-view filters, and a simulated scan event flow with a bottom event log. Only the roadmap review pass remains. The canonical completeness marker lives in §Execution plan below.
+**Status**: Steps **0a** (spec bootstrap), **0b** (implementation bootstrap), and **0c** (UI prototype) are **complete**. `@skill-map/spec` is published on npm (version in `spec/package.json` and `spec/CHANGELOG.md`); kernel shell + CLI skeleton boot and pass CI. The `ui/` workspace ships Flavor A end-to-end (list, inspector, graph, filters, simulated event flow, dark-mode toggle) against a mock collection, with all review-pass decisions resolved. Next step: **Step 1a — Storage + migrations**. The canonical completeness marker lives in §Execution plan below.
 
 ---
 
@@ -1201,6 +1201,15 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 - **UI styling**: **SCSS scoped per component**. No utility CSS (no Tailwind, no PrimeFlex).
 - **UI workspace**: `ui/` as npm workspace peer of `spec/` and `src/`. Kernel is Angular-agnostic; UI imports only typed contracts from `spec/` once those exist — see the DTO gap note below.
 - **UI YAML parser**: **`js-yaml`** — locked at Step 0c when the prototype's mock-collection loader first needs to parse frontmatter in the browser. The second candidate (`yaml`) was dropped at pick time; revisit only if the impl-side pick diverges.
+
+### UI-only deps (Step 0c onwards)
+
+These deps live in `ui/package.json` only. The kernel does NOT import them and MUST never gain a transitive path to them — they stay on the UI side of the workspace boundary.
+
+- **`js-yaml`** (+ `@types/js-yaml`) — frontmatter parsing in the browser. Locked above; duplicated here so a reader of §UI-only deps has the full picture.
+- **`@dagrejs/dagre`** — hierarchical graph auto-layout. Consumes `{ nodes, edges }`, returns `{ x, y }` per node; rendering stays with Foblex. Picked over the inactive `dagre` package (the `@dagrejs/*` scope is the maintained fork). No viable Angular-native alternative at Step 0c pick time; revisit only if Foblex ships its own layout primitive that covers the same cases.
+- **`primeng`** + **`@primeuix/themes`** — already captured in §UI framework.
+- **`@foblex/flow`** + peers — already captured in §Node-based UI library.
 - **DB**: SQLite via `node:sqlite` (zero native deps).
 - **Data-access**: **Kysely + CamelCasePlugin** (typed query builder, not an ORM).
 - **Logger**: `pino` (JSON lines).
@@ -1225,7 +1234,7 @@ The §Architecture section ("The kernel never imports Angular; `ui/` never impor
 
 Sequential build path. Each step ships green tests before the next begins.
 
-> ▶ **Completeness marker (2026-04-22)**: Steps **0a** and **0b** are **complete**. **Step 0c — UI prototype** is **near complete**: workspace scaffolded, stack locked (Angular 21 standalone + Foblex Flow + PrimeNG + `@primeuix/themes` + SCSS scoped), mock collection at `ui/mock-collection/` covering all five kinds, list + inspector + graph (Foblex + Dagre) views landed, cross-view filters landed, simulated event-flow panel landed. Remaining: roadmap review pass. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 9, needs `sm job preview`), YAML parser picked at Step 0c (`js-yaml`) but remaining tech picks (MD parser, templating, pretty CLI, globbing, diff) still deferred to the step that first needs them, and typed-DTO emission from `@skill-map/spec` deferred to Step 1b (see §DTO gap).
+> ▶ **Completeness marker (2026-04-22)**: Steps **0a**, **0b**, and **0c** are **complete**. Step 0c shipped Flavor A end-to-end (list + inspector + graph + filters + simulated event flow + dark-mode toggle) and closed the review pass with the decisions itemised in §Step 0c → Review-pass decisions. Next step: **Step 1a — Storage + migrations**. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 9, needs `sm job preview`), remaining tech picks (MD renderer, templating, pretty CLI, globbing, diff — each lands at the step that first needs it; MD renderer specifically flagged under Step 12 open picks), typed-DTO emission from `@skill-map/spec` deferred to Step 1b (see §DTO gap), URL-synced filter state + responsive support + bundle-budget compliance + UI a11y baseline (Decision #74f) all deferred to Step 12.
 
 > ▶ **Release version scheme**: `v0.1.0` was spent on the Step 0b bootstrap — the impl package (`skill-map`) is `private: true` until `v0.5.0`, so changesets bump the version internally without publishing to npm. `v0.5.0` is the deterministic offline release, `v0.8.0` adds the optional LLM layer, and `v1.0.0` is the full distributable release. Intermediate `v0.2.0`–`v0.4.x` cover Steps 0c through 8, `v0.5.1`–`v0.7.x` cover Steps 9–10, and `v0.8.1`–`v0.9.x` cover Steps 11–13. Each minor is driven by a changeset, never by a hand bump. Numbers refer to the `skill-map` (impl) package; `@skill-map/spec` versions independently per decision #77 and may skip entries.
 
@@ -1250,7 +1259,7 @@ Sequential build path. Each step ships green tests before the next begins.
 - CI green with 0 real features.
 - Remaining tech stack picks (YAML parser, MD parsing, templating, pretty CLI, globbing, diff) are deferred to the step that first needs them — lock-in-abstract rejected.
 
-### Step 0c — UI prototype (Flavor A) — ▶ near complete
+### Step 0c — UI prototype (Flavor A) — ✅ complete
 
 - **Stack locked**: Angular 21 standalone + Foblex Flow (node-based UI) + PrimeNG + `@primeuix/themes` (the legacy `@primeng/themes` package is deprecated upstream and intentionally avoided) + SCSS scoped (no utility CSS). ✅ landed.
 - `ui/` npm workspace created as peer of `spec/` and `src/`. Root `package.json` workspaces array now `["spec", "src", "ui"]`; hoisted single-lockfile install verified. ✅ landed.
@@ -1262,7 +1271,18 @@ Sequential build path. Each step ships green tests before the next begins.
 - Graph view — Foblex Flow canvas with Dagre TB auto-layout, cards coloured by kind, edges for `supersedes` / `requires` / `related` (dedup'd across both-sides declarations), filter-aware (filtered-out nodes remove themselves and any dangling edges), click-to-inspect, Fit button, legend. ✅ landed.
 - Filter bar — shared component mounted in both list and graph views, text search + kind multi-select + stability multi-select + contextual Reset. ✅ landed.
 - Simulated event flow — collapsible bottom event-log panel showing `scan.started` / `scan.progress` / `scan.completed` + synthetic `issue.added` for deprecated nodes, auto-scroll, Clear, live "scanning" indicator. Triggered by a Simulate-scan button in the shell topbar. ✅ landed.
-- Roadmap review pass after completion. ⏳ remaining — this is the explicit pause point before Step 1 starts; it may surface spec gaps (typed DTOs under Step 1b, body markdown renderer, URL-synced filter state, accessibility audit) that become numbered Decisions or roadmap edits.
+- Dark mode toggle — light ↔ dark persisted to localStorage, applies `.app-dark` to the document element (matching the `darkModeSelector` registered in `providePrimeNG`). Icon-only button in the topbar. ✅ landed.
+- Roadmap review pass. ✅ landed as part of this section.
+
+**Review-pass decisions (applied 2026-04-22)**:
+
+- **Kind classifier is throwaway**. The path-based classifier in `ui/src/services/collection-loader.ts` is prototype-only: the real classification lives in the claude adapter at Step 2, and the ui-side classifier is deleted when Step 12 consumes the kernel's real scanner output. The duplication is intentional for Step 0c — isolating the UI from the kernel is the whole point of Flavor A.
+- **Simulator + event log are throwaway**. `EventBusService` and `ScanSimulatorService` (+ the `EventLog` component) exist only to give the Step 0c prototype something to render. Step 12 replaces both surfaces with the real WebSocket broadcaster consuming `spec/job-events.md` payloads; the simulator file is deleted at that transition. No Decision log row — it is prototype scope, not a locked-in architectural choice.
+- **Desktop-only**. Flavor A assumes ≥1024px viewport. No responsive or mobile work. Step 12 may revisit once the full UI's surfaces and interactions are settled.
+- **Bundle size is not a Flavor A objective**. Development bundles clock ~1.86MB initial, well above the `angular.json` production budgets (500 KB warn / 1 MB error); those budgets remain armed because they are the right targets for Step 12. Step 0c is `ng serve` / local-dev only, not distributed.
+- **Wildcard route fallback**: `**` → `/list`. Bad deep links self-heal to the default view rather than surfacing a 404.
+- **Fallback kind**: the loader classifies unknown paths as `note`. It is the catch-all by spec convention ("everything else"); alternatives would require a user choice at Flavor A which is premature.
+- **URL-synced filter state: open item.** Filter state lives in memory for Step 0c (ergonomics first). Bookmarkable URLs are deferred to Step 12 once the full-UI routing surface is settled; the option to promote `FilterStore` to URL-first is noted here so the decision has a place to land.
 
 ### Step 1 — Kernel skeleton (split into three sub-steps)
 
@@ -1397,6 +1417,15 @@ Acceptance: adding a 4th detector is a pure drop-in. Zero kernel touches. Step 3
 - Inspector panel with enrichment + summary + findings.
 - Command submit from UI via WS.
 - Wire the `chokidar` watcher introduced in Step 6 into the WS broadcaster so file changes stream to the UI live.
+
+**Open picks deferred from Step 0c review pass** (must land by Step 12 ship):
+
+- **MD body renderer for the inspector** — the Step 0c prototype renders the frontmatter's markdown body as raw text inside a `<pre>`. Picking a library at Step 0c would be lock-in-abstract; the pick lands here with concrete requirements (safe-by-default HTML, GFM coverage, syntax-highlight hook). Candidates to evaluate: `marked`, `markdown-it`, `remark` + `rehype`. Sanitisation approach decided with the pick.
+- **Foblex Flow type strictness** — at Step 0c the Foblex API surface is TypeScript-typed but permissive in several places (connectable-side enum aliases, template props). This is a flag, not an action item: if Step 12 needs strict type safety at the integration boundary, re-evaluate alongside any Foblex bump; otherwise stay on the current version line.
+- **URL-synced filter state** — `FilterStore` lives in memory at Step 0c. Promote to URL-first here once the full routing surface is settled.
+- **Responsive / mobile support** — Flavor A is desktop-only; decide scope here.
+- **Bundle budget compliance** — prod budgets in `angular.json` stay armed (500 KB warn / 1 MB error); Step 12 includes the tree-shake + route-splitting pass that brings Flavor B under those.
+- **Dark mode**: Step 0c ships a working toggle; Step 12 decides if it grows into a system-preference-aware tri-state and gains palette-level customisation.
 
 ### Step 13 — Distribution polish
 
@@ -1557,6 +1586,8 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 | 74c | BFF mandate | Single-port: `sm serve` exposes SPA + REST + WS under one listener. Dev uses Angular dev server with `proxy.conf.json` → Hono for `/api` and `/ws`; prod uses Hono + `serveStatic`. |
 | 74d | BFF framework | **Hono**, thin proxy over the kernel. No domain logic, no second DI. NestJS considered and rejected as over-engineered for a single-client BFF. |
 | 74e | WebSocket library | Server: `hono/ws` + `@hono/node-ws` — co-located with the Hono router, same listener as REST (single-port). Client: browser-native `WebSocket` or Node 24 global `WebSocket` — no extra dep. `ws` rejected (duplicates multiplex glue). |
+| 74f | UI accessibility baseline | **Audited at Step 12 close, not Step 0c.** The Flavor A prototype carries basic semantics (labels, alt, focus) but does not commit to a WCAG level; its component composition differs enough from Flavor B (full UI) that auditing now is re-work. The baseline target (WCAG 2.1 AA) and the audit tooling (axe-core, keyboard walk) lock when Step 12 ships. |
+| 74g | Graph auto-layout library | **`@dagrejs/dagre`** — hierarchical layout consumed by the graph view. UI-only dep; the kernel does not import it. Picked over the inactive `dagre` package (the `@dagrejs/*` scope is the maintained fork). Revisit only if Foblex ships an in-house layout primitive that covers the same cases. |
 | 75 | Det vs prob refresh | Two buttons per node in UI, two verbs in CLI, two distinct pipes. |
 
 ### Spec

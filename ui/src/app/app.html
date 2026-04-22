@@ -25,6 +25,15 @@
         [loading]="scanRunning()"
         (onClick)="simulateScan()"
       />
+      <p-button
+        [icon]="themeIcon()"
+        [ariaLabel]="themeLabel()"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        (onClick)="toggleTheme()"
+      />
       <div class="shell__badge" aria-live="polite">
         <strong>{{ count() }}</strong> nodes
       </div>
