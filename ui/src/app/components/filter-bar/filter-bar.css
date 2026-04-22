@@ -1,0 +1,23 @@
+:host {
+  display: block;
+}
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.filter-bar__search {
+  flex: 1 1 320px;
+  min-width: 280px;
+}
+
+.filter-bar__search input {
+  width: 100%;
+}
+
+.filter-bar__ms {
+  min-width: 180px;
+}

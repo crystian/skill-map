@@ -4,8 +4,11 @@ import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
+import { ButtonModule } from 'primeng/button';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
+import { FilterStoreService } from '../../../services/filter-store';
+import { FilterBar } from '../../components/filter-bar/filter-bar';
 import type { TNodeKind, TNodeView, TStability } from '../../../models/node';
 
 interface IListRow {
@@ -35,28 +38,41 @@ const KIND_SEVERITY: Record<TNodeKind, 'info' | 'success' | 'warn' | 'danger' | 
 @Component({
   selector: 'app-list-view',
   standalone: true,
-  imports: [TableModule, TagModule, ProgressSpinnerModule, MessageModule],
+  imports: [
+    FilterBar,
+    TableModule,
+    TagModule,
+    ProgressSpinnerModule,
+    MessageModule,
+    ButtonModule,
+  ],
   templateUrl: './list-view.html',
   styleUrl: './list-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ListView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
+  private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
+  readonly total = this.loader.count;
+  readonly filtersActive = this.filters.isActive;
 
-  readonly rows = computed<IListRow[]>(() =>
-    this.loader.nodes().map((node) => ({
+  readonly rows = computed<IListRow[]>(() => {
+    const filtered = this.filters.apply(this.loader.nodes());
+    return filtered.map((node) => ({
       path: node.path,
       kind: node.kind,
       name: node.frontmatter.name ?? '—',
       version: node.frontmatter.metadata?.version ?? '—',
       stability: (node.frontmatter.metadata?.stability as TStability | undefined) ?? '—',
       node,
-    })),
-  );
+    }));
+  });
+
+  readonly visibleCount = computed(() => this.rows().length);
 
   ngOnInit(): void {
     if (this.loader.nodes().length === 0 && !this.loader.loading()) {
@@ -74,5 +90,9 @@ export class ListView implements OnInit {
 
   openInspector(row: IListRow): void {
     void this.router.navigate(['/inspector'], { queryParams: { path: row.path } });
+  }
+
+  resetFilters(): void {
+    this.filters.reset();
   }
 }

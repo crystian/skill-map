@@ -1,0 +1,46 @@
+<div class="filter-bar">
+  <p-iconfield iconPosition="left" class="filter-bar__search">
+    <p-inputicon styleClass="pi pi-search" />
+    <input
+      pInputText
+      type="text"
+      placeholder="Search path, name, description…"
+      [ngModel]="searchText()"
+      (ngModelChange)="onSearchChange($event)"
+    />
+  </p-iconfield>
+
+  <p-multiselect
+    [options]="kindOptions"
+    [ngModel]="selectedKinds()"
+    (ngModelChange)="onKindsChange($event)"
+    optionLabel="label"
+    optionValue="value"
+    placeholder="All kinds"
+    display="chip"
+    styleClass="filter-bar__ms"
+    [showToggleAll]="false"
+  />
+
+  <p-multiselect
+    [options]="stabilityOptions"
+    [ngModel]="selectedStabilities()"
+    (ngModelChange)="onStabilitiesChange($event)"
+    optionLabel="label"
+    optionValue="value"
+    placeholder="All stabilities"
+    display="chip"
+    styleClass="filter-bar__ms"
+    [showToggleAll]="false"
+  />
+
+  @if (isActive()) {
+    <p-button
+      label="Reset"
+      severity="secondary"
+      [text]="true"
+      size="small"
+      (onClick)="reset()"
+    />
+  }
+</div>

@@ -1,0 +1,300 @@
+@if (!path()) {
+  <section class="inspector inspector--empty">
+    <h2>Inspector</h2>
+    <p>No node selected. Pick one from the <a routerLink="/list">list</a>.</p>
+  </section>
+} @else if (!node()) {
+  <section class="inspector inspector--empty">
+    <h2>Inspector</h2>
+    <p>
+      Node not found: <code>{{ path() }}</code>.
+      <a routerLink="/list">Back to list</a>.
+    </p>
+  </section>
+} @else {
+  @let n = node()!;
+  @let fm = n.frontmatter;
+  @let meta = fm.metadata;
+
+  <section class="inspector">
+    <header class="inspector__header">
+      <div class="inspector__title">
+        <p-tag [value]="n.kind" [severity]="kindSeverity(n.kind)" />
+        @if (meta?.stability) {
+          <p-tag
+            [value]="meta!.stability!"
+            [severity]="stabilitySeverity(meta!.stability!)"
+            [rounded]="true"
+          />
+        }
+        <h2>{{ fm.name }}</h2>
+      </div>
+      <a routerLink="/list" class="inspector__back">&larr; back to list</a>
+    </header>
+
+    <p class="inspector__path">
+      <code>{{ n.path }}</code>
+    </p>
+
+    <p class="inspector__desc">{{ fm.description }}</p>
+
+    <div class="inspector__grid">
+      <!-- Metadata card -->
+      <p-card header="Metadata" styleClass="inspector__card">
+        <dl class="kv">
+          <dt>Version</dt>
+          <dd><code>{{ meta?.version ?? '—' }}</code></dd>
+
+          @if (fm.author) {
+            <dt>Author</dt>
+            <dd>{{ fm.author }}</dd>
+          }
+          @if (fm.authors?.length) {
+            <dt>Authors</dt>
+            <dd>{{ fm.authors!.join(', ') }}</dd>
+          }
+          @if (fm.license) {
+            <dt>License</dt>
+            <dd>{{ fm.license }}</dd>
+          }
+          @if (meta?.created) {
+            <dt>Created</dt>
+            <dd>{{ meta!.created }}</dd>
+          }
+          @if (meta?.updated) {
+            <dt>Updated</dt>
+            <dd>{{ meta!.updated }}</dd>
+          }
+          @if (meta?.released) {
+            <dt>Released</dt>
+            <dd>{{ meta!.released }}</dd>
+          }
+          @if (meta?.category) {
+            <dt>Category</dt>
+            <dd>{{ meta!.category }}</dd>
+          }
+          @if (meta?.specCompat) {
+            <dt>Spec compat</dt>
+            <dd><code>{{ meta!.specCompat }}</code></dd>
+          }
+        </dl>
+
+        @if (meta?.tags?.length) {
+          <h4>Tags</h4>
+          <div class="chips">
+            @for (t of meta!.tags!; track t) {
+              <p-chip [label]="t" />
+            }
+          </div>
+        }
+      </p-card>
+
+      <!-- Kind-specific card -->
+      @if (asAgent(); as agent) {
+        <p-card header="Agent" styleClass="inspector__card">
+          <dl class="kv">
+            <dt>Model</dt>
+            <dd><code>{{ agent.model ?? '—' }}</code></dd>
+          </dl>
+        </p-card>
+      }
+
+      @if (asCommand(); as cmd) {
+        <p-card header="Command" styleClass="inspector__card">
+          <dl class="kv">
+            @if (cmd.shortcut) {
+              <dt>Shortcut</dt>
+              <dd><code>{{ cmd.shortcut }}</code></dd>
+            }
+          </dl>
+          @if (cmd.args?.length) {
+            <h4>Arguments</h4>
+            <ul class="args">
+              @for (arg of cmd.args!; track arg.name) {
+                <li>
+                  <code>{{ arg.name }}</code>
+                  @if (arg.type) { <span class="args__type">: {{ arg.type }}</span> }
+                  @if (arg.required) { <span class="args__req">required</span> }
+                  @if (arg.description) { — {{ arg.description }} }
+                </li>
+              }
+            </ul>
+          }
+        </p-card>
+      }
+
+      @if (asHook(); as hook) {
+        <p-card header="Hook" styleClass="inspector__card">
+          <dl class="kv">
+            <dt>Event</dt>
+            <dd><code>{{ hook.event ?? '—' }}</code></dd>
+            @if (hook.condition) {
+              <dt>Condition</dt>
+              <dd><code class="cond">{{ hook.condition }}</code></dd>
+            }
+            <dt>Blocking</dt>
+            <dd>{{ hook.blocking ? 'yes' : 'no' }}</dd>
+            <dt>Idempotent</dt>
+            <dd>{{ hook.idempotent ? 'yes' : 'no' }}</dd>
+          </dl>
+        </p-card>
+      }
+
+      @if (asSkill(); as skill) {
+        <p-card header="Skill" styleClass="inspector__card">
+          @if (skill.inputs?.length) {
+            <h4>Inputs</h4>
+            <ul class="args">
+              @for (input of skill.inputs!; track input.name) {
+                <li>
+                  <code>{{ input.name }}</code>
+                  @if (input.type) { <span class="args__type">: {{ input.type }}</span> }
+                  @if (input.required) { <span class="args__req">required</span> }
+                  @if (input.description) { — {{ input.description }} }
+                </li>
+              }
+            </ul>
+          }
+          @if (skill.outputs?.length) {
+            <h4>Outputs</h4>
+            <ul class="args">
+              @for (output of skill.outputs!; track output.name) {
+                <li>
+                  <code>{{ output.name }}</code>
+                  @if (output.type) { <span class="args__type">: {{ output.type }}</span> }
+                  @if (output.description) { — {{ output.description }} }
+                </li>
+              }
+            </ul>
+          }
+        </p-card>
+      }
+
+      <!-- Relations card -->
+      @if (
+        meta?.supersedes?.length
+        || meta?.supersededBy
+        || meta?.requires?.length
+        || meta?.related?.length
+        || meta?.provides?.length
+        || meta?.conflictsWith?.length
+      ) {
+        <p-card header="Relations" styleClass="inspector__card inspector__card--full">
+          @if (meta?.supersededBy) {
+            <h4>Superseded by</h4>
+            <div class="chips">
+              <p-chip
+                [label]="meta!.supersededBy!"
+                [styleClass]="pathExists(meta!.supersededBy!) ? 'chip--link' : 'chip--dead'"
+                (click)="pathExists(meta!.supersededBy!) && openPath(meta!.supersededBy!)"
+              />
+            </div>
+          }
+          @if (meta?.supersedes?.length) {
+            <h4>Supersedes</h4>
+            <div class="chips">
+              @for (p of meta!.supersedes!; track p) {
+                <p-chip
+                  [label]="p"
+                  [styleClass]="pathExists(p) ? 'chip--link' : 'chip--dead'"
+                  (click)="pathExists(p) && openPath(p)"
+                />
+              }
+            </div>
+          }
+          @if (meta?.requires?.length) {
+            <h4>Requires</h4>
+            <div class="chips">
+              @for (p of meta!.requires!; track p) {
+                <p-chip
+                  [label]="p"
+                  [styleClass]="pathExists(p) ? 'chip--link' : 'chip--dead'"
+                  (click)="pathExists(p) && openPath(p)"
+                />
+              }
+            </div>
+          }
+          @if (meta?.related?.length) {
+            <h4>Related</h4>
+            <div class="chips">
+              @for (p of meta!.related!; track p) {
+                <p-chip
+                  [label]="p"
+                  [styleClass]="pathExists(p) ? 'chip--link' : 'chip--dead'"
+                  (click)="pathExists(p) && openPath(p)"
+                />
+              }
+            </div>
+          }
+          @if (meta?.provides?.length) {
+            <h4>Provides</h4>
+            <div class="chips">
+              @for (p of meta!.provides!; track p) {
+                <p-chip [label]="p" />
+              }
+            </div>
+          }
+          @if (meta?.conflictsWith?.length) {
+            <h4>Conflicts with</h4>
+            <div class="chips">
+              @for (p of meta!.conflictsWith!; track p) {
+                <p-chip [label]="p" styleClass="chip--warn" />
+              }
+            </div>
+          }
+        </p-card>
+      }
+
+      <!-- Tools card -->
+      @if (fm.tools?.length || fm.allowedTools?.length) {
+        <p-card header="Tools" styleClass="inspector__card">
+          @if (fm.tools?.length) {
+            <h4>Tools (allowlist)</h4>
+            <div class="chips">
+              @for (t of fm.tools!; track t) {
+                <p-chip [label]="t" />
+              }
+            </div>
+          }
+          @if (fm.allowedTools?.length) {
+            <h4>Allowed tools (pre-approved)</h4>
+            <div class="chips">
+              @for (t of fm.allowedTools!; track t) {
+                <p-chip [label]="t" />
+              }
+            </div>
+          }
+        </p-card>
+      }
+
+      <!-- External refs card -->
+      @if (meta?.source || meta?.docsUrl || meta?.homepage || meta?.examplesUrl) {
+        <p-card header="External" styleClass="inspector__card">
+          <dl class="kv">
+            @if (meta?.source) {
+              <dt>Source</dt>
+              <dd><a [href]="meta!.source" target="_blank" rel="noopener">{{ meta!.source }}</a></dd>
+            }
+            @if (meta?.docsUrl) {
+              <dt>Docs</dt>
+              <dd><a [href]="meta!.docsUrl" target="_blank" rel="noopener">{{ meta!.docsUrl }}</a></dd>
+            }
+            @if (meta?.homepage) {
+              <dt>Homepage</dt>
+              <dd><a [href]="meta!.homepage" target="_blank" rel="noopener">{{ meta!.homepage }}</a></dd>
+            }
+            @if (meta?.examplesUrl) {
+              <dt>Examples</dt>
+              <dd><a [href]="meta!.examplesUrl" target="_blank" rel="noopener">{{ meta!.examplesUrl }}</a></dd>
+            }
+          </dl>
+        </p-card>
+      }
+    </div>
+
+    <!-- Body -->
+    <p-card header="Body (raw markdown)" styleClass="inspector__body">
+      <pre>{{ n.body.trim() || '(empty)' }}</pre>
+    </p-card>
+  </section>
+}

@@ -8,6 +8,13 @@
   gap: 1rem;
 }
 
+.list__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .list__header h2 {
   margin: 0;
   font-size: 1.25rem;
