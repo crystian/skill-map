@@ -8,7 +8,7 @@
   ],
   "type": "object",
   "required": ["id", "kind", "version", "mode", "reportSchemaRef"],
-  "additionalProperties": false,
+  "unevaluatedProperties": false,
   "properties": {
     "kind": { "const": "action" },
     "mode": {
@@ -32,7 +32,7 @@
     "precondition": {
       "type": "object",
       "description": "Declarative filter that nodes must satisfy for this action to be applicable. Consumed by `--all` fan-out, UI button gating, `sm actions show`.",
-      "additionalProperties": false,
+      "unevaluatedProperties": false,
       "properties": {
         "kind": {
           "type": "array",

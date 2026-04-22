@@ -2,10 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/base.schema.json",
   "title": "ExtensionBase",
-  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`adapter`, `detector`, `rule`, `action`, `audit`, `renderer`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. `additionalProperties: false` — the extension manifest shape is kernel-controlled and unknown keys are a bug.",
+  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`adapter`, `detector`, `rule`, `action`, `audit`, `renderer`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition. Adding closure here too would force every kind schema to re-list every base key, which is the footgun the spec used to trip on before 2026-04-22.",
   "type": "object",
   "required": ["id", "kind", "version"],
-  "additionalProperties": false,
   "properties": {
     "id": {
       "type": "string",

@@ -8,7 +8,7 @@
   ],
   "type": "object",
   "required": ["id", "kind", "version", "emitsLinkKinds", "defaultConfidence"],
-  "additionalProperties": false,
+  "unevaluatedProperties": false,
   "properties": {
     "kind": { "const": "detector" },
     "emitsLinkKinds": {

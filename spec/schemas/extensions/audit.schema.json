@@ -8,7 +8,7 @@
   ],
   "type": "object",
   "required": ["id", "kind", "version", "composes", "reportSchemaRef"],
-  "additionalProperties": false,
+  "unevaluatedProperties": false,
   "properties": {
     "kind": { "const": "audit" },
     "composes": {
@@ -18,7 +18,7 @@
       "items": {
         "type": "object",
         "required": ["kind", "id"],
-        "additionalProperties": false,
+        "unevaluatedProperties": false,
         "properties": {
           "kind": { "type": "string", "enum": ["rule", "action"] },
           "id": { "type": "string" },
@@ -37,7 +37,7 @@
     "exitCodeMap": {
       "type": "object",
       "description": "How the audit report maps to CLI exit codes. Absent → standard behaviour: exit 0 on pass, 1 on any error-severity issue, 2 on operational error.",
-      "additionalProperties": false,
+      "unevaluatedProperties": false,
       "properties": {
         "pass": { "type": "integer", "default": 0 },
         "fail": { "type": "integer", "default": 1 }
