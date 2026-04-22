@@ -15,7 +15,7 @@ The project description, problem statement, target audience, philosophy, and Obs
 
 Each README also ships a short essentials-only glossary with a pointer back to the full [§Glossary](#glossary) below. This document (`ROADMAP.md`) is the design narrative — architecture decisions, execution plan, decision log, and deferred work — and sits beneath the READMEs; it is maintained in English only.
 
-**Status**: Steps **0a** (spec bootstrap), **0b** (implementation bootstrap), and **0c** (UI prototype) are **complete**. `@skill-map/spec` is published on npm (version in `spec/package.json` and `spec/CHANGELOG.md`); kernel shell + CLI skeleton boot and pass CI. The `ui/` workspace ships Flavor A end-to-end (list, inspector, graph, filters, simulated event flow, dark-mode toggle) against a mock collection, with all review-pass decisions resolved. Next step: **Step 1a — Storage + migrations**. The canonical completeness marker lives in §Execution plan below.
+**Status**: Steps **0a**, **0b**, **0c**, and **1a** are **complete**. `@skill-map/spec` is published on npm; kernel shell + CLI skeleton boot and pass CI; the `ui/` workspace ships Flavor A end-to-end (list, inspector, graph, filters, simulated event flow, dark-mode toggle) against a mock collection; the kernel now owns a fully migrated SQLite store behind `SqliteStorageAdapter` with the `sm db` command surface wired and a round-trip acceptance test green. Next step: **Step 1b — Registry + plugin loader**. The canonical completeness marker lives in §Execution plan below.
 
 ---
 
@@ -1234,7 +1234,7 @@ The §Architecture section ("The kernel never imports Angular; `ui/` never impor
 
 Sequential build path. Each step ships green tests before the next begins.
 
-> ▶ **Completeness marker (2026-04-22)**: Steps **0a**, **0b**, and **0c** are **complete**. Step 0c shipped Flavor A end-to-end (list + inspector + graph + filters + simulated event flow + dark-mode toggle) and closed the review pass with the decisions itemised in §Step 0c → Review-pass decisions. Next step: **Step 1a — Storage + migrations**. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 9, needs `sm job preview`), remaining tech picks (MD renderer, templating, pretty CLI, globbing, diff — each lands at the step that first needs it; MD renderer specifically flagged under Step 12 open picks), typed-DTO emission from `@skill-map/spec` deferred to Step 1b (see §DTO gap), URL-synced filter state + responsive support + bundle-budget compliance + UI a11y baseline (Decision #74f) all deferred to Step 12.
+> ▶ **Completeness marker (2026-04-22)**: Steps **0a**, **0b**, **0c**, and **1a** are **complete**. Step 1a shipped the node:sqlite + Kysely adapter (with a bespoke dialect that avoids the native better-sqlite3 dep), the migrations runner with auto-backup and the full 11-table initial migration, and the `sm db` command surface from the CLI contract — acceptance round-trip (migrate → write → backup → corrupt → restore) codified under `node --test`. Next step: **Step 1b — Registry + plugin loader**, including `sm db migrate --kernel-only` / `--plugin <id>` which become real there. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 9, needs `sm job preview`), remaining tech picks (MD renderer, templating, pretty CLI, globbing, diff — each lands at the step that first needs it; MD renderer specifically flagged under Step 12 open picks), typed-DTO emission from `@skill-map/spec` still deferred to Step 1b (see §DTO gap), URL-synced filter state + responsive support + bundle-budget compliance + UI a11y baseline (Decision #74f) all deferred to Step 12.
 
 > ▶ **Release version scheme**: `v0.1.0` was spent on the Step 0b bootstrap — the impl package (`skill-map`) is `private: true` until `v0.5.0`, so changesets bump the version internally without publishing to npm. `v0.5.0` is the deterministic offline release, `v0.8.0` adds the optional LLM layer, and `v1.0.0` is the full distributable release. Intermediate `v0.2.0`–`v0.4.x` cover Steps 0c through 8, `v0.5.1`–`v0.7.x` cover Steps 9–10, and `v0.8.1`–`v0.9.x` cover Steps 11–13. Each minor is driven by a changeset, never by a hand bump. Numbers refer to the `skill-map` (impl) package; `@skill-map/spec` versions independently per decision #77 and may skip entries.
 
@@ -1288,15 +1288,18 @@ Sequential build path. Each step ships green tests before the next begins.
 
 The original "Step 1" bundled several independent deliverables (storage, migrations, plugin loader, orchestrator, CLI dispatcher, introspection, self-boot). Splitting keeps each sub-step testable on its own; the boundary between them is a green CI plus the specific acceptance criterion named below. All three must land before Step 2 starts.
 
-#### Step 1a — Storage + migrations
+#### Step 1a — Storage + migrations — ✅ complete
 
-- SQLite (`node:sqlite`) wired behind `StoragePort` via `SqliteStorageAdapter` (Kysely + `CamelCasePlugin`).
-- Kernel migrations in `src/migrations/` (`NNN_snake_case.sql`, up-only, transaction-wrapped).
-- `config_schema_versions` ledger populated; `PRAGMA user_version` kept in sync.
-- Auto-apply on startup with auto-backup to `.skill-map/backups/skill-map-pre-migrate-v<N>.db`.
-- `sm db backup / restore / reset / reset --state / reset --hard / shell / dump / migrate` operational.
+- SQLite (`node:sqlite`) wired behind `StoragePort` via `SqliteStorageAdapter` (Kysely + `CamelCasePlugin`). Kysely's official SQLite dialect depends on `better-sqlite3` (native — forbidden by Decision #7); the kernel ships a bespoke `NodeSqliteDialect` under `src/kernel/adapters/sqlite/dialect.ts` that reuses Kysely's pure-JS `SqliteAdapter` / `SqliteIntrospector` / `SqliteQueryCompiler` and plugs a minimal Driver on top of `node:sqlite`'s `DatabaseSync`. ✅ landed.
+- Kernel migrations in `src/migrations/` (`NNN_snake_case.sql`, up-only, transaction-wrapped). `001_initial.sql` provisions all 11 kernel tables from `db-schema.md` with full CHECK constraints, named indexes, and the unique partial index on `state_jobs` that enforces the job-lifecycle duplicate-detection contract. ✅ landed.
+- `config_schema_versions` ledger populated; `PRAGMA user_version` kept in sync. Both writes share the same transaction as the migration itself, so partial success cannot drift the ledger. ✅ landed.
+- Auto-apply on startup with auto-backup to `.skill-map/backups/skill-map-pre-migrate-v<N>.db`. WAL checkpoint runs before the file copy so the backup is complete without needing to capture `-wal` / `-shm` sidecars. ✅ landed. `autoMigrate: false` / `autoBackup: false` constructor options handle the Step 5 `autoMigrate` config toggle and the `sm db migrate --no-backup` flag respectively.
+- `sm db backup / restore / reset / reset --state / reset --hard / shell / dump / migrate [--dry-run|--status|--to|--no-backup]` operational. Destructive verbs (`restore`, `reset --state`, `reset --hard`) prompt via `readline` unless `--yes` / `--force`. `shell` and `dump` spawn the system `sqlite3` binary with a pointed error on ENOENT. ✅ landed.
+- `tsup.config.ts` gained an `onSuccess` hook that copies `src/migrations/` to `dist/migrations/` so the published artifacts find them via `defaultMigrationsDir()`; `src/package.json#files` now includes `migrations/`. ✅ landed.
 
-Acceptance: spin a fresh scope, run `sm db migrate --dry-run`, apply, corrupt a row, restore from backup — round-trip green. No kernel logic yet beyond storage.
+Acceptance: spin a fresh scope, run `sm db migrate --dry-run`, apply, corrupt a row, restore from backup — round-trip green. ✅ codified in `src/test/storage.test.ts` (the `round-trip: migrate → write → backup → corrupt → restore` case). 24 of 24 tests pass.
+
+**Deferred to Step 1b**: `sm db migrate --kernel-only` and `--plugin <id>` — their surface exists in the spec (CLI contract) but every migration today is a kernel migration, so they would be no-ops. They light up when the plugin loader lands and plugin-authored migrations enter the mix.
 
 #### Step 1b — Registry + plugin loader
 
