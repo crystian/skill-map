@@ -1,0 +1,63 @@
+:host {
+  display: block;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.list__header h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.list__sub {
+  margin: 0.25rem 0 0;
+  color: var(--p-text-muted-color, #666);
+  font-size: 0.9rem;
+}
+
+.list__loading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: var(--p-text-muted-color, #666);
+}
+
+.list__table {
+  width: 100%;
+}
+
+.list__row {
+  cursor: pointer;
+}
+
+.list__row:hover {
+  background: var(--p-surface-100, #f3f4f6);
+}
+
+.list__cell-name {
+  font-weight: 500;
+}
+
+.list__row code {
+  font-size: 0.8rem;
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    monospace;
+  color: var(--p-text-muted-color, #555);
+}
+
+.list__empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--p-text-muted-color, #666);
+}

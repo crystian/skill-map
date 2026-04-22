@@ -1,44 +1,25 @@
-<main class="shell">
-  <header class="shell__header">
-    <h1>skill-map · ui prototype</h1>
-    <p class="shell__sub">
-      Step 0c smoke · loads <code>/mock-collection/index.json</code> and parses every listed
-      <code>.md</code> client-side (js-yaml + regex frontmatter split).
-    </p>
+<div class="shell">
+  <header class="shell__topbar">
+    <div class="shell__brand">
+      <span class="shell__brand-mark">sm</span>
+      <div>
+        <h1>skill-map</h1>
+        <p class="shell__tag">ui prototype · Step 0c</p>
+      </div>
+    </div>
+
+    <nav class="shell__nav" aria-label="View switcher">
+      <a routerLink="/list" routerLinkActive="is-active">List</a>
+      <a routerLink="/graph" routerLinkActive="is-active">Graph</a>
+      <a routerLink="/inspector" routerLinkActive="is-active">Inspector</a>
+    </nav>
+
+    <div class="shell__badge" aria-live="polite">
+      <strong>{{ count() }}</strong> nodes
+    </div>
   </header>
 
-  @if (loading()) {
-    <p class="shell__status">Loading collection…</p>
-  }
-
-  @if (error()) {
-    <p class="shell__status shell__status--error">Error: {{ error() }}</p>
-  }
-
-  @if (!loading() && !error()) {
-    <section class="shell__summary">
-      <p><strong>{{ count() }}</strong> nodes loaded.</p>
-      <ul class="shell__kinds">
-        @for (row of kindSummary(); track row.kind) {
-          <li><span class="kind kind--{{ row.kind }}">{{ row.kind }}</span> {{ row.count }}</li>
-        }
-      </ul>
-    </section>
-
-    <section class="shell__list">
-      <h2>First 5 nodes (raw preview)</h2>
-      <ol>
-        @for (node of nodes().slice(0, 5); track node.path) {
-          <li>
-            <code>{{ node.path }}</code>
-            <span class="kind kind--{{ node.kind }}">{{ node.kind }}</span>
-            — {{ node.frontmatter.name }} ·
-            <em>v{{ node.frontmatter.metadata.version }}</em>
-          </li>
-        }
-      </ol>
-    </section>
-  }
-
-  <router-outlet />
-</main>
+  <main class="shell__main">
+    <router-outlet />
+  </main>
+</div>

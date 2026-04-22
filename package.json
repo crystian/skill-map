@@ -15,6 +15,7 @@
     "ui"
   ],
   "scripts": {
+    "start": "npm start --workspace=ui",
     "spec:index": "node scripts/build-spec-index.mjs",
     "spec:check": "node scripts/build-spec-index.mjs --check && node scripts/check-coverage.mjs",
     "spec:coverage": "node scripts/check-coverage.mjs",

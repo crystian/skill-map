@@ -1,0 +1,72 @@
+<section class="list">
+  <header class="list__header">
+    <h2>Nodes</h2>
+    <p class="list__sub">
+      Flat view of the collection. Click a row to open the inspector.
+    </p>
+  </header>
+
+  @if (error()) {
+    <p-message severity="error" [text]="error()!" />
+  }
+
+  @if (loading()) {
+    <div class="list__loading">
+      <p-progressSpinner strokeWidth="3" />
+      <span>Loading collection…</span>
+    </div>
+  } @else if (!error()) {
+    <p-table
+      [value]="rows()"
+      [paginator]="false"
+      [scrollable]="true"
+      scrollHeight="calc(100dvh - 220px)"
+      dataKey="path"
+      sortMode="single"
+      styleClass="p-datatable-sm list__table"
+      [globalFilterFields]="['path', 'name', 'kind', 'stability']"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th pSortableColumn="kind" style="width: 120px">
+            Kind <p-sortIcon field="kind" />
+          </th>
+          <th pSortableColumn="name">
+            Name <p-sortIcon field="name" />
+          </th>
+          <th pSortableColumn="path">
+            Path <p-sortIcon field="path" />
+          </th>
+          <th pSortableColumn="version" style="width: 100px">
+            Version <p-sortIcon field="version" />
+          </th>
+          <th pSortableColumn="stability" style="width: 140px">
+            Stability <p-sortIcon field="stability" />
+          </th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-row>
+        <tr class="list__row" (click)="openInspector(row)">
+          <td>
+            <p-tag [value]="row.kind" [severity]="kindSeverity(row.kind)" />
+          </td>
+          <td class="list__cell-name">{{ row.name }}</td>
+          <td><code>{{ row.path }}</code></td>
+          <td>{{ row.version }}</td>
+          <td>
+            <p-tag
+              [value]="row.stability"
+              [severity]="stabilitySeverity(row.stability)"
+              [rounded]="true"
+            />
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="5" class="list__empty">No nodes loaded.</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  }
+</section>

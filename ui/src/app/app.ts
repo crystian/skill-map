@@ -1,13 +1,12 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { ChangeDetectionStrategy, Component, OnInit, inject } from '@angular/core';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
 import { CollectionLoaderService } from '../services/collection-loader';
-import type { TNodeKind } from '../models/node';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -15,18 +14,7 @@ import type { TNodeKind } from '../models/node';
 export class App implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
 
-  readonly loading = this.loader.loading;
-  readonly error = this.loader.error;
-  readonly nodes = this.loader.nodes;
   readonly count = this.loader.count;
-  readonly byKind = this.loader.byKind;
-
-  readonly kindOrder: TNodeKind[] = ['skill', 'agent', 'command', 'hook', 'note'];
-
-  readonly kindSummary = computed(() => {
-    const buckets = this.byKind();
-    return this.kindOrder.map((kind) => ({ kind, count: buckets[kind].length }));
-  });
 
   ngOnInit(): void {
     void this.loader.load();

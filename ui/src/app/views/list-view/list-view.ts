@@ -1,0 +1,78 @@
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
+import { Router } from '@angular/router';
+import { TableModule } from 'primeng/table';
+import { TagModule } from 'primeng/tag';
+import { ProgressSpinnerModule } from 'primeng/progressspinner';
+import { MessageModule } from 'primeng/message';
+
+import { CollectionLoaderService } from '../../../services/collection-loader';
+import type { TNodeKind, TNodeView, TStability } from '../../../models/node';
+
+interface IListRow {
+  path: string;
+  kind: TNodeKind;
+  name: string;
+  version: string;
+  stability: TStability | '—';
+  node: TNodeView;
+}
+
+const STABILITY_SEVERITY: Record<TStability | '—', 'success' | 'info' | 'warn' | 'danger' | 'secondary'> = {
+  stable: 'success',
+  experimental: 'info',
+  deprecated: 'warn',
+  '—': 'secondary',
+};
+
+const KIND_SEVERITY: Record<TNodeKind, 'info' | 'success' | 'warn' | 'danger' | 'secondary'> = {
+  skill: 'info',
+  agent: 'success',
+  command: 'warn',
+  hook: 'danger',
+  note: 'secondary',
+};
+
+@Component({
+  selector: 'app-list-view',
+  standalone: true,
+  imports: [TableModule, TagModule, ProgressSpinnerModule, MessageModule],
+  templateUrl: './list-view.html',
+  styleUrl: './list-view.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class ListView implements OnInit {
+  private readonly loader = inject(CollectionLoaderService);
+  private readonly router = inject(Router);
+
+  readonly loading = this.loader.loading;
+  readonly error = this.loader.error;
+
+  readonly rows = computed<IListRow[]>(() =>
+    this.loader.nodes().map((node) => ({
+      path: node.path,
+      kind: node.kind,
+      name: node.frontmatter.name ?? '—',
+      version: node.frontmatter.metadata?.version ?? '—',
+      stability: (node.frontmatter.metadata?.stability as TStability | undefined) ?? '—',
+      node,
+    })),
+  );
+
+  ngOnInit(): void {
+    if (this.loader.nodes().length === 0 && !this.loader.loading()) {
+      void this.loader.load();
+    }
+  }
+
+  kindSeverity(kind: TNodeKind): 'info' | 'success' | 'warn' | 'danger' | 'secondary' {
+    return KIND_SEVERITY[kind];
+  }
+
+  stabilitySeverity(s: TStability | '—'): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
+    return STABILITY_SEVERITY[s];
+  }
+
+  openInspector(row: IListRow): void {
+    void this.router.navigate(['/inspector'], { queryParams: { path: row.path } });
+  }
+}
