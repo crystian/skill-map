@@ -1,5 +1,5 @@
 {
-  "specVersion": "0.0.1",
+  "indexPayloadVersion": "0.0.1",
   "dialect": "https://json-schema.org/draft/2020-12/schema",
   "canonicalUrlPrefix": "https://skill-map.dev/spec/v0",
   "schemas": {
@@ -43,6 +43,40 @@
       {
         "id": "conformance-case",
         "path": "schemas/conformance-case.schema.json"
+      },
+      {
+        "id": "history-stats",
+        "path": "schemas/history-stats.schema.json"
+      }
+    ],
+    "extensions": [
+      {
+        "id": "extensions/base",
+        "path": "schemas/extensions/base.schema.json"
+      },
+      {
+        "id": "extensions/adapter",
+        "path": "schemas/extensions/adapter.schema.json"
+      },
+      {
+        "id": "extensions/detector",
+        "path": "schemas/extensions/detector.schema.json"
+      },
+      {
+        "id": "extensions/rule",
+        "path": "schemas/extensions/rule.schema.json"
+      },
+      {
+        "id": "extensions/action",
+        "path": "schemas/extensions/action.schema.json"
+      },
+      {
+        "id": "extensions/audit",
+        "path": "schemas/extensions/audit.schema.json"
+      },
+      {
+        "id": "extensions/renderer",
+        "path": "schemas/extensions/renderer.schema.json"
       }
     ],
     "frontmatter": [
@@ -160,7 +194,7 @@
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "38364d4ca30475e3e1eb35019037532547c1e5bdc245ecfcc60eb5e1570985d0",
+      "CHANGELOG.md": "d06ef78497502229c9d0dad0eeb603ef7a8cccdfc2aa15e14a8df75404ed40d4",
       "README.md": "a233e6b5ab1c41c13cb4790485f0514f7c111880eb70165e77e1253999069120",
       "architecture.md": "be4085b7bbb3476f8a9d6df940b5794839b936ac5dd1921203a91558b008c7bc",
       "cli-contract.md": "7657b6e60089afdd3644e7e38d96593158349259ab105d76199ce5eb65993cae",
@@ -209,7 +243,7 @@
       "schemas/summaries/hook.schema.json": "36f876f3b1a60d45be97a0848c79fd18744b434dfdcefc366f033b253d56268c",
       "schemas/summaries/note.schema.json": "ae510f3ee1b6092c1061625e425c9bb7de9c9caa3f3774770c148f658d505753",
       "schemas/summaries/skill.schema.json": "f01bab92c51d64ee23e61587e42cf0dc5b37a2f518f5b12b3d1d456390338aa8",
-      "versioning.md": "e35d4a492f4cba7ff7c9168802fe11a17daa92c60fc3333ed04e2dbb8b3b6795"
+      "versioning.md": "76a38d6b7e245a80274173a3cef791a04432e6ae3017ea3f66d7a37eb550fccf"
     }
   }
 }

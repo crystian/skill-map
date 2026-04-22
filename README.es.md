@@ -35,7 +35,7 @@ Ninguna herramienta oficial (Anthropic, Cursor, GitHub, skills.sh) cubre esto. O
 1. **Scanner determinista** recorre archivos, parsea frontmatter, detecta referencias y produce datos estructurados del grafo (nodos, links, issues).
 2. **Capa LLM opcional** consume esos datos y agrega inteligencia semántica: valida referencias ambiguas, clusteriza triggers equivalentes, compara nodos, responde preguntas.
 3. **CLI `sm`** expone todas las operaciones. Es la superficie primaria.
-4. **Web UI** (prototipo pre-CUT-1 en Step 0c con datos mockeados; integración completa en `v1.0`) consume el mismo kernel y ofrece navegación visual, inspector y ejecución. El prototipo **no** se shipea en CUT 1 (`v0.5.0`).
+4. **Web UI** (prototipo en Step 0c con datos mockeados; integración completa en `v1.0`) consume el mismo kernel y ofrece navegación visual, inspector y ejecución. El prototipo **no** se shipea en `v0.5.0`.
 5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen detectores, reglas, actions, adapters o renderers sin tocar el kernel.
 
 ## Filosofía

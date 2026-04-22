@@ -35,7 +35,7 @@ No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. Obsidian of
 1. **Deterministic scanner** walks files, parses frontmatter, detects references, and emits structured graph data (nodes, links, issues).
 2. **Optional LLM layer** consumes that data and adds semantic intelligence: validates ambiguous references, clusters equivalent triggers, compares nodes, answers questions.
 3. **`sm` CLI** exposes every operation. It is the primary surface.
-4. **Web UI** (pre-CUT-1 prototype in Step 0c with mocked data; full integration at `v1.0`) consumes the same kernel and offers visual navigation, inspector, and execution. The prototype does **not** ship in CUT 1 (`v0.5.0`).
+4. **Web UI** (prototype in Step 0c with mocked data; full integration at `v1.0`) consumes the same kernel and offers visual navigation, inspector, and execution. The prototype does **not** ship in `v0.5.0`.
 5. **Plugin system** (drop-in, kernel + extensions) lets third parties add detectors, rules, actions, adapters, or renderers without touching the kernel.
 
 ## Philosophy

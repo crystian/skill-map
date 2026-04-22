@@ -272,6 +272,8 @@ skill-map/
 │   ├── interfaces/
 │   │   └── security-scanner.md              ← convention over the Action kind (NOT a 7th kind)
 │   └── conformance/
+│       ├── README.md                        ← human-readable guide to the suite
+│       ├── coverage.md                      ← release-gate matrix (schemas + artifacts ↔ cases)
 │       ├── fixtures/                        ← controlled MD corpora + preamble-v1.txt
 │       └── cases/                           ← basic-scan, kernel-empty-boot (preamble-bitwise-match deferred to Step 9)
 └── src/                           ← reference implementation (published as skill-map)
@@ -574,7 +576,7 @@ Server re-emits the same events via **WebSocket**. Task UI integration (Claude C
 | `sm job submit <action> --all` | Apply to every node matching action's precondition. |
 | `sm job submit ... --force` | Bypass duplicate check. |
 | `sm job submit ... --ttl <seconds>` | Override computed TTL. |
-| `sm job submit ... --priority <n>` | Override job priority (Decision #40a). Integer; higher runs first; default `0`; negatives permitted. Frozen on `state_jobs.priority` at submit. |
+| `sm job submit ... --priority <n>` | Override job priority (Decision #40). Integer; higher runs first; default `0`; negatives permitted. Frozen on `state_jobs.priority` at submit. |
 | `sm job list [--status ...]` | List jobs. |
 | `sm job show <id>` | Detail (includes TTL remaining for running). |
 | `sm job preview <id>` | Render the MD (no execution). |
@@ -931,7 +933,7 @@ All declared in `spec/schemas/project-config.schema.json`. Defaults shown.
 - `jobs.graceMultiplier: 3` — multiplier applied to the base duration before the floor check.
 - `jobs.minimumTtlSeconds: 60` — TTL floor (never a default). Guarantees no job is claimed with a sub-minute deadline.
 - `jobs.perActionTtl: { <actionId>: <seconds> }` — per-action TTL override. Replaces the computed TTL entirely; skips the formula.
-- `jobs.perActionPriority: { <actionId>: <integer> }` — per-action priority override (decision #40a). Higher runs first; ties break by `createdAt ASC`. Frozen at submit.
+- `jobs.perActionPriority: { <actionId>: <integer> }` — per-action priority override (decision #40). Higher runs first; ties break by `createdAt ASC`. Frozen at submit.
 - `jobs.retention.completed: 2592000` — 30 days default; `null` → never auto-prune.
 - `jobs.retention.failed: null` — never auto-prune; failed jobs kept for post-mortem.
 - `i18n.locale: "en"` — experimental.
@@ -1411,7 +1413,7 @@ Conventions:
 - **Numbering is sparse on purpose**. Sub-items (`74a`…`74e`) land where they belong thematically rather than at the end of the list; gaps are reserved for future rows on the same topic.
 - **Thematic groups, not chronology**. Rows are grouped by domain (Architecture, Persistence, Jobs, Plugins, UI, etc.). Reading a single group gives you every decision on that surface.
 - **Most entries have a narrative counterpart** elsewhere in this `ROADMAP.md` or in `spec/` — the table row is the one-liner, the narrative section is the rationale. If an entry is table-only, its row states the "why" in full.
-- **Source of truth for AI agents**. `ROADMAP.md` is above `AGENTS.md` in the project authority order. `AGENTS.md §Decisions already locked` carries the short-list version for operating rules; whenever that list and this table disagree, this table wins (and `AGENTS.md` is updated in the same PR). The spec still wins over both.
+- **Source of truth for AI agents**. `ROADMAP.md` is above `AGENTS.md` in the project authority order, and this Decision log is where every agent should look up locked-in rationale. `AGENTS.md` carries only operational rules (persona activation, agent workflow, spec-editing checklist); it does **not** duplicate the decision table. Citations from `AGENTS.md`, commits, PRs, or changesets that reference a decision MUST use the `#N` anchor here (e.g. *"per Decision #74d"*) rather than paraphrasing. The spec still wins over both.
 - **Immutability, with one narrow exception**. Rows are not edited away once locked — a changed decision gets a new row and the old row flips to "superseded by #N" with a date. That keeps history auditable instead of rewriting it. **Exception**: a row MAY be deleted if it was **born redundant** (never stated anything the surrounding rows did not already say; duplicated from the outset rather than revised). The deletion note goes in the changeset or commit that removes the row. Numbering stays sparse by design (§Conventions), so a gap is acceptable. This exception does NOT apply to a row that was once canonical and later superseded — that still uses the supersede-by-new-row path.
 
 Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over.
@@ -1453,7 +1455,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 | 21 | Trigger normalization | 6-step pipeline: NFD → strip diacritics → lowercase → unify hyphen/underscore/space → collapse whitespace → trim. `link.trigger` carries both `originalTrigger` (display) and `normalizedTrigger` (equality / collision key). Full contract and worked examples in §Trigger normalization. |
 | 22 | External URL handling | **Count only** on `scan_nodes.external_refs_count`. No separate table. No liveness check through `v1.0`. |
 | 23 | Reference counts | Denormalized columns: `links_out_count`, `links_in_count`, `external_refs_count`. |
-| 24 | Orphan reconciliation | `body_hash` match → high confidence auto-rename (no issue, no prompt). `frontmatter_hash` match → medium, emits `auto-rename-medium` issue with `data_json.from/to`. No match → `orphan` issue. Manual verbs: `sm orphans reconcile <orphan.path> --to <new.path>` (forward, attach orphan to live node) and `sm orphans undo-rename <new.path> [--force]` (reverse a medium/ambiguous auto-rename; needs `--from <old.path>` for ambiguous). |
+| 24 | Orphan reconciliation | `body_hash` match → high confidence auto-rename (no issue, no prompt). `frontmatter_hash` match against a single candidate → medium, emits `auto-rename-medium` issue with `data_json.from/to`. `frontmatter_hash` match against multiple candidates → no migration, emits `auto-rename-ambiguous` issue with `data_json.to` + `data_json.candidates[]`. No match → `orphan` issue. Manual verbs: `sm orphans reconcile <orphan.path> --to <new.path>` (forward, attach orphan to live node) and `sm orphans undo-rename <new.path> [--from <old.path>] [--force]` (reverse a medium/ambiguous auto-rename; needs `--from <old.path>` for ambiguous). |
 | 25 | Tokens + bytes | Triple-split per node (frontmatter / body / total). Tokenizer column. |
 
 ### Frontmatter
@@ -1479,7 +1481,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 | 37 | Job concurrency (same action, same node) | Refuse duplicate with `--force` override. Content hash over action+version+node hashes+template hash. |
 | 38 | Exit codes | `0` ok · `1` issues · `2` error · `3` duplicate · `4` nonce-mismatch · `5` not-found. `6–15` reserved for future spec use. `≥16` free for verb-specific use. |
 | 39 | TTL resolution (three steps) | Normative in `spec/job-lifecycle.md §TTL resolution`. (1) **Base duration** = action manifest `expectedDurationSeconds` OR config `jobs.ttlSeconds` (default `3600`). (2) **Computed** = `max(base × graceMultiplier, minimumTtlSeconds)` (defaults `3` and `60`; the floor is a floor, never a default). (3) **Overrides** (later wins, skips the formula): `jobs.perActionTtl.<actionId>`, then `sm job submit --ttl <n>`. Frozen on `state_jobs.ttlSeconds` at submit. Negative or zero overrides rejected with exit `2`. |
-| 40a | Job priority | `state_jobs.priority` (INTEGER, default `0`). Higher runs first; ties broken by `createdAt ASC`. Negatives allowed. Set via manifest `defaultPriority`, user config `jobs.perActionPriority.<id>`, or CLI `--priority <n>` (later wins). Frozen at submit. |
+| 40 | Job priority | `state_jobs.priority` (INTEGER, default `0`). Higher runs first; ties broken by `createdAt ASC`. Negatives allowed. Set via manifest `defaultPriority`, user config `jobs.perActionPriority.<id>`, or CLI `--priority <n>` (later wins). Frozen at submit. |
 | 41 | Auto-reap | At start of every `sm job run`. Rows in `running` with expired TTL (`claimedAt + ttlSeconds × 1000 < now`) transition to `failed` with `failureReason = abandoned`. Rowcount reported as `run.reap.completed.reapedCount`. |
 | 42 | Atomicity edge cases | Per-scenario policy: missing file → failed(job-file-missing); orphan file → reported by doctor, user prunes; edited file → by design. |
 

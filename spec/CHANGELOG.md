@@ -80,7 +80,7 @@
   - `tokenizer: string` (default `cl100k_base`) — name of the offline tokenizer; stored alongside counts so consumers know which encoder produced them.
   - `scan.maxFileSizeBytes: integer` (default `1048576`) — files larger are skipped with an `info` log.
   - `jobs.ttlSeconds: integer` (default `3600`) — global fallback TTL when an action manifest omits `expectedDurationSeconds` (typically `mode: local` actions where the field is advisory).
-  - `jobs.perActionPriority: { <actionId>: integer }` — per-action priority overrides. Frozen on `state_jobs.priority` at submit time; overrides action manifest `defaultPriority`; overridden by CLI `--priority`. Ratifies decision #40a in the schema.
+  - `jobs.perActionPriority: { <actionId>: integer }` — per-action priority overrides. Frozen on `state_jobs.priority` at submit time; overrides action manifest `defaultPriority`; overridden by CLI `--priority`. Ratifies decision #40 in the schema.
   - `jobs.retention: { completed, failed }` — GC policy for `state_jobs` rows. Defaults: `completed = 2592000` (30 days), `failed = null` (never auto-prune; keep for post-mortem). `sm job prune` reads these; no implicit pruning during normal verbs.
 
   **`job-events.md` — new `Non-job events` section, Stability: experimental across v0.x:**

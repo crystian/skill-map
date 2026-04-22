@@ -79,7 +79,7 @@ The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, 
 1. PR proposes a spec change. Include rationale and classification (patch/minor/major).
 2. If major, PR includes a migration note draft for `CHANGELOG.md`.
 3. If the change affects reference-impl behavior, a companion PR in `src/` lands the implementation behind the bumped `specCompat`.
-4. Merge order: spec change first, implementation second. An implementation MUST NOT ship a feature that is not yet in the spec (see `CLAUDE.md`: "Every feature: update spec/ first, then src/").
+4. Merge order: spec change first, implementation second. An implementation MUST NOT ship a feature that is not yet in the spec (see `AGENTS.md`: "Every feature: update spec/ first, then src/").
 5. Tag spec release (`spec-vX.Y.Z`) independent from any CLI tag.
 
 ## Canonical URLs
