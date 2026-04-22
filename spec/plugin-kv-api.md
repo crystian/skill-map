@@ -197,7 +197,7 @@ Mode A is perfectly isolated at the row level: the accessor physically cannot se
 
 Mode B is **isolated against accidents, not hostile code**. The scoped `Database` wrapper rejects cross-namespace queries at runtime. But a malicious plugin running in the same JavaScript process can bypass the wrapper by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
 
-Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin DB file. None of these land before cut 1.
+Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin DB file. None of these land before `v0.5.0`.
 
 ---
 

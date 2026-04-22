@@ -160,14 +160,14 @@
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "e4554c15fc9df78e041b3837f2c2c0bdb6ac437fb6f5f7871825be554c3cc2f4",
+      "CHANGELOG.md": "4f53d1d633debc1befaddccf0499698de8d5d378edd5566e6c50df85f349c343",
       "README.md": "a233e6b5ab1c41c13cb4790485f0514f7c111880eb70165e77e1253999069120",
       "architecture.md": "be4085b7bbb3476f8a9d6df940b5794839b936ac5dd1921203a91558b008c7bc",
-      "cli-contract.md": "4368f2cdf6884f792607a369b43ed6a8a9674cb2d2f790eb086fc961eb29689c",
+      "cli-contract.md": "7657b6e60089afdd3644e7e38d96593158349259ab105d76199ce5eb65993cae",
       "conformance/README.md": "4e41ff823b55ce3c274a033c5152ae0b2759fc714a714d7815593d8be84c8a4c",
       "conformance/cases/basic-scan.json": "24623da0cad8c8c54b3ff9b09820ea1276fe8b8f0fc680bf6e8abeb4edb8e424",
       "conformance/cases/kernel-empty-boot.json": "175524674b14d993d29f10080d7697074b3a2eee25b359ff903344d73c6acc98",
-      "conformance/coverage.md": "f46b5b20649c169c4f15c721a2a9cd7f7be11566a64f8fbeb8a6b171eb420762",
+      "conformance/coverage.md": "405a7ee093d6e54993ec5d9e061489f8b924829c7688fe56951bebf87abb2fae",
       "conformance/fixtures/minimal-claude/agents/reviewer.md": "d0dd681ba63838301e480116aa09825329f01832b0116de5c5476fdd8a5dcf54",
       "conformance/fixtures/minimal-claude/commands/status.md": "3f36e053fd1c059ffd902f84a55be8a458c26072f97cb37dd7e97314ae2a9bf5",
       "conformance/fixtures/minimal-claude/hooks/pre-commit.md": "ec9cec8ac4ce34d40ec055ffd90e8f06ea3e5764d6ec3ee84e0d97de71b930c7",
@@ -176,9 +176,9 @@
       "conformance/fixtures/preamble-v1.txt": "1e0aeef224b64477bdc13a949c3ad402e68249caf499ecdba1302371677c068b",
       "db-schema.md": "17de515904b8869ea0fe8d3cd608423376396bed6281b784ee1670f184d29f2c",
       "interfaces/security-scanner.md": "468f8ee412594b14b389c36cefa9ca75a5dec652adbf03ab8bbc7f57ca980253",
-      "job-events.md": "2641ef72863a24f590e2ffdb94a352e5ed5ab7123a9f04f42696f96da793bb91",
+      "job-events.md": "090733b47dc0bbe62d790a87a29f2a13fe1dbcb9d6a89ea16e1ecff2293e3972",
       "job-lifecycle.md": "793d34de0793596be17d2ed9042eeb4d532e805bceee25d9f9da0c3cb0b34b1c",
-      "plugin-kv-api.md": "8079d8b4304ba3d112b5daa40c49e38e8186949b5d4166dadf5a225087b88ce7",
+      "plugin-kv-api.md": "fe0c02dcc7eaee0ad711f16247df076fa62348710ee1088e1234764dd3cec82e",
       "prompt-preamble.md": "9b7478ddce0a77043983f35932677d702319348048fe5d6b1c60257bd1c9f605",
       "schemas/conformance-case.schema.json": "2740874e00269de6d8121300339401d0283197b6d97dcd77538ec5d108b14de2",
       "schemas/execution-record.schema.json": "ec0f3acf1d0ce099c059d73eb434936bfd1bcf12023693bd572efb2a7352faa6",
@@ -209,7 +209,7 @@
       "schemas/summaries/hook.schema.json": "36f876f3b1a60d45be97a0848c79fd18744b434dfdcefc366f033b253d56268c",
       "schemas/summaries/note.schema.json": "ae510f3ee1b6092c1061625e425c9bb7de9c9caa3f3774770c148f658d505753",
       "schemas/summaries/skill.schema.json": "f01bab92c51d64ee23e61587e42cf0dc5b37a2f518f5b12b3d1d456390338aa8",
-      "versioning.md": "37e42e323d0bfed647b72a3bd4ffc1ddd3f71b74dda1ba56025762518f070ccb"
+      "versioning.md": "e35d4a492f4cba7ff7c9168802fe11a17daa92c60fc3333ed04e2dbb8b3b6795"
     }
   }
 }

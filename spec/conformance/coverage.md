@@ -2,7 +2,7 @@
 
 Authoritative map of JSON Schemas in `spec/schemas/` to the conformance cases that exercise them. Every schema MUST have at least one case before spec v1.0.0 ships — missing case → missing release (AGENTS.md §Rules for AI agents editing spec/).
 
-This file is hand-maintained. A CI check at spec cut-time compares the schema inventory against this table and fails if any schema lacks a case.
+This file is hand-maintained. A CI check before spec release compares the schema inventory against this table and fails if any schema lacks a case.
 
 ## Coverage matrix
 
@@ -62,5 +62,5 @@ These have their own conformance cases even though they are not JSON Schemas.
 ## Release gates
 
 - **spec v0.x**: partial coverage acceptable. Every case added as the reference impl lands the verb that makes it runnable.
-- **spec v1.0.0 cut**: all rows above MUST be 🟢 covered or explicitly 🟠 deferred to v1.1 with a linked issue.
+- **spec v1.0.0 release**: all rows above MUST be 🟢 covered or explicitly 🟠 deferred to v1.1 with a linked issue.
 - **CI check**: [`scripts/check-coverage.mjs`](../../scripts/check-coverage.mjs) compares `spec/schemas/**/*.schema.json` against the matrix above on every PR. A schema without a row here, or a row pointing at a missing schema, fails CI (exit 1 with a `::error::` annotation). Wired into `ci.yml` §validate and into `npm run spec:check`.

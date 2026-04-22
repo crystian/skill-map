@@ -66,7 +66,7 @@ While the spec is `0.Y.Z`:
 - Conformance is advisory — failing a conformance case is a bug report, not a spec violation.
 - `specCompat` in plugins should pin a minor range (`"^0.3.0"` means `>=0.3.0 <0.4.0`), not a major range.
 
-The first stable commitment is `spec-v1.0.0`. That tag ships with CUT 3 / `cli-v1.0.0`.
+The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, that tag ships with `cli-v1.0.0`.
 
 ## Independence in practice
 

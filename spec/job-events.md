@@ -38,7 +38,7 @@ Every event is a JSON object with this envelope:
 |---|---|---|
 | `type` | always | One of the canonical event types below. |
 | `timestamp` | always | Unix milliseconds when the event was emitted. |
-| `runId` | always | Identifier of the `sm job run` invocation. One run emits many events. Format: `r-YYYYMMDD-HHMMSS-XXXX`. |
+| `runId` | always | Identifier of the invocation that emitted the event. CLI runner loops use `r-YYYYMMDD-HHMMSS-XXXX`; synthetic or non-job runs use one optional mode segment: `r-<mode>-YYYYMMDD-HHMMSS-XXXX`. Canonical modes are `ext` (external Skill claims), `scan` (scan runs), and `check` (standalone issue recomputations). |
 | `jobId` | when job-scoped | The job the event refers to. Null for run-level events (`run.*`). |
 | `data` | per-event | Event-specific payload, shape defined below. |
 

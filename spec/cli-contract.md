@@ -25,7 +25,6 @@ These flags apply to every verb unless marked otherwise.
 | `--no-color` | boolean | Disable ANSI color codes. Implementations MUST also auto-disable color when stdout is not a TTY. |
 | `-h` / `--help` | boolean | Print verb-specific or top-level help, exit 0. |
 | `--db <path>` | string | Override the database file location (escape hatch; primarily for debugging). |
-| `--all` | boolean | Universal fan-out. Any verb that accepts a target identifier (node path, job id, plugin id, etc.) MUST accept `--all` as "apply to every eligible target matching the verb's preconditions". Mutually exclusive with a positional target or `-n <path>` on the same invocation. Verbs that inherently target everything (`sm scan` without `-n`, `sm list`, `sm check`, `sm doctor`) accept the flag for script-composition uniformity but treat it as a no-op. Verbs where fan-out is nonsensical (`sm record`, `sm init`, `sm version`, `sm help`, `sm config get/set/reset/show`, `sm db *`, `sm serve`) MUST reject `--all` with exit `2`. |
 
 Env-var equivalents are normative:
 
@@ -37,6 +36,22 @@ Env-var equivalents are normative:
 | `SKILL_MAP_DB=<path>` | `--db <path>` |
 
 CLI flag wins over env var. Env var wins over config file.
+
+---
+
+## Targeted fan-out flags
+
+`--all` is not global. It is only valid on verbs whose contract explicitly lists it:
+
+- `sm job submit <action> --all`
+- `sm job run --all`
+- `sm job cancel --all`
+- `sm plugins enable --all`
+- `sm plugins disable --all`
+
+For those verbs, `--all` means "apply to every eligible target matching the verb's preconditions" and is mutually exclusive with a positional target or `-n <path>` on the same invocation.
+
+Implementations MUST NOT silently accept `--all` on unrelated verbs. Unsupported `--all` usage is an operational error (exit `2`), the same as any other unknown or invalid flag.
 
 ---
 

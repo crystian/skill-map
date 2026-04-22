@@ -74,6 +74,12 @@ Tag convention: `spec-vX.Y.Z` (distinct from CLI tags `cli-vX.Y.Z`).
 
 Initial public spec bootstrap (Step 0a phases 1–3).
 
+### Changed
+
+- `cli-contract.md`: `--all` is no longer a global flag. It is valid only on verbs that explicitly document fan-out semantics: `sm job submit`, `sm job run`, `sm job cancel`, and `sm plugins enable/disable`.
+- `job-events.md`: the common `runId` envelope now explicitly documents the optional mode segment (`r-<mode>-YYYYMMDD-HHMMSS-XXXX`) used by external Skill claims, scan runs, and standalone issue recomputations.
+- `versioning.md` and related prose: replace ambiguous milestone terminology with explicit versioned release language.
+
 ### Added
 
 - Foundation:
@@ -99,7 +105,7 @@ Initial public spec bootstrap (Step 0a phases 1–3).
 
 - JSON Schema dialect: draft 2020-12.
 - Casing: camelCase for all JSON keys (domain, configs, manifests, reports); kebab-case for filenames.
-- `$id` scheme: `https://skill-map.dev/spec/v<major>/<path>.schema.json`. `v0` throughout pre-1.0; bumps to `v1` at the first stable cut.
+- `$id` scheme: `https://skill-map.dev/spec/v<major>/<path>.schema.json`. `v0` throughout pre-1.0; bumps to `v1` at the first stable release.
 - Identity: `node.path` (relative to scope root) is the canonical node identifier in v0. Future UUID-based `node.id` lands with write-back.
 - Required frontmatter: `name`, `description`, `metadata`, `metadata.version`.
 - Frontmatter: `additionalProperties: true` (rules handle unknown fields). Summaries: `additionalProperties: false` (strict).
