@@ -19,4 +19,5 @@ export type { Extension, ExtensionKind } from './registry.js';
 export type * from './types.js';
 export { runScan } from './orchestrator.js';
 export type { RunScanOptions } from './orchestrator.js';
+export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 export type * from './ports/index.js';
