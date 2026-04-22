@@ -12,6 +12,7 @@
 
 import { Builtins, Cli } from 'clipanion';
 
+import { DB_COMMANDS } from './commands/db.js';
 import { ScanCommand } from './commands/scan.js';
 import { VersionCommand } from './commands/version.js';
 import { BINARY_LABEL, BINARY_NAME, VERSION } from './version.js';
@@ -27,6 +28,7 @@ cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
 cli.register(ScanCommand);
 cli.register(VersionCommand);
+for (const cmd of DB_COMMANDS) cli.register(cmd);
 
 const args = process.argv.slice(2);
 const exitCode = await cli.run(args, { stdin: process.stdin, stdout: process.stdout, stderr: process.stderr });
