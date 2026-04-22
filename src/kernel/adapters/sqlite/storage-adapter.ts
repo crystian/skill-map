@@ -11,11 +11,13 @@
 
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { CamelCasePlugin, Kysely } from 'kysely';
 
 import type { StoragePort } from '../../ports/storage.js';
 import { NodeSqliteDialect } from './dialect.js';
+import { applyMigrations, discoverMigrations } from './migrations.js';
 import type { IDatabase } from './schema.js';
 
 export interface ISqliteStorageAdapterOptions {
@@ -24,6 +26,19 @@ export interface ISqliteStorageAdapterOptions {
    * if missing. `:memory:` is supported for tests (no directory created).
    */
   databasePath: string;
+
+  /**
+   * When true (default), pending kernel migrations are applied on `init()`.
+   * Set false to open the DB without touching schema — used by
+   * `sm db migrate --dry-run` and by a future `autoMigrate: false` config.
+   */
+  autoMigrate?: boolean;
+
+  /**
+   * When true (default), auto-migration writes a pre-migration backup.
+   * Set false to skip — used by `sm db migrate --no-backup`.
+   */
+  autoBackup?: boolean;
 }
 
 export class SqliteStorageAdapter implements StoragePort {
@@ -41,6 +56,27 @@ export class SqliteStorageAdapter implements StoragePort {
     if (path !== ':memory:') {
       const absolute = resolve(path);
       mkdirSync(dirname(absolute), { recursive: true });
+    }
+
+    if (this.#options.autoMigrate !== false) {
+      // Run migrations on a short-lived raw connection so we don't have to
+      // coordinate with Kysely's single-connection lifecycle. The file-level
+      // DB is the same either way.
+      const files = discoverMigrations();
+      if (files.length > 0) {
+        const raw = new DatabaseSync(path);
+        try {
+          raw.exec('PRAGMA foreign_keys = ON');
+          applyMigrations(
+            raw,
+            path,
+            { backup: this.#options.autoBackup !== false },
+            files,
+          );
+        } finally {
+          raw.close();
+        }
+      }
     }
 
     this.#db = new Kysely<IDatabase>({

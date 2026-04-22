@@ -1,3 +1,4 @@
+import { cpSync, existsSync } from 'node:fs';
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
@@ -21,5 +22,13 @@ export default defineConfig({
   },
   esbuildOptions(options) {
     options.conditions = ['node'];
+  },
+  async onSuccess() {
+    // Migrations ship as .sql files and are read at runtime — tsup bundles
+    // TypeScript, not arbitrary assets, so copy them to dist/ so published
+    // artifacts find them via defaultMigrationsDir().
+    if (existsSync('migrations')) {
+      cpSync('migrations', 'dist/migrations', { recursive: true });
+    }
   },
 });

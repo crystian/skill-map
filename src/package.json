@@ -42,6 +42,7 @@
   "files": [
     "bin/",
     "dist/",
+    "migrations/",
     "README.md"
   ],
   "scripts": {
