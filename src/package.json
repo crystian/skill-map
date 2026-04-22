@@ -55,6 +55,7 @@
   "dependencies": {
     "@skill-map/spec": "*",
     "clipanion": "^4.0.0-rc.4",
+    "kysely": "^0.28.16",
     "typanion": "^3.14.0"
   },
   "devDependencies": {
