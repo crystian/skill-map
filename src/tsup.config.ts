@@ -1,5 +1,16 @@
-import { cpSync, existsSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { defineConfig } from 'tsup';
+
+function restoreNodeSqliteImports(dir: string): void {
+  for (const name of readdirSync(dir, { recursive: true })) {
+    const file = join(dir, String(name));
+    if (!file.endsWith('.js')) continue;
+    const src = readFileSync(file, 'utf8');
+    const fixed = src.replaceAll('from "sqlite"', 'from "node:sqlite"');
+    if (fixed !== src) writeFileSync(file, fixed);
+  }
+}
 
 export default defineConfig({
   entry: {
@@ -24,11 +35,9 @@ export default defineConfig({
     options.conditions = ['node'];
   },
   async onSuccess() {
-    // Migrations ship as .sql files and are read at runtime — tsup bundles
-    // TypeScript, not arbitrary assets, so copy them to dist/ so published
-    // artifacts find them via defaultMigrationsDir().
     if (existsSync('migrations')) {
       cpSync('migrations', 'dist/migrations', { recursive: true });
     }
+    restoreNodeSqliteImports('dist');
   },
 });
