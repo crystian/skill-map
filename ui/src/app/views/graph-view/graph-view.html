@@ -1,0 +1,74 @@
+<section class="graph">
+  <header class="graph__header">
+    <div>
+      <h2>Graph</h2>
+      <p class="graph__sub">
+        Auto-laid-out (Dagre, top-bottom) · edges from <code>supersedes</code>,
+        <code>requires</code>, <code>related</code>. Click a node to inspect.
+      </p>
+    </div>
+    <p-button
+      label="Fit"
+      icon="pi pi-arrows-alt"
+      severity="secondary"
+      [outlined]="true"
+      size="small"
+      (onClick)="fitToScreen()"
+    />
+  </header>
+
+  <app-filter-bar />
+
+  @if (loading()) {
+    <p class="graph__hint">Loading collection…</p>
+  } @else if (error()) {
+    <p class="graph__hint graph__hint--error">{{ error() }}</p>
+  } @else if (!hasData()) {
+    <p class="graph__hint">No nodes match the current filters.</p>
+  } @else {
+    <div class="graph__canvas-wrap">
+      <f-flow fDraggable (fLoaded)="onLoaded()">
+        <f-canvas>
+          @for (edge of graph().edges; track edge.id) {
+            <f-connection
+              [fOutputId]="edge.from"
+              [fInputId]="edge.to"
+              fType="segment"
+              fBehavior="fixed"
+              [fOffset]="4"
+              [class]="'f-conn--' + edge.kind"
+            />
+          }
+
+          @for (node of graph().nodes; track node.id) {
+            <div
+              fNode
+              fDragHandle
+              [fNodePosition]="node.position"
+              fNodeInput
+              [fInputId]="node.id"
+              [fInputConnectableSide]="inputSide"
+              [class]="'f-gnode f-gnode--' + node.kind"
+              (click)="openNode(node)"
+            >
+              <span class="f-gnode__kind">{{ node.kind }}</span>
+              <span class="f-gnode__label">{{ node.label }}</span>
+              <div
+                fNodeOutput
+                [fOutputId]="node.id"
+                [fOutputConnectableSide]="outputSide"
+                class="f-gnode__connector f-gnode__connector--out"
+              ></div>
+            </div>
+          }
+        </f-canvas>
+      </f-flow>
+    </div>
+
+    <aside class="graph__legend" aria-label="Edge legend">
+      <span><span class="swatch swatch--supersedes"></span> supersedes</span>
+      <span><span class="swatch swatch--requires"></span> requires</span>
+      <span><span class="swatch swatch--related"></span> related</span>
+    </aside>
+  }
+</section>
