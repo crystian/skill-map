@@ -18,6 +18,7 @@ metadata:
   created: 2025-12-05
   related:
     - .claude/skills/code-review/SKILL.md
+    - .claude/agents/backend-architect.md
 ---
 
 # /scan

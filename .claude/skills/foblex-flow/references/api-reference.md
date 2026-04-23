@@ -2,6 +2,8 @@
 
 > Angular-native node-based UI library for building node editors, workflow builders, and interactive graph interfaces.
 
+Curated API reference for `@foblex/flow`, the graph visualization layer used by the [`ui/`](../ui/) workspace. This file is maintained because upstream documentation is sparse. See [`AGENTS.md`](../AGENTS.md) §UI library reference for when to consult this file. The graph-view component that consumes this API lives at [`ui/src/app/views/graph-view/`](../ui/src/app/views/graph-view/).
+
 Foblex Flow is an Angular-first library that provides rendering, connectors, interactions, selection, zoom, and connection drawing for graph-based UIs. Your application owns the graph state — Foblex Flow handles the visual layer and user interactions.
 
 - Version: 18.5.0
@@ -35,6 +37,15 @@ Include the default theme in angular.json:
 "styles": [
   "src/styles.scss",
   "node_modules/@foblex/flow/styles/default.scss"
+]
+```
+
+**Monorepo / npm workspaces note**: if `@foblex/flow` hoists to a parent `node_modules/` (as in this repo), the Angular workspace can't resolve the literal `node_modules/...` path, and the package's `exports` field blocks the package-resolution form (`@foblex/flow/styles/default.scss`). Use a relative filesystem path that bypasses exports:
+
+```json
+"styles": [
+  "../node_modules/@foblex/flow/styles/default.scss",
+  "src/styles.css"
 ]
 ```
 
@@ -878,6 +889,65 @@ enum EFMarkerType {
 ---
 
 ## Styling
+
+### ⚠ Never animate or override `transform` on `[fNode]` or `.f-canvas`
+
+Foblex applies `transform: translate(x, y)` inline on every node element (driven by `fNodePosition`) and on `.f-canvas` (driven by zoom/pan). Any app-level CSS that touches those transforms fights the library and causes lag, jumps, or broken positioning. Concretely, do NOT write:
+
+- `transition: transform ...` on a node class — interpolates every position update over the transition duration; connection paths recalculate mid-animation → visible connector lag on zoom/pan/drag.
+- `:hover { transform: ... }` on a node class — overwrites Foblex's position translate, so hovered nodes snap to origin.
+- Any rule setting `transform` or `transition: transform` on `.f-canvas` — zoom stutter.
+- `will-change: transform` on `[fNode]` — the library already hints the browser; adding it here does nothing useful and can burn GPU memory.
+
+For visual affordances (hover, focus, selection) use `background`, `border`, `border-color`, `border-radius`, `box-shadow`, `color`, `padding`. These are safe to animate. If you feel the urge to animate a position, you are duplicating Foblex's responsibility — stop and use the library's API (`centerGroupOrNode(id, animated)`, `setScale(scale, pivot)`, etc.) instead.
+
+### ⚠ Use theme tokens for connection styling, not stroke overrides
+
+The default theme consumes CSS custom properties for connection rendering:
+
+| Token | Default | Effect |
+|-------|---------|--------|
+| `--ff-connection-color` | `var(--ff-color-connection)` | `.f-connection-path` stroke |
+| `--ff-connection-width` | `2px` | `.f-connection-path` stroke-width |
+| `--ff-marker-color` | `var(--ff-connection-color)` | color of marker shapes (via `currentColor`) |
+| `--ff-connection-hit-width` | — | invisible hit area for hover |
+| `--ff-snap-connection-color` | — | stroke for `f-snap-connection` |
+| `--ff-connection-selected-color` | — | stroke when `.f-selected` |
+
+To style edges per kind, put a class on `<f-connection>` and override the token — no `::ng-deep` needed (custom properties cascade through Angular's emulated encapsulation):
+
+```css
+.my-kind-edge {
+  --ff-connection-color: #f59e0b;
+  --ff-connection-width: 2.5px;
+  --ff-marker-color: #f59e0b;
+}
+```
+
+Only reach for direct SVG overrides (`::ng-deep` on `.f-connection-path`) for properties that have no token — e.g. `stroke-dasharray`. When you do, put the rule in the view's component CSS (not the global stylesheet) and scope it under a wrapper class you own, so the bypass stays bounded to that view:
+
+```css
+/* view-component.css */
+.my-canvas-wrap ::ng-deep .f-connection-path {
+  stroke-dasharray: 4 3;
+}
+```
+
+Globals are for rules that are genuinely app-wide. View-specific Foblex overrides do not belong there.
+
+### ⚠ Use `<f-connection-marker-arrow>`, not hand-rolled `<svg><marker>`
+
+Foblex ships two built-in marker components that project inside `<f-connection>`:
+
+```html
+<f-connection [fOutputId]="..." [fInputId]="...">
+  <f-connection-marker-arrow type="end" />
+</f-connection>
+```
+
+`type` accepts `start`, `end`, `selected-start`, `selected-end`, `start-all-states`, `end-all-states` (see `EFMarkerType`). Colors come from `--ff-marker-color` (itself defaulting to `--ff-connection-color`). Selection and snap states swap the color automatically.
+
+Do NOT declare `<svg><defs><marker id="arrow-end">...</marker></defs></svg>` yourself and then write `marker-end: url(#arrow-end)` in `.f-connection-path`. That recipe looks functional but duplicates the library, breaks selection/snap styling, and forces `::ng-deep` overrides that stop following theme changes.
 
 ### Default Theme
 

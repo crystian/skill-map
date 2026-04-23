@@ -40,6 +40,7 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
 - **Temp files**: use `.tmp/` (project-local, gitignored), not `/tmp/` or `/var/tmp/`. This applies to every temp path an AI agent writes, including intermediate files for `awk`, `sed`, `diff`, `grep`, piped scripts, and extracted snippets. If `.tmp/` does not exist, create it (`mkdir -p .tmp`). Never write a temp file outside the repo.
 - **Every feature**: update `spec/` first, then `src/`. No impl feature without a matching spec change.
 - **CI green, always** — extensions ship with tests or do not boot.
+- **No hacks — read the official docs first.** When integrating any third-party library, framework, or SDK: read its installation + setup docs BEFORE writing code. If code doesn't work as expected, re-read the docs before inventing workarounds (manual CSS overrides, wrappers that emulate missing behavior, hardcoded defaults that hide misconfiguration). Symptoms like "I had to add `fill: none` and custom stroke widths manually" or "I needed a fallback selector" are red flags that a setup step was skipped. The correct fix is almost always to wire up the official piece (theme import, module registration, schematic, peer dep) — not to paper over it. If you cannot find the official way, project-local `.claude/skills/*` (e.g. the `foblex-flow` skill) are the second authority; third, context7 MCP for current upstream docs.
 - **When AGENTS.md and ROADMAP.md disagree**: ROADMAP.md wins (it is the canonical design narrative and planning authority). AGENTS.md should be updated to match. When `spec/` and either disagree, spec wins.
 
 ## Rules for AI agents editing `spec/`
@@ -71,7 +72,9 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
 
 ## UI library reference
 
-The `ui/` workspace uses **Foblex Flow** (`@foblex/flow`) for the graph visualization layer. The library is poorly documented upstream, so a curated API reference lives at `docs/f-flow.md`. **Read that file before touching any graph-related template or component** — it covers the mental model, every directive/component, the event system, styling tokens, and working examples. Do NOT assume React Flow–style APIs (`[nodes]`, `[edges]`, `setNodes()`); Foblex uses connector-to-connector connections (`fOutputId` → `fInputId`) and the app owns all state.
+The `ui/` workspace uses **Foblex Flow** (`@foblex/flow`) for the graph visualization layer. The library is poorly documented upstream, so the full operating guide (seven non-negotiable rules, antipattern checklist, canonical patterns, full API reference) lives in the project-local **`foblex-flow` skill** at `.claude/skills/foblex-flow/`.
+
+Invoke it via `/foblex-flow` — or it auto-triggers when touching any graph-related Angular template, component, CSS, or `@foblex/flow` import. **Read the skill before touching any graph code.** The rules it encodes were all learned the hard way and skipping any produces silent failures.
 
 ## Further reading
 

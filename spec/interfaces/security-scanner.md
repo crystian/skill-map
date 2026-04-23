@@ -10,7 +10,7 @@ Normative contract for third-party security-scanning plugins (Snyk, Socket, cust
 
 ## Why a convention, not a new kind
 
-The six extension kinds are locked (`architecture.md`). Adding a seventh for "security" would conflate concerns: scanners are really actions that produce a specialized report. A convention lets any Action opt into the scanner surface without kernel changes.
+The six extension kinds are locked ([`architecture.md`](../architecture.md)). Adding a seventh for "security" would conflate concerns: scanners are really actions that produce a specialized report. A convention lets any Action opt into the scanner surface without kernel changes.
 
 ---
 
@@ -55,7 +55,7 @@ Scanners are **local-mode** Actions by default: no LLM involvement. The Action r
 
 ## Output: the `SecurityReport` shape
 
-Every scanner MUST produce a report conforming to this shape. It extends `report-base.schema.json` with scanner-specific fields.
+Every scanner MUST produce a report conforming to this shape. It extends [`report-base.schema.json`](../schemas/report-base.schema.json) with scanner-specific fields.
 
 ```jsonc
 {
@@ -156,7 +156,7 @@ Vendors MAY introduce their own category with the prefix `vendor:<slug>` (e.g. `
 ## Runtime model
 
 - Scanners are invoked through the standard job system: `sm job submit security-snyk -n <node.path>` or `sm job submit security-snyk --all`.
-- The report is persisted through the normal action report mechanism (`state_executions.report_path` points to the JSON file).
+- The report is persisted through the normal action report mechanism ([`state_executions`](../db-schema.md)`.report_path` points to the JSON file).
 - `sm findings --security` aggregates findings from reports whose action id starts with `security-`, merging across scanners, deduplicating by `finding.id`.
 - Implementations MAY also surface findings at scan time via a companion Rule (e.g. `security-findings-stale` flags nodes whose last security scan is older than a threshold). This is recommended but not normative.
 
@@ -213,6 +213,15 @@ This is the only `summaries/*` schema that does NOT correspond to a node kind; i
 A scanner that produces a report NOT conforming to `SecurityReport` is still a valid Action — but it does NOT show up in `sm findings --security` or the UI Security panel. Conforming is what unlocks the aggregation surface.
 
 `sm plugins doctor` MAY emit a warning for Actions prefixed `security-` whose most recent report does not parse as `SecurityReport`.
+
+---
+
+## See also
+
+- [`../architecture.md`](../architecture.md) — extension kinds (Action) and the kernel contract.
+- [`../job-lifecycle.md`](../job-lifecycle.md) — job submit/claim/record flow for scanner invocations.
+- [`../prompt-preamble.md`](../prompt-preamble.md) — `report-base` shape (safety + confidence) that scanner reports extend.
+- [`../db-schema.md`](../db-schema.md) — `state_executions` where scanner reports are persisted.
 
 ---
 

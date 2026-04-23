@@ -127,8 +127,16 @@ El workspace `ui/` se une como tercer peer en Step 0c (Angular SPA + Foblex Flow
 
 - Diseño completo y roadmap: [ROADMAP.md](./ROADMAP.md)
 - Glosario completo: [ROADMAP §Glossary](./ROADMAP.md#glossary)
-- Superficie del spec y reglas de mantenimiento: [AGENTS.md](./AGENTS.md) (sección "Spec bootstrap status")
-- Spec changelog: [spec/CHANGELOG.md](./spec/CHANGELOG.md) (versionado independiente de este repo)
+- Guía de contribución: [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Manual operativo para agentes: [AGENTS.md](./AGENTS.md)
+- Overview del spec: [spec/README.md](./spec/README.md)
+- Spec changelog: [spec/CHANGELOG.md](./spec/CHANGELOG.md) (versionado independiente)
+- Política de versionado del spec: [spec/versioning.md](./spec/versioning.md)
+- Arquitectura (ports & adapters): [spec/architecture.md](./spec/architecture.md)
+- Contrato CLI: [spec/cli-contract.md](./spec/cli-contract.md)
+- Referencia CLI (auto-generada): [docs/cli-reference.md](./docs/cli-reference.md)
+- Guía operativa de Foblex Flow: [.claude/skills/foblex-flow/SKILL.md](./.claude/skills/foblex-flow/SKILL.md) — reglas, patrones y referencia completa de API. Invocar con `/foblex-flow` al trabajar en la vista de grafo.
+- Implementación de referencia: [src/README.md](./src/README.md)
 - Versión en inglés de este README: [README.md](./README.md)
 - Licencia: [MIT](./LICENSE)
 

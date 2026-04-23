@@ -24,15 +24,15 @@ This document is the **source of truth**. The reference implementation under `..
 - Logging format, telemetry, or distribution channels.
 - Plugin marketplace mechanics.
 
-These are implementation decisions. The reference impl picks them (see `../CLAUDE.md` and `../ROADMAP.md`); other implementations may pick differently and still conform.
+These are implementation decisions. The reference impl picks them (see [`../AGENTS.md`](../AGENTS.md) and [`../ROADMAP.md`](../ROADMAP.md)); other implementations may pick differently and still conform.
 
 ## Properties
 
 - **Machine-readable**: all domain shapes are JSON Schemas. Validate from any language that has a JSON Schema validator.
 - **Human-readable**: prose documents for each subsystem, with examples.
-- **Independently versioned**: spec `v1.0.0` can be implemented by CLI `v0.3.2`. See `versioning.md`.
+- **Independently versioned**: spec `v1.0.0` can be implemented by CLI `v0.3.2`. See [`versioning.md`](./versioning.md).
 - **Platform-neutral**: no platform (Claude Code, Obsidian, …) is privileged. Each is expressed as an adapter extension.
-- **Conformance-tested**: every conforming implementation passes the suite under `conformance/`. Pass/fail is binary.
+- **Conformance-tested**: every conforming implementation passes the suite under [`conformance/`](./conformance/README.md). Pass/fail is binary.
 
 ## Naming conventions
 
@@ -49,17 +49,17 @@ The SQL persistence layer is the sole exception: tables, columns, and migration 
 spec/                              ← published as @skill-map/spec
 ├── README.md                      ← this file
 ├── CHANGELOG.md                   ← spec history (independent from CLI)
-├── versioning.md                  ← evolution policy
+├── [versioning.md](./versioning.md) ← evolution policy
 ├── package.json                   ← npm manifest for @skill-map/spec
 ├── index.json                     ← machine-readable manifest + per-file sha256 (generated)
 │
-├── architecture.md                ← hexagonal ports & adapters
-├── cli-contract.md                ← verbs, flags, exit codes, JSON introspection
-├── job-events.md                  ← canonical event stream schema
-├── prompt-preamble.md             ← canonical injection-mitigation preamble (verbatim normative)
-├── db-schema.md                   ← table catalog (kernel-owned)
-├── plugin-kv-api.md               ← ctx.store contract for storage mode A
-├── job-lifecycle.md               ← queued → running → completed | failed
+├── [architecture.md](./architecture.md)      ← hexagonal ports & adapters
+├── [cli-contract.md](./cli-contract.md)      ← verbs, flags, exit codes, JSON introspection
+├── [job-events.md](./job-events.md)          ← canonical event stream schema
+├── [prompt-preamble.md](./prompt-preamble.md) ← canonical injection-mitigation preamble (verbatim normative)
+├── [db-schema.md](./db-schema.md)            ← table catalog (kernel-owned)
+├── [plugin-kv-api.md](./plugin-kv-api.md)    ← ctx.store contract for storage mode A
+├── [job-lifecycle.md](./job-lifecycle.md)     ← queued → running → completed | failed
 │
 ├── schemas/                       ← 29 JSON Schemas, draft 2020-12, camelCase keys
 │   ├── node.schema.json                     ┐
@@ -99,26 +99,27 @@ spec/                              ← published as @skill-map/spec
 │       └── note.schema.json                 ┘
 │
 ├── interfaces/
-│   └── security-scanner.md        ← convention over the Action kind (NOT a 7th extension kind)
-└── conformance/
-    ├── fixtures/                  ← controlled MD corpora + preamble-v1.txt
-    └── cases/                     ← declarative test cases: basic-scan, kernel-empty-boot
-                                     (preamble-bitwise-match deferred to ../ROADMAP.md Step 10)
+│   └── [security-scanner.md](./interfaces/security-scanner.md) ← convention over the Action kind (NOT a 7th extension kind)
+├── [conformance/](./conformance/README.md)
+│   ├── [coverage.md](./conformance/coverage.md) ← schema-to-case coverage matrix
+│   ├── fixtures/                  ← controlled MD corpora + preamble-v1.txt
+│   └── cases/                     ← declarative test cases: basic-scan, kernel-empty-boot
+│                                    (preamble-bitwise-match deferred to ../ROADMAP.md Step 10)
 ```
 
 ## How to read this spec
 
-- **Building a tool or plugin that consumes skill-map output?** Start with `schemas/scan-result.schema.json` and `schemas/node.schema.json`.
-- **Building a custom detector, rule, or renderer?** Read `architecture.md`, then the relevant schema.
-- **Building an alternative CLI implementation?** Read `cli-contract.md` and run `conformance/`.
-- **Integrating a new platform (adapter)?** Read `architecture.md` §adapters, then the Claude adapter source in `../src/extensions/adapters/claude/` as a worked example.
-- **Shipping a job-running runner?** Read `job-events.md`, `job-lifecycle.md`, `prompt-preamble.md`.
+- **Building a tool or plugin that consumes skill-map output?** Start with [`schemas/scan-result.schema.json`](./schemas/scan-result.schema.json) and [`schemas/node.schema.json`](./schemas/node.schema.json).
+- **Building a custom detector, rule, or renderer?** Read [`architecture.md`](./architecture.md), then the relevant schema under [`schemas/extensions/`](./schemas/extensions/).
+- **Building an alternative CLI implementation?** Read [`cli-contract.md`](./cli-contract.md) and run [`conformance/`](./conformance/README.md).
+- **Integrating a new platform (adapter)?** Read [`architecture.md`](./architecture.md) §adapters, then the Claude adapter source in `../src/extensions/adapters/claude/` as a worked example.
+- **Shipping a job-running runner?** Read [`job-events.md`](./job-events.md), [`job-lifecycle.md`](./job-lifecycle.md), [`prompt-preamble.md`](./prompt-preamble.md).
 
 ## Relationship to the reference implementation
 
-The reference implementation (`../src/`) is one conforming consumer of this spec. It ships the CLI binary `sm`, a built-in SQLite storage adapter, and a bundle of default extensions.
+The reference implementation ([`../src/`](../src/README.md)) is one conforming consumer of this spec. It ships the CLI binary `sm`, a built-in SQLite storage adapter, and a bundle of default extensions.
 
-The reference impl has no privileged access to the spec. Breaking changes to the spec must follow `versioning.md` regardless of reference-impl convenience.
+The reference impl has no privileged access to the spec. Breaking changes to the spec must follow [`versioning.md`](./versioning.md) regardless of reference-impl convenience.
 
 When spec and reference impl disagree, the spec wins. File an issue; one of them is wrong.
 

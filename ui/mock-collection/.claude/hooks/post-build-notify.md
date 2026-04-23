@@ -12,6 +12,9 @@ metadata:
   author: acme
   tags: [notify, ci]
   created: 2026-02-28
+  related:
+    - .claude/commands/deploy.md
+    - .claude/agents/doc-writer.md
 ---
 
 # post-build-notify

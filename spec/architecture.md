@@ -2,7 +2,7 @@
 
 Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the six **extension kinds** that live outside the kernel.
 
-Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under `conformance/` enforces them.
+Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces them.
 
 ---
 
@@ -47,11 +47,11 @@ An implementation MUST expose these five ports. Each is an interface (TypeScript
 
 Persistence for all kernel tables in all three zones (`scan_*`, `state_*`, `config_*`). Exposes typed repositories, not raw SQL. Implementations MAY back this with SQLite, Postgres, in-memory, or anything else, as long as:
 
-- Transactional semantics for atomic claim (see `job-lifecycle.md`).
+- Transactional semantics for atomic claim (see [`job-lifecycle.md`](./job-lifecycle.md)).
 - Migration application with `PRAGMA user_version`-equivalent tracking.
 - Read isolation sufficient to avoid phantom reads across a single scan write.
 
-The reference impl backs this with `node:sqlite` + Kysely + `CamelCasePlugin`.
+The reference impl backs this with `node:sqlite` + Kysely + `CamelCasePlugin`. See [`db-schema.md`](./db-schema.md) for the full table catalog.
 
 ### `FilesystemPort`
 
@@ -77,13 +77,13 @@ Two reference implementations:
 - `ClaudeCliRunner` — subprocess `claude -p < jobfile`.
 - `MockRunner` — deterministic fake for tests.
 
-The **Skill agent** does NOT implement this port: it is a peer driving adapter (alongside CLI and Server) that runs inside an LLM session and consumes `sm job claim` + `sm record` as a kernel client. The name "Skill runner" is descriptive, not structural — only the `ClaudeCliRunner` (and its test fake) implement `RunnerPort`. See `job-lifecycle.md`.
+The **Skill agent** does NOT implement this port: it is a peer driving adapter (alongside CLI and Server) that runs inside an LLM session and consumes `sm job claim` + `sm record` as a kernel client. The name "Skill runner" is descriptive, not structural — only the `ClaudeCliRunner` (and its test fake) implement `RunnerPort`. See [`job-lifecycle.md`](./job-lifecycle.md).
 
 ### `ProgressEmitterPort`
 
 Emits progress events during long operations (scans, job runs). Consumers: CLI pretty printer, `--json` ndjson, Server's WebSocket broadcaster.
 
-Operations: `emit(event)`, `subscribe(listener)`. Events are defined in `job-events.md`.
+Operations: `emit(event)`, `subscribe(listener)`. Events are defined in [`job-events.md`](./job-events.md).
 
 ---
 
@@ -92,8 +92,8 @@ Operations: `emit(event)`, `subscribe(listener)`. Events are defined in `job-eve
 The kernel is the only component that:
 - Maintains the extension registry.
 - Runs the scan orchestrator.
-- Validates scan output against `scan-result.schema.json`.
-- Applies the canonical prompt preamble to job files (`prompt-preamble.md`).
+- Validates scan output against [`scan-result.schema.json`](./schemas/scan-result.schema.json).
+- Applies the canonical prompt preamble to job files ([`prompt-preamble.md`](./prompt-preamble.md)).
 - Enforces duplicate-prevention and atomic-claim invariants for jobs.
 - Persists execution records.
 
@@ -117,7 +117,7 @@ No extension is privileged. The Claude adapter ships bundled with the reference 
 
 ## Extension kinds
 
-Six kinds, all first-class, all loaded through the same registry. Each kind has a JSON Schema describing its manifest shape under `spec/schemas/extensions/<kind>.schema.json`. Implementations MUST validate every extension manifest against the schema for its declared kind at load time; validation failure → the extension is skipped with status `invalid-manifest`.
+Six kinds, all first-class, all loaded through the same registry. Each kind has a JSON Schema describing its manifest shape under [`schemas/extensions/`](./schemas/extensions/). Implementations MUST validate every extension manifest against the schema for its declared kind at load time; validation failure → the extension is skipped with status `invalid-manifest`.
 
 | Kind | Role | Input | Output |
 |---|---|---|---|
@@ -134,7 +134,7 @@ Every `Adapter` extension MUST declare a map `defaultRefreshAction: { <kind>: <a
 
 ### Detector · trigger normalization
 
-Detectors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in `schemas/link.schema.json`:
+Detectors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in [`schemas/link.schema.json`](./schemas/link.schema.json):
 
 - `originalTrigger` — the exact source text the detector saw, byte-for-byte. Used only for display.
 - `normalizedTrigger` — the output of the pipeline below. Used for equality and collision detection — the built-in `trigger-collision` rule keys on this field.
@@ -171,7 +171,7 @@ Characters outside the separator set that are not letters or digits (e.g. `/`, `
 
 1. An extension declares its kind in its module export and its manifest. Kind mismatch → load-error.
 2. An extension MAY declare `preconditions` — predicates that must be satisfied for the extension to be offered (e.g., `action.requires: ["kind=skill"]`).
-3. An extension MUST NOT retain state across invocations. Scoped persistence goes through `ctx.store` (storage mode `kv`) or the plugin's dedicated tables (`dedicated`).
+3. An extension MUST NOT retain state across invocations. Scoped persistence goes through `ctx.store` (storage mode `kv`) or the plugin's dedicated tables (`dedicated`). See [`plugin-kv-api.md`](./plugin-kv-api.md).
 4. An extension MUST NOT import another extension directly. Cross-extension communication goes through the kernel's registry lookup.
 5. An extension MUST provide a sibling test file. The reference impl treats a missing test as a contract-check failure; other impls MAY relax this to a warning.
 
@@ -245,6 +245,19 @@ The CLI, Server, and Skill driving adapters are **peers**. None depends on anoth
 All three consume the same kernel API. Any use case a driving adapter needs MUST be available as a kernel function — if it isn't, the gap is a kernel bug, not a driving-adapter workaround.
 
 This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel function call. The UI does not reimplement business logic; it calls the same functions.
+
+---
+
+## See also
+
+- [`cli-contract.md`](./cli-contract.md) — verb surface of the CLI driving adapter.
+- [`db-schema.md`](./db-schema.md) — table catalog backing `StoragePort`.
+- [`job-lifecycle.md`](./job-lifecycle.md) — state machine for jobs, atomic claim, TTL/reap.
+- [`job-events.md`](./job-events.md) — event stream emitted through `ProgressEmitterPort`.
+- [`prompt-preamble.md`](./prompt-preamble.md) — canonical injection-mitigation preamble for job files.
+- [`plugin-kv-api.md`](./plugin-kv-api.md) — `ctx.store` contract for extension persistence.
+- [`versioning.md`](./versioning.md) — spec/impl version independence and semver policy.
+- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md) — convention over the Action kind for security scanners.
 
 ---
 

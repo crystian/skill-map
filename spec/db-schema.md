@@ -1,10 +1,10 @@
 # Database schema
 
-Normative catalog of tables owned by the kernel. Plugins MAY add their own tables under a strict prefix (see `plugin-kv-api.md`). An implementation MUST provision every kernel table described here and MUST reject writes that violate the stated constraints.
+Normative catalog of tables owned by the kernel. Plugins MAY add their own tables under a strict prefix (see [`plugin-kv-api.md`](./plugin-kv-api.md)). An implementation MUST provision every kernel table described here and MUST reject writes that violate the stated constraints.
 
 The spec assumes a relational, SQL-like store but is **engine-agnostic**. The reference implementation uses SQLite (`node:sqlite`) + Kysely + `CamelCasePlugin`. Alternative backends (Postgres, DuckDB, in-memory) are permitted as long as:
 
-- Atomic single-statement transitions are available for the job claim (see `job-lifecycle.md`).
+- Atomic single-statement transitions are available for the job claim (see [`job-lifecycle.md`](./job-lifecycle.md)).
 - Migrations track applied versions per scope.
 - Read isolation avoids phantom reads inside a single scan write.
 
@@ -67,7 +67,7 @@ Domain types exposed to driving adapters use `camelCase`. The SQLite reference i
 
 ### `scan_nodes`
 
-One row per detected node, matching `schemas/node.schema.json`.
+One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.schema.json).
 
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
@@ -97,7 +97,7 @@ Indexes: `ix_scan_nodes_kind`, `ix_scan_nodes_adapter`, `ix_scan_nodes_body_hash
 
 ### `scan_links`
 
-One row per detected link, matching `schemas/link.schema.json`.
+One row per detected link, matching [`schemas/link.schema.json`](./schemas/link.schema.json).
 
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
@@ -118,7 +118,7 @@ Indexes: `ix_scan_links_source_path`, `ix_scan_links_target_path`, `ix_scan_link
 
 ### `scan_issues`
 
-One row per rule-emitted issue, matching `schemas/issue.schema.json`.
+One row per rule-emitted issue, matching [`schemas/issue.schema.json`](./schemas/issue.schema.json).
 
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
@@ -140,7 +140,7 @@ Indexes: `ix_scan_issues_rule_id`, `ix_scan_issues_severity`.
 
 ### `state_jobs`
 
-Matching `schemas/job.schema.json`.
+Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifecycle.md`](./job-lifecycle.md) for the state machine and transitions.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -166,7 +166,7 @@ Indexes: `ix_state_jobs_status`, `ix_state_jobs_action_node_hash` (unique partia
 
 ### `state_executions`
 
-Matching `schemas/execution-record.schema.json`.
+Matching [`schemas/execution-record.schema.json`](./schemas/execution-record.schema.json).
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -192,7 +192,7 @@ Indexes: `ix_state_executions_extension_id`, `ix_state_executions_started_at`, `
 
 ### `state_summaries`
 
-One row per `(node_id, summarizer_action_id)`. See `schemas/summaries/`.
+One row per `(node_id, summarizer_action_id)`. See [`schemas/summaries/`](./schemas/summaries/).
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -223,7 +223,7 @@ Primary key: `(node_id, provider_id)`. Indexes: `ix_state_enrichments_stale_afte
 
 ### `state_plugin_kvs`
 
-Shared key-value store for plugins that declared storage mode `kv`. See `plugin-kv-api.md` for the accessor contract.
+Shared key-value store for plugins that declared storage mode `kv`. See [`plugin-kv-api.md`](./plugin-kv-api.md) for the accessor contract.
 
 | Column | Type | Constraint |
 |---|---|---|
@@ -294,11 +294,11 @@ The kernel ALSO maintains `PRAGMA user_version` (or the engine equivalent) as a 
 
 ## Plugin storage
 
-Two modes declared in `plugin.json` (see `schemas/plugins-registry.schema.json`).
+Two modes declared in `plugin.json` (see [`schemas/plugins-registry.schema.json`](./schemas/plugins-registry.schema.json)).
 
 | Mode | Manifest | Backing |
 |---|---|---|
-| **KV** (mode A) | `"storage": { "mode": "kv" }` | Shared `state_plugin_kvs`. See `plugin-kv-api.md`. |
+| **KV** (mode A) | `"storage": { "mode": "kv" }` | Shared `state_plugin_kvs`. See [`plugin-kv-api.md`](./plugin-kv-api.md). |
 | **Dedicated** (mode B) | `"storage": { "mode": "dedicated", "tables": [...], "migrations": [...] }` | Plugin-owned tables, prefixed `plugin_<normalized_id>_`. |
 
 Normalization of `plugin_id` for the prefix:
@@ -383,6 +383,15 @@ Both verbs operate on FK ownership only; neither edits files on disk.
 - No plugin in `load-error` or `incompatible-spec` status.
 
 Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "run `sm job prune --orphan-files`").
+
+---
+
+## See also
+
+- [`architecture.md`](./architecture.md) — `StoragePort` interface definition and dependency rules.
+- [`plugin-kv-api.md`](./plugin-kv-api.md) — `ctx.store` accessor for mode A / mode B persistence.
+- [`job-lifecycle.md`](./job-lifecycle.md) — atomic claim and TTL/reap semantics that drive `state_jobs`.
+- [`cli-contract.md`](./cli-contract.md) — `sm db` verb surface (reset, backup, restore, migrate).
 
 ---
 

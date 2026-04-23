@@ -5,12 +5,11 @@ import { ButtonModule } from 'primeng/button';
 import { CollectionLoaderService } from '../services/collection-loader';
 import { ScanSimulatorService } from '../services/scan-simulator';
 import { ThemeService } from '../services/theme';
-import { EventLog } from './components/event-log/event-log';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, EventLog],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

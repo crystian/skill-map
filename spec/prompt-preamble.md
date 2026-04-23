@@ -99,10 +99,10 @@ The preamble establishes a promise from the model:
 
 - Every report MUST be valid JSON.
 - Every report MUST contain `safety` and `confidence` at the top level.
-- `safety` MUST conform to `schemas/report-base.schema.json#/properties/safety`.
+- `safety` MUST conform to [`schemas/report-base.schema.json`](./schemas/report-base.schema.json)`#/properties/safety`.
 - `confidence` MUST be a number in `[0.0, 1.0]`.
 
-The kernel validates every report against the action's declared schema (which MUST extend `report-base.schema.json`). A report that lacks `safety` or `confidence`, or whose values are of the wrong shape, is rejected; the job transitions to `failed` with reason `report-invalid` (see `job-lifecycle.md`).
+The kernel validates every report against the action's declared schema (which MUST extend [`report-base.schema.json`](./schemas/report-base.schema.json)). A report that lacks `safety` or `confidence`, or whose values are of the wrong shape, is rejected; the job transitions to `failed` with reason `report-invalid` (see [`job-lifecycle.md`](./job-lifecycle.md)).
 
 Implementations MUST NOT tolerate the absence of `safety`. If a model returns a report without it, the failure is the runner's problem to surface, not the kernel's to tolerate.
 
@@ -125,13 +125,13 @@ Implementations MUST NOT modify the preamble text at runtime (e.g., based on loc
 
 ## Versioning the preamble
 
-The preamble text is a **normative artifact** of the spec. Any change follows `versioning.md`:
+The preamble text is a **normative artifact** of the spec. Any change follows [`versioning.md`](./versioning.md):
 
 - Editorial fixes to examples (none exist today, keep it that way) — patch bump.
 - Tightening the instructions (e.g., adding a new refusal clause) — minor bump.
-- Changing the shape the model must emit (`safety` structure) — major bump, because it propagates to `report-base.schema.json`.
+- Changing the shape the model must emit (`safety` structure) — major bump, because it propagates to [`report-base.schema.json`](./schemas/report-base.schema.json).
 
-Every spec release that modifies the preamble MUST record the rationale in `CHANGELOG.md`.
+Every spec release that modifies the preamble MUST record the rationale in [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
@@ -147,6 +147,15 @@ Defense-in-depth: the deterministic rule `injection-pattern` (shipped as a built
 
 ---
 
+## See also
+
+- [`job-lifecycle.md`](./job-lifecycle.md) — submit flow that renders job files with the preamble.
+- [`architecture.md`](./architecture.md) — kernel's role in applying the preamble.
+- [`interfaces/security-scanner.md`](./interfaces/security-scanner.md) — `SecurityReport` convention that extends `report-base`.
+- [`conformance/`](./conformance/README.md) — `preamble-bitwise-match` case (deferred to Step 10).
+
+---
+
 ## Stability
 
-The verbatim text above is **stable** as of spec v1.0.0. It is reproduced in the conformance suite as `conformance/fixtures/preamble-v1.txt`. Any implementation whose rendered job files do not contain this text verbatim fails the conformance check `preamble-bitwise-match`.
+The verbatim text above is **stable** as of spec v1.0.0. It is reproduced in the conformance suite as [`conformance/fixtures/preamble-v1.txt`](./conformance/fixtures/preamble-v1.txt). Any implementation whose rendered job files do not contain this text verbatim fails the conformance check `preamble-bitwise-match`.

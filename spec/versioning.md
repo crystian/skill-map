@@ -28,7 +28,7 @@ Rule of thumb: if a strict v1 implementation could fail a v1.X conformance run, 
 All of the following are normative and governed by this policy:
 
 - Every JSON Schema in `schemas/` (fields, types, required, enums, defaults, `additionalProperties`).
-- Every MUST / SHOULD / MAY statement in prose documents (`architecture.md`, `cli-contract.md`, `job-events.md`, `prompt-preamble.md`, `db-schema.md`, `plugin-kv-api.md`, `job-lifecycle.md`).
+- Every MUST / SHOULD / MAY statement in prose documents ([`architecture.md`](./architecture.md), [`cli-contract.md`](./cli-contract.md), [`job-events.md`](./job-events.md), [`prompt-preamble.md`](./prompt-preamble.md), [`db-schema.md`](./db-schema.md), [`plugin-kv-api.md`](./plugin-kv-api.md), [`job-lifecycle.md`](./job-lifecycle.md)).
 - Exit codes, verb names, required flags, canonical error messages marked "normative".
 - Conformance fixtures and cases — removing or tightening a case is major.
 
@@ -77,9 +77,9 @@ The first stable commitment is `spec-v1.0.0`. In the current reference roadmap, 
 ## Change process
 
 1. PR proposes a spec change. Include rationale and classification (patch/minor/major).
-2. If major, PR includes a migration note draft for `CHANGELOG.md`.
+2. If major, PR includes a migration note draft for [`CHANGELOG.md`](./CHANGELOG.md).
 3. If the change affects reference-impl behavior, a companion PR in `src/` lands the implementation behind the bumped `specCompat`.
-4. Merge order: spec change first, implementation second. An implementation MUST NOT ship a feature that is not yet in the spec (see `AGENTS.md`: "Every feature: update spec/ first, then src/").
+4. Merge order: spec change first, implementation second. An implementation MUST NOT ship a feature that is not yet in the spec (see [`../AGENTS.md`](../AGENTS.md): "Every feature: update spec/ first, then src/").
 5. Tag spec release (`spec-vX.Y.Z`) independent from any CLI tag.
 
 ## Canonical URLs

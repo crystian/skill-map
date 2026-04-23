@@ -18,6 +18,9 @@ metadata:
   author: acme
   tags: [scaffold, onboarding]
   created: 2025-10-01
+  related:
+    - notes/readme.md
+    - .claude/hooks/session-greeter.md
 ---
 
 # /init

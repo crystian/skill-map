@@ -70,6 +70,8 @@ export class GraphView implements OnInit {
   readonly outputSide = EFConnectableSide.BOTTOM;
   readonly inputSide = EFConnectableSide.TOP;
 
+  private pointerDownAt: { x: number; y: number } | null = null;
+
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
 
@@ -99,7 +101,18 @@ export class GraphView implements OnInit {
     queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, false));
   }
 
-  openNode(node: IGraphNode): void {
+  onNodePointerDown(event: PointerEvent): void {
+    this.pointerDownAt = { x: event.clientX, y: event.clientY };
+  }
+
+  openNode(node: IGraphNode, event: MouseEvent): void {
+    const start = this.pointerDownAt;
+    this.pointerDownAt = null;
+    if (start) {
+      const dx = event.clientX - start.x;
+      const dy = event.clientY - start.y;
+      if (Math.hypot(dx, dy) > 4) return;
+    }
     void this.router.navigate(['/inspector'], { queryParams: { path: node.path } });
   }
 

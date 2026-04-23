@@ -2,7 +2,7 @@
 
 Map, inspect, and manage collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, Obsidian vaults, docs sites).
 
-**Status**: pre-MVP. Steps 0a (spec) and 0b (kernel shell) are complete; the CLI currently exposes `sm scan` as a stub. See [`ROADMAP.md`](https://github.com/crystian/skill-map/blob/main/ROADMAP.md) for the full execution plan.
+**Status**: pre-MVP. Steps 0a (spec) and 0b (kernel shell) are complete; the CLI currently exposes `sm scan` as a stub. See [`ROADMAP.md`](../ROADMAP.md) for the full execution plan.
 
 ## Requirements
 
@@ -34,7 +34,7 @@ sm --help                       # top-level help
 sm scan [roots...] [--json]     # stub in 0b; full scan in Step 4
 ```
 
-Exit codes follow [`spec/cli-contract.md`](https://github.com/crystian/skill-map/blob/main/spec/cli-contract.md):
+Exit codes follow [`spec/cli-contract.md`](../spec/cli-contract.md):
 
 | Code | Meaning |
 |---|---|
@@ -51,4 +51,4 @@ This binary implements the [skill-map spec](https://www.npmjs.com/package/@skill
 
 ## License
 
-MIT. See [LICENSE](https://github.com/crystian/skill-map/blob/main/LICENSE).
+MIT. See [`LICENSE`](../LICENSE).

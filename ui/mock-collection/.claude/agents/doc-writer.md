@@ -13,6 +13,9 @@ metadata:
   author: acme
   tags: [docs, release-notes]
   created: 2026-02-11
+  related:
+    - notes/changelog.md
+    - .claude/commands/deploy.md
 ---
 
 # Doc Writer

@@ -9,6 +9,10 @@ metadata:
   tags: [readme, onboarding]
   created: 2026-04-22
   homepage: https://example.com/acme-toolkit
+  related:
+    - notes/architecture.md
+    - .claude/commands/init.md
+    - .claude/commands/scan.md
 ---
 
 # acme-toolkit

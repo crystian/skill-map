@@ -11,6 +11,8 @@ metadata:
   author: acme
   tags: [ux, session]
   created: 2025-09-08
+  related:
+    - notes/readme.md
 ---
 
 # session-greeter

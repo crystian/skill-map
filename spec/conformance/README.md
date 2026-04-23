@@ -2,7 +2,7 @@
 
 Language-neutral test suite the specification demands. A conforming implementation passes every case; failing any case is a conformance bug.
 
-This directory is **stub-level** as of spec v0.1.0. Two cases ship (`basic-scan`, `kernel-empty-boot`) with a single shared fixture (`minimal-claude`). The shape below is normative; the case count expands before spec-v1.0.0 (see `versioning.md`).
+This directory is **stub-level** as of spec v0.1.0. Two cases ship (`basic-scan`, `kernel-empty-boot`) with a single shared fixture (`minimal-claude`). The shape below is normative; the case count expands before spec-v1.0.0 (see [`../versioning.md`](../versioning.md)). See [`coverage.md`](./coverage.md) for the full schema-to-case matrix.
 
 ---
 
@@ -33,7 +33,7 @@ Fixtures are read-only inputs. Cases declare what to invoke and what to assert. 
 
 ## Case format
 
-Cases are validated against [`schemas/conformance-case.schema.json`](../schemas/conformance-case.schema.json). That file is the normative shape; this section is the human-readable walkthrough. Include `"$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json"` in every case file for IDE support.
+Cases are validated against [`conformance-case.schema.json`](../schemas/conformance-case.schema.json). That file is the normative shape; this section is the human-readable walkthrough. Include `"$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json"` in every case file for IDE support.
 
 A case is a JSON document with this shape:
 
@@ -129,6 +129,15 @@ for (const caseFile of await readdir('spec/conformance/cases')) {
 ```
 
 The reference implementation's runner will ship under `src/conformance/` during Step 0b; until then, the spec treats this suite as a schema (shape contract) rather than an executable test target.
+
+---
+
+## See also
+
+- [`coverage.md`](./coverage.md) — schema-to-case coverage matrix and release gates.
+- [`../versioning.md`](../versioning.md) — what constitutes a major/minor/patch change to the suite.
+- [`../architecture.md`](../architecture.md) — kernel empty-boot invariant exercised by `kernel-empty-boot`.
+- [`../prompt-preamble.md`](../prompt-preamble.md) — verbatim text checked by `preamble-bitwise-match` (deferred).
 
 ---
 

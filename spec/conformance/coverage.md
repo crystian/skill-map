@@ -1,6 +1,6 @@
 # Conformance coverage
 
-Authoritative map of JSON Schemas in `spec/schemas/` to the conformance cases that exercise them. Every schema MUST have at least one case before spec v1.0.0 ships — missing case → missing release (AGENTS.md §Rules for AI agents editing spec/).
+Authoritative map of JSON Schemas in [`../schemas/`](../schemas/) to the conformance cases that exercise them. Every schema MUST have at least one case before spec v1.0.0 ships — missing case → missing release ([`../../AGENTS.md`](../../AGENTS.md) §Rules for AI agents editing spec/).
 
 This file is hand-maintained. A CI check before spec release compares the schema inventory against this table and fails if any schema lacks a case.
 

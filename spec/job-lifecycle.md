@@ -1,6 +1,6 @@
 # Job lifecycle
 
-Normative state machine for jobs. A `Job` (see `schemas/job.schema.json`) is the runtime instance of an `Action` applied to one or more `Node`s. Every job moves through this lifecycle exactly once.
+Normative state machine for jobs. A `Job` (see [`schemas/job.schema.json`](./schemas/job.schema.json)) is the runtime instance of an `Action` applied to one or more `Node`s. Every job moves through this lifecycle exactly once.
 
 ---
 
@@ -56,7 +56,7 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 5. Compute `ttlSeconds` per §TTL resolution below. Frozen on `state_jobs.ttlSeconds` for the life of this job.
 6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): action manifest `defaultPriority` → user config `jobs.perActionPriority.<actionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. The resolved value is frozen on `state_jobs.priority` at submit time and is immutable for the life of the job.
 7. Generate `nonce` (implementation-chosen; MUST be cryptographically random, ≥ 128 bits of entropy).
-8. Render the job file at `.skill-map/jobs/<id>.md`, applying the canonical preamble (see `prompt-preamble.md`).
+8. Render the job file at `.skill-map/jobs/<id>.md`, applying the canonical preamble (see [`prompt-preamble.md`](./prompt-preamble.md)).
 9. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`.
 10. Return the job id.
 
@@ -166,9 +166,9 @@ Negative or zero values MUST be rejected with exit 2 at submit time.
 2. Compare the supplied nonce against `state_jobs.nonce`. Mismatch → exit 4 without mutation.
 3. If `state_jobs.status != 'running'` → exit 2 with message "job not in running state". This catches late callbacks after a reap.
 4. If `--status completed`: validate the report file against the action's declared report schema. On validation failure → transition to `failed` with reason `report-invalid`; DO NOT stay `running`.
-5. Write the execution record (see `schemas/execution-record.schema.json`) with the full metrics.
+5. Write the execution record (see [`schemas/execution-record.schema.json`](./schemas/execution-record.schema.json)) with the full metrics.
 6. Transition the job to the terminal state.
-7. Emit `job.callback.received` followed by `job.completed` or `job.failed`.
+7. Emit `job.callback.received` followed by `job.completed` or `job.failed` (see [`job-events.md`](./job-events.md)).
 
 The nonce is the sole authentication factor. A compromised nonce allows forged callbacks for that single job. Nonces MUST be generated per-job; never reused; never logged at info level or above.
 
@@ -233,6 +233,16 @@ Config controls (`jobs.retention.completed`, `jobs.retention.failed`):
 - `failed` default `null` = never auto-purge (preserves history of failures for analysis).
 
 `sm job prune` applies retention. Implementations MAY run this on a schedule (e.g., on `sm doctor`, or in a cron adapter) but MUST NOT prune implicitly during normal verb execution.
+
+---
+
+## See also
+
+- [`architecture.md`](./architecture.md) — `RunnerPort` definition; driving-adapter peer rule for Skill agents.
+- [`job-events.md`](./job-events.md) — canonical event stream emitted during job execution.
+- [`prompt-preamble.md`](./prompt-preamble.md) — verbatim preamble prepended to every rendered job file.
+- [`db-schema.md`](./db-schema.md) — `state_jobs` and `state_executions` table catalogs.
+- [`cli-contract.md`](./cli-contract.md) — `sm job` verb surface and exit codes.
 
 ---
 

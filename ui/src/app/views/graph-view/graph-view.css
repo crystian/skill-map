@@ -1,11 +1,13 @@
 :host {
   display: block;
+  height: 100%;
 }
 
 .graph {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  height: 100%;
 }
 
 .graph__header {
@@ -44,21 +46,25 @@
   color: var(--sm-severity-error);
 }
 
-.graph__defs {
-  position: absolute;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-}
-
 .graph__canvas-wrap {
   position: relative;
-  height: calc(100dvh - 280px);
-  min-height: 400px;
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--p-surface-200, #e5e7eb);
   border-radius: 0.75rem;
   background: var(--p-surface-0, #ffffff);
   overflow: hidden;
+
+  /* Suppress the reassign drag-handle rings Foblex paints at each
+     endpoint of every <f-connection>. The default theme already sets
+     fill: transparent on those circles; the visible blue ring is the
+     stroke (token default: var(--ff-color-accent)). This view is
+     read-only — we set [fReassignDisabled] on every connection — so the
+     rings are noise. Zero out the stroke token at this wrapper; custom
+     properties inherit through the SVG, the <circle> stays in the DOM
+     for the library's internal layout/hit-testing, we never touch the
+     library's inner elements. */
+  --ff-connection-drag-handle-stroke: transparent;
 }
 
 .graph__canvas-wrap f-flow {
@@ -93,7 +99,7 @@
 }
 
 /* Node cards inside the canvas. */
-.f-gnode {
+.sm-gnode {
   width: 200px;
   min-height: 96px;
   padding: 0.6rem 0.85rem;
@@ -105,15 +111,15 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
 }
 
-.f-gnode:hover {
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.08);
-  transform: translateY(-1px);
+.sm-gnode:hover {
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+  border-color: var(--p-surface-400, #9ca3af);
 }
 
-.f-gnode__kind {
+.sm-gnode__kind {
   align-self: flex-start;
   font-size: 0.65rem;
   text-transform: uppercase;
@@ -125,7 +131,7 @@
   color: var(--p-text-muted-color, #4b5563);
 }
 
-.f-gnode__label {
+.sm-gnode__label {
   font-weight: 500;
   font-size: 0.95rem;
   color: var(--p-text-color, #1f2937);
@@ -133,7 +139,7 @@
   line-height: 1.25;
 }
 
-.f-gnode__subtitle {
+.sm-gnode__subtitle {
   font-size: 0.7rem;
   color: var(--p-text-muted-color, #6b7280);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -142,13 +148,13 @@
   white-space: nowrap;
 }
 
-.f-gnode__links {
+.sm-gnode__links {
   display: flex;
   gap: 0.35rem;
   margin-top: auto;
 }
 
-.f-gnode__link-badge {
+.sm-gnode__link-badge {
   font-size: 0.65rem;
   font-weight: 600;
   padding: 0.05rem 0.35rem;
@@ -156,17 +162,17 @@
   letter-spacing: 0.02em;
 }
 
-.f-gnode__link-badge--in {
+.sm-gnode__link-badge--in {
   background: var(--sm-link-in-bg);
   color: var(--sm-link-in-fg);
 }
 
-.f-gnode__link-badge--out {
+.sm-gnode__link-badge--out {
   background: var(--sm-link-out-bg);
   color: var(--sm-link-out-fg);
 }
 
-.f-gnode__connector {
+.sm-gnode__connector {
   position: absolute;
   width: 10px;
   height: 10px;
@@ -176,64 +182,85 @@
   pointer-events: none;
 }
 
-.f-gnode__connector--out {
+.sm-gnode__connector--out {
   bottom: -6px;
   left: 50%;
   transform: translateX(-50%);
 }
 
+.sm-gnode__connector--in {
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
 /* Kind-specific accents. */
-.f-gnode--skill {
+.sm-gnode--skill {
   border-left: 3px solid var(--sm-kind-skill);
 }
-.f-gnode--skill .f-gnode__kind {
+.sm-gnode--skill .sm-gnode__kind {
   background: var(--sm-kind-skill-bg);
   color: var(--sm-kind-skill-fg);
 }
 
-.f-gnode--agent {
+.sm-gnode--agent {
   border-left: 3px solid var(--sm-kind-agent);
 }
-.f-gnode--agent .f-gnode__kind {
+.sm-gnode--agent .sm-gnode__kind {
   background: var(--sm-kind-agent-bg);
   color: var(--sm-kind-agent-fg);
 }
 
-.f-gnode--command {
+.sm-gnode--command {
   border-left: 3px solid var(--sm-kind-command);
 }
-.f-gnode--command .f-gnode__kind {
+.sm-gnode--command .sm-gnode__kind {
   background: var(--sm-kind-command-bg);
   color: var(--sm-kind-command-fg);
 }
 
-.f-gnode--hook {
+.sm-gnode--hook {
   border-left: 3px solid var(--sm-kind-hook);
 }
-.f-gnode--hook .f-gnode__kind {
+.sm-gnode--hook .sm-gnode__kind {
   background: var(--sm-kind-hook-bg);
   color: var(--sm-kind-hook-fg);
 }
 
-.f-gnode--note {
+.sm-gnode--note {
   border-left: 3px solid var(--sm-kind-note);
 }
 
-/* Connection accent by edge type. Foblex paints the SVG path under the
-   hood; we target f-connection by class name for a subtle color tweak. */
-::ng-deep .f-conn--supersedes .f-path {
-  stroke: var(--sm-edge-supersedes);
-  stroke-width: 2.5;
-  marker-end: url(#arrow-supersedes);
+/* Kind-specific connection styling via Foblex theme tokens.
+   `--ff-connection-color`, `--ff-connection-width`, `--ff-marker-color` are
+   declared in @foblex/flow/styles/tokens/_ff-aliases.scss and consumed by
+   the default theme. CSS custom properties cascade through Angular's
+   emulated encapsulation, so setting them at the `.f-conn--X` class level
+   propagates into the library's inner SVG without `::ng-deep`. The arrow
+   marker itself is projected via <f-connection-marker-arrow> in the
+   template — no hand-rolled <svg><defs><marker> needed. */
+.f-conn--supersedes {
+  --ff-connection-color: var(--sm-edge-supersedes);
+  --ff-connection-width: 2.5px;
+  --ff-marker-color: var(--sm-edge-supersedes);
 }
-::ng-deep .f-conn--requires .f-path {
-  stroke: var(--sm-edge-requires);
-  stroke-width: 2;
-  marker-end: url(#arrow-requires);
+.f-conn--requires {
+  --ff-connection-color: var(--sm-edge-requires);
+  --ff-connection-width: 2px;
+  --ff-marker-color: var(--sm-edge-requires);
 }
-::ng-deep .f-conn--related .f-path {
-  stroke: var(--sm-edge-related);
-  stroke-width: 1.5;
+.f-conn--related {
+  --ff-connection-color: var(--sm-edge-related);
+  --ff-connection-width: 1.5px;
+  --ff-marker-color: var(--sm-edge-related);
+}
+
+/* `stroke-dasharray` has no Foblex theme token (the theme exposes color
+   and width but not dash). This is the only remaining surface where we
+   need to reach the library-rendered SVG from our CSS, so we use
+   `::ng-deep` scoped under the wrapper element we own — the documented
+   Angular escape hatch, and the same pattern Foblex's own official
+   examples follow (see apps/example-apps/uml-diagram in Foblex/f-flow). */
+.graph__canvas-wrap ::ng-deep .f-conn--related .f-connection-path {
   stroke-dasharray: 4 3;
-  marker-end: url(#arrow-related);
 }

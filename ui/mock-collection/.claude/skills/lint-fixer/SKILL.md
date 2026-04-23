@@ -16,6 +16,8 @@ metadata:
   author: acme
   tags: [lint, auto-fix]
   created: 2025-06-12
+  related:
+    - .claude/skills/code-review/SKILL.md
 ---
 
 # Lint Fixer

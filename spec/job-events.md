@@ -8,7 +8,7 @@ This document is **normative**. The set of event types, their payload shapes, an
 
 ## Transport
 
-Events are records produced by the kernel through `ProgressEmitterPort` (see `architecture.md`). An implementation MUST provide three output adapters:
+Events are records produced by the kernel through `ProgressEmitterPort` (see [`architecture.md`](./architecture.md)). An implementation MUST provide three output adapters:
 
 | Adapter | Purpose | Format |
 |---|---|---|
@@ -254,7 +254,7 @@ Emitted when a job transitions to `failed` by any path.
 }
 ```
 
-`reason` enum matches `execution-record.failureReason`. `message` is human-readable free-form; MAY be truncated for display.
+`reason` enum matches [`execution-record.schema.json`](./schemas/execution-record.schema.json) `failureReason`. `message` is human-readable free-form; MAY be truncated for display.
 
 ### `run.summary`
 
@@ -308,7 +308,7 @@ A parallel implementation MAY interleave per-job sequences across different `job
 
 These event families cover kernel activity other than job execution. They share the common envelope (`type`, `timestamp`, `runId`, `jobId`, `data`). For non-job events `jobId` is always `null`; `runId` identifies the invocation that produced the event — a scan gets an `r-scan-YYYYMMDD-HHMMSS-XXXX` id, an issue recomputation outside a scan gets an `r-check-...` id, following the same `r-<mode>-...` shape as the external-Skill synthetic envelope (`r-ext-...`).
 
-The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 13 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping them to `stable` is a minor spec bump; changes to field shapes before `stable` are allowed without a major bump (per `versioning.md` §Pre-1.0).
+The **shapes below are experimental through spec v0.x**. The reference impl starts emitting them at Step 13 alongside the WebSocket broadcaster; once real consumers exercise the stream, the fields lock. Bumping them to `stable` is a minor spec bump; changes to field shapes before `stable` are allowed without a major bump (per [`versioning.md`](./versioning.md) §Pre-1.0).
 
 ### Scan events
 
@@ -426,6 +426,14 @@ If an event payload cannot be serialized (internal bug), the implementation MUST
 ```
 
 Consumers MAY treat `emitter.error` as a soft failure (log and continue). Implementations MUST NOT crash the run because of a serialization failure.
+
+---
+
+## See also
+
+- [`architecture.md`](./architecture.md) — `ProgressEmitterPort` definition.
+- [`job-lifecycle.md`](./job-lifecycle.md) — state machine that drives these events.
+- [`cli-contract.md`](./cli-contract.md) — `--json` and `--stream-output` flag semantics.
 
 ---
 

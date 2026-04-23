@@ -1,12 +1,12 @@
 :host {
   display: block;
-  min-height: 100dvh;
+  height: 100dvh;
 }
 
 .shell {
   display: flex;
   flex-direction: column;
-  min-height: 100dvh;
+  height: 100dvh;
 }
 
 .shell__topbar {
@@ -100,7 +100,9 @@
 
 .shell__main {
   flex: 1;
-  padding: 1.5rem 1.5rem 5rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1.5rem;
   max-width: 1400px;
   width: 100%;
   margin: 0 auto;
@@ -119,7 +121,7 @@
     font-size: 0.85rem;
   }
   .shell__main {
-    padding: 1rem 1rem 5rem;
+    padding: 1rem;
   }
 }
 

@@ -1,6 +1,6 @@
 # Plugin KV API
 
-Normative contract for plugin-accessible persistence. Two modes exist (see `db-schema.md` for the catalog entries):
+Normative contract for plugin-accessible persistence. Two modes exist (see [`db-schema.md`](./db-schema.md) for the catalog entries):
 
 - **Mode A — KV**: plugin uses the kernel-provided `ctx.store.*` accessor. Backed by the shared `state_plugin_kvs` table.
 - **Mode B — Dedicated**: plugin owns its own tables with the `plugin_<normalizedId>_` prefix, migrated by the kernel.
@@ -54,7 +54,7 @@ Operations MAY be additionally scoped by `nodePath`:
 - **Global KV (no `nodePath`)**: `{pluginId, nodePath: null, key}`. One row per plugin + key.
 - **Node-scoped KV (with `nodePath`)**: `{pluginId, nodePath: "<path>", key}`. One row per plugin + node + key.
 
-Both scopes share the same underlying `state_plugin_kvs` table (see `db-schema.md`). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys.
+Both scopes share the same underlying `state_plugin_kvs` table (see [`db-schema.md`](./db-schema.md)). The `nodePath` column is nullable; implementations MUST use a sentinel empty string internally when the backing engine rejects NULL in composite primary keys.
 
 ### Semantics
 
@@ -102,7 +102,7 @@ Errors MUST NOT leak backend-specific details (SQL strings, file paths) to plugi
 
 ## Mode B: dedicated tables
 
-Mode B is governed by `db-schema.md` (catalog rules + triple protection). This section restates the API surface.
+Mode B is governed by [`db-schema.md`](./db-schema.md) (catalog rules + triple protection). This section restates the API surface.
 
 ### Declaration
 
@@ -147,7 +147,7 @@ Mode B plugins MAY call `db.transaction(async (tx) => { ... })`. The kernel prov
 - Index and constraint prefixes are similarly injected.
 - A failing plugin migration disables only that plugin (`status: load-error`); other plugins and the kernel continue.
 
-See `db-schema.md` for the normative migration rules.
+See [`db-schema.md`](./db-schema.md) for the normative migration rules.
 
 ---
 
@@ -168,7 +168,7 @@ Non-normative; descriptive guidance for plugin authors.
 - Your data model is actually tabular (cache with TTL, observation log, provider registry).
 - You are willing to own migrations forever.
 
-A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plugin is forbidden. The `plugins-registry.schema.json` enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes either the `KvStore` or the `DedicatedStore` shape — never both. A plugin that needs both KV-like and relational access MUST use mode B and implement KV-style rows as a dedicated table.
+A plugin MUST declare **exactly one** storage mode. Mixing modes in the same plugin is forbidden. The [`plugins-registry.schema.json`](./schemas/plugins-registry.schema.json) enforces this at the manifest level (`storage` is a `oneOf` between `kv` and `dedicated`), and at runtime `ctx.store` exposes either the `KvStore` or the `DedicatedStore` shape — never both. A plugin that needs both KV-like and relational access MUST use mode B and implement KV-style rows as a dedicated table.
 
 ---
 
@@ -198,6 +198,13 @@ Mode A is perfectly isolated at the row level: the accessor physically cannot se
 Mode B is **isolated against accidents, not hostile code**. The scoped `Database` wrapper rejects cross-namespace queries at runtime. But a malicious plugin running in the same JavaScript process can bypass the wrapper by importing raw engine bindings directly. Plugins are user-placed code; the kernel trusts the user's judgement at install time.
 
 Post-v1.0 work: signed manifest, sandboxed worker-thread isolation, per-plugin DB file. None of these land before `v0.5.0`.
+
+---
+
+## See also
+
+- [`db-schema.md`](./db-schema.md) — table catalog, migration rules, triple protection for mode B.
+- [`architecture.md`](./architecture.md) — extension contract rules and `ctx.store` injection via the kernel.
 
 ---
 

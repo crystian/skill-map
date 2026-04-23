@@ -384,6 +384,17 @@ The `done in …` stderr line, its format grammar, and the `elapsedMs` field con
 
 ---
 
+## See also
+
+- [`architecture.md`](./architecture.md) — CLI as a driving adapter; kernel-first design; dependency rules.
+- [`job-lifecycle.md`](./job-lifecycle.md) — state machine behind `sm job` verbs.
+- [`job-events.md`](./job-events.md) — event stream emitted via `--json` and `--stream-output`.
+- [`db-schema.md`](./db-schema.md) — tables behind `sm db` verbs.
+- [`../docs/cli-reference.md`](../docs/cli-reference.md) — auto-generated reference from `sm help --format md`.
+- [`conformance/`](./conformance/README.md) — test suite exercising CLI behavior.
+
+---
+
 ## Stability
 
 The **verb list** is stable as of spec v1.0.0. Adding a verb is a minor bump. Removing a verb is a major bump.

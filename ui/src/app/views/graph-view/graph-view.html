@@ -37,68 +37,65 @@
       <p class="empty-state__desc">Adjust or reset the filters above.</p>
     </div>
   } @else {
-    <svg class="graph__defs" aria-hidden="true">
-      <defs>
-        <marker id="arrow-supersedes" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="var(--sm-edge-supersedes)" />
-        </marker>
-        <marker id="arrow-requires" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="var(--sm-edge-requires)" />
-        </marker>
-        <marker id="arrow-related" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
-          <polygon points="0 0, 8 3, 0 6" fill="var(--sm-edge-related)" />
-        </marker>
-      </defs>
-    </svg>
     <div class="graph__canvas-wrap">
       <f-flow fDraggable (fLoaded)="onLoaded()">
-        <f-canvas>
+        <f-canvas fZoom [fZoomStep]="0.06" [fZoomDblClickStep]="0.35">
           @for (edge of graph().edges; track edge.id) {
             <f-connection
-              [fOutputId]="edge.from"
-              [fInputId]="edge.to"
+              [fOutputId]="edge.from + '-out'"
+              [fInputId]="edge.to + '-in'"
               fType="segment"
               fBehavior="fixed"
               [fOffset]="4"
+              [fReassignDisabled]="true"
+              [fSelectionDisabled]="true"
               [class]="'f-conn--' + edge.kind"
-            />
+            >
+              <f-connection-marker-arrow type="end" />
+            </f-connection>
           }
 
           @for (node of graph().nodes; track node.id) {
             <div
               fNode
               fDragHandle
+              [fNodeId]="node.id"
               [fNodePosition]="node.position"
-              fNodeInput
-              [fInputId]="node.id"
-              [fInputConnectableSide]="inputSide"
-              [class]="'f-gnode f-gnode--' + node.kind"
-              (click)="openNode(node)"
+              [class]="'sm-gnode sm-gnode--' + node.kind"
+              (pointerdown)="onNodePointerDown($event)"
+              (click)="openNode(node, $event)"
             >
-              <span class="f-gnode__kind">{{ node.kind }}</span>
-              <span class="f-gnode__label">{{ node.label }}</span>
+              <div
+                fNodeInput
+                [fInputId]="node.id + '-in'"
+                [fInputConnectableSide]="inputSide"
+                class="sm-gnode__connector sm-gnode__connector--in"
+              ></div>
+              <span class="sm-gnode__kind">{{ node.kind }}</span>
+              <span class="sm-gnode__label">{{ node.label }}</span>
               @if (node.subtitle) {
-                <span class="f-gnode__subtitle">{{ node.subtitle }}</span>
+                <span class="sm-gnode__subtitle">{{ node.subtitle }}</span>
               }
               @if (node.linksIn > 0 || node.linksOut > 0) {
-                <span class="f-gnode__links">
+                <span class="sm-gnode__links">
                   @if (node.linksIn > 0) {
-                    <span class="f-gnode__link-badge f-gnode__link-badge--in">↓{{ node.linksIn }}</span>
+                    <span class="sm-gnode__link-badge sm-gnode__link-badge--in">↓{{ node.linksIn }}</span>
                   }
                   @if (node.linksOut > 0) {
-                    <span class="f-gnode__link-badge f-gnode__link-badge--out">↑{{ node.linksOut }}</span>
+                    <span class="sm-gnode__link-badge sm-gnode__link-badge--out">↑{{ node.linksOut }}</span>
                   }
                 </span>
               }
               <div
                 fNodeOutput
-                [fOutputId]="node.id"
+                [fOutputId]="node.id + '-out'"
                 [fOutputConnectableSide]="outputSide"
-                class="f-gnode__connector f-gnode__connector--out"
+                class="sm-gnode__connector sm-gnode__connector--out"
               ></div>
             </div>
           }
         </f-canvas>
+        <f-minimap />
       </f-flow>
     </div>
 

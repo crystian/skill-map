@@ -127,8 +127,16 @@ The `ui/` workspace joins as a third peer at Step 0c (Angular SPA + Foblex Flow 
 
 - Full design and roadmap: [ROADMAP.md](./ROADMAP.md)
 - Full glossary: [ROADMAP §Glossary](./ROADMAP.md#glossary)
-- Spec surface and maintenance rules: [AGENTS.md](./AGENTS.md) (section "Spec bootstrap status")
-- Spec changelog: [spec/CHANGELOG.md](./spec/CHANGELOG.md) (versioned independently from this repo)
+- Contribution guide: [CONTRIBUTING.md](./CONTRIBUTING.md)
+- Agent operating manual: [AGENTS.md](./AGENTS.md)
+- Spec overview: [spec/README.md](./spec/README.md)
+- Spec changelog: [spec/CHANGELOG.md](./spec/CHANGELOG.md) (versioned independently)
+- Spec versioning policy: [spec/versioning.md](./spec/versioning.md)
+- Architecture (ports & adapters): [spec/architecture.md](./spec/architecture.md)
+- CLI contract: [spec/cli-contract.md](./spec/cli-contract.md)
+- CLI reference (auto-generated): [docs/cli-reference.md](./docs/cli-reference.md)
+- Foblex Flow operating guide: [.claude/skills/foblex-flow/SKILL.md](./.claude/skills/foblex-flow/SKILL.md) — rules, patterns, full API reference. Invoke via `/foblex-flow` when working on the graph view.
+- Reference implementation: [src/README.md](./src/README.md)
 - Spanish version of this README: [README.es.md](./README.es.md)
 - License: [MIT](./LICENSE)
 

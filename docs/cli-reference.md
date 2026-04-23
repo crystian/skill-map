@@ -1,6 +1,6 @@
 # `sm` CLI reference
 
-Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface.
+Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface. For the normative verb contract, see [`spec/cli-contract.md`](../spec/cli-contract.md).
 
 - CLI version: `0.2.0`
 - Spec version: `0.4.0`

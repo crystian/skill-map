@@ -31,7 +31,7 @@ Pick the affected package(s), the bump type, and write a one-paragraph summary. 
 
 Bump policy:
 
-- **Breaking change** → `major` (pre-1.0: breaking lands in `minor` until v1.0.0; see `spec/versioning.md`).
+- **Breaking change** → `major` (pre-1.0: breaking lands in `minor` until v1.0.0; see [`spec/versioning.md`](./spec/versioning.md)).
 - **Additive change** → `minor`.
 - **Fix / internal** → `patch`.
 
@@ -66,6 +66,15 @@ The `spec` and `impl` version badges at the top of `README.md` and `README.es.md
 - `impl-vX.Y.Z` → current `src/package.json` `version`.
 
 Bump both READMEs in the same commit (English and Spanish must stay in sync). This is a manual step — CI does not enforce it.
+
+## License
+
+## See also
+
+- [ROADMAP.md](./ROADMAP.md) — design narrative, decisions, execution plan.
+- [AGENTS.md](./AGENTS.md) — operating manual for AI agents, spec editing rules, maintenance checklist.
+- [spec/versioning.md](./spec/versioning.md) — semver policy for the spec (patch/minor/major definitions).
+- [spec/CHANGELOG.md](./spec/CHANGELOG.md) — spec-specific release history.
 
 ## License
 

@@ -9,6 +9,9 @@ metadata:
   tags: [changelog, releases]
   created: 2025-05-01
   updated: 2026-04-22
+  related:
+    - notes/readme.md
+    - notes/architecture.md
 ---
 
 # Changelog

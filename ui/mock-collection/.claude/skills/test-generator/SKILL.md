@@ -19,6 +19,9 @@ metadata:
   author: acme
   tags: [tests, generation]
   created: 2026-01-09
+  related:
+    - .claude/skills/code-review/SKILL.md
+    - .claude/skills/lint-fixer/SKILL.md
 ---
 
 # Test Generator
