@@ -2,7 +2,7 @@
 
 Map, inspect, and manage collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, Obsidian vaults, docs sites).
 
-**Status**: pre-MVP. Steps 0a (spec) and 0b (kernel shell) are complete; the CLI currently exposes `sm scan` as a stub. See [`ROADMAP.md`](../ROADMAP.md) for the full execution plan.
+**Status**: pre-MVP / preview release. Steps 0a (spec), 0b (kernel shell), 0c (UI prototype), 1a-1c (kernel + registry + orchestrator), 2 (first extensions), and 3 (UI design refinement) are complete; the CLI currently exposes `sm scan` as a stub (full scan lands at Step 4). See [`ROADMAP.md`](../ROADMAP.md) for the full execution plan and the canonical completeness marker. Subsequent versions follow the standard changeset flow.
 
 ## Requirements
 
@@ -17,13 +17,13 @@ If your system is on Node 22 or 20, install the latest LTS from [nodejs.org](htt
 
 ```bash
 # Global
-npm install --global skill-map
+npm install --global @skill-map/cli
 
 # Or run without installing
-npx skill-map --version
+npx @skill-map/cli --version
 ```
 
-Both `sm` and `skill-map` are registered as binaries after install.
+Both `sm` (short, daily use) and `skill-map` (full name, scripts) are registered as binaries after install. The package name is scoped (`@skill-map/cli`) to sit alongside `@skill-map/spec` under the same npm org; the binaries keep the unprefixed names for ergonomics.
 
 ## Usage
 

@@ -16,7 +16,7 @@
 
 > Mapear, inspeccionar y gestionar colecciones de archivos Markdown interrelacionados — en particular skills, agents, commands, hooks y notas que componen ecosistemas de agentes de IA.
 
-**Estado**: los Steps **0a** (spec bootstrap) y **0b** (implementation bootstrap) están **completos**. El paquete npm `@skill-map/spec` está publicado (versión en [`spec/package.json`](./spec/package.json) y [`spec/CHANGELOG.md`](./spec/CHANGELOG.md)); el CLI `skill-map` shipea un `scan` stub y bootea limpio. Próximo: **Step 0c — UI prototype**. Ver [ROADMAP.md](./ROADMAP.md) para el marcador de completitud y el plan de ejecución completo.
+**Estado**: los Steps **0a** (spec bootstrap) y **0b** (implementation bootstrap) están **completos**. El paquete npm `@skill-map/spec` está publicado (versión en [`spec/package.json`](./spec/package.json) y [`spec/CHANGELOG.md`](./spec/CHANGELOG.md)); el CLI `@skill-map/cli` shipea un `scan` stub y bootea limpio. Próximo: **Step 0c — UI prototype**. Ver [ROADMAP.md](./ROADMAP.md) para el marcador de completitud y el plan de ejecución completo.
 
 ## En una frase
 

@@ -75,16 +75,18 @@ Decide which workspaces are touched:
 | Path | Workspace | Package name in changeset | Changeset required? |
 |---|---|---|---|
 | `spec/**` | `@skill-map/spec` | `"@skill-map/spec"` | YES — always |
-| `src/**` | `skill-map` (CLI) | `"skill-map"` | YES — once `src/` is published; check `src/package.json#private` if unsure |
+| `src/**` | `@skill-map/cli` (the real CLI) | `"@skill-map/cli"` | YES — always (published, scoped) |
+| `alias/<name>/**` | one alias per folder (e.g. `skill-map`, `skillmap`, `skill-mapper`, `sm-cli`) | `"<folder-name>"` | YES — always when a publishable change lands. Aliases evolve rarely; usually only the warning text or a version bump |
 | `ui/**` | (not yet a public workspace) | — | NO by default; ASK the user if a `ui/` change should ride along (some recent commits did) |
 | `ROADMAP.md`, `AGENTS.md`, `CONTRIBUTING.md`, `README*.md` | — | — | NO |
 | `.claude/**`, `_work_in_progress/**`, `.changeset/**` (other than the new one) | — | — | NO |
 | `package.json`, `package-lock.json` at root | usually accompanies another change | — | match the dominant change |
 
-If `src/package.json#private` is `true`, `src/` changes still benefit from
-a changeset (the project is treating `src/` as if it were public for the
-flip later). Match the existing practice — search `.changeset/*.md` for
-`"skill-map":` lines.
+The `alias/*` workspaces are placeholder / squat-defense packages. Each
+one is a separate npm package in the changeset world (its own `name` in
+the local `package.json`). When grouping changes that touch multiple
+aliases, list every package on its own frontmatter line — see
+`.changeset/skill-map-aliases-first-publish.md` for the canonical shape.
 
 ### 4. Decide the bump (only if a changeset is required)
 
@@ -97,11 +99,16 @@ For `@skill-map/spec` use `spec/versioning.md` strictly:
   feature). **Pre-1.0 breaking changes ALSO go here** (see versioning.md).
 - **Major** — post-1.0 breaking changes only.
 
-For `skill-map` (CLI):
+For `@skill-map/cli`:
 - **Patch** — fix / internal refactor / no behaviour change visible to
   users.
 - **Minor** — new feature / additive flag.
 - **Major** — breaking change in CLI surface.
+
+For `alias/*` packages:
+- **Patch** — refresh of the warning text or any non-functional tweak.
+- A real bump beyond patch is unlikely; these packages are intentionally
+  inert.
 
 If the diff is unambiguously a single bump level, proceed. If it's a mix
 (e.g. one patch-level fix + one minor feature in the same diff), the bump
@@ -252,9 +259,15 @@ diff includes spec/ ?
                                                 classify normality
 
 diff includes src/ ?
-├── pure refactor / internal fix             → skill-map: patch
-├── new CLI verb / new flag                  → skill-map: minor
-├── verb removed / exit code changed         → skill-map: major
+├── pure refactor / internal fix             → @skill-map/cli: patch
+├── new CLI verb / new flag                  → @skill-map/cli: minor
+├── verb removed / exit code changed         → @skill-map/cli: major
+
+diff includes alias/<name>/ ?
+└── always                                   → "<name>": patch
+                                                (one entry per touched
+                                                alias; group in one
+                                                changeset)
 
 diff is only ROADMAP / AGENTS / .claude / docs → no changeset
 diff is mixed                                  → highest bump wins

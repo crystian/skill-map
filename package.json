@@ -12,7 +12,8 @@
   "workspaces": [
     "spec",
     "src",
-    "ui"
+    "ui",
+    "alias/*"
   ],
   "scripts": {
     "start": "npm start --workspace=ui",
@@ -22,9 +23,9 @@
     "cli:reference": "node scripts/build-cli-reference.mjs",
     "cli:check": "node scripts/build-cli-reference.mjs --check",
     "site:build": "node scripts/build-site.mjs",
-    "build": "npm run build --workspace=skill-map",
-    "typecheck": "npm run typecheck --workspace=skill-map",
-    "test": "npm run test --workspace=skill-map",
+    "build": "npm run build --workspace=@skill-map/cli",
+    "typecheck": "npm run typecheck --workspace=@skill-map/cli",
+    "test": "npm run test --workspace=@skill-map/cli",
     "changeset": "changeset",
     "changeset:version": "changeset version && npm run spec:index",
     "changeset:publish": "changeset publish"

@@ -1,0 +1,34 @@
+{
+  "name": "skill-map",
+  "version": "0.0.1",
+  "description": "Alias / placeholder. The official CLI is @skill-map/cli — install that one instead.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://skill-map.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crystian/skill-map.git",
+    "directory": "alias/skill-map"
+  },
+  "bugs": {
+    "url": "https://github.com/crystian/skill-map/issues"
+  },
+  "keywords": [
+    "skill-map",
+    "@skill-map/cli",
+    "alias",
+    "placeholder",
+    "ai-agents"
+  ],
+  "bin": {
+    "skill-map": "bin/info.mjs",
+    "sm": "bin/info.mjs"
+  },
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=24.0"
+  }
+}

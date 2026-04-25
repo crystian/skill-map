@@ -346,8 +346,8 @@ skill-map/                        ← private root workspace (not published)
 ├── spec/                         ← workspace #1, published as @skill-map/spec
 │   └── (see previous §Repo layout tree)
 │
-├── src/                          ← workspace #2, published as skill-map
-│   ├── package.json              ← { "name": "skill-map",
+├── src/                          ← workspace #2, published as @skill-map/cli
+│   ├── package.json              ← { "name": "@skill-map/cli",
 │   │                                  "bin": { "sm": "bin/sm.mjs", "skill-map": "bin/sm.mjs" },
 │   │                                  "exports": { ".", "./kernel", "./conformance" } }
 │   ├── kernel/                   Registry, Orchestrator, domain types, ports, use cases
@@ -370,7 +370,7 @@ skill-map/                        ← private root workspace (not published)
     └── (scaffolded when Step 0c starts; isolation rule: no import from ../src/)
 ```
 
-Two independently published packages (`@skill-map/spec`, `skill-map`) — plus `ui/` staying private at least through v1.0.0. Plugin authors reach the kernel via `import { registerDetector } from 'skill-map/kernel'` (subpath export). Splitting into more `@skill-map/*` packages is deferred until a concrete external consumer justifies it.
+Two independently published packages (`@skill-map/spec`, `@skill-map/cli`) plus an `alias/*` family of un-scoped placeholder packages (`skill-map`, `skillmap`, `skill-mapper`, `sm-cli`) that only print a redirect-warning. `ui/` stays private at least through v1.0.0. Plugin authors reach the kernel via `import { registerDetector } from '@skill-map/cli/kernel'` (subpath export). Splitting into more `@skill-map/*` packages is deferred until a concrete external consumer justifies it; the org scope is already protected by ownership of `@skill-map/spec`.
 
 The kernel never imports Angular; `ui/` never imports `src/` internals. The sole cross-workspace contract is `spec/` (JSON Schemas + typed DTOs). At Step 13 the Hono BFF inside `src/server/` exposes kernel operations over HTTP/WS, and `sm serve` serves the built Angular SPA from the same listener (single-port mandate).
 
@@ -1248,7 +1248,7 @@ These deps live in `ui/package.json` only. The kernel does NOT import them and M
 - **Tokenizer**: `js-tiktoken` (cl100k_base).
 - **Semver**: `semver` npm package.
 - **File watcher** (Step 7): `chokidar`.
-- **Package layout**: npm workspaces — `spec/` (`@skill-map/spec`), `src/` (`skill-map`, with subpath `exports` for `./kernel` and `./conformance`), and `ui/` (private, joins at Step 0c). Further `@skill-map/*` splits deferred until a concrete external consumer justifies them.
+- **Package layout**: npm workspaces — `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`, with subpath `exports` for `./kernel` and `./conformance`), `ui/` (private, joins at Step 0c), and `alias/*` (un-scoped placeholder packages: `skill-map`, `skillmap`, `skill-mapper`, `sm-cli`). Further `@skill-map/*` splits deferred until a concrete external consumer justifies them.
 
 ### Tech picks deferred (resolve at the step that first needs them)
 
@@ -1268,7 +1268,7 @@ Sequential build path. Each step ships green tests before the next begins.
 
 > ▶ **Completeness marker (2026-04-22)**: Steps **0a**, **0b**, **0c**, **1a**, **1b**, **1c**, **2**, and **3** are **complete**. Step 3 shipped: dark mode via `--sm-*` CSS custom properties (kind accents, edge colors, severity tints with `.app-dark` overrides), kind-specific subtitles on graph nodes and list rows (agent→model, hook→event, command→shortcut, skill→I/O count), differentiated connection styling (stroke-width per edge type + SVG arrowhead markers), reorganized inspector layout (Summary hero → Kind → Relations → Metadata → Tools → External ��� Body in explicit 2-column grid), responsive baseline at 1024px+ (topbar wrapping, filter compaction, inspector single-column, event-log column collapse), polished empty/error/loading states (shared `.empty-state` CSS utility with icon+title+description), bundle budget warning raised from 500kB to 600kB for prototype phase (Aura full-preset ~173kB is the main contributor; per-component theme imports not supported by PrimeNG v21; full budget compliance deferred to Step 13), unused DividerModule removed from inspector. 88 of 88 tests pass. Next step: **Step 4 — Scan end-to-end**. Explicitly postponed by design: `preamble-bitwise-match` conformance case (deferred to Step 10, needs `sm job preview`), remaining tech picks (MD renderer, templating, pretty CLI, globbing, diff — each lands at the step that first needs it; MD renderer specifically flagged under Step 13 open picks), `sm db migrate --kernel-only` / `--plugin <id>` flags + plugin migrations with triple protection (deferred to Step 9), URL-synced filter state + bundle-budget full compliance + UI a11y baseline (Decision #74f) all deferred to Step 13.
 
-> ▶ **Release version scheme**: `v0.1.0` was spent on the Step 0b bootstrap — the impl package (`skill-map`) is `private: true` until `v0.5.0`, so changesets bump the version internally without publishing to npm. `v0.5.0` is the deterministic offline release, `v0.8.0` adds the optional LLM layer, and `v1.0.0` is the full distributable release. Intermediate `v0.2.0`–`v0.4.x` cover Steps 0c through 9, `v0.5.1`–`v0.7.x` cover Steps 10–11, and `v0.8.1`–`v0.9.x` cover Steps 12–14. Each minor is driven by a changeset, never by a hand bump. Numbers refer to the `skill-map` (impl) package; `@skill-map/spec` versions independently per decision #77 and may skip entries.
+> ▶ **Release version scheme**: `v0.1.0` was spent on the Step 0b bootstrap. The impl package (`@skill-map/cli`) was `private: true` through `v0.3.x` and flipped public for the first npm publish during the Step 3 wrap-up, alongside the `alias/*` un-scoped placeholders (`skill-map`, `skillmap`, `skill-mapper`, `sm-cli`) that exist only to defend names against squatters. `v0.5.0` is the deterministic offline release, `v0.8.0` adds the optional LLM layer, and `v1.0.0` is the full distributable release. Intermediate `v0.2.0`–`v0.4.x` cover Steps 0c through 9, `v0.5.1`–`v0.7.x` cover Steps 10–11, and `v0.8.1`–`v0.9.x` cover Steps 12–14. Each minor is driven by a changeset, never by a hand bump. Numbers refer to the `@skill-map/cli` (impl) package; `@skill-map/spec` versions independently per decision #77 and may skip entries; the alias placeholders stay around `0.0.x` since they evolve only when the warning text needs a refresh.
 
 ### Step 0a — Spec bootstrap — ✅ complete
 
@@ -1284,7 +1284,7 @@ Sequential build path. Each step ships green tests before the next begins.
 ### Step 0b — Implementation bootstrap — ✅ complete
 
 - Repo scaffolding: `package.json`, Node ESM, `node:test` wired.
-- Package layout: npm workspaces (`spec/`, `src/`) with subpath `exports` on `skill-map`. `ui/` joins as a third workspace at Step 0c.
+- Package layout: npm workspaces (`spec/`, `src/`) with subpath `exports` on `@skill-map/cli`. `ui/` joins as a third workspace at Step 0c; `alias/*` joins as a glob workspace later, holding name-reservation packages.
 - Hexagonal skeleton: port interfaces, adapter stubs, kernel shell.
 - Clipanion CLI binary prints version.
 - Contract test infrastructure runs conformance suite against impl.
@@ -1486,7 +1486,8 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 
 ### Step 14 — Distribution polish
 
-- **Single npm package**: `@skill-map/cli` (or final name) ships CLI + UI built (`ui/dist/` copied into the package at publish time). Two `bin` entries — `sm` (short, daily use) and `skill-map` (full name, scripting). Same binary, two aliases. Single version applies to both surfaces; CLI ↔ UI key mismatches degrade gracefully (unknown keys are warned + ignored, never fatal). Versioning details in §Stack conventions.
+- **Single npm package**: `@skill-map/cli` ships CLI + UI built (`ui/dist/` copied into the package at publish time). Two `bin` entries — `sm` (short, daily use) and `skill-map` (full name, scripting). Same binary, two aliases. Single version applies to both surfaces; CLI ↔ UI key mismatches degrade gracefully (unknown keys are warned + ignored, never fatal). Versioning details in §Stack conventions.
+- **Alias / squat-defense packages** under `alias/*` (one workspace per name): `skill-map` (un-scoped top-level), `skillmap` (typo), `skill-mapper` (lookalike), `sm-cli` (binary-name confusion). Each is a placeholder whose only `bin` prints a warning to stderr pointing at `@skill-map/cli` and exits with code 1. They never delegate, never wrap the real CLI as a dependency, never install side-effect-free. Publishing them once locks the un-scoped names against third-party squatters; the `@skill-map/*` scope itself is already protected by org ownership (you own it the moment `@skill-map/spec` was published). Aliases ride the standard changeset flow — see `.changeset/skill-map-aliases-first-publish.md` for the shape (one frontmatter line per package, single paragraph below).
 - **`sm ui` sub-command**: serves the bundled UI on a static HTTP server. Loads + merges the settings hierarchy from §Configuration, validates, and serves the result as `GET /config.json` from the same origin. UI fetches once at boot. Flags: `--cwd <path>`, `--port <num>`, `--host <iface>`, `--config <path>` (single-source override of layers 2–5), `--print-config` (emit the merged settings to stdout and exit, for debugging), `--strict-config` (warnings become fatal), `--open` (launch the browser).
 - **Settings loader** lives in the kernel and is shared across sub-commands: `loadSettings({ cwd, explicitConfigPath?, strict? }) → ISkillMapSettings`. Pure, stateless, fully testable. Same loader used by `sm config get/set/list` and by the dev wrapper that emulates the runtime delivery path under `ng serve`.
 - **`spec/runtime-settings.schema.json`**: formalises the UI-side contract. Replaces the manual TS type guards with AJV validation. Decouples the UI bundle version from the CLI bundle version: as long as both adhere to the schema, mixing minor versions across them is safe.
@@ -1501,6 +1502,87 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 - Breaking-changes / deprecation policy.
 - `sm doctor` diagnostics for user installs (verifies the install, reads the merged settings, confirms each hierarchy layer is parseable).
 - **Launch polish on `skill-map.dev`**: the domain is already live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v0/**` schemas); Step 14 adds the marketing landing page, redirects, SEO, Astro Starlight docs, and registration on JSON Schema Store once `v0 → v1` ships.
+
+#### Distribution flow (end-to-end)
+
+How a single package travels from this repo to a consumer's project:
+
+```
+   ┌────────────────────────────────────┐
+   │   skill-map repo (this monorepo)   │
+   │   ─────────────────────────────    │
+   │   spec/         → @skill-map/spec  │
+   │   src/          → @skill-map/cli   │
+   │   ui/           → built and copied │
+   │                   into src/dist/ui │
+   │                   at publish time  │
+   │   alias/<name>/ → name placeholders│
+   │                   (skill-map, etc.)│
+   │                                    │
+   │   Versioned by changesets;         │
+   │   integrity hashes enforced.       │
+   └─────────────────┬──────────────────┘
+                     │  release workflow
+                     │  (Version Packages PR → merge)
+                     │  changeset publish
+                     ▼
+   ┌────────────────────────────────────┐
+   │   npm registry                     │
+   │   ─────────────────────────────    │
+   │   @skill-map/spec  (schemas+types) │
+   │   @skill-map/cli   (CLI + UI dist) │
+   │   skill-map        (alias warning) │
+   │   skillmap         (alias warning) │
+   │   skill-mapper     (alias warning) │
+   │   sm-cli           (alias warning) │
+   └─────────────────┬──────────────────┘
+                     │  npm i -g @skill-map/cli
+                     │  (or `npx @skill-map/cli …`)
+                     ▼
+   ┌────────────────────────────────────┐
+   │   consumer machine                 │
+   │   ─────────────────────────────    │
+   │   $PATH: sm, skill-map             │
+   │   node_modules/@skill-map/cli/     │
+   │   ├── dist/         CLI bundle     │
+   │   └── ui/           UI bundle      │
+   │                                    │
+   │   .skill-map/                      │  ← user-supplied
+   │   ├── settings.json       optional │
+   │   ├── settings.local.json optional │
+   │   └── plugins/<id>/       drop-in  │
+   └─────────────────┬──────────────────┘
+                     │  sm ui [--port N] [--config path]
+                     │  (also: sm scan, sm check, …)
+                     ▼
+   ┌────────────────────────────────────┐
+   │   sm ui process                    │
+   │   ─────────────────────────────    │
+   │   loadSettings() walks the         │
+   │   hierarchy, deep-merges, validates│
+   │                                    │
+   │   static HTTP server on            │
+   │   localhost:<port> :               │
+   │     GET /              → ui/*.html │
+   │     GET /assets/*      → ui/assets │
+   │     GET /config.json   → merged    │
+   │                          settings  │
+   └─────────────────┬──────────────────┘
+                     │  browser open
+                     ▼
+   ┌────────────────────────────────────┐
+   │   Angular bundle (in browser)      │
+   │   ─────────────────────────────    │
+   │   APP_INITIALIZER fetch /config    │
+   │   merge over compile-time defaults │
+   │   render graph + filters + HUD     │
+   │                                    │
+   │   No build tooling at runtime.     │
+   │   No file system reads.            │
+   └────────────────────────────────────┘
+```
+
+The UI bundle is **agnostic to who serves it** — Step 14 ships `sm ui` as the canonical server, but a third-party host (nginx, S3, Caddy) that places a `config.json` next to `index.html` works identically. Same HTTP contract, zero coupling between the UI and the CLI runtime.
 
 ### ▶ v1.0.0 — full distributable
 
@@ -1528,7 +1610,7 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 | 2 | Kernel-first principle | Non-negotiable from commit 1. All 6 extension kinds wired. |
 | 3 | Architecture pattern | **Hexagonal (ports & adapters)** — named explicitly. |
 | 4 | Kernel-as-library | CLI, Server, Skill are peer wrappers over the same kernel lib. |
-| 5 | Package layout | npm workspaces: `spec/` (published as `@skill-map/spec`) and `src/` (published as `skill-map`). `ui/` joins as a third workspace at Step 0c. Changesets manage the bumps. |
+| 5 | Package layout | npm workspaces: `spec/` (`@skill-map/spec`), `src/` (`@skill-map/cli`), `ui/` (private, joins at Step 0c), and `alias/*` (un-scoped placeholders for name-squat defence: `skill-map`, `skillmap`, `skill-mapper`, `sm-cli`). Changesets manage the bumps. |
 | 6 | `sm` LLM dependency | **Zero**. `sm` never makes LLM calls. LLM lives in runner process. |
 
 ### Data and persistence
