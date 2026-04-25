@@ -88,6 +88,38 @@ the local `package.json`). When grouping changes that touch multiple
 aliases, list every package on its own frontmatter line — see
 `.changeset/skill-map-aliases-first-publish.md` for the canonical shape.
 
+#### 3.1. Structural workspace changes — extra steps
+
+**When the diff renames a workspace `name`, adds a new workspace,
+removes one, or changes the root `package.json#workspaces` array, three
+follow-ups become mandatory** because they are downstream of the
+manifest change and CI will fail otherwise:
+
+1. **Regenerate the lock file**: `npm install` from the repo root, then
+   stage `package-lock.json`. `npm ci` (used in CI) refuses to install
+   if the lock and any `package.json` are out of sync — the EUSAGE error
+   says exactly which workspaces it can't reconcile. Skipping this is
+   the most common cause of red builds after a rename. Confirm the diff
+   only adds workspace entries / symlink targets and does NOT silently
+   bump dependency versions; if a non-pinned dep slips in, the AGENTS.md
+   pin rule is the trigger to lock it back.
+2. **Audit `.github/workflows/*.yml`** for any `--workspace=<old-name>`
+   references. After a rename, the old name may now resolve to a
+   different package (e.g. an alias placeholder) and the script
+   silently runs against the wrong target — typical symptom is
+   `Missing script: "<script-name>"` from a workspace that has no such
+   script. Update each occurrence. `grep -n '<old-name>' .github/`
+   covers it in two seconds.
+3. **Check for leftover refs in agents / docs**: `.claude/agents/*.md`,
+   `ROADMAP.md`, `CONTRIBUTING.md`, `AGENTS.md`, both READMEs. Project
+   names and package names blur in prose; double-check that what reads
+   "the X CLI" still points at the right workspace and the right npm
+   package. Use `grep -n` on the old name across the repo.
+
+If any of the three is missed, push goes through but the next CI run
+fails. Recovery is straightforward (a new commit fixing the gap, never
+amend) — but the cleanest is to catch it before pushing.
+
 ### 4. Decide the bump (only if a changeset is required)
 
 For `@skill-map/spec` use `spec/versioning.md` strictly:
