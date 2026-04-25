@@ -1,5 +1,11 @@
 # Spec changelog
 
+## 0.5.1
+
+### Patch Changes
+
+- 18d758a: Editorial pass across spec/ and src/ docs: convert relative-path text references (e.g. `plugin-kv-api.md`, `schemas/node.schema.json`) to proper markdown links, so they resolve on GitHub and in renderers. No normative or behavioural changes — prose, schemas, and CLI contract are unchanged.
+
 ## 0.5.0
 
 ### Minor Changes

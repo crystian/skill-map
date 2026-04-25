@@ -1,6 +1,6 @@
 {
   "name": "skill-map",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Alias / placeholder. The official CLI is @skill-map/cli — install that one instead.",
   "license": "MIT",
   "type": "module",
