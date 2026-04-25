@@ -12,8 +12,7 @@
   "workspaces": [
     "spec",
     "src",
-    "ui",
-    "alias/*"
+    "ui"
   ],
   "scripts": {
     "start": "npm start --workspace=ui",

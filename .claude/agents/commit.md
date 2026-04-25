@@ -76,17 +76,21 @@ Decide which workspaces are touched:
 |---|---|---|---|
 | `spec/**` | `@skill-map/spec` | `"@skill-map/spec"` | YES — always |
 | `src/**` | `@skill-map/cli` (the real CLI) | `"@skill-map/cli"` | YES — always (published, scoped) |
-| `alias/<name>/**` | one alias per folder (today: `skill-map`, `skill-mapper`) | `"<folder-name>"` | YES — always when a publishable change lands. Aliases evolve rarely; usually only the warning text or a version bump |
+| `alias/<name>/**` | (historical, retired) | — | The `alias/*` glob has been dropped from the workspaces tree; the `skill-map` and `skill-mapper` placeholder packages remain on npm with a `npm deprecate` redirect to `@skill-map/cli`. If a diff somehow re-introduces files under `alias/`, STOP and ask the Arquitecto — that is a strategic decision, not a routine commit. |
 | `ui/**` | (not yet a public workspace) | — | NO by default; ASK the user if a `ui/` change should ride along (some recent commits did) |
 | `ROADMAP.md`, `AGENTS.md`, `CONTRIBUTING.md`, `README*.md` | — | — | NO |
 | `.claude/**`, `_work_in_progress/**`, `.changeset/**` (other than the new one) | — | — | NO |
 | `package.json`, `package-lock.json` at root | usually accompanies another change | — | match the dominant change |
 
-The `alias/*` workspaces are placeholder / squat-defense packages. Each
-one is a separate npm package in the changeset world (its own `name` in
-the local `package.json`). When grouping changes that touch multiple
-aliases, list every package on its own frontmatter line — see
-`.changeset/skill-map-aliases-first-publish.md` for the canonical shape.
+The `alias/*` workspaces no longer exist locally. They served their
+purpose during the first publish round (lock the un-scoped names
+against squatters), then were dropped once `npm deprecate` was attached
+on each — the deprecation notice surfaces at install time and on every
+`npm view`, which is a stronger user-facing redirect than the old
+runtime warning the placeholder bins printed. The historical changeset
+shape (one frontmatter line per alias, single shared paragraph) is
+preserved at `.changeset/skill-map-aliases-first-publish.md` for
+reference, but is not expected to be repeated.
 
 #### 3.1. Structural workspace changes — extra steps
 
@@ -120,12 +124,15 @@ If any of the three is missed, push goes through but the next CI run
 fails. Recovery is straightforward (a new commit fixing the gap, never
 amend) — but the cleanest is to catch it before pushing.
 
-#### 3.2. Adding a new alias / placeholder package — pre-flight check
+#### 3.2. Adding a new alias / placeholder package — pre-flight check (historical)
 
-When the diff creates a new workspace under `alias/*` (or any new
-top-level un-scoped package) intended as a name reservation, **verify
-publishability BEFORE committing the workspace**. The check is two
-commands:
+This sub-section is preserved as a reference in case the project ever
+revisits the placeholder strategy. As of the current state, the
+`alias/*` glob has been retired and the `skill-map` / `skill-mapper`
+placeholders are deprecated on npm. **Default action: do NOT introduce
+new placeholder workspaces without an explicit Arquitecto decision.**
+
+If the strategy is revisited, the pre-flight check is two commands:
 
 ```bash
 npm view <name>                 # is the name registered?
@@ -155,6 +162,8 @@ four aliases (`skill-map`, `skillmap`, `skill-mapper`, `sm-cli`) and
 two failed: `skillmap` blocked by similarity to `skill-map`, `sm-cli`
 already taken. Having committed those two workspaces required a
 follow-up cleanup commit. Catching it up front is one `npm view` away.
+The two surviving placeholders eventually became dead weight — once
+`npm deprecate` carries the redirect, the workspace adds no value.
 
 ### 4. Decide the bump (only if a changeset is required)
 
@@ -173,10 +182,8 @@ For `@skill-map/cli`:
 - **Minor** — new feature / additive flag.
 - **Major** — breaking change in CLI surface.
 
-For `alias/*` packages:
-- **Patch** — refresh of the warning text or any non-functional tweak.
-- A real bump beyond patch is unlikely; these packages are intentionally
-  inert.
+For `alias/*` packages: N/A — the workspaces are retired. If a diff
+re-introduces one, STOP and ask before classifying.
 
 If the diff is unambiguously a single bump level, proceed. If it's a mix
 (e.g. one patch-level fix + one minor feature in the same diff), the bump
@@ -218,7 +225,7 @@ Multiple packages → list each on its own line in the frontmatter:
 ```markdown
 ---
 "@skill-map/spec": minor
-"skill-map": patch
+"@skill-map/cli": patch
 ---
 ```
 
@@ -332,10 +339,10 @@ diff includes src/ ?
 ├── verb removed / exit code changed         → @skill-map/cli: major
 
 diff includes alias/<name>/ ?
-└── always                                   → "<name>": patch
-                                                (one entry per touched
-                                                alias; group in one
-                                                changeset)
+└── retired                                  → STOP, ask Arquitecto
+                                                (workspaces dropped;
+                                                placeholders deprecated
+                                                on npm)
 
 diff is only ROADMAP / AGENTS / .claude / docs → no changeset
 diff is mixed                                  → highest bump wins
