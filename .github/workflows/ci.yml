@@ -65,13 +65,13 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Typecheck
-        run: npm run typecheck --workspace=skill-map
+        run: npm run typecheck --workspace=@skill-map/cli
 
       - name: Build (tsup)
-        run: npm run build --workspace=skill-map
+        run: npm run build --workspace=@skill-map/cli
 
       - name: Test
-        run: npm run test:ci --workspace=skill-map
+        run: npm run test:ci --workspace=@skill-map/cli
 
   changeset:
     name: require changeset on PR
