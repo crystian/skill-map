@@ -1,6 +1,10 @@
 /* Global base styles. PrimeNG's Aura preset is registered in app.config.ts. */
 
 :root {
+  /* Mono font stack — used by inline code, mono pills, monospaced
+     metadata values across components. */
+  --sm-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
   /* Surface — dark-mode-aware background/border vars */
   --sm-bg-page: #f8fafc;
   --sm-bg-content: #ffffff;
@@ -12,8 +16,8 @@
   --sm-kind-skill: #10b981;
   --sm-kind-agent: #3b82f6;
   --sm-kind-command: #f59e0b;
-  --sm-kind-hook: #ef4444;
-  --sm-kind-note: #9ca3af;
+  --sm-kind-hook: #8b5cf6;
+  --sm-kind-note: #5b908c;
 
   /* Kind accent — badge bg / fg */
   --sm-kind-skill-bg: #d1fae5;
@@ -22,13 +26,19 @@
   --sm-kind-agent-fg: #1e3a8a;
   --sm-kind-command-bg: #fef3c7;
   --sm-kind-command-fg: #92400e;
-  --sm-kind-hook-bg: #fee2e2;
-  --sm-kind-hook-fg: #991b1b;
+  --sm-kind-hook-bg: #ede9fe;
+  --sm-kind-hook-fg: #5b21b6;
+  --sm-kind-note-bg: #d6e8e6;
+  --sm-kind-note-fg: #1f4f4b;
 
-  /* Edge colors */
-  --sm-edge-supersedes: #f59e0b;
-  --sm-edge-requires: #3b82f6;
-  --sm-edge-related: #9ca3af;
+  /* Edge colors — one per spec link kind (invokes / references /
+     mentions / supersedes). The four kinds describe how a node refers
+     to another: execution (invokes), formal citation (references),
+     plain-text mention (mentions), or lifecycle replacement (supersedes). */
+  --sm-edge-invokes: #f59e0b;
+  --sm-edge-references: #3b82f6;
+  --sm-edge-mentions: #9ca3af;
+  --sm-edge-supersedes: #8b5cf6;
 
   /* Link badge — in / out */
   --sm-link-in-bg: #e0e7ff;
@@ -64,8 +74,8 @@
   --sm-kind-skill: #34d399;
   --sm-kind-agent: #60a5fa;
   --sm-kind-command: #fbbf24;
-  --sm-kind-hook: #f87171;
-  --sm-kind-note: #6b7280;
+  --sm-kind-hook: #a78bfa;
+  --sm-kind-note: #9bbcb8;
 
   --sm-kind-skill-bg: #064e3b;
   --sm-kind-skill-fg: #6ee7b7;
@@ -73,12 +83,15 @@
   --sm-kind-agent-fg: #93c5fd;
   --sm-kind-command-bg: #78350f;
   --sm-kind-command-fg: #fcd34d;
-  --sm-kind-hook-bg: #7f1d1d;
-  --sm-kind-hook-fg: #fca5a5;
+  --sm-kind-hook-bg: #4c1d95;
+  --sm-kind-hook-fg: #ddd6fe;
+  --sm-kind-note-bg: #1a3a37;
+  --sm-kind-note-fg: #bcdbd6;
 
-  --sm-edge-supersedes: #fbbf24;
-  --sm-edge-requires: #60a5fa;
-  --sm-edge-related: #6b7280;
+  --sm-edge-invokes: #fbbf24;
+  --sm-edge-references: #60a5fa;
+  --sm-edge-mentions: #6b7280;
+  --sm-edge-supersedes: #a78bfa;
 
   --sm-link-in-bg: #312e81;
   --sm-link-in-fg: #a5b4fc;

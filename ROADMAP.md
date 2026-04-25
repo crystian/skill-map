@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-04-25. Changes land via `.changeset/*.md` and `spec/CHANGELOG.md` — this header stops paraphrasing them.
+**Last updated**: 2026-04-26. Changes land via `.changeset/*.md` and `spec/CHANGELOG.md` — this header stops paraphrasing them.
 
 ---
 
@@ -341,6 +341,7 @@ skill-map/                        ← private root workspace (not published)
 │                                     "engines": { "node": ">=24.0" } }
 ├── .changeset/                   ← changesets config + pending release notes
 ├── scripts/                      ← build-site.mjs · build-spec-index.mjs · check-changeset.mjs · check-coverage.mjs
+├── web/                          ← editable landing source (HTML/CSS/JS); copied into site/ at build
 ├── site/                         ← generated public site (Caddy on Railway)
 │
 ├── spec/                         ← workspace #1, published as @skill-map/spec
@@ -1508,7 +1509,7 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 - Compatibility matrix (kernel ↔ plugin API ↔ spec).
 - Breaking-changes / deprecation policy.
 - `sm doctor` diagnostics for user installs (verifies the install, reads the merged settings, confirms each hierarchy layer is parseable).
-- **Launch polish on `skill-map.dev`**: the domain is already live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v0/**` schemas); Step 14 adds the marketing landing page, redirects, SEO, Astro Starlight docs, and registration on JSON Schema Store once `v0 → v1` ships.
+- **Launch polish on `skill-map.dev`**: the domain is already live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v0/**` schemas). The landing source now lives in `web/` (editable HTML/CSS/JS, copied into `site/` by `scripts/build-site.mjs` with a single `{{SPEC_VERSION}}` substitution). Step 14 still adds redirects, SEO, Astro Starlight docs, and registration on JSON Schema Store once `v0 → v1` ships.
 
 #### Distribution flow (end-to-end)
 

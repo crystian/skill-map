@@ -142,112 +142,47 @@
   border-radius: 2px;
 }
 
+.swatch--invokes {
+  background: var(--sm-edge-invokes);
+}
+.swatch--references {
+  background: var(--sm-edge-references);
+}
+.swatch--mentions {
+  background: var(--sm-edge-mentions);
+}
 .swatch--supersedes {
   background: var(--sm-edge-supersedes);
 }
-.swatch--requires {
-  background: var(--sm-edge-requires);
-}
-.swatch--related {
-  background: var(--sm-edge-related);
-}
 
-/* Node cards inside the canvas. */
-.sm-gnode {
-  width: 200px;
-  min-height: 96px;
-  padding: 0.6rem 0.85rem;
-  border-radius: 0.65rem;
-  background: var(--sm-bg-content);
-  border: 1px solid var(--sm-border);
-  box-shadow: var(--sm-shadow-card);
+/* Foblex-side host for each graph node. The visible card lives in
+   `<sm-node-card>` (own component, own stylesheet); this host carries
+   only what Foblex queries against (`fNode`, `fNodeInput` /
+   `fNodeOutput` connectors as direct children) and the click/drag
+   surface. Visual states (selected / highlighted / dimmed) are passed
+   into the card as inputs so we don't pierce its encapsulation.
+
+   The `[fNode]` directive applies the `f-node f-component` classes
+   automatically. Foblex's default theme renders those with a fixed
+   width (`--ff-node-width: 120px`), padding, background, border and
+   shadow — i.e. a full default node card. Since our visible card is
+   `<sm-node-card>`, we neutralise the Foblex frame here so it becomes
+   a transparent, content-sized wrapper. Token-only overrides (rule 5
+   of the foblex-flow skill — never `::ng-deep` what a token can do). */
+.sm-gnode-host {
+  position: relative;
+  display: inline-block;
   cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  transition:
-    box-shadow 0.15s ease,
-    border-color 0.15s ease,
-    opacity 0.2s ease;
-}
 
-.sm-gnode:hover {
-  box-shadow: var(--sm-shadow-card-hover);
-  border-color: var(--p-surface-400);
-}
-
-/* Selection state — single click on a node sets its id as selectedNodeId.
-   The wrapper.graph__canvas-wrap (click) handler clears it on canvas-empty
-   click. selected gets a primary-color ring + the same lift as hover;
-   neighbors (highlighted) get just the border color so the difference
-   reads at a glance; everything else (dimmed) fades back. */
-.sm-gnode--selected {
-  border-color: var(--p-primary-color);
-  box-shadow:
-    var(--sm-shadow-card-hover),
-    0 0 0 2px var(--p-primary-color);
-}
-
-.sm-gnode--highlighted {
-  border-color: var(--p-primary-color);
-  box-shadow: var(--sm-shadow-card-hover);
-}
-
-.sm-gnode--dimmed {
-  opacity: 0.25;
-}
-
-.sm-gnode__kind {
-  align-self: flex-start;
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-weight: 600;
-  padding: 0.1rem 0.4rem;
-  border-radius: 999px;
-  background: var(--sm-bg-hover);
-  color: var(--p-text-muted-color);
-}
-
-.sm-gnode__label {
-  font-weight: 500;
-  font-size: 0.95rem;
-  color: var(--p-text-color);
-  word-break: break-word;
-  line-height: 1.25;
-}
-
-.sm-gnode__subtitle {
-  font-size: 0.7rem;
-  color: var(--p-text-muted-color);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.sm-gnode__links {
-  display: flex;
-  gap: 0.35rem;
-  margin-top: auto;
-}
-
-.sm-gnode__link-badge {
-  font-size: 0.65rem;
-  font-weight: 600;
-  padding: 0.05rem 0.35rem;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
-}
-
-.sm-gnode__link-badge--in {
-  background: var(--sm-link-in-bg);
-  color: var(--sm-link-in-fg);
-}
-
-.sm-gnode__link-badge--out {
-  background: var(--sm-link-out-bg);
-  color: var(--sm-link-out-fg);
+  --ff-node-width: auto;
+  --ff-node-min-height: 0;
+  --ff-node-padding: 0;
+  --ff-node-background-color: transparent;
+  --ff-node-border-color: transparent;
+  --ff-node-border-color-selected: transparent;
+  --ff-node-border-radius: 0;
+  --ff-node-shadow: none;
+  --ff-node-shadow-selected: none;
 }
 
 /* Connector anchor positioning.
@@ -288,42 +223,10 @@
   transform: translateX(-50%);
 }
 
-/* Kind-specific accents. */
-.sm-gnode--skill {
-  border-left: 3px solid var(--sm-kind-skill);
-}
-.sm-gnode--skill .sm-gnode__kind {
-  background: var(--sm-kind-skill-bg);
-  color: var(--sm-kind-skill-fg);
-}
-
-.sm-gnode--agent {
-  border-left: 3px solid var(--sm-kind-agent);
-}
-.sm-gnode--agent .sm-gnode__kind {
-  background: var(--sm-kind-agent-bg);
-  color: var(--sm-kind-agent-fg);
-}
-
-.sm-gnode--command {
-  border-left: 3px solid var(--sm-kind-command);
-}
-.sm-gnode--command .sm-gnode__kind {
-  background: var(--sm-kind-command-bg);
-  color: var(--sm-kind-command-fg);
-}
-
-.sm-gnode--hook {
-  border-left: 3px solid var(--sm-kind-hook);
-}
-.sm-gnode--hook .sm-gnode__kind {
-  background: var(--sm-kind-hook-bg);
-  color: var(--sm-kind-hook-fg);
-}
-
-.sm-gnode--note {
-  border-left: 3px solid var(--sm-kind-note);
-}
+/* Kind accent and tag styles live in `<sm-node-card>` now (the card
+   owns its own `.sm-gnode--{kind}` accent bar and `.sm-gnode__icon-box`
+   tinting). This file only retains the host wrapper, the connector
+   anchors above, and the edge-styling block below. */
 
 /* Kind-specific connection styling via Foblex theme tokens.
    `--ff-connection-color`, `--ff-connection-width`, `--ff-marker-color` are
@@ -333,31 +236,36 @@
    propagates into the library's inner SVG without `::ng-deep`. The arrow
    marker itself is projected via <f-connection-marker-arrow> in the
    template — no hand-rolled <svg><defs><marker> needed. */
+.f-conn--invokes {
+  --ff-connection-color: var(--sm-edge-invokes);
+  --ff-connection-width: 2.5px;
+  --ff-marker-color: var(--sm-edge-invokes);
+}
+.f-conn--references {
+  --ff-connection-color: var(--sm-edge-references);
+  --ff-connection-width: 2px;
+  --ff-marker-color: var(--sm-edge-references);
+}
+.f-conn--mentions {
+  --ff-connection-color: var(--sm-edge-mentions);
+  --ff-connection-width: 1.5px;
+  --ff-marker-color: var(--sm-edge-mentions);
+}
 .f-conn--supersedes {
   --ff-connection-color: var(--sm-edge-supersedes);
-  --ff-connection-width: 2.5px;
-  --ff-marker-color: var(--sm-edge-supersedes);
-}
-.f-conn--requires {
-  --ff-connection-color: var(--sm-edge-requires);
   --ff-connection-width: 2px;
-  --ff-marker-color: var(--sm-edge-requires);
-}
-.f-conn--related {
-  --ff-connection-color: var(--sm-edge-related);
-  --ff-connection-width: 1.5px;
-  --ff-marker-color: var(--sm-edge-related);
+  --ff-marker-color: var(--sm-edge-supersedes);
 }
 
 /* `stroke-dasharray` has no Foblex theme token (the theme exposes color
-   and width but not dash). This is the only remaining surface where we
-   need to reach the library-rendered SVG from our CSS, so we use
-   `::ng-deep` scoped under the wrapper element we own — the documented
-   Angular escape hatch, and the same pattern Foblex's own official
-   examples follow (see apps/example-apps/uml-diagram in Foblex/f-flow). */
-.graph__canvas-wrap ::ng-deep .f-conn--related .f-connection-path {
-  stroke-dasharray: 4 3;
+   and width but not dash). `supersedes` keeps a long-dash pattern to
+   encode its lifecycle nature (not a textual reference). Scoped
+   `::ng-deep` under the wrapper element we own is the documented Angular
+   escape hatch, and the same pattern Foblex's own official examples follow. */
+.graph__canvas-wrap ::ng-deep .f-conn--supersedes .f-connection-path {
+  stroke-dasharray: 8 4;
 }
+
 
 /* Selection-driven edge states. Declared AFTER the per-kind selectors so
    the highlighted width override wins specificity by source order (both

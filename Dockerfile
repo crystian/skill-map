@@ -7,6 +7,7 @@ WORKDIR /app
 # Only what the build script needs. Keeps the build cache tight.
 COPY scripts/ ./scripts/
 COPY spec/ ./spec/
+COPY web/ ./web/
 
 RUN node scripts/build-site.mjs
 

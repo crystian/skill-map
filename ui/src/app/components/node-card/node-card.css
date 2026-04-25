@@ -1,0 +1,437 @@
+:host {
+  position: relative;
+  display: inline-block;
+  width: 260px;
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-border);
+  border-radius: 8px;
+  box-shadow: var(--sm-shadow-card);
+  overflow: hidden;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+  user-select: none;
+  text-align: start;
+}
+
+:host(:hover) { box-shadow: var(--sm-shadow-card-hover); }
+
+:host::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent, var(--sm-kind-note));
+}
+
+:host(.sm-gnode--skill) { --accent: var(--sm-kind-skill); }
+:host(.sm-gnode--agent) { --accent: var(--sm-kind-agent); }
+:host(.sm-gnode--command) { --accent: var(--sm-kind-command); }
+:host(.sm-gnode--hook) { --accent: var(--sm-kind-hook); }
+:host(.sm-gnode--note) { --accent: var(--sm-kind-note); }
+
+:host(.sm-gnode--danger) { --accent: var(--sm-severity-error); }
+:host(.sm-gnode--deprecated) { opacity: 0.55; }
+
+:host(.sm-gnode--selected) {
+  border-color: var(--p-primary-color);
+  box-shadow:
+    0 0 0 2px var(--p-primary-color),
+    0 4px 16px color-mix(in srgb, var(--p-primary-color) 25%, transparent);
+}
+:host(.sm-gnode--highlighted) {
+  border-color: var(--p-primary-color);
+  box-shadow: var(--sm-shadow-card-hover);
+}
+:host(.sm-gnode--dimmed) { opacity: 0.25; }
+
+.sm-gnode__main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 0.6rem;
+  row-gap: 0.3rem;
+  align-items: start;
+  padding: 0.6rem 0.65rem;
+}
+
+.sm-gnode__icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--kind-bg, var(--sm-kind-note-bg));
+  color: var(--kind-fg, var(--sm-kind-note-fg));
+  flex: none;
+  font-size: 1.05rem;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+:host(.sm-gnode--skill) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-skill-bg); --kind-fg: var(--sm-kind-skill-fg); }
+:host(.sm-gnode--agent) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-agent-bg); --kind-fg: var(--sm-kind-agent-fg); }
+:host(.sm-gnode--command) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-command-bg); --kind-fg: var(--sm-kind-command-fg); }
+:host(.sm-gnode--hook) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-hook-bg); --kind-fg: var(--sm-kind-hook-fg); }
+:host(.sm-gnode--note) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-note-bg); --kind-fg: var(--sm-kind-note-fg); }
+
+.sm-gnode__content {
+  min-width: 0;
+  width: 100%;
+  justify-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sm-gnode__name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.sm-gnode__name {
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--p-text-color);
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+:host(.sm-gnode--with-color) .sm-gnode__name {
+  background: color-mix(in srgb, var(--node-color) 7%, transparent);
+  padding: 0.05rem 0.4rem;
+  border-radius: 3px;
+}
+
+.sm-gnode__actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.sm-gnode__confidence {
+  display: flex;
+  align-items: flex-start;
+  font-size: 0.65rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  flex: none;
+  cursor: help;
+  padding-top: 0.35rem;
+}
+
+.sm-gnode__llm-marker--high { color: var(--sm-severity-success); }
+.sm-gnode__llm-marker--med { color: var(--sm-severity-warn); }
+.sm-gnode__llm-marker--low { color: var(--sm-severity-error); }
+
+.sm-gnode__chevron {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--sm-text-muted);
+  border-radius: 4px;
+  transition: transform 160ms ease, background 120ms ease, color 120ms ease;
+}
+
+.sm-gnode__chevron .pi {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
+.sm-gnode__chevron:hover {
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+}
+
+:host(.sm-gnode--expanded) .sm-gnode__chevron { transform: rotate(180deg); }
+
+.sm-gnode__sub {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--sm-font-mono);
+  font-size: 0.6rem;
+  color: var(--sm-text-muted);
+  line-height: 1.2;
+  margin-top: 0.1rem;
+  min-width: 0;
+  width: 100%;
+}
+
+/* Version is the only right-aligned stat; everything before it stacks
+   to the left with no gap. `margin-left: auto` consumes the remaining
+   space and pushes the version to the row's right edge. */
+.sm-gnode__sub-version {
+  margin-left: auto;
+}
+
+.sm-gnode__sub-stat,
+.sm-gnode__sub-version {
+  padding: 0.08rem 0.35rem;
+  border-radius: 3px;
+  background: var(--sm-bg-hover);
+  font-family: var(--sm-font-mono);
+  font-size: 0.6rem;
+  color: var(--sm-text-muted);
+  font-weight: 400;
+  flex: none;
+}
+
+.sm-gnode__sub-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.15rem;
+  cursor: help;
+}
+
+.sm-gnode__sub-stat i { font-size: 0.65rem; }
+.sm-gnode__sub-key { font-weight: 700; }
+
+/* Type-coded subtle tints. The 7% mix reads on light backgrounds but
+   collapses to near-invisible on dark surfaces — bump the alpha when
+   `.app-dark` is active so the grouping cue stays visible. */
+.sm-gnode__sub-stat--tokens { background: color-mix(in srgb, var(--sm-kind-agent) 7%, transparent); }
+.sm-gnode__sub-stat--bytes { background: color-mix(in srgb, var(--sm-kind-command) 7%, transparent); }
+.sm-gnode__sub-stat--date { background: color-mix(in srgb, var(--sm-kind-skill) 7%, transparent); }
+
+:host-context(.app-dark) .sm-gnode__sub-stat--tokens {
+  background: color-mix(in srgb, var(--sm-kind-agent) 22%, transparent);
+  color: var(--sm-kind-agent-fg);
+}
+:host-context(.app-dark) .sm-gnode__sub-stat--bytes {
+  background: color-mix(in srgb, var(--sm-kind-command) 22%, transparent);
+  color: var(--sm-kind-command-fg);
+}
+:host-context(.app-dark) .sm-gnode__sub-stat--date {
+  background: color-mix(in srgb, var(--sm-kind-skill) 22%, transparent);
+  color: var(--sm-kind-skill-fg);
+}
+
+.sm-gnode__panel { display: none; border-top: 1px solid var(--sm-border); }
+:host(.sm-gnode--expanded) .sm-gnode__panel { display: block; }
+
+.sm-gnode__llm {
+  padding: 0.5rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.sm-gnode__llm-line {
+  display: flex;
+  gap: 0.4rem;
+  align-items: baseline;
+  color: var(--p-text-color);
+  font-style: italic;
+  min-width: 0;
+}
+
+.sm-gnode__llm-label {
+  flex: none;
+  font-style: normal;
+  color: var(--sm-text-muted);
+  font-size: 0.6rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  min-width: 2.2rem;
+  padding-top: 0.2rem;
+  cursor: help;
+}
+
+.sm-gnode__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.sm-gnode__chip {
+  font-size: 0.65rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  border: 1px solid var(--sm-border);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+  line-height: 1.3;
+}
+
+.sm-gnode__chip--mono { font-family: var(--sm-font-mono); }
+.sm-gnode__chip--allowed { border-style: dashed; background: transparent; color: var(--sm-text-muted); }
+.sm-gnode__chip--llm { font-style: italic; }
+.sm-gnode__chip-required { color: var(--sm-severity-error); margin-left: 2px; }
+
+.sm-gnode__llm-code {
+  font-family: var(--sm-font-mono);
+  background: var(--sm-bg-hover);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  font-style: normal;
+  color: var(--p-text-color);
+}
+
+.sm-gnode__desc {
+  padding: 0.55rem 0.7rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--p-text-color);
+  max-height: 140px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--sm-border);
+  scrollbar-width: thin;
+  scrollbar-color: var(--sm-border) transparent;
+}
+.sm-gnode__desc::-webkit-scrollbar { width: 6px; }
+.sm-gnode__desc::-webkit-scrollbar-track { background: transparent; }
+.sm-gnode__desc::-webkit-scrollbar-thumb { background: var(--sm-border); border-radius: 3px; }
+
+.sm-gnode__meta {
+  padding: 0.5rem 0.7rem;
+  border-top: 1px solid var(--sm-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sm-gnode__meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  min-width: 0;
+}
+
+.sm-gnode__meta-label {
+  color: var(--sm-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  font-size: 0.6rem;
+  flex: none;
+  min-width: 60px;
+  padding-top: 0.15rem;
+}
+
+.sm-gnode__meta-value {
+  color: var(--p-text-color);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sm-gnode__meta-value--mono {
+  font-family: var(--sm-font-mono);
+  background: var(--sm-bg-hover);
+  padding: 0.08rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.68rem;
+}
+
+.sm-gnode__issues-block {
+  padding: 0.5rem 0.7rem;
+  border-top: 1px solid var(--sm-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sm-gnode__issue {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+.sm-gnode__issue-icon { font-size: 0.7rem; flex: none; }
+.sm-gnode__issue--error .sm-gnode__issue-icon { color: var(--sm-severity-error); }
+.sm-gnode__issue--warn .sm-gnode__issue-icon { color: var(--sm-severity-warn); }
+
+.sm-gnode__issue-rule {
+  font-family: var(--sm-font-mono);
+  color: var(--sm-text-muted);
+  flex: none;
+  font-size: 0.65rem;
+}
+
+.sm-gnode__issue-msg {
+  color: var(--p-text-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.sm-gnode__footer {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 0.7rem;
+  border-top: 1px solid var(--sm-border);
+  background: var(--sm-bg-hover);
+  font-size: 0.7rem;
+  color: var(--sm-text-muted);
+}
+.sm-gnode__footer:empty { display: none; }
+
+/* Status icons (experimental / deprecated / injection) live on the
+   right edge of the footer, separated from the count stats. */
+.sm-gnode__footer-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-left: auto;
+}
+
+.sm-gnode__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  line-height: 1;
+}
+
+.sm-gnode__stat i,
+.sm-gnode__stat svg { font-size: 0.85rem; }
+
+.sm-gnode__stat-num { font-weight: 600; color: var(--p-text-color); }
+
+.sm-gnode__stat--error {
+  background: var(--sm-severity-error-bg);
+  color: var(--sm-severity-error);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+.sm-gnode__stat--error .sm-gnode__stat-num { color: var(--sm-severity-error); }
+
+.sm-gnode__stat--warn {
+  background: var(--sm-severity-warn-bg);
+  color: var(--sm-severity-warn);
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+.sm-gnode__stat--warn .sm-gnode__stat-num { color: var(--sm-severity-warn); }
+
+.sm-gnode__stat--danger { color: var(--sm-severity-error); }

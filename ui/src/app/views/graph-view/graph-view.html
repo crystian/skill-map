@@ -3,9 +3,10 @@
     <div>
       <h2>{{ texts.title }}</h2>
       <p class="graph__sub">
-        {{ texts.subtitlePrefix }}<code>{{ texts.legend.supersedes }}</code>,
-        <code>{{ texts.legend.requires }}</code>,
-        <code>{{ texts.legend.related }}</code>{{ texts.subtitleSuffix }}
+        {{ texts.subtitlePrefix }}<code>{{ texts.legend.invokes }}</code>,
+        <code>{{ texts.legend.references }}</code>,
+        <code>{{ texts.legend.mentions }}</code>,
+        <code>{{ texts.legend.supersedes }}</code>{{ texts.subtitleSuffix }}
       </p>
     </div>
   </header>
@@ -88,10 +89,7 @@
                 [fNodeId]="node.id"
                 [fNodePosition]="node.position"
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
-                [class]="'sm-gnode sm-gnode--' + node.kind"
-                [class.sm-gnode--selected]="isSelected(node.id)"
-                [class.sm-gnode--highlighted]="isHighlighted(node.id)"
-                [class.sm-gnode--dimmed]="isDimmed(node.id)"
+                class="sm-gnode-host"
                 (pointerdown)="onNodePointerDown($event)"
                 (click)="selectNode(node, $event)"
                 (dblclick)="openNode(node)"
@@ -103,21 +101,16 @@
                   [fInputConnectableSide]="inputSide"
                   class="sm-gnode__connector sm-gnode__connector--in"
                 ></div>
-                <span class="sm-gnode__kind">{{ node.kind }}</span>
-                <span class="sm-gnode__label">{{ node.label }}</span>
-                @if (node.subtitle) {
-                  <span class="sm-gnode__subtitle">{{ node.subtitle }}</span>
-                }
-                @if (node.linksIn > 0 || node.linksOut > 0) {
-                  <span class="sm-gnode__links">
-                    @if (node.linksIn > 0) {
-                      <span class="sm-gnode__link-badge sm-gnode__link-badge--in">↓{{ node.linksIn }}</span>
-                    }
-                    @if (node.linksOut > 0) {
-                      <span class="sm-gnode__link-badge sm-gnode__link-badge--out">↑{{ node.linksOut }}</span>
-                    }
-                  </span>
-                }
+                <sm-node-card
+                  [node]="node.view"
+                  [stats]="node.stats"
+                  [summary]="node.summary"
+                  [selected]="isSelected(node.id)"
+                  [highlighted]="isHighlighted(node.id)"
+                  [dimmed]="isDimmed(node.id)"
+                  [expanded]="isExpanded(node.id)"
+                  (expandedChange)="setExpanded(node.id, $event)"
+                />
                 <div
                   fNodeOutput
                   [fOutputId]="node.id + '-out'"
@@ -135,13 +128,11 @@
                   [fNodeId]="node.id"
                   [fNodePosition]="node.position"
                   (fNodePositionChange)="onNodePositionChange(node.id, $event)"
-                  [class]="'sm-gnode sm-gnode--' + node.kind"
-                  [class.sm-gnode--selected]="isSelected(node.id)"
-                  [class.sm-gnode--highlighted]="isHighlighted(node.id)"
-                  [class.sm-gnode--dimmed]="isDimmed(node.id)"
+                  class="sm-gnode-host"
                   (pointerdown)="onNodePointerDown($event)"
                   (click)="selectNode(node, $event)"
                   (dblclick)="openNode(node)"
+                  [attr.data-testid]="'graph-node-' + node.id"
                 >
                   <div
                     fNodeInput
@@ -149,21 +140,16 @@
                     [fInputConnectableSide]="inputSide"
                     class="sm-gnode__connector sm-gnode__connector--in"
                   ></div>
-                  <span class="sm-gnode__kind">{{ node.kind }}</span>
-                  <span class="sm-gnode__label">{{ node.label }}</span>
-                  @if (node.subtitle) {
-                    <span class="sm-gnode__subtitle">{{ node.subtitle }}</span>
-                  }
-                  @if (node.linksIn > 0 || node.linksOut > 0) {
-                    <span class="sm-gnode__links">
-                      @if (node.linksIn > 0) {
-                        <span class="sm-gnode__link-badge sm-gnode__link-badge--in">↓{{ node.linksIn }}</span>
-                      }
-                      @if (node.linksOut > 0) {
-                        <span class="sm-gnode__link-badge sm-gnode__link-badge--out">↑{{ node.linksOut }}</span>
-                      }
-                    </span>
-                  }
+                  <sm-node-card
+                    [node]="node.view"
+                    [stats]="node.stats"
+                    [summary]="node.summary"
+                    [selected]="isSelected(node.id)"
+                    [highlighted]="isHighlighted(node.id)"
+                    [dimmed]="isDimmed(node.id)"
+                    [expanded]="isExpanded(node.id)"
+                    (expandedChange)="setExpanded(node.id, $event)"
+                  />
                   <div
                     fNodeOutput
                     [fOutputId]="node.id + '-out'"
@@ -215,7 +201,7 @@
           data-testid="graph-zoom-out"
         />
         <p-button
-          icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
+          icon="pi pi-stop"
           [ariaLabel]="texts.toolbar.fitToScreen"
           [pTooltip]="texts.toolbar.fitToScreen"
           severity="secondary"
@@ -225,29 +211,7 @@
           (onClick)="fitToScreen()"
           data-testid="graph-fit-to-screen"
         />
-        <p-button
-          icon="pi pi-stop"
-          [ariaLabel]="texts.toolbar.resetZoomLabel"
-          [pTooltip]="texts.toolbar.resetZoomTooltip"
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          (onClick)="resetZoom()"
-          data-testid="graph-reset-zoom"
-        />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
-        <p-button
-          [icon]="themeIcon()"
-          [ariaLabel]="themeLabel()"
-          [pTooltip]="themeLabel()"
-          severity="secondary"
-          [text]="true"
-          [rounded]="true"
-          size="small"
-          (onClick)="toggleTheme()"
-          data-testid="graph-theme-toggle"
-        />
         <p-button
           icon="pi pi-refresh"
           [ariaLabel]="texts.toolbar.resetLayoutLabel"
@@ -263,9 +227,10 @@
     </div>
 
     <aside class="graph__legend" [attr.aria-label]="texts.a11y.edgeLegend" data-testid="graph-legend">
-      <span><span class="swatch swatch--supersedes"></span> {{ texts.legend.supersedes }}</span>
-      <span><span class="swatch swatch--requires"></span> {{ texts.legend.requires }}</span>
-      <span><span class="swatch swatch--related"></span> {{ texts.legend.related }}</span>
+      <span [pTooltip]="texts.legendTooltip.invokes"><span class="swatch swatch--invokes"></span> {{ texts.legend.invokes }}</span>
+      <span [pTooltip]="texts.legendTooltip.references"><span class="swatch swatch--references"></span> {{ texts.legend.references }}</span>
+      <span [pTooltip]="texts.legendTooltip.mentions"><span class="swatch swatch--mentions"></span> {{ texts.legend.mentions }}</span>
+      <span [pTooltip]="texts.legendTooltip.supersedes"><span class="swatch swatch--supersedes"></span> {{ texts.legend.supersedes }}</span>
     </aside>
   }
 </section>

@@ -16,10 +16,18 @@ interface IKindEntry {
   readonly count: number;
 }
 
+/**
+ * Best-effort PrimeIcon match for the prototype iconography. Exact set
+ * (terminal SVG for command, anchor SVG for hook, file-with-lines SVG
+ * for note) lives on `<sm-kind-icon>`; the toggle-button icon prop only
+ * accepts a class string, so commands/hooks/notes use their closest
+ * PrimeIcon proxy here. TODO: refactor to a content template that
+ * embeds `<sm-kind-icon>` for full consistency.
+ */
 const KIND_ICON: Record<TNodeKind, string> = {
-  skill: 'pi pi-wrench',
+  skill: 'pi pi-bolt',
   agent: 'pi pi-user',
-  command: 'pi pi-bolt',
+  command: 'pi pi-code',
   hook: 'pi pi-link',
   note: 'pi pi-file',
 };

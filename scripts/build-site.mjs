@@ -2,10 +2,11 @@
 /**
  * Builds the public site served at skill-map.dev.
  *
- * - Copies every spec/schemas/**\/*.schema.json to site/spec/v0/... (dropping
- *   the `schemas/` path segment so the canonical URL is /spec/v0/<name>.schema.json).
- * - Validates that each schema's `$id` matches its target URL exactly.
- * - Generates site/index.html (landing) and site/spec/v0/index.html (schema index).
+ * - Copies web/ → site/ (the editable landing).
+ * - Substitutes {{SPEC_VERSION}} placeholders in site/index.html.
+ * - Validates that each schema's `$id` matches its target URL exactly,
+ *   then copies spec/schemas/**\/*.schema.json → site/spec/v0/...
+ * - Generates site/spec/v0/index.html (the schema browse index).
  *
  * Zero dependencies. Node >= 22 ESM.
  */
@@ -16,8 +17,10 @@ import { join, dirname, relative } from 'node:path';
 
 const SCHEMA_SRC = 'spec/schemas';
 const SPEC_PKG_PATH = 'spec/package.json';
+const WEB_SRC = 'web';
 const SITE_DST = 'site';
 const SCHEMA_DST = 'site/spec/v0';
+const LANDING_PATH = join(SITE_DST, 'index.html');
 
 const DOMAIN = 'https://skill-map.dev';
 const MAJOR = 'v0';
@@ -26,7 +29,6 @@ const SPEC_URL = `${DOMAIN}/spec/${MAJOR}`;
 const REPO_URL = 'https://github.com/crystian/skill-map';
 const PROSE_BASE = `${REPO_URL}/blob/main/spec`;
 const NPM_PKG_URL = 'https://www.npmjs.com/package/@skill-map/spec';
-const CHANGELOG_URL = `${PROSE_BASE}/CHANGELOG.md`;
 
 const PROSE_DOCS = [
   { file: 'README.md', title: 'README', summary: 'Overview of the spec and what it defines.' },
@@ -99,12 +101,12 @@ function renderProseList() {
   ).join('\n');
 }
 
-const BASE_CSS = `
+const INDEX_CSS = `
   :root {
     --bg: #0e1116;
     --fg: #e6edf3;
     --muted: #8b949e;
-    --accent: #7ee787;
+    --accent: #c084fc;
     --border: #30363d;
     --code-bg: #161b22;
   }
@@ -128,8 +130,6 @@ const BASE_CSS = `
   ul.items li:last-child { border-bottom: none; }
   ul.items .title { color: var(--fg); margin-left: 8px; font-weight: 600; }
   ul.items .desc { color: var(--muted); margin: 4px 0 0; font-size: 13px; }
-  .canonical { background: var(--code-bg); border: 1px solid var(--border); padding: 16px; border-radius: 8px; margin: 24px 0; }
-  .canonical code { background: transparent; border: none; padding: 0; color: var(--accent); }
   .version-badge {
     display: inline-block;
     padding: 2px 10px;
@@ -143,65 +143,8 @@ const BASE_CSS = `
   }
   .version-badge a { color: var(--accent); }
   .version-badge a:hover { text-decoration: none; color: var(--fg); }
-  .release-line { color: var(--muted); font-size: 13px; margin: 0 0 24px; }
   footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 `;
-
-function renderLanding(items, version) {
-  const g = groupSchemas(items);
-  const npmVersionUrl = `${NPM_PKG_URL}/v/${version}`;
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>skill-map spec v${escapeHtml(version)}</title>
-<meta name="description" content="Vendor-neutral specification for mapping and managing AI-agent markdown ecosystems.">
-<style>${BASE_CSS}</style>
-</head>
-<body>
-<main>
-  <h1>skill-map <span class="dim">spec</span> <span class="version-badge"><a href="${escapeHtml(npmVersionUrl)}">v${escapeHtml(version)}</a></span></h1>
-  <p class="release-line">Current release: <a href="${escapeHtml(npmVersionUrl)}"><code>@skill-map/spec@${escapeHtml(version)}</code></a> &middot; <a href="${escapeHtml(CHANGELOG_URL)}">changelog</a> &middot; <a href="${escapeHtml(NPM_PKG_URL)}">all versions on npm</a></p>
-  <p class="lead">Vendor-neutral specification for mapping, inspecting, and managing collections of interrelated markdown files — skills, agents, commands, hooks, and notes.</p>
-
-  <div class="canonical">
-    <strong>Canonical URL</strong><br>
-    <code>${escapeHtml(SPEC_URL)}/&lt;path&gt;.schema.json</code>
-    <p style="margin: 8px 0 0; color: var(--muted); font-size: 12px;">Pre-1.0. <code>v0</code> is the URL major prefix and stays until the first stable cut; the package version on npm bumps per changeset.</p>
-  </div>
-
-  <h2>Top-level schemas</h2>
-  <ul class="items">
-${renderSchemaList(g.topLevel)}
-  </ul>
-
-  <h2>Frontmatter schemas</h2>
-  <ul class="items">
-${renderSchemaList(g.frontmatter)}
-  </ul>
-
-  <h2>Summary schemas</h2>
-  <ul class="items">
-${renderSchemaList(g.summaries)}
-  </ul>
-
-  <h2>Prose contracts</h2>
-  <p class="lead">Rendered on GitHub. The spec on this site is the schemas; the prose below is what they enforce.</p>
-  <ul class="items">
-${renderProseList()}
-  </ul>
-
-  <footer>
-    <p>Source: <a href="${escapeHtml(REPO_URL)}">${escapeHtml(REPO_URL.replace('https://', ''))}</a>
-    &middot; MIT license
-    &middot; <a href="${escapeHtml(REPO_URL)}/blob/main/spec/CHANGELOG.md">changelog</a></p>
-  </footer>
-</main>
-</body>
-</html>
-`;
-}
 
 function renderSchemaIndex(items, version) {
   const g = groupSchemas(items);
@@ -212,7 +155,7 @@ function renderSchemaIndex(items, version) {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>skill-map spec / ${MAJOR} (v${escapeHtml(version)})</title>
-<style>${BASE_CSS}</style>
+<style>${INDEX_CSS}</style>
 </head>
 <body>
 <main>
@@ -234,6 +177,11 @@ ${renderSchemaList(g.frontmatter)}
 ${renderSchemaList(g.summaries)}
   </ul>
 
+  <h2>Prose contracts</h2>
+  <ul class="items">
+${renderProseList()}
+  </ul>
+
   <footer>
     <p><a href="/">← back to landing</a></p>
   </footer>
@@ -244,13 +192,33 @@ ${renderSchemaList(g.summaries)}
 }
 
 async function main() {
-  if (existsSync(SITE_DST)) await rm(SITE_DST, { recursive: true });
-  await mkdir(SCHEMA_DST, { recursive: true });
+  if (!existsSync(WEB_SRC)) {
+    throw new Error(`missing ${WEB_SRC}/ — the editable landing source must exist before build`);
+  }
 
+  if (existsSync(SITE_DST)) await rm(SITE_DST, { recursive: true });
+
+  // 1. Copy the editable landing into the build output.
+  await cp(WEB_SRC, SITE_DST, { recursive: true });
+
+  // 2. Read the spec version and substitute placeholders in the landing.
   const pkg = JSON.parse(await readFile(SPEC_PKG_PATH, 'utf8'));
   const version = pkg.version;
   if (!version) throw new Error(`${SPEC_PKG_PATH} has no "version" field`);
 
+  if (existsSync(LANDING_PATH)) {
+    const html = await readFile(LANDING_PATH, 'utf8');
+    const subbed = html.replaceAll('{{SPEC_VERSION}}', version);
+    if (subbed === html) {
+      console.warn(`! ${LANDING_PATH} did not contain {{SPEC_VERSION}} — version not injected`);
+    }
+    await writeFile(LANDING_PATH, subbed);
+  } else {
+    console.warn(`! ${LANDING_PATH} does not exist — landing rendering skipped`);
+  }
+
+  // 3. Validate every schema's $id matches its canonical URL, then mirror it.
+  await mkdir(SCHEMA_DST, { recursive: true });
   const files = await walkSchemas(SCHEMA_SRC);
   if (files.length === 0) throw new Error(`no schemas found under ${SCHEMA_SRC}/`);
 
@@ -287,12 +255,12 @@ async function main() {
     process.exit(1);
   }
 
-  await writeFile(join(SITE_DST, 'index.html'), renderLanding(validated, version));
+  // 4. Generate the schema browse index.
   await writeFile(join(SCHEMA_DST, 'index.html'), renderSchemaIndex(validated, version));
 
   console.log(`✓ Validated ${validated.length} schemas.`);
   console.log(`✓ Site built at ${SITE_DST}/ (spec v${version}).`);
-  console.log(`  Landing: ${SITE_DST}/index.html`);
+  console.log(`  Landing: ${LANDING_PATH}  (from ${WEB_SRC}/)`);
   console.log(`  Schemas: ${SCHEMA_DST}/`);
 }
 

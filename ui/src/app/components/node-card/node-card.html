@@ -1,0 +1,419 @@
+@let n = node();
+@let s = summary();
+@let st = stats();
+@let conf = confidenceTier();
+
+<div class="sm-gnode__main">
+    <div class="sm-gnode__icon-box" aria-hidden="true">
+      <sm-kind-icon [kind]="n.kind" [size]="18" />
+    </div>
+
+    <div class="sm-gnode__content">
+      <div class="sm-gnode__name-row">
+        <span class="sm-gnode__name" [pTooltip]="displayName()">{{ displayName() }}</span>
+      </div>
+    </div>
+
+    <div class="sm-gnode__actions">
+      @if (s !== null && conf !== null) {
+        <span
+          class="sm-gnode__confidence"
+          [class]="'sm-gnode__llm-marker--' + conf"
+          [pTooltip]="texts.confidence(s.confidence)"
+        >{{ confidencePct() }}%</span>
+      }
+      <button
+        type="button"
+        class="sm-gnode__chevron"
+        [attr.aria-label]="texts.ariaExpand"
+        (click)="toggleExpanded($event)"
+      >
+        <i class="pi pi-chevron-down" aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <div class="sm-gnode__sub">
+      @if (tokensShort() !== null) {
+        <span
+          class="sm-gnode__sub-stat sm-gnode__sub-stat--tokens"
+          [pTooltip]="texts.stats.tokens(st.tokensTotal!)"
+        ><span class="sm-gnode__sub-key">T</span>{{ tokensShort() }}</span>
+      }
+      @if (bytesShort() !== null) {
+        <span
+          class="sm-gnode__sub-stat sm-gnode__sub-stat--bytes"
+          [pTooltip]="texts.stats.bytes(st.bytesTotal!)"
+        ><span class="sm-gnode__sub-key">B</span>{{ bytesShort() }}</span>
+      }
+      @if (daysAgo(); as d) {
+        <span
+          class="sm-gnode__sub-stat sm-gnode__sub-stat--date"
+          [pTooltip]="texts.stats.daysAgo(d.iso, d.days)"
+        ><i class="pi pi-calendar" aria-hidden="true"></i>{{ d.short }}</span>
+      }
+      @if (version(); as v) {
+        <span class="sm-gnode__sub-version">{{ v }}</span>
+      }
+    </div>
+  </div>
+
+  <div class="sm-gnode__panel">
+    @if (hasLlmCluster()) {
+      <div class="sm-gnode__llm">
+        <!-- WHAT — every kind has it (whatItDoes / whatItCovers for note) -->
+        @if (summaryNote(); as sn) {
+          <div class="sm-gnode__llm-line">
+            <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
+            <span>{{ sn.whatItCovers }}</span>
+          </div>
+          @if (sn.topics?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.topics.tooltip">{{ texts.llm.topics.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (t of sn.topics; track t) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ t }}</span>
+                }
+              </div>
+            </div>
+          }
+          @if (sn.keyFacts?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.facts.tooltip">{{ texts.llm.facts.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (f of sn.keyFacts; track f) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ f }}</span>
+                }
+              </div>
+            </div>
+          }
+        }
+        @if (summaryAgent(); as sa) {
+          <div class="sm-gnode__llm-line">
+            <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
+            <span>{{ sa.whatItDoes }}</span>
+          </div>
+          @if (sa.whenToUse) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.when.tooltip">{{ texts.llm.when.label }}</span>
+              <span>{{ sa.whenToUse }}</span>
+            </div>
+          }
+          @if (sa.interactionStyle) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.style.tooltip">{{ texts.llm.style.label }}</span>
+              <span>{{ sa.interactionStyle }}</span>
+            </div>
+          }
+          @if (sa.capabilities?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.does.tooltip">{{ texts.llm.does.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (c of sa.capabilities; track c) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ c }}</span>
+                }
+              </div>
+            </div>
+          }
+        }
+        @if (summarySkill(); as ss) {
+          <div class="sm-gnode__llm-line">
+            <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
+            <span>{{ ss.whatItDoes }}</span>
+          </div>
+          @if (ss.recipe?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.steps.tooltip">{{ texts.llm.steps.label }}</span>
+              <span>
+                @for (r of ss.recipe; track r.step; let last = $last) {{{ r.step }}. {{ r.description }}{{ last ? '' : ' · ' }}}
+              </span>
+            </div>
+          }
+          @if (ss.preconditions?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.pre.tooltip">{{ texts.llm.pre.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (p of ss.preconditions; track p) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ p }}</span>
+                }
+              </div>
+            </div>
+          }
+          @if (ss.outputs?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.out.tooltip">{{ texts.llm.out.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (o of ss.outputs; track o) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ o }}</span>
+                }
+              </div>
+            </div>
+          }
+          @if (ss.sideEffects?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (fx of ss.sideEffects; track fx) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
+                }
+              </div>
+            </div>
+          }
+        }
+        @if (summaryCommand(); as sc) {
+          <div class="sm-gnode__llm-line">
+            <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
+            <span>{{ sc.whatItDoes }}</span>
+          </div>
+          @if (sc.invocationExample) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.eg.tooltip">{{ texts.llm.eg.label }}</span>
+              <code class="sm-gnode__llm-code">{{ sc.invocationExample }}</code>
+            </div>
+          }
+          @if (sc.sideEffects?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (fx of sc.sideEffects; track fx) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
+                }
+              </div>
+            </div>
+          }
+        }
+        @if (summaryHook(); as sh) {
+          <div class="sm-gnode__llm-line">
+            <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
+            <span>{{ sh.whatItDoes }}</span>
+          </div>
+          @if (sh.triggerInferred) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.trigger.tooltip">{{ texts.llm.trigger.label }}</span>
+              <span>{{ sh.triggerInferred }}</span>
+            </div>
+          }
+          @if (sh.sideEffects?.length) {
+            <div class="sm-gnode__llm-line">
+              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
+              <div class="sm-gnode__chips">
+                @for (fx of sh.sideEffects; track fx) {
+                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
+                }
+              </div>
+            </div>
+          }
+        }
+      </div>
+    }
+
+    @if (description()) {
+      <div class="sm-gnode__desc">{{ description() }}</div>
+    }
+
+    <!-- Kind-specific meta block. Only renders rows that actually have a value. -->
+    @if (fmAgent(); as fa) {
+      @if (fa.model) {
+        <div class="sm-gnode__meta">
+          <div class="sm-gnode__meta-row">
+            <span class="sm-gnode__meta-label">{{ texts.meta.model }}</span>
+            <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fa.model }}</span>
+          </div>
+        </div>
+      }
+    }
+    @if (fmSkill(); as fs) {
+      @if (fs.inputs?.length || fs.outputs?.length) {
+        <div class="sm-gnode__meta">
+          @if (fs.inputs?.length) {
+            <div class="sm-gnode__meta-row">
+              <span class="sm-gnode__meta-label">{{ texts.meta.inputs }}</span>
+              <div class="sm-gnode__chips">
+                @for (p of fs.inputs; track p.name) {
+                  <span
+                    class="sm-gnode__chip sm-gnode__chip--mono"
+                    [pTooltip]="p.description ?? p.name"
+                  >{{ p.name }}@if (p.required) {<span class="sm-gnode__chip-required">*</span>}</span>
+                }
+              </div>
+            </div>
+          }
+          @if (fs.outputs?.length) {
+            <div class="sm-gnode__meta-row">
+              <span class="sm-gnode__meta-label">{{ texts.meta.outputs }}</span>
+              <div class="sm-gnode__chips">
+                @for (p of fs.outputs; track p.name) {
+                  <span
+                    class="sm-gnode__chip sm-gnode__chip--mono"
+                    [pTooltip]="p.description ?? p.name"
+                  >{{ p.name }}</span>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+    }
+    @if (fmCommand(); as fc) {
+      @if (fc.args?.length || fc.shortcut) {
+        <div class="sm-gnode__meta">
+          @if (fc.args?.length) {
+            <div class="sm-gnode__meta-row">
+              <span class="sm-gnode__meta-label">{{ texts.meta.args }}</span>
+              <div class="sm-gnode__chips">
+                @for (a of fc.args; track a.name) {
+                  <span
+                    class="sm-gnode__chip sm-gnode__chip--mono"
+                    [pTooltip]="a.description ?? a.name"
+                  >{{ a.name }}@if (a.required) {<span class="sm-gnode__chip-required">*</span>}</span>
+                }
+              </div>
+            </div>
+          }
+          @if (fc.shortcut) {
+            <div class="sm-gnode__meta-row">
+              <span class="sm-gnode__meta-label">{{ texts.meta.shortcut }}</span>
+              <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fc.shortcut }}</span>
+            </div>
+          }
+        </div>
+      }
+    }
+    @if (fmHook(); as fh) {
+      <div class="sm-gnode__meta">
+        @if (fh.event) {
+          <div class="sm-gnode__meta-row">
+            <span class="sm-gnode__meta-label">{{ texts.meta.event }}</span>
+            <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fh.event }}</span>
+          </div>
+        }
+        @if (fh.condition) {
+          <div class="sm-gnode__meta-row">
+            <span class="sm-gnode__meta-label">{{ texts.meta.cond }}</span>
+            <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fh.condition }}</span>
+          </div>
+        }
+        @if (fh.blocking || fh.idempotent) {
+          <div class="sm-gnode__meta-row">
+            <span class="sm-gnode__meta-label">{{ texts.meta.flags }}</span>
+            <div class="sm-gnode__chips">
+              @if (fh.blocking) {
+                <span class="sm-gnode__chip" [pTooltip]="texts.meta.blocking.tooltip">{{ texts.meta.blocking.label }}</span>
+              }
+              @if (fh.idempotent) {
+                <span class="sm-gnode__chip" [pTooltip]="texts.meta.idempotent.tooltip">{{ texts.meta.idempotent.label }}</span>
+              }
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    @if (visibleIssues().length) {
+      <div class="sm-gnode__issues-block">
+        @for (iss of visibleIssues(); track iss.ruleId + iss.message) {
+          <div
+            class="sm-gnode__issue"
+            [class]="'sm-gnode__issue--' + iss.severity"
+            [pTooltip]="iss.detail ?? iss.ruleId + ' · ' + iss.message"
+          >
+            <i
+              class="sm-gnode__issue-icon"
+              [class.pi]="true"
+              [class.pi-times-circle]="iss.severity === 'error'"
+              [class.pi-exclamation-triangle]="iss.severity === 'warn'"
+              aria-hidden="true"
+            ></i>
+            <code class="sm-gnode__issue-rule">{{ iss.ruleId }}</code>
+            <span class="sm-gnode__issue-msg">{{ iss.message }}</span>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="sm-gnode__footer">
+    @if (errorCount() > 0) {
+      <span
+        class="sm-gnode__stat sm-gnode__stat--error"
+        [pTooltip]="texts.stats.errors(errorCount())"
+      >
+        <i class="pi pi-times-circle" aria-hidden="true"></i>
+        <span class="sm-gnode__stat-num">{{ errorCount() }}</span>
+      </span>
+    }
+    @if (warnCount() > 0) {
+      <span
+        class="sm-gnode__stat sm-gnode__stat--warn"
+        [pTooltip]="texts.stats.warns(warnCount())"
+      >
+        <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+        <span class="sm-gnode__stat-num">{{ warnCount() }}</span>
+      </span>
+    }
+    @if (toolsCount() > 0) {
+      <span
+        class="sm-gnode__stat"
+        [pTooltip]="toolsTooltip()"
+      >
+        <i class="pi pi-wrench" aria-hidden="true"></i>
+        <span class="sm-gnode__stat-num">{{ toolsCount() }}</span>
+      </span>
+    }
+    @if (st.linksIn > 0) {
+      <span
+        class="sm-gnode__stat"
+        [pTooltip]="texts.stats.linksIn(st.linksIn)"
+      >
+        <span aria-hidden="true">↓</span>
+        <span class="sm-gnode__stat-num">{{ st.linksIn }}</span>
+      </span>
+    }
+    @if (st.linksOut > 0) {
+      <span
+        class="sm-gnode__stat"
+        [pTooltip]="texts.stats.linksOut(st.linksOut)"
+      >
+        <span aria-hidden="true">↑</span>
+        <span class="sm-gnode__stat-num">{{ st.linksOut }}</span>
+      </span>
+    }
+    @if (st.externalRefsCount && st.externalRefsCount > 0) {
+      <span
+        class="sm-gnode__stat"
+        [pTooltip]="texts.stats.extRefs(st.externalRefsCount)"
+      >
+        <i class="pi pi-link" aria-hidden="true"></i>
+        <span class="sm-gnode__stat-num">{{ st.externalRefsCount }}</span>
+      </span>
+    }
+    @if (stability() === 'experimental' || stability() === 'deprecated' || hasInjection()) {
+      <div class="sm-gnode__footer-end">
+        @if (stability() === 'experimental') {
+          <span class="sm-gnode__stat" [pTooltip]="texts.stability.experimental">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" />
+              <path d="M6.453 15h11.094" />
+              <path d="M8.5 2h7" />
+            </svg>
+          </span>
+        }
+        @if (stability() === 'deprecated') {
+          <span class="sm-gnode__stat" [pTooltip]="texts.stability.deprecated">
+            <i class="pi pi-ban" aria-hidden="true"></i>
+          </span>
+        }
+        @if (hasInjection()) {
+          <span
+            class="sm-gnode__stat sm-gnode__stat--danger"
+            [pTooltip]="texts.safety.injection(injectionType())"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          </span>
+        }
+      </div>
+    }
+  </div>

@@ -25,36 +25,41 @@ import {
 import { graphlib, layout as dagreLayout } from '@dagrejs/dagre';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
-import { THEME_TEXTS } from '../../../i18n/theme.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
-import { ThemeService } from '../../../services/theme';
+import { detectLinks, type TLinkKind } from '../../../services/mock-links';
+import { buildMockSummary } from '../../../services/mock-summary';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
+import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
 import type {
   TNodeKind,
+  INodeStats,
   INodeView,
-  IFrontmatterAgent,
-  IFrontmatterCommand,
-  IFrontmatterHook,
-  IFrontmatterSkill,
+  TSummary,
 } from '../../../models/node';
 
 interface IGraphNode {
   id: string;
   path: string;
-  label: string;
+  /** Full parsed node — passed to <sm-node-card>. */
+  view: INodeView;
   kind: TNodeKind;
-  subtitle: string | null;
   position: { x: number; y: number };
-  linksOut: number;
-  linksIn: number;
+  /** Footer / subtitle stats. Computed during layout projection. */
+  stats: INodeStats;
+  /**
+   * Deterministic mock summary so the LLM cluster on the card renders
+   * during the in-browser prototype phase. Replaced by kernel-emitted
+   * `TSummary` once `sm summarize` lands.
+   */
+  summary: TSummary;
 }
 
-type TEdgeKind = 'supersedes' | 'requires' | 'related';
+type TEdgeKind = TLinkKind;
 
 interface IGraphEdge {
   id: string;
@@ -68,8 +73,17 @@ interface IGraphData {
   edges: IGraphEdge[];
 }
 
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 110;
+/**
+ * Layout footprint for `<sm-node-card>` in its collapsed state. Used by
+ * Dagre when computing initial positions; smaller than reality means
+ * cards overlap, larger means wasted whitespace. Height is generous
+ * because the card grows when the user expands the panel — keeping the
+ * collapsed footprint a bit taller avoids re-layout jitter for the
+ * common-case mid-expand. Update if the card's collapsed dimensions
+ * change in `node-card.css` (`:host { width: ... }` and the main row).
+ */
+const NODE_WIDTH = 260;
+const NODE_HEIGHT = 120;
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 4;
@@ -77,6 +91,7 @@ const ZOOM_BUTTON_STEP = 0.2;
 
 const VIEWPORT_STORAGE_KEY = 'sm.graph.viewport';
 const NODE_POSITIONS_STORAGE_KEY = 'sm.graph.node-positions';
+const NODE_EXPANDED_STORAGE_KEY = 'sm.graph.node-expanded';
 
 interface IStoredViewport {
   x: number;
@@ -93,7 +108,16 @@ type TNodePositions = Record<string, IPoint>;
 
 @Component({
   selector: 'app-graph-view',
-  imports: [FilterBar, FFlowModule, FVirtualFor, KindPalette, PerfHud, ButtonModule, TooltipModule],
+  imports: [
+    FilterBar,
+    FFlowModule,
+    FVirtualFor,
+    KindPalette,
+    NodeCard,
+    PerfHud,
+    ButtonModule,
+    TooltipModule,
+  ],
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -102,7 +126,6 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
-  private readonly theme = inject(ThemeService);
 
   private readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
@@ -136,17 +159,10 @@ export class GraphView implements OnInit, OnDestroy {
 
   protected readonly texts = GRAPH_VIEW_TEXTS;
 
-  protected readonly themeMode = this.theme.mode;
-  protected readonly themeIcon = computed(() =>
-    this.themeMode() === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
-  );
-  protected readonly themeLabel = computed(() =>
-    this.themeMode() === 'dark' ? THEME_TEXTS.toggleToLight : THEME_TEXTS.toggleToDark,
-  );
-
   private middlePanOrigin: { mouseX: number; mouseY: number; canvasX: number; canvasY: number } | null = null;
 
   private readonly nodePositions = signal<TNodePositions>(readStoredNodePositions());
+  private readonly expandedNodeIds = signal<ReadonlySet<string>>(readStoredExpanded());
 
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
@@ -268,10 +284,6 @@ export class GraphView implements OnInit, OnDestroy {
 
   zoomOut(): void {
     this.zoom()?.setZoom(this.getViewportCenter(), ZOOM_BUTTON_STEP, EFZoomDirection.ZOOM_OUT, true);
-  }
-
-  resetZoom(): void {
-    this.canvas()?.resetScale();
   }
 
   fitToScreen(): void {
@@ -402,10 +414,6 @@ export class GraphView implements OnInit, OnDestroy {
     this.selectedNodeId.set(null);
   }
 
-  toggleTheme(): void {
-    this.theme.toggle();
-  }
-
   isSelected(id: string): boolean {
     return this.selectedNodeId() === id;
   }
@@ -421,6 +429,20 @@ export class GraphView implements OnInit, OnDestroy {
     if (sel === null) return false;
     if (sel === id) return false;
     return !(this.adjacency().get(sel)?.has(id) ?? false);
+  }
+
+  isExpanded(id: string): boolean {
+    return this.expandedNodeIds().has(id);
+  }
+
+  setExpanded(id: string, value: boolean): void {
+    const current = this.expandedNodeIds();
+    if (current.has(id) === value) return;
+    const next = new Set(current);
+    if (value) next.add(id);
+    else next.delete(id);
+    this.expandedNodeIds.set(next);
+    writeStoredExpanded(next);
   }
 
   isEdgeHighlighted(edge: IGraphEdge): boolean {
@@ -461,39 +483,17 @@ interface IFullLayout {
  * Filters never trigger a re-layout, so unmoved nodes never jump.
  */
 function computeFullLayout(allNodes: INodeView[]): IFullLayout {
-  const loadedIds = new Set(allNodes.map((n) => n.path));
-  const edges: IGraphEdge[] = [];
-
-  for (const n of allNodes) {
-    const meta = n.frontmatter.metadata ?? {};
-    for (const target of meta.supersedes ?? []) {
-      if (loadedIds.has(target)) {
-        edges.push({ id: edgeId('sup', n.path, target), from: n.path, to: target, kind: 'supersedes' });
-      }
-    }
-    if (meta.supersededBy && loadedIds.has(meta.supersededBy)) {
-      edges.push({
-        id: edgeId('sup', n.path, meta.supersededBy),
-        from: n.path,
-        to: meta.supersededBy,
-        kind: 'supersedes',
-      });
-    }
-    for (const target of meta.requires ?? []) {
-      if (loadedIds.has(target)) {
-        edges.push({ id: edgeId('req', n.path, target), from: n.path, to: target, kind: 'requires' });
-      }
-    }
-    for (const target of meta.related ?? []) {
-      if (loadedIds.has(target)) {
-        edges.push({ id: edgeId('rel', n.path, target), from: n.path, to: target, kind: 'related' });
-      }
+  // Step 4 will replace this with kernel-emitted detector output;
+  // the shape of `IDetectedLink` is identical to `IGraphEdge` minus
+  // `id`/`label`, so the swap is local to this function.
+  const detected = detectLinks(allNodes);
+  const byId = new Map<string, IGraphEdge>();
+  for (const link of detected) {
+    const id = edgeId(link.kind, link.from, link.to);
+    if (!byId.has(id)) {
+      byId.set(id, { id, from: link.from, to: link.to, kind: link.kind });
     }
   }
-
-  // Dedup edges by id (supersedes can come from both sides).
-  const byId = new Map<string, IGraphEdge>();
-  for (const e of edges) byId.set(e.id, e);
   const uniqueEdges = [...byId.values()];
 
   // Dagre layout over the full graph.
@@ -553,15 +553,24 @@ function projectVisible(
     const override = stored[id];
     const cached = layout.positions.get(id) ?? { x: 0, y: 0 };
     const position = override ? { x: override.x, y: override.y } : cached;
+    const bytesTotal = utf8ByteLength(view.raw);
     nodes.push({
       id,
       path: id,
-      label: view.frontmatter.name ?? id,
+      view,
       kind: view.kind,
-      subtitle: nodeSubtitle(view),
       position,
-      linksOut: outCount.get(id) ?? 0,
-      linksIn: inCount.get(id) ?? 0,
+      stats: {
+        linksIn: inCount.get(id) ?? 0,
+        linksOut: outCount.get(id) ?? 0,
+        // The kernel will publish these once `sm scan` ships; in the
+        // browser-only prototype we derive from the parsed file directly
+        // so the card's footer + sub-stats render with realistic values.
+        bytesTotal,
+        tokensTotal: estimateTokens(bytesTotal),
+        externalRefsCount: countExternalUrls(view.body),
+      },
+      summary: buildMockSummary(view),
     });
   }
 
@@ -615,6 +624,36 @@ function writeStoredNodePositions(positions: TNodePositions): void {
   }
 }
 
+function readStoredExpanded(): ReadonlySet<string> {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(NODE_EXPANDED_STORAGE_KEY);
+  } catch {
+    return new Set();
+  }
+  if (!raw) return new Set();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return new Set();
+  }
+  if (!Array.isArray(parsed)) return new Set();
+  const result = new Set<string>();
+  for (const id of parsed) {
+    if (typeof id === 'string' && id.length > 0) result.add(id);
+  }
+  return result;
+}
+
+function writeStoredExpanded(ids: ReadonlySet<string>): void {
+  try {
+    localStorage.setItem(NODE_EXPANDED_STORAGE_KEY, JSON.stringify([...ids]));
+  } catch {
+    // Quota exceeded or storage blocked — ignore.
+  }
+}
+
 function isPoint(value: unknown): value is IPoint {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
@@ -645,21 +684,32 @@ function edgeId(prefix: string, from: string, to: string): string {
   return `${prefix}:${a}::${b}`;
 }
 
-function nodeSubtitle(n: INodeView): string | null {
-  switch (n.kind) {
-    case 'agent':
-      return (n.frontmatter as IFrontmatterAgent).model ?? null;
-    case 'hook':
-      return (n.frontmatter as IFrontmatterHook).event ?? null;
-    case 'command':
-      return (n.frontmatter as IFrontmatterCommand).shortcut ?? null;
-    case 'skill': {
-      const fm = n.frontmatter as IFrontmatterSkill;
-      const ins = fm.inputs?.length ?? 0;
-      const outs = fm.outputs?.length ?? 0;
-      return ins || outs ? `${ins} in · ${outs} out` : null;
-    }
-    default:
-      return null;
-  }
+/**
+ * UTF-8 byte length of the raw file. Used to populate `bytesTotal` from
+ * the in-browser loader. `TextEncoder` is universal in modern browsers
+ * (the only target the prototype ships to today).
+ */
+function utf8ByteLength(text: string): number {
+  return new TextEncoder().encode(text).length;
 }
+
+/**
+ * Rough token-count estimator based on the OpenAI rule-of-thumb
+ * (1 token ≈ 4 bytes for English-leaning prose). Replaced by the
+ * kernel's real tokenizer once scan results expose `tokensTotal`.
+ */
+function estimateTokens(bytesTotal: number): number {
+  return Math.max(1, Math.round(bytesTotal / 4));
+}
+
+/**
+ * Count of unique http(s) URLs present in the body. Mirrors the
+ * "external refs" footer pill described in `spec/architecture.md`
+ * — anything that looks like a link out of the collection counts.
+ */
+function countExternalUrls(body: string): number {
+  const matches = body.match(/https?:\/\/[^\s)>\]"']+/g);
+  if (!matches) return 0;
+  return new Set(matches).size;
+}
+

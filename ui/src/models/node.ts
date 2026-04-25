@@ -120,6 +120,113 @@ export interface INodeView {
 }
 
 /**
+ * Probabilistic summary report produced by an LLM-backed summarizer
+ * action. Shape mirrors `spec/schemas/summaries/<kind>.schema.json` —
+ * each kind extends a common `report-base` (confidence + safety) with
+ * kind-specific fields. Until real summarizers land in the kernel, the
+ * UI keeps these as optional inputs on `<sm-node-card>` so the LLM
+ * cluster renders only when data is available.
+ */
+export interface IReportSafety {
+  injectionDetected: boolean;
+  injectionType?: 'direct-override' | 'role-swap' | 'hidden-instruction' | 'other' | null;
+  injectionDetails?: string | null;
+  contentQuality: 'clean' | 'suspicious' | 'malformed';
+}
+
+interface IReportBase {
+  confidence: number;
+  safety: IReportSafety;
+}
+
+export interface ISummaryAgent extends IReportBase {
+  kind: 'agent';
+  whatItDoes: string;
+  whenToUse?: string;
+  capabilities?: readonly string[];
+  toolsObserved?: readonly string[];
+  interactionStyle?: string;
+  relatedNodes?: readonly string[];
+  qualityNotes?: string;
+}
+
+export interface ISummarySkill extends IReportBase {
+  kind: 'skill';
+  whatItDoes: string;
+  recipe?: readonly { step: number; description: string }[];
+  preconditions?: readonly string[];
+  outputs?: readonly string[];
+  sideEffects?: readonly string[];
+  relatedNodes?: readonly string[];
+  qualityNotes?: string;
+}
+
+export interface ISummaryCommand extends IReportBase {
+  kind: 'command';
+  whatItDoes: string;
+  invocationExample?: string;
+  argsObserved?: readonly { name: string; type?: string; description?: string; required?: boolean }[];
+  sideEffects?: readonly string[];
+  relatedNodes?: readonly string[];
+  qualityNotes?: string;
+}
+
+export interface ISummaryHook extends IReportBase {
+  kind: 'hook';
+  whatItDoes: string;
+  triggerInferred?: string;
+  sideEffects?: readonly string[];
+  blockingInferred?: boolean;
+  idempotentInferred?: boolean;
+  relatedNodes?: readonly string[];
+  qualityNotes?: string;
+}
+
+export interface ISummaryNote extends IReportBase {
+  kind: 'note';
+  whatItCovers: string;
+  topics?: readonly string[];
+  keyFacts?: readonly string[];
+  relatedNodes?: readonly string[];
+  qualityNotes?: string;
+}
+
+export type TSummary =
+  | ISummaryAgent
+  | ISummarySkill
+  | ISummaryCommand
+  | ISummaryHook
+  | ISummaryNote;
+
+/**
+ * Deterministic finding emitted by a rule (`spec/schemas/issue.schema.json`).
+ * `info` severity is filtered out before reaching the card — only
+ * `error` and `warn` surface in the node UI.
+ */
+export interface IIssue {
+  ruleId: string;
+  severity: 'error' | 'warn' | 'info';
+  message: string;
+  detail?: string | null;
+}
+
+/**
+ * Node-derived counts the kernel computes during scan. Until the
+ * kernel publishes these on `INodeView`, the graph layout passes
+ * a sibling `INodeStats` so `<sm-node-card>` can render the footer
+ * + subtitle pills without recomputing per-frame.
+ */
+export interface INodeStats {
+  bytesTotal?: number;
+  tokensTotal?: number;
+  linksIn: number;
+  linksOut: number;
+  externalRefsCount?: number;
+  errorCount?: number;
+  warnCount?: number;
+}
+
+/**
  * Mock-collection manifest shape, produced by ui/scripts/build-mock-index.mjs.
  */
 export interface IMockIndex {
