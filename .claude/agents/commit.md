@@ -76,7 +76,7 @@ Decide which workspaces are touched:
 |---|---|---|---|
 | `spec/**` | `@skill-map/spec` | `"@skill-map/spec"` | YES — always |
 | `src/**` | `@skill-map/cli` (the real CLI) | `"@skill-map/cli"` | YES — always (published, scoped) |
-| `alias/<name>/**` | one alias per folder (e.g. `skill-map`, `skillmap`, `skill-mapper`, `sm-cli`) | `"<folder-name>"` | YES — always when a publishable change lands. Aliases evolve rarely; usually only the warning text or a version bump |
+| `alias/<name>/**` | one alias per folder (today: `skill-map`, `skill-mapper`) | `"<folder-name>"` | YES — always when a publishable change lands. Aliases evolve rarely; usually only the warning text or a version bump |
 | `ui/**` | (not yet a public workspace) | — | NO by default; ASK the user if a `ui/` change should ride along (some recent commits did) |
 | `ROADMAP.md`, `AGENTS.md`, `CONTRIBUTING.md`, `README*.md` | — | — | NO |
 | `.claude/**`, `_work_in_progress/**`, `.changeset/**` (other than the new one) | — | — | NO |
@@ -119,6 +119,42 @@ manifest change and CI will fail otherwise:
 If any of the three is missed, push goes through but the next CI run
 fails. Recovery is straightforward (a new commit fixing the gap, never
 amend) — but the cleanest is to catch it before pushing.
+
+#### 3.2. Adding a new alias / placeholder package — pre-flight check
+
+When the diff creates a new workspace under `alias/*` (or any new
+top-level un-scoped package) intended as a name reservation, **verify
+publishability BEFORE committing the workspace**. The check is two
+commands:
+
+```bash
+npm view <name>                 # is the name registered?
+npm view <name> versions        # any prior history?
+```
+
+Three outcomes, three actions:
+
+1. **404** (name is free) → check whether it is similar to a name we
+   already own. npm has an anti-squat policy that auto-blocks new
+   publications "too similar to an existing package". A quick mental
+   diff (one character, missing hyphen, common typo of a published
+   name) is usually enough to predict a similarity collision. If you
+   suspect it, **DO NOT create the workspace** — the name is already
+   protected for free, publishing a placeholder gives nothing extra.
+   Document the reservation in ROADMAP under §Step 14 / alias
+   commentary so a future agent does not re-attempt it.
+2. **200 with prior versions** (someone else owns it) → cannot
+   reserve. Pick a different name or accept the loss. Document under
+   the same ROADMAP commentary that the name is owned by a third
+   party and is therefore out of reach.
+3. **404 + no similarity collision** → safe to create the workspace
+   and proceed with the standard publish flow.
+
+The lesson behind this is real history: the first publish attempted
+four aliases (`skill-map`, `skillmap`, `skill-mapper`, `sm-cli`) and
+two failed: `skillmap` blocked by similarity to `skill-map`, `sm-cli`
+already taken. Having committed those two workspaces required a
+follow-up cleanup commit. Catching it up front is one `npm view` away.
 
 ### 4. Decide the bump (only if a changeset is required)
 
