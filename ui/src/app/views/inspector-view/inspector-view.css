@@ -10,11 +10,11 @@
 
 .inspector--empty {
   padding: 2rem;
-  color: var(--p-text-muted-color, #666);
+  color: var(--p-text-muted-color);
 }
 
 .inspector--empty code {
-  background: var(--p-surface-100, #f3f4f6);
+  background: var(--sm-bg-hover);
   padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
   font-size: 0.85rem;
@@ -44,7 +44,7 @@
 
 .inspector__back {
   font-size: 0.9rem;
-  color: var(--p-primary-color, #3b82f6);
+  color: var(--p-primary-color);
 }
 
 .inspector__path {
@@ -52,16 +52,16 @@
 }
 
 .inspector__path code {
-  background: var(--p-surface-100, #f3f4f6);
+  background: var(--sm-bg-hover);
   padding: 0.15rem 0.5rem;
   border-radius: 0.25rem;
   font-size: 0.85rem;
-  color: var(--p-text-muted-color, #555);
+  color: var(--p-text-muted-color);
 }
 
 .inspector__desc {
   margin: 0;
-  color: var(--p-text-color, #1a1a1a);
+  color: var(--p-text-color);
   font-size: 1rem;
   line-height: 1.5;
   max-width: 70ch;
@@ -78,7 +78,7 @@
 }
 
 ::ng-deep .inspector__card--hero .p-card {
-  border-left: 3px solid var(--p-primary-color, #3b82f6);
+  border-left: 3px solid var(--p-primary-color);
 }
 
 .inspector__body {
@@ -111,7 +111,7 @@
 }
 
 .kv dt {
-  color: var(--p-text-muted-color, #6b7280);
+  color: var(--p-text-muted-color);
   font-weight: 500;
 }
 
@@ -121,14 +121,14 @@
 }
 
 .kv code {
-  background: var(--p-surface-100, #f3f4f6);
+  background: var(--sm-bg-hover);
   padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
   font-size: 0.85rem;
 }
 
 .kv a {
-  color: var(--p-primary-color, #3b82f6);
+  color: var(--p-primary-color);
   word-break: break-all;
 }
 
@@ -137,7 +137,7 @@ h4 {
   font-size: 0.85rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--p-text-muted-color, #6b7280);
+  color: var(--p-text-muted-color);
   font-weight: 600;
 }
 
@@ -153,18 +153,18 @@ h4:first-child {
 
 ::ng-deep .chip--link .p-chip {
   cursor: pointer;
-  background: var(--p-primary-50, #eff6ff);
-  color: var(--p-primary-color, #3b82f6);
+  background: var(--p-primary-50);
+  color: var(--p-primary-color);
   transition: background 0.15s ease;
 }
 
 ::ng-deep .chip--link:hover .p-chip {
-  background: var(--p-primary-100, #dbeafe);
+  background: var(--p-primary-100);
 }
 
 ::ng-deep .chip--dead .p-chip {
-  background: var(--p-surface-100, #f3f4f6);
-  color: var(--p-text-muted-color, #9ca3af);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-muted-color);
   text-decoration: line-through;
   cursor: not-allowed;
 }
@@ -184,7 +184,7 @@ h4:first-child {
 }
 
 .args code {
-  background: var(--p-surface-100, #f3f4f6);
+  background: var(--sm-bg-hover);
   padding: 0.1rem 0.35rem;
   border-radius: 0.25rem;
   font-size: 0.8rem;
@@ -192,7 +192,7 @@ h4:first-child {
 }
 
 .args__type {
-  color: var(--p-text-muted-color, #6b7280);
+  color: var(--p-text-muted-color);
   font-style: italic;
   margin-left: 0.25rem;
 }
@@ -229,7 +229,7 @@ h4:first-child {
 .inspector__summary-note {
   margin: 0.5rem 0 0;
   font-size: 0.75rem;
-  color: var(--p-text-muted-color, #999);
+  color: var(--p-text-muted-color);
   font-style: italic;
 }
 

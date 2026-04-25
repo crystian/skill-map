@@ -30,7 +30,7 @@
     "changeset:publish": "changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "^2.27.9"
+    "@changesets/cli": "2.31.0"
   },
   "engines": {
     "node": ">=24.0"

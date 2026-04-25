@@ -10,17 +10,20 @@
     />
   </p-iconfield>
 
-  <p-multiselect
-    [options]="kindOptions"
-    [ngModel]="selectedKinds()"
-    (ngModelChange)="onKindsChange($event)"
-    optionLabel="label"
-    optionValue="value"
-    placeholder="All kinds"
-    display="chip"
-    styleClass="filter-bar__ms"
-    [showToggleAll]="false"
-  />
+  @if (showKinds()) {
+    <p-multiselect
+      [options]="kindOptions"
+      [ngModel]="selectedKinds()"
+      (ngModelChange)="onKindsChange($event)"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="All kinds"
+      display="chip"
+      styleClass="filter-bar__ms"
+      [showToggleAll]="false"
+      [filter]="false"
+    />
+  }
 
   <p-multiselect
     [options]="stabilityOptions"
@@ -32,6 +35,7 @@
     display="chip"
     styleClass="filter-bar__ms"
     [showToggleAll]="false"
+    [filter]="false"
   />
 
   <p-togglebutton

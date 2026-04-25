@@ -1,0 +1,56 @@
+:host {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.perf-hud {
+  pointer-events: auto;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--sm-border);
+  border-radius: 999px;
+  background: var(--sm-bg-content);
+  color: var(--p-text-muted-color);
+  box-shadow: var(--sm-shadow-floating);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  /* Match the sparkline canvas height (14px) so collapsed and expanded
+     states render the pill at the same total height. Without this, the
+     14px canvas pulls the expanded pill ~3px taller than the text-only
+     collapsed one. */
+  line-height: 14px;
+  cursor: pointer;
+  opacity: 0.75;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+
+.perf-hud:hover {
+  opacity: 1;
+  color: var(--p-text-color);
+}
+
+.perf-hud__cell {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.perf-hud__sep {
+  opacity: 0.45;
+}
+
+.perf-hud__sparkline {
+  width: 60px;
+  height: 14px;
+  opacity: 0.6;
+  /* Stroke uses currentColor (read at draw time), so dark/light follows
+     the surrounding text color without dedicated overrides. */
+}

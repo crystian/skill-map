@@ -25,12 +25,12 @@
 
 .graph__sub {
   margin: 0.25rem 0 0;
-  color: var(--p-text-muted-color, #666);
+  color: var(--p-text-muted-color);
   font-size: 0.9rem;
 }
 
 .graph__sub code {
-  background: var(--p-surface-100, #f3f4f6);
+  background: var(--sm-bg-hover);
   padding: 0.05rem 0.3rem;
   border-radius: 0.25rem;
   font-size: 0.8rem;
@@ -39,7 +39,7 @@
 .graph__hint {
   padding: 2rem;
   text-align: center;
-  color: var(--p-text-muted-color, #666);
+  color: var(--p-text-muted-color);
 }
 
 .graph__hint--error {
@@ -50,9 +50,9 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--p-surface-200, #e5e7eb);
+  border: 1px solid var(--sm-border);
   border-radius: 0.75rem;
-  background: var(--p-surface-0, #ffffff);
+  background: var(--sm-bg-content);
   overflow: hidden;
 
   /* Suppress the reassign drag-handle rings Foblex paints at each
@@ -65,6 +65,31 @@
      for the library's internal layout/hit-testing, we never touch the
      library's inner elements. */
   --ff-connection-drag-handle-stroke: transparent;
+
+  /* Suppress the connector sockets the default theme paints on every
+     fNodeInput / fNodeOutput. By default each one is a 16x16 circle that
+     turns blue (--ff-color-connector-connected = --ff-blue-500/300) when
+     connected — see _connector.scss `.f-node-output-connected`. We want
+     "arrow only" at the endpoints, so we zero out every socket color
+     token at the wrapper level. The <div> elements stay in the DOM
+     (Foblex needs them as anchors for connection geometry), they just
+     render invisible. Same pattern as `--ff-connection-drag-handle-stroke`
+     above: token override, no `::ng-deep`. */
+  --ff-connector-background-color: transparent;
+  --ff-connector-border-color: transparent;
+  --ff-connector-connected-color: transparent;
+  --ff-connector-node-ring-color: transparent;
+
+  /* Make the <f-canvas> see-through so the <f-background> grid (rendered
+     as a sibling of <f-canvas> inside <f-flow>) remains visible behind
+     the node area. Without this, _flow-canvas.scss paints the canvas
+     with `background: var(--ff-canvas-background-color)` (semantic
+     `surface-canvas`, near-white in light / near-black in dark) and that
+     fill covers the grid wherever the canvas extends — i.e. exactly the
+     centre region around the nodes, which is where you want to see the
+     grid most. The flow itself keeps its own background (the "paper"
+     behind the grid), and node cards keep their own opaque fills. */
+  --ff-canvas-background-color: transparent;
 }
 
 .graph__canvas-wrap f-flow {
@@ -72,11 +97,78 @@
   height: 100%;
 }
 
+/* Floating action toolbar — bottom-center pill, mirrors the call-center
+   example's flow-action-panel layout (apps/example-apps/call-center in
+   Foblex/f-flow). Horizontal pill, fully rounded, sits 16px above the
+   bottom edge of the canvas wrap. */
+.graph__toolbar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-border);
+  border-radius: 999px;
+  box-shadow: var(--sm-shadow-floating);
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.graph__toolbar-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.graph__toolbar-btn:hover:not([disabled]) {
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+}
+
+.graph__toolbar-btn:active:not([disabled]) {
+  background: var(--sm-border);
+}
+
+.graph__toolbar-btn[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.graph__toolbar-btn .pi {
+  font-size: 0.95rem;
+}
+
+.graph__toolbar-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--sm-border);
+  flex-shrink: 0;
+}
+
 .graph__legend {
   display: flex;
   gap: 1.5rem;
   font-size: 0.85rem;
-  color: var(--p-text-muted-color, #6b7280);
+  color: var(--p-text-muted-color);
 }
 
 .graph__legend .swatch {
@@ -104,19 +196,43 @@
   min-height: 96px;
   padding: 0.6rem 0.85rem;
   border-radius: 0.65rem;
-  background: var(--p-surface-0, #ffffff);
-  border: 1px solid var(--p-surface-200, #e5e7eb);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-border);
+  box-shadow: var(--sm-shadow-card);
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  transition:
+    box-shadow 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.2s ease;
 }
 
 .sm-gnode:hover {
-  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
-  border-color: var(--p-surface-400, #9ca3af);
+  box-shadow: var(--sm-shadow-card-hover);
+  border-color: var(--p-surface-400);
+}
+
+/* Selection state — single click on a node sets its id as selectedNodeId.
+   The wrapper.graph__canvas-wrap (click) handler clears it on canvas-empty
+   click. selected gets a primary-color ring + the same lift as hover;
+   neighbors (highlighted) get just the border color so the difference
+   reads at a glance; everything else (dimmed) fades back. */
+.sm-gnode--selected {
+  border-color: var(--p-primary-color);
+  box-shadow:
+    var(--sm-shadow-card-hover),
+    0 0 0 2px var(--p-primary-color);
+}
+
+.sm-gnode--highlighted {
+  border-color: var(--p-primary-color);
+  box-shadow: var(--sm-shadow-card-hover);
+}
+
+.sm-gnode--dimmed {
+  opacity: 0.25;
 }
 
 .sm-gnode__kind {
@@ -127,21 +243,21 @@
   font-weight: 600;
   padding: 0.1rem 0.4rem;
   border-radius: 999px;
-  background: var(--p-surface-100, #f3f4f6);
-  color: var(--p-text-muted-color, #4b5563);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-muted-color);
 }
 
 .sm-gnode__label {
   font-weight: 500;
   font-size: 0.95rem;
-  color: var(--p-text-color, #1f2937);
+  color: var(--p-text-color);
   word-break: break-word;
   line-height: 1.25;
 }
 
 .sm-gnode__subtitle {
   font-size: 0.7rem;
-  color: var(--p-text-muted-color, #6b7280);
+  color: var(--p-text-muted-color);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -172,24 +288,40 @@
   color: var(--sm-link-out-fg);
 }
 
+/* Connector anchor positioning.
+
+   `fNodeInput` / `fNodeOutput` apply fixed host classes (`f-component`,
+   `f-node-input`, `f-node-output`) plus state classes (`*-connected`,
+   `*-disabled`, etc.). They do NOT translate `fInputConnectableSide` /
+   `fOutputConnectableSide` into orientation classes (`.top`/`.bottom`/
+   `.left`/`.right`). Those orientation classes are SCSS sub-classes the
+   theme's `_socket-frame` mixin reads — but only if YOU put them on the
+   element manually.
+
+   The default theme applies `position: absolute` and a 16x16 size to
+   every connector socket. Without explicit top/left/right/bottom from
+   our CSS, position-absolute defaults to `top: 0; left: 0` of the
+   nearest positioned ancestor — i.e. the connector div renders at the
+   card's upper-left corner, dragging arrow endpoints with it.
+
+   So: when fNodeInput/fNodeOutput live as SUB-elements of the node card
+   (our pattern; vs the bracket example, where they're directives on
+   the card div itself), we MUST position them ourselves. The math
+   `calc(var(--ff-connector-size) / -2)` matches the theme's own
+   positioning and centers the socket exactly on the card's edge. */
 .sm-gnode__connector {
   position: absolute;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--sm-kind-note);
-  border: 2px solid var(--p-surface-0, #ffffff);
   pointer-events: none;
 }
 
 .sm-gnode__connector--out {
-  bottom: -6px;
+  bottom: calc(var(--ff-connector-size) / -2);
   left: 50%;
   transform: translateX(-50%);
 }
 
 .sm-gnode__connector--in {
-  top: -6px;
+  top: calc(var(--ff-connector-size) / -2);
   left: 50%;
   transform: translateX(-50%);
 }
@@ -263,4 +395,19 @@
    examples follow (see apps/example-apps/uml-diagram in Foblex/f-flow). */
 .graph__canvas-wrap ::ng-deep .f-conn--related .f-connection-path {
   stroke-dasharray: 4 3;
+}
+
+/* Selection-driven edge states. Declared AFTER the per-kind selectors so
+   the highlighted width override wins specificity by source order (both
+   sets are single-class selectors). Dimming uses host-element opacity —
+   the SVG path inherits it without touching library internals (rule 6
+   guidance: prefer fill/stroke transparency over `display: none`; here
+   `opacity` is the natural fade since we want the path still measurable
+   for layout). The bracket-flow example uses the same pattern. */
+.f-conn--highlighted {
+  --ff-connection-width: 3px;
+}
+
+.f-conn--dimmed {
+  opacity: 0.15;
 }

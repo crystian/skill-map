@@ -10,10 +10,10 @@
 .eventlog {
   pointer-events: auto;
   margin: 0 1rem 1rem;
-  background: var(--p-surface-0, #ffffff);
-  border: 1px solid var(--p-surface-200, #e5e7eb);
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-border);
   border-radius: 0.75rem;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--sm-shadow-eventlog);
   overflow: hidden;
   font-family: inherit;
 }
@@ -24,7 +24,7 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.55rem 0.9rem;
-  background: var(--p-surface-50, #fafafa);
+  background: var(--sm-bg-hover);
   border: 0;
   cursor: pointer;
   font-size: 0.85rem;
@@ -33,7 +33,7 @@
 }
 
 .eventlog__handle:hover {
-  background: var(--p-surface-100, #f3f4f6);
+  background: var(--sm-border);
 }
 
 .eventlog__handle strong {
@@ -45,8 +45,8 @@
   min-width: 1.5rem;
   padding: 0 0.4rem;
   justify-content: center;
-  background: var(--p-surface-200, #e5e7eb);
-  color: var(--p-text-muted-color, #4b5563);
+  background: var(--sm-border);
+  color: var(--p-text-muted-color);
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 600;
@@ -80,14 +80,14 @@
 
 .eventlog__clear {
   font-size: 0.75rem;
-  color: var(--p-text-muted-color, #4b5563);
+  color: var(--p-text-muted-color);
   padding: 0.15rem 0.55rem;
   border-radius: 0.35rem;
   cursor: pointer;
 }
 
 .eventlog__clear:hover {
-  background: var(--p-surface-200, #e5e7eb);
+  background: var(--sm-border);
 }
 
 .eventlog__body {
@@ -110,7 +110,7 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  color: var(--p-text-muted-color, #6b7280);
+  color: var(--p-text-muted-color);
   text-align: center;
   margin: 1rem 0;
   font-family: inherit;
@@ -127,8 +127,8 @@
   grid-template-columns: 68px 160px 1fr;
   gap: 0.65rem;
   padding: 0.15rem 0;
-  border-bottom: 1px dashed var(--p-surface-100, #f3f4f6);
-  color: var(--p-text-color, #1f2937);
+  border-bottom: 1px dashed var(--sm-bg-hover);
+  color: var(--p-text-color);
 }
 
 .eventlog__row:last-child {
@@ -136,7 +136,7 @@
 }
 
 .eventlog__row time {
-  color: var(--p-text-muted-color, #9ca3af);
+  color: var(--p-text-muted-color);
 }
 
 .eventlog__row .name {
@@ -144,7 +144,7 @@
 }
 
 .eventlog__row .msg {
-  color: var(--p-text-muted-color, #4b5563);
+  color: var(--p-text-muted-color);
   word-break: break-word;
 }
 

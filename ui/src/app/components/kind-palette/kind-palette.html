@@ -1,0 +1,15 @@
+<div class="kind-palette" role="toolbar" aria-label="Toggle node kinds">
+  @for (entry of entries(); track entry.kind) {
+    <button
+      type="button"
+      [class]="'kind-palette__btn kind-palette__btn--' + entry.kind"
+      [class.kind-palette__btn--active]="isActive(entry.kind)"
+      [attr.aria-pressed]="isActive(entry.kind)"
+      [title]="entry.label"
+      (click)="toggle(entry.kind)"
+    >
+      <i [class]="entry.icon" aria-hidden="true"></i>
+      <span class="kind-palette__count">{{ entry.count }}</span>
+    </button>
+  }
+</div>

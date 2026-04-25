@@ -4,20 +4,13 @@
       <h2>Graph</h2>
       <p class="graph__sub">
         Auto-laid-out (Dagre, top-bottom) · edges from <code>supersedes</code>,
-        <code>requires</code>, <code>related</code>. Click a node to inspect.
+        <code>requires</code>, <code>related</code>. Click to highlight neighbors,
+        double-click to inspect.
       </p>
     </div>
-    <p-button
-      label="Fit"
-      icon="pi pi-arrows-alt"
-      severity="secondary"
-      [outlined]="true"
-      size="small"
-      (onClick)="fitToScreen()"
-    />
   </header>
 
-  <app-filter-bar />
+  <app-filter-bar [showKinds]="false" />
 
   @if (loading()) {
     <div class="empty-state">
@@ -37,66 +30,222 @@
       <p class="empty-state__desc">Adjust or reset the filters above.</p>
     </div>
   } @else {
-    <div class="graph__canvas-wrap">
-      <f-flow fDraggable (fLoaded)="onLoaded()">
-        <f-canvas fZoom [fZoomStep]="0.06" [fZoomDblClickStep]="0.35">
-          @for (edge of graph().edges; track edge.id) {
-            <f-connection
-              [fOutputId]="edge.from + '-out'"
-              [fInputId]="edge.to + '-in'"
-              fType="segment"
-              fBehavior="fixed"
-              [fOffset]="4"
-              [fReassignDisabled]="true"
-              [fSelectionDisabled]="true"
-              [class]="'f-conn--' + edge.kind"
-            >
-              <f-connection-marker-arrow type="end" />
-            </f-connection>
-          }
+    <div
+      class="graph__canvas-wrap"
+      #canvasWrap
+      (mousedown)="onCanvasMouseDown($event)"
+      (click)="onCanvasClick($event)"
+    >
+      <f-flow fDraggable [fCache]="perf.cache" (fLoaded)="onLoaded()">
+        <f-background>
+          <f-rect-pattern />
+        </f-background>
+        <f-line-alignment [fAlignThreshold]="20" />
+        <f-canvas
+          fZoom
+          [position]="initialPosition"
+          [scale]="initialScale"
+          [fZoomStep]="0.06"
+          [fZoomDblClickStep]="0.35"
+          [debounceTime]="150"
+          (fCanvasChange)="onCanvasChange($event)"
+        >
+          <ng-container ngProjectAs="[fConnections]">
+            @for (edge of graph().edges; track edge.id) {
+              <f-connection
+                [fOutputId]="edge.from + '-out'"
+                [fInputId]="edge.to + '-in'"
+                fType="segment"
+                fBehavior="fixed"
+                [fOffset]="4"
+                [fReassignDisabled]="true"
+                [fSelectionDisabled]="true"
+                [class]="'f-conn--' + edge.kind"
+                [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
+                [class.f-conn--dimmed]="isEdgeDimmed(edge)"
+              >
+                <f-connection-marker-arrow type="end" />
+              </f-connection>
+            }
+          </ng-container>
 
-          @for (node of graph().nodes; track node.id) {
-            <div
-              fNode
-              fDragHandle
-              [fNodeId]="node.id"
-              [fNodePosition]="node.position"
-              [class]="'sm-gnode sm-gnode--' + node.kind"
-              (pointerdown)="onNodePointerDown($event)"
-              (click)="openNode(node, $event)"
-            >
+          <!--
+            Both branches duplicate the full <div fNode> markup on purpose:
+            Foblex resolves fNodeInput / fNodeOutput / connectors via content
+            queries on the direct view children of [fNode]. Routing the inner
+            DOM through <ng-template> + *ngTemplateOutlet breaks those
+            queries (children sit in an embedded view, not the host's
+            content), which manifests as nodes stacking at (0,0) with a
+            constant redraw loop. Stress-test example doesn't use the outlet
+            indirection for the same reason. Keep them inline.
+          -->
+          @if (perf.virtualization) {
+            <ng-container ngProjectAs="[fNodes]" *fVirtualFor="let node of graph().nodes">
               <div
-                fNodeInput
-                [fInputId]="node.id + '-in'"
-                [fInputConnectableSide]="inputSide"
-                class="sm-gnode__connector sm-gnode__connector--in"
-              ></div>
-              <span class="sm-gnode__kind">{{ node.kind }}</span>
-              <span class="sm-gnode__label">{{ node.label }}</span>
-              @if (node.subtitle) {
-                <span class="sm-gnode__subtitle">{{ node.subtitle }}</span>
-              }
-              @if (node.linksIn > 0 || node.linksOut > 0) {
-                <span class="sm-gnode__links">
-                  @if (node.linksIn > 0) {
-                    <span class="sm-gnode__link-badge sm-gnode__link-badge--in">↓{{ node.linksIn }}</span>
+                fNode
+                fDragHandle
+                [fNodeId]="node.id"
+                [fNodePosition]="node.position"
+                (fNodePositionChange)="onNodePositionChange(node.id, $event)"
+                [class]="'sm-gnode sm-gnode--' + node.kind"
+                [class.sm-gnode--selected]="isSelected(node.id)"
+                [class.sm-gnode--highlighted]="isHighlighted(node.id)"
+                [class.sm-gnode--dimmed]="isDimmed(node.id)"
+                (pointerdown)="onNodePointerDown($event)"
+                (click)="selectNode(node, $event)"
+                (dblclick)="openNode(node)"
+              >
+                <div
+                  fNodeInput
+                  [fInputId]="node.id + '-in'"
+                  [fInputConnectableSide]="inputSide"
+                  class="sm-gnode__connector sm-gnode__connector--in"
+                ></div>
+                <span class="sm-gnode__kind">{{ node.kind }}</span>
+                <span class="sm-gnode__label">{{ node.label }}</span>
+                @if (node.subtitle) {
+                  <span class="sm-gnode__subtitle">{{ node.subtitle }}</span>
+                }
+                @if (node.linksIn > 0 || node.linksOut > 0) {
+                  <span class="sm-gnode__links">
+                    @if (node.linksIn > 0) {
+                      <span class="sm-gnode__link-badge sm-gnode__link-badge--in">↓{{ node.linksIn }}</span>
+                    }
+                    @if (node.linksOut > 0) {
+                      <span class="sm-gnode__link-badge sm-gnode__link-badge--out">↑{{ node.linksOut }}</span>
+                    }
+                  </span>
+                }
+                <div
+                  fNodeOutput
+                  [fOutputId]="node.id + '-out'"
+                  [fOutputConnectableSide]="outputSide"
+                  class="sm-gnode__connector sm-gnode__connector--out"
+                ></div>
+              </div>
+            </ng-container>
+          } @else {
+            <ng-container ngProjectAs="[fNodes]">
+              @for (node of graph().nodes; track node.id) {
+                <div
+                  fNode
+                  fDragHandle
+                  [fNodeId]="node.id"
+                  [fNodePosition]="node.position"
+                  (fNodePositionChange)="onNodePositionChange(node.id, $event)"
+                  [class]="'sm-gnode sm-gnode--' + node.kind"
+                  [class.sm-gnode--selected]="isSelected(node.id)"
+                  [class.sm-gnode--highlighted]="isHighlighted(node.id)"
+                  [class.sm-gnode--dimmed]="isDimmed(node.id)"
+                  (pointerdown)="onNodePointerDown($event)"
+                  (click)="selectNode(node, $event)"
+                  (dblclick)="openNode(node)"
+                >
+                  <div
+                    fNodeInput
+                    [fInputId]="node.id + '-in'"
+                    [fInputConnectableSide]="inputSide"
+                    class="sm-gnode__connector sm-gnode__connector--in"
+                  ></div>
+                  <span class="sm-gnode__kind">{{ node.kind }}</span>
+                  <span class="sm-gnode__label">{{ node.label }}</span>
+                  @if (node.subtitle) {
+                    <span class="sm-gnode__subtitle">{{ node.subtitle }}</span>
                   }
-                  @if (node.linksOut > 0) {
-                    <span class="sm-gnode__link-badge sm-gnode__link-badge--out">↑{{ node.linksOut }}</span>
+                  @if (node.linksIn > 0 || node.linksOut > 0) {
+                    <span class="sm-gnode__links">
+                      @if (node.linksIn > 0) {
+                        <span class="sm-gnode__link-badge sm-gnode__link-badge--in">↓{{ node.linksIn }}</span>
+                      }
+                      @if (node.linksOut > 0) {
+                        <span class="sm-gnode__link-badge sm-gnode__link-badge--out">↑{{ node.linksOut }}</span>
+                      }
+                    </span>
                   }
-                </span>
+                  <div
+                    fNodeOutput
+                    [fOutputId]="node.id + '-out'"
+                    [fOutputConnectableSide]="outputSide"
+                    class="sm-gnode__connector sm-gnode__connector--out"
+                  ></div>
+                </div>
               }
-              <div
-                fNodeOutput
-                [fOutputId]="node.id + '-out'"
-                [fOutputConnectableSide]="outputSide"
-                class="sm-gnode__connector sm-gnode__connector--out"
-              ></div>
-            </div>
+            </ng-container>
           }
         </f-canvas>
         <f-minimap />
       </f-flow>
+
+      <app-kind-palette />
+
+      @if (perfHud) {
+        <app-perf-hud
+          [visible]="visibleCount()"
+          [total]="totalCount()"
+          [edges]="edgeCount()"
+          [cacheAt]="layoutComputedAt()"
+        />
+      }
+
+      <div class="graph__toolbar" role="toolbar" aria-label="Graph controls">
+        <button
+          type="button"
+          class="graph__toolbar-btn"
+          aria-label="Zoom in"
+          title="Zoom in"
+          (click)="zoomIn()"
+          [disabled]="!canZoomIn()"
+        >
+          <i class="pi pi-search-plus" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="graph__toolbar-btn"
+          aria-label="Zoom out"
+          title="Zoom out"
+          (click)="zoomOut()"
+          [disabled]="!canZoomOut()"
+        >
+          <i class="pi pi-search-minus" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="graph__toolbar-btn"
+          aria-label="Fit to screen"
+          title="Fit to screen"
+          (click)="fitToScreen()"
+        >
+          <i class="pi pi-arrow-down-left-and-arrow-up-right-to-center" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="graph__toolbar-btn"
+          aria-label="Reset zoom to 1:1"
+          title="Reset zoom (1:1)"
+          (click)="resetZoom()"
+        >
+          <i class="pi pi-stop" aria-hidden="true"></i>
+        </button>
+        <span class="graph__toolbar-sep" aria-hidden="true"></span>
+        <button
+          type="button"
+          class="graph__toolbar-btn"
+          [attr.aria-label]="themeLabel()"
+          [title]="themeLabel()"
+          (click)="toggleTheme()"
+        >
+          <i [class]="themeIcon()" aria-hidden="true"></i>
+        </button>
+        <button
+          type="button"
+          class="graph__toolbar-btn"
+          aria-label="Reset layout"
+          title="Reset layout (re-run auto layout, clear saved positions)"
+          (click)="resetLayout()"
+        >
+          <i class="pi pi-refresh" aria-hidden="true"></i>
+        </button>
+      </div>
     </div>
 
     <aside class="graph__legend" aria-label="Edge legend">

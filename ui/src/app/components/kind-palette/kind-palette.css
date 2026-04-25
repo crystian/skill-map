@@ -1,0 +1,86 @@
+:host {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.kind-palette {
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px;
+  background: var(--sm-bg-content);
+  border: 1px solid var(--sm-border);
+  /* Rectangular container so the pill-shaped buttons inside don't fight
+     the outer rounding (a pill container clips the corners of the
+     top / bottom buttons when their `--active` background is filled). */
+  border-radius: 0.65rem;
+  box-shadow: var(--sm-shadow-floating);
+}
+
+.kind-palette__btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.4rem;
+  width: 56px;
+  height: 30px;
+  padding: 0 0.55rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--p-text-muted-color);
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+.kind-palette__btn:hover {
+  background: var(--sm-bg-hover);
+}
+
+.kind-palette__btn .pi {
+  font-size: 0.95rem;
+  /* Icon takes its own colour set per active+kind below; default muted
+     when inactive to keep the palette quiet. */
+}
+
+.kind-palette__count {
+  flex: 1;
+  text-align: right;
+}
+
+/* Active state — kind is visible in the graph. Tints the icon with the
+   kind accent and lightens the background pill. */
+.kind-palette__btn--active {
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
+}
+
+.kind-palette__btn--active:hover {
+  background: var(--sm-border);
+}
+
+.kind-palette__btn--active.kind-palette__btn--skill .pi {
+  color: var(--sm-kind-skill);
+}
+.kind-palette__btn--active.kind-palette__btn--agent .pi {
+  color: var(--sm-kind-agent);
+}
+.kind-palette__btn--active.kind-palette__btn--command .pi {
+  color: var(--sm-kind-command);
+}
+.kind-palette__btn--active.kind-palette__btn--hook .pi {
+  color: var(--sm-kind-hook);
+}
+.kind-palette__btn--active.kind-palette__btn--note .pi {
+  color: var(--sm-kind-note);
+}

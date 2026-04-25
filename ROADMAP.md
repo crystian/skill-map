@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-04-22. Changes land via `.changeset/*.md` and `spec/CHANGELOG.md` — this header stops paraphrasing them.
+**Last updated**: 2026-04-25. Changes land via `.changeset/*.md` and `spec/CHANGELOG.md` — this header stops paraphrasing them.
 
 ---
 
@@ -168,7 +168,7 @@ Each README also ships a short essentials-only glossary with a pointer back to t
    3   UI design refinement    node cards, connections, inspector, dark mode parity
    4   Scan end-to-end         sm scan / list / show / check
    5   History + orphans       state_executions, history, rename heuristic via body_hash
-   6   Project config          .skill-map.json, .skill-mapignore, sm init
+   6   Project config          .skill-map/settings(.local).json, .skill-mapignore, sm init
    7   Robustness              conflict resolution, perf, chokidar, GC
    8   Diff + export           sm scan --compare-with, sm export, sm graph
    9   Plugin author UX        drop-in workflow, testkit, docs
@@ -898,13 +898,28 @@ The pipeline ordering is **stable** as of the next spec release. Adding a new st
 
 ## Configuration
 
-Three-level precedence (low → high):
+`.skill-map/settings.json` is the canonical config file for both the CLI and the bundled UI. Each scope keeps its own folder; the loader walks a layered hierarchy and deep-merges per key. The filename, the `.local.json` partner, and the folder convention mirror Claude Code (`.claude/settings.json` + `.claude/settings.local.json`).
 
-1. **Library defaults** (`src/config/defaults.json` bundled in library).
-2. **User config** (`.skill-map.json` in project or `~/.skill-map/config.json` global).
-3. **Env vars / CLI flags** (point-in-time overrides).
+### Hierarchy (low → high precedence, last wins)
 
-Deep merge at load. User config can be partial. Validated by `spec/schemas/project-config.schema.json`.
+1. **Library defaults** — compiled into the bundle (`src/config/defaults.json` for the CLI, `ui/src/models/settings.ts` for the UI). Always present; the app must boot with these alone.
+2. **User config** — `~/.skill-map/settings.json`. Personal defaults across projects.
+3. **User local** — `~/.skill-map/settings.local.json`. Machine-specific overrides; never committed (naming convention only — there is no `~` to gitignore).
+4. **Project config** — `<scope>/.skill-map/settings.json`. Team-shared settings; committed.
+5. **Project local** — `<scope>/.skill-map/settings.local.json`. Per-developer overrides; gitignored by `sm init`.
+6. **Env vars / CLI flags** — point-in-time overrides per invocation.
+
+`sm ui --config <path>` (Step 14) is a separate escape hatch: the supplied file **replaces** layers 2–5 entirely (single-source override; useful for reproducibility, CI, debugging). Defaults still apply underneath, env / flags still wrap on top.
+
+Deep merge at load. Each layer may be a `Partial`; missing keys fall through to the next lower layer. Validated against `spec/schemas/project-config.schema.json` (CLI keys) and `spec/runtime-settings.schema.json` (UI keys, lands at Step 14). Malformed JSON or type-mismatches emit warnings and skip the offending key; the app never crashes on bad config. `--strict-config` flips warnings into fatal errors.
+
+### Runtime delivery to the UI
+
+The bundled UI is a static artifact — it does not read files from disk. The CLI sub-command `sm ui` (Step 14) loads + merges + validates the hierarchy and serves the resulting object as `GET /config.json` over the same HTTP server that hosts the UI bundle. The UI fetches that URL once on boot (via `APP_INITIALIZER`), then reads the data through a signal-backed `RuntimeConfigService`. When the bundle is served by a third party (nginx, S3, Caddy), the operator places a `config.json` next to `index.html`; same contract from the UI's side.
+
+This is the only path by which UI-side keys reach the browser. There is no build-time UI config and no `fileReplacements`. Changing UI settings means editing one of the four files in the hierarchy (or the `--config` override) and restarting the server — see §Step 14 for why hot reload is deferred.
+
+> **Spec migration.** The current spec (`spec/schemas/project-config.schema.json` description, `spec/db-schema.md`, `spec/conformance/coverage.md`) anchors the config on a single project-root file `.skill-map.json`. The folder + `.local.json` partner convention described in this section is the target shape; renaming to `.skill-map/settings.json` is a **normative change** that lands together with Step 6 (Config + onboarding) in one changeset. Until then, the spec remains the authoritative pre-rename description, and any kernel implementation that lands before Step 6 reads `.skill-map.json` per spec. The roadmap is one step ahead of the spec on purpose — see AGENTS.md authority order. The migration plan covers backward compat for existing scopes (read-old-write-new at `sm init` upgrade time, see Decision log when added).
 
 ### Commands
 
@@ -940,6 +955,15 @@ All declared in `spec/schemas/project-config.schema.json`. Defaults shown.
 - `i18n.locale: "en"` — experimental.
 
 The default contents of a fresh `.skill-mapignore` file (used by `sm init`) live in the reference impl under `src/config/defaults/` and are **not** a user-visible config key — editing the generated file is the supported override.
+
+### UI-side keys
+
+Declared in `ui/src/models/settings.ts` and shipped via the runtime delivery path above. The interface is `ISkillMapSettings` (compile-time) and will be formalised in `spec/runtime-settings.schema.json` at Step 14 once the contract stabilises.
+
+- `graph.perf.cache: true` — Foblex `[fCache]` toggle. Caches connector / connection geometry across redraws (pan, zoom, drag).
+- `graph.perf.virtualization: false` — `*fVirtualFor` over node iteration. Renders only nodes whose bounding box intersects the viewport. Enable above ~300 visible nodes; below that the bookkeeping cost outweighs the gain. Off by default — flip to `true` when the perf HUD inside the graph view shows fps drops on large collections.
+
+These keys cohabit the same `.skill-map/settings.json` as the CLI keys above. They are merged by the same loader, served by `sm ui` over the same `/config.json` HTTP endpoint. The UI ignores keys it does not recognise (graceful forward-compat); the CLI does the same with UI keys (which it doesn't read directly).
 
 ---
 
@@ -1110,7 +1134,7 @@ Scope:
 - Simulated event flow: fake run-queue emitting canonical events.
 
 Tech picks locked at Step 0c start:
-- Frontend framework: **Angular latest** (standalone components). Always track the latest stable Angular release; `ui/package.json` uses `^` ranges. No major pinning — upgrade continuously. (Decision #72, revised at post-0c review.)
+- Frontend framework: **Angular latest** (standalone components). Always track the latest stable Angular release; upgrades happen explicitly by editing the pinned version in `ui/package.json`, not automatically via caret ranges. (Decision #72, revised twice — see post-0c review below and the dependency-pinning revision dated 2026-04-23.)
 - Node-based UI library: **Foblex Flow** (Angular-native). Cards as Angular components with arbitrary HTML.
 - Component library: **PrimeNG** (tables, forms, dialogs, menus, overlays).
 - Styling: **SCSS scoped per component**. No utility CSS framework (no Tailwind, no PrimeFlex) — avoided overlap with PrimeNG's own theming.
@@ -1118,6 +1142,7 @@ Tech picks locked at Step 0c start:
 
 Post-0c review pass (2026-04-22) — decisions resolved:
 - **Decision #72 revised**: Angular pin changed from "pin to v21" to "track latest stable". No major pinning.
+- **Decision #72 revised again (2026-04-23)**: dependency policy tightened across the repo. `package.json` at root, `ui/`, and `src/` pin every dependency to an exact version (no `^` / `~`). Reproducible installs and zero-surprise upgrades take priority over automatic patch drift. `spec/` has no dependencies. The policy is revisited the day `src/` flips to public — a published lib may want caret ranges so consumers can dedupe transitive deps. Canonical statement in `AGENTS.md` §Rules for agents working in this repo.
 - **DTO gap**: close via codegen (json-schema-to-typescript from `spec/schemas/`) at Step 4 or Step 5. Hand-curated mirrors in `ui/src/models/` and `src/kernel/types/` remain until then.
 - **Plugin migrations + SQL parser**: deferred to Step 9 (Plugin author UX). No plugins ship own migrations before that.
 - **Plugin API stability (Decision #89)**: extension runtime interfaces (`IAdapter`, `IDetector`, `IRule`, `IRenderer`, `IAudit`) are declared semver-stable at v1.0.0. Pre-v1.0, breaking changes to these interfaces are minor bumps with a changelog note.
@@ -1201,7 +1226,8 @@ Plugin author testkit: `skill-map/testkit` exports helpers + mock kernel for thi
 - **HTTP server**: **Hono** (lightweight, ESM-native). Acts as the BFF for the Angular UI and any future client.
 - **WebSocket**: server side uses `hono/ws` + `@hono/node-ws` (co-located with the Hono router so REST and WS share a single listener — single-port mandate). Client side uses the browser-native `WebSocket` (browser) or the Node 24 global `WebSocket` (Node-side tests and consumers — no extra dep). The standalone `ws` library is rejected: it duplicates glue for the HTTP/WS multiplex.
 - **Single-port mandate**: `sm serve` exposes SPA + BFF + WS under one listener. Dev uses Angular dev server + proxy; prod uses Hono + `serveStatic`.
-- **UI framework**: **Angular ≥ 21** (standalone components). Scaffolded at `^21.0.0`.
+- **UI framework**: **Angular ≥ 21** (standalone components). Scaffolded at `^21.0.0`, later pinned to an exact version per the dependency-pinning policy — see §Rules for agents working in this repo in `AGENTS.md`.
+- **Dependency versioning policy**: every dependency in `package.json` at root, `ui/`, and `src/` is pinned to an exact version (no `^` / `~`). `spec/` has no dependencies. Reproducibility takes priority over automatic patch drift; upgrades are explicit edits. Revisit if `src/` ever flips to public — published libs may want caret ranges so consumers can dedupe transitive deps.
 - **Node-based UI library**: **Foblex Flow**.
 - **Component library**: **PrimeNG** + `@primeuix/themes` for theming. The legacy `@primeng/themes` package is deprecated upstream (the registry marks it as `Deprecated. Please migrate to @primeuix/themes`) and is intentionally NOT used.
 - **UI styling**: **SCSS scoped per component**. No utility CSS (no Tailwind, no PrimeFlex).
@@ -1378,7 +1404,8 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 
 ### Step 6 — Config + onboarding
 
-- `.skill-map.json` + `.skill-mapignore`.
+- `.skill-map/settings.json` + `.skill-map/settings.local.json` + `.skill-mapignore`. `sm init` scaffolds the folder and adds the `.local.json` to the project's gitignore.
+- Loader walks the hierarchy from §Configuration (defaults → `~/.skill-map/settings(.local).json` → `<scope>/.skill-map/settings(.local).json` → env / flags). UI-side keys are read by the same loader but only delivered over HTTP at Step 14.
 - `sm init` scaffolding.
 - `sm plugins list / enable / disable / show / doctor`.
 - Frontmatter schemas enforced (warn by default, `--strict` promotes to error).
@@ -1459,6 +1486,11 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 
 ### Step 14 — Distribution polish
 
+- **Single npm package**: `@skill-map/cli` (or final name) ships CLI + UI built (`ui/dist/` copied into the package at publish time). Two `bin` entries — `sm` (short, daily use) and `skill-map` (full name, scripting). Same binary, two aliases. Single version applies to both surfaces; CLI ↔ UI key mismatches degrade gracefully (unknown keys are warned + ignored, never fatal). Versioning details in §Stack conventions.
+- **`sm ui` sub-command**: serves the bundled UI on a static HTTP server. Loads + merges the settings hierarchy from §Configuration, validates, and serves the result as `GET /config.json` from the same origin. UI fetches once at boot. Flags: `--cwd <path>`, `--port <num>`, `--host <iface>`, `--config <path>` (single-source override of layers 2–5), `--print-config` (emit the merged settings to stdout and exit, for debugging), `--strict-config` (warnings become fatal), `--open` (launch the browser).
+- **Settings loader** lives in the kernel and is shared across sub-commands: `loadSettings({ cwd, explicitConfigPath?, strict? }) → ISkillMapSettings`. Pure, stateless, fully testable. Same loader used by `sm config get/set/list` and by the dev wrapper that emulates the runtime delivery path under `ng serve`.
+- **`spec/runtime-settings.schema.json`**: formalises the UI-side contract. Replaces the manual TS type guards with AJV validation. Decouples the UI bundle version from the CLI bundle version: as long as both adhere to the schema, mixing minor versions across them is safe.
+- **No hot reload** in the v1.0 surface. Editing settings requires a restart of `sm ui`. SSE / WebSocket reload is a separate decision, deferred until a real use case appears.
 - **Publishing workflow**: GitHub Actions for release automation + changelog generation + conventional commits.
 - **Documentation site**: **Astro Starlight** (static, minimal infra, good DX).
 - **Plugin API reference**: JSDoc → Starlight auto-generated.
@@ -1467,7 +1499,7 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 - Telemetry opt-in.
 - Compatibility matrix (kernel ↔ plugin API ↔ spec).
 - Breaking-changes / deprecation policy.
-- `sm doctor` diagnostics for user installs.
+- `sm doctor` diagnostics for user installs (verifies the install, reads the merged settings, confirms each hierarchy layer is parseable).
 - **Launch polish on `skill-map.dev`**: the domain is already live (Railway-deployed Caddy + DNS at Vercel, serving `/spec/v0/**` schemas); Step 14 adds the marketing landing page, redirects, SEO, Astro Starlight docs, and registration on JSON Schema Store once `v0 → v1` ships.
 
 ### ▶ v1.0.0 — full distributable

@@ -7,7 +7,13 @@
 import { Injectable, computed, signal } from '@angular/core';
 import type { TNodeKind, TNodeView, TStability } from '../models/node';
 
-export const ALL_KINDS: readonly TNodeKind[] = ['skill', 'agent', 'command', 'hook', 'note'];
+/**
+ * Display order of kinds across the UI (palette, filter-bar dropdown,
+ * any future kind-iterating widget). Agent first because it is the
+ * primary actor in most user mental models; skills follow as the tools
+ * an agent uses.
+ */
+export const ALL_KINDS: readonly TNodeKind[] = ['agent', 'skill', 'command', 'hook', 'note'];
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
 
 @Injectable({ providedIn: 'root' })
@@ -31,6 +37,37 @@ export class FilterStoreService {
 
   setKinds(kinds: TNodeKind[]): void {
     this.selectedKinds.set([...kinds]);
+  }
+
+  /**
+   * Toggle a single kind. Semantics align with `apply()`:
+   *   - empty `selectedKinds` array = "no kind filter" = all kinds active.
+   *   - non-empty array = whitelist; only listed kinds pass.
+   * The toggle treats the current visible set (all kinds when empty) as
+   * the starting point, flips the requested kind, and normalises back to
+   * the empty array when every kind is on (so the filter-bar `isActive`
+   * computation keeps reading false for the all-on state).
+   */
+  toggleKind(kind: TNodeKind): void {
+    const sel = this.selectedKinds();
+    const startSet = sel.length === 0 ? new Set<TNodeKind>(ALL_KINDS) : new Set(sel);
+    if (startSet.has(kind)) {
+      startSet.delete(kind);
+    } else {
+      startSet.add(kind);
+    }
+    if (startSet.size === ALL_KINDS.length) {
+      this.selectedKinds.set([]);
+    } else {
+      this.selectedKinds.set([...startSet]);
+    }
+  }
+
+  /** True when the kind is currently visible (passes the kind filter). */
+  isKindActive(kind: TNodeKind): boolean {
+    const sel = this.selectedKinds();
+    if (sel.length === 0) return true;
+    return sel.includes(kind);
   }
 
   setStabilities(stabilities: TStability[]): void {

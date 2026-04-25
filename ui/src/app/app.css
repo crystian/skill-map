@@ -14,9 +14,9 @@
   align-items: center;
   gap: 2rem;
   padding: 0.75rem 1.5rem;
-  background: var(--p-surface-0, #ffffff);
-  border-bottom: 1px solid var(--p-surface-200, #e5e7eb);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  background: var(--sm-bg-content);
+  border-bottom: 1px solid var(--sm-border);
+  box-shadow: var(--sm-shadow-topbar);
 }
 
 .shell__brand {
@@ -32,8 +32,8 @@
   width: 2rem;
   height: 2rem;
   border-radius: 0.5rem;
-  background: var(--p-primary-color, #3b82f6);
-  color: var(--p-primary-contrast-color, #fff);
+  background: var(--p-primary-color);
+  color: var(--p-primary-contrast-color);
   font-weight: 700;
   font-size: 0.85rem;
   letter-spacing: 0.04em;
@@ -49,7 +49,7 @@
 .shell__tag {
   margin: 0;
   font-size: 0.72rem;
-  color: var(--p-text-muted-color, #6b7280);
+  color: var(--p-text-muted-color);
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
@@ -65,18 +65,18 @@
   border-radius: 0.5rem;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--p-text-muted-color, #4b5563);
+  color: var(--p-text-muted-color);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .shell__nav a:hover {
-  background: var(--p-surface-100, #f3f4f6);
-  color: var(--p-text-color, #1a1a1a);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-color);
 }
 
 .shell__nav a.is-active {
-  background: var(--p-primary-50, #eff6ff);
-  color: var(--p-primary-color, #3b82f6);
+  background: var(--sm-nav-active-bg);
+  color: var(--p-primary-color);
 }
 
 .shell__actions {
@@ -88,13 +88,13 @@
 .shell__badge {
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
-  background: var(--p-surface-100, #f3f4f6);
-  color: var(--p-text-muted-color, #4b5563);
+  background: var(--sm-bg-hover);
+  color: var(--p-text-muted-color);
   font-size: 0.85rem;
 }
 
 .shell__badge strong {
-  color: var(--p-text-color, #1a1a1a);
+  color: var(--p-text-color);
   margin-right: 0.25rem;
 }
 

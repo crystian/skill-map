@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
@@ -32,6 +32,15 @@ import type { TNodeKind, TStability } from '../../../models/node';
 })
 export class FilterBar {
   private readonly store = inject(FilterStoreService);
+
+  /**
+   * Hide the kind multi-select. The graph view renders a floating
+   * `<app-kind-palette>` that exposes the same toggle (sharing the same
+   * `FilterStoreService.selectedKinds` signal), so duplicating the
+   * dropdown in the bar above is just noise. List view keeps it on
+   * (default true).
+   */
+  readonly showKinds = input<boolean>(true);
 
   readonly searchText = this.store.searchText;
   readonly selectedKinds = this.store.selectedKinds;

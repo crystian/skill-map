@@ -1,6 +1,13 @@
 /* Global base styles. PrimeNG's Aura preset is registered in app.config.ts. */
 
 :root {
+  /* Surface — dark-mode-aware background/border vars */
+  --sm-bg-page: #f8fafc;
+  --sm-bg-content: #ffffff;
+  --sm-bg-hover: #f1f5f9;
+  --sm-border: #e2e8f0;
+  --sm-nav-active-bg: #eff6ff;
+
   /* Kind accent — border */
   --sm-kind-skill: #3b82f6;
   --sm-kind-agent: #10b981;
@@ -38,9 +45,22 @@
   /* Severity — row tint */
   --sm-severity-warn-bg: rgba(254, 243, 199, 0.35);
   --sm-severity-error-bg: rgba(254, 226, 226, 0.35);
+
+  /* Surface elevation — adapt per theme so dark-mode panels keep their lift */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.03);
+  --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.08);
+  --sm-shadow-floating: 0 4px 14px rgba(0, 0, 0, 0.08);
+  --sm-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --sm-shadow-card-hover: 0 3px 12px rgba(0, 0, 0, 0.12);
 }
 
 .app-dark {
+  --sm-bg-page: #09090b;
+  --sm-bg-content: #18181b;
+  --sm-bg-hover: #27272a;
+  --sm-border: #3f3f46;
+  --sm-nav-active-bg: rgba(96, 165, 250, 0.15);
+
   --sm-kind-skill: #60a5fa;
   --sm-kind-agent: #34d399;
   --sm-kind-command: #fbbf24;
@@ -72,6 +92,13 @@
 
   --sm-severity-warn-bg: rgba(120, 53, 15, 0.2);
   --sm-severity-error-bg: rgba(127, 29, 29, 0.2);
+
+  /* Stronger shadows on dark surfaces so panels still read as elevated */
+  --sm-shadow-topbar: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sm-shadow-eventlog: 0 -4px 16px rgba(0, 0, 0, 0.5);
+  --sm-shadow-floating: 0 4px 14px rgba(0, 0, 0, 0.5);
+  --sm-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --sm-shadow-card-hover: 0 4px 14px rgba(0, 0, 0, 0.55);
 }
 
 html,
@@ -93,8 +120,8 @@ body {
     'Segoe UI Emoji';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: var(--p-surface-50, #fafafa);
-  color: var(--p-text-color, #1a1a1a);
+  background: var(--sm-bg-page);
+  color: var(--p-text-color);
 }
 
 *,
