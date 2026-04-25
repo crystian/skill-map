@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title data-i18n="meta.title">skill-map — graph explorer for AI agent ecosystems</title>
 <meta name="description" content="Vendor-neutral specification for mapping and managing AI-agent markdown ecosystems.">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#07070C">
 <meta property="og:title" content="skill-map">
 <meta property="og:description" content="Map every skill, agent, and command in your AI ecosystem.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://skill-map.dev">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="/styles.css">
 <script src="/app.js" defer></script>
 </head>
@@ -22,7 +22,6 @@
   <div class="container top-inner">
     <div class="top-left">
       <a class="name" href="/">skill-map</a>
-      <span class="sep">·</span>
       <a class="ver" href="https://www.npmjs.com/package/@skill-map/spec/v/{{SPEC_VERSION}}" target="_blank" rel="noopener">v{{SPEC_VERSION}}</a>
       <span class="sep">·</span>
       <span data-i18n="top.draft">pre-1.0</span>
@@ -41,7 +40,7 @@
         <span class="div">/</span>
         <button type="button" data-set-lang="es">es</button>
       </span>
-      <a class="btn" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">
+      <a class="btn btn-primary" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">
         <span data-i18n="cta.github">github</span>
       </a>
     </div>
@@ -51,23 +50,41 @@
 <main class="container">
 
 <section class="hero">
-  <h1 class="hero-title">skill-<span class="accent">map</span></h1>
-  <p class="hero-tag" data-i18n="hero.tag">A graph explorer for Markdown-based AI agents — Claude Code, Codex, Gemini, Copilot. Detects cross-references, trigger collisions, orphans, weight, stale summaries. <b>CLI-first.</b> <b>Deterministic offline.</b> <b>Public spec.</b></p>
+  <div class="hero-grid">
+    <div class="hero-copy">
+      <span class="hero-eyebrow">
+        <span class="dot"></span>
+        spec <b>v{{SPEC_VERSION}}</b>
+        <span class="pipe">·</span>
+        <span data-i18n="top.draft">pre-1.0</span>
+      </span>
 
-  <div class="hero-cta">
-    <a class="btn btn-primary" href="#quickstart"><span data-i18n="cta.start">get started</span></a>
-    <a class="btn" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener"><span data-i18n="cta.github">github</span></a>
-    <a class="btn" href="https://www.npmjs.com/package/@skill-map/spec/v/{{SPEC_VERSION}}" target="_blank" rel="noopener"><span data-i18n="cta.npm">npm</span></a>
-  </div>
+      <h1 class="hero-title">skill-<span class="grad">map</span></h1>
 
-  <div class="hero-meta">
-    <span class="pill"><span data-i18n="hero.meta.cli">cli-first</span></span>
-    <span class="pill"><span data-i18n="hero.meta.det">deterministic</span></span>
-    <span class="pill"><span data-i18n="hero.meta.spec">public spec</span></span>
-    <span class="pill"><span data-i18n="hero.meta.mit">mit</span></span>
-    <span>spec <b>v{{SPEC_VERSION}}</b></span>
-  </div>
+      <p class="hero-tag" data-i18n="hero.tag">A graph explorer for Markdown-based AI agents — Claude Code, Codex, Gemini, Copilot. Detects cross-references, trigger collisions, orphans, weight, stale summaries. <b>CLI-first.</b> <b>Deterministic offline.</b> <b>Public spec.</b></p>
 
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-arrow" href="#quickstart"><span data-i18n="cta.start">get started</span></a>
+        <a class="btn" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener"><span data-i18n="cta.github">github</span></a>
+        <a class="btn" href="https://www.npmjs.com/package/@skill-map/spec/v/{{SPEC_VERSION}}" target="_blank" rel="noopener"><span data-i18n="cta.npm">npm</span></a>
+      </div>
+
+      <div class="hero-meta">
+        <span class="pill"><span data-i18n="hero.meta.cli">cli-first</span></span>
+        <span class="pill"><span data-i18n="hero.meta.det">deterministic</span></span>
+        <span class="pill"><span data-i18n="hero.meta.spec">public spec</span></span>
+        <span class="pill"><span data-i18n="hero.meta.mit">mit</span></span>
+      </div>
+    </div>
+
+    <div class="hero-mock">
+      <div class="window" aria-hidden="false">
+        <div class="window-bar">
+          <span class="window-dots"><span></span><span></span><span></span></span>
+          <span class="window-title">~/projects/my-agents — sm</span>
+          <span style="width:54px"></span>
+        </div>
+        <div class="window-body">
 <pre class="term"><span class="prompt">$</span> <span class="cmd">sm scan</span>
 <span class="out">scanning <span class="dim">./</span> ...</span>
 <span class="ok">✓</span> <span class="out">142 nodes · 318 links · 7 issues · 22ms</span>
@@ -84,53 +101,82 @@
   <span class="warn">!</span> stale-summary      /commands/deploy.md  <span class="dim">(86d)</span>
 
 <span class="prompt">$</span> <span class="caret">&nbsp;</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
 </section>
-
-<div class="rule" aria-hidden="true"></div>
 
 <section id="problem">
   <div class="sect-head">
-    <span class="num" data-i18n="sect.problem.num">§ 01</span>
+    <span class="eyebrow" data-i18n="sect.problem.num">§ 01</span>
     <h2 data-i18n="sect.problem.h">the problem nobody owns</h2>
+    <p class="sect-lead" data-i18n="sect.problem.lead">Devs working with AI agents accumulate dozens of skills, agents, commands, and loose docs. Nobody sees the whole picture.</p>
   </div>
-  <p class="sect-lead" data-i18n="sect.problem.lead">Devs working with AI agents accumulate dozens of skills, agents, commands, and loose docs. Nobody sees the whole picture.</p>
 
-  <ol class="prob-list" start="1">
-    <li>
-      <span class="tag">[01]</span><span class="h" data-i18n="problem.1.h">what lives where</span>
-      <p class="body" data-i18n="problem.1.p">no single place lists every skill, agent, command, hook, or note across the ecosystem.</p>
-    </li>
-    <li>
-      <span class="tag">[02]</span><span class="h" data-i18n="problem.2.h">who calls whom</span>
-      <p class="body" data-i18n="problem.2.p">cross-file references, invocations, and dependencies are invisible until they break.</p>
-    </li>
-    <li>
-      <span class="tag">[03]</span><span class="h" data-i18n="problem.3.h">trigger collisions</span>
-      <p class="body" data-i18n="problem.3.p">two skills with overlapping triggers silently fight. you only notice when the wrong one wins.</p>
-    </li>
-    <li>
-      <span class="tag">[04]</span><span class="h" data-i18n="problem.4.h">orphans &amp; dead weight</span>
-      <p class="body" data-i18n="problem.4.p">files nothing references. drafts that never shipped. token cost you keep paying.</p>
-    </li>
-    <li>
-      <span class="tag">[05]</span><span class="h" data-i18n="problem.5.h">external dependencies</span>
-      <p class="body" data-i18n="problem.5.p">what skills pull from which sub-agents, mcps, or external services — and where they leak.</p>
-    </li>
-    <li>
-      <span class="tag">[06]</span><span class="h" data-i18n="problem.6.h">last optimized when</span>
-      <p class="body" data-i18n="problem.6.p">no history of when each skill was validated, optimized, or last touched. until now.</p>
-    </li>
-  </ol>
+  <div class="prob-grid">
+    <div class="card">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-7l-2-3H5a2 2 0 0 0-2 2z"/><path d="M3 11h18"/></svg>
+      </div>
+      <span class="card-tag">[01]</span>
+      <h3 class="card-title" data-i18n="problem.1.h">what lives where</h3>
+      <p class="card-body" data-i18n="problem.1.p">no single place lists every skill, agent, command, hook, or note across the ecosystem.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><path d="M8 6h8M8 18h8M6 8v8M18 8v8"/></svg>
+      </div>
+      <span class="card-tag">[02]</span>
+      <h3 class="card-title" data-i18n="problem.2.h">who calls whom</h3>
+      <p class="card-body" data-i18n="problem.2.p">cross-file references, invocations, and dependencies are invisible until they break.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z"/></svg>
+      </div>
+      <span class="card-tag">[03]</span>
+      <h3 class="card-title" data-i18n="problem.3.h">trigger collisions</h3>
+      <p class="card-body" data-i18n="problem.3.p">two skills with overlapping triggers silently fight. you only notice when the wrong one wins.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/><path d="M2 2l20 20" stroke-dasharray="2 2"/></svg>
+      </div>
+      <span class="card-tag">[04]</span>
+      <h3 class="card-title" data-i18n="problem.4.h">orphans &amp; dead weight</h3>
+      <p class="card-body" data-i18n="problem.4.p">files nothing references. drafts that never shipped. token cost you keep paying.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3h7v7"/><path d="M21 3l-9 9"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+      </div>
+      <span class="card-tag">[05]</span>
+      <h3 class="card-title" data-i18n="problem.5.h">external dependencies</h3>
+      <p class="card-body" data-i18n="problem.5.p">what skills pull from which sub-agents, mcps, or external services — and where they leak.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/><path d="M3 12a9 9 0 0 1 3-6.7"/></svg>
+      </div>
+      <span class="card-tag">[06]</span>
+      <h3 class="card-title" data-i18n="problem.6.h">last optimized when</h3>
+      <p class="card-body" data-i18n="problem.6.p">no history of when each skill was validated, optimized, or last touched. until now.</p>
+    </div>
+  </div>
 </section>
-
-<div class="rule" aria-hidden="true"></div>
 
 <section id="screens">
   <div class="sect-head">
-    <span class="num" data-i18n="sect.screens.num">§ 02</span>
+    <span class="eyebrow" data-i18n="sect.screens.num">§ 02</span>
     <h2 data-i18n="sect.screens.h">three views, one graph</h2>
+    <p class="sect-lead" data-i18n="sect.screens.lead">List, graph, and inspector — every view reads the same kernel data and stays in sync.</p>
   </div>
-  <p class="sect-lead" data-i18n="sect.screens.lead">List, graph, and inspector — every view reads the same kernel data and stays in sync.</p>
 
   <div class="shot-tabs" role="tablist">
     <button type="button" class="active" data-shot="list" role="tab" aria-selected="true" data-i18n="screens.tab.list">list</button>
@@ -169,14 +215,12 @@
   </div>
 </section>
 
-<div class="rule" aria-hidden="true"></div>
-
 <section id="how">
   <div class="sect-head">
-    <span class="num" data-i18n="sect.how.num">§ 03</span>
+    <span class="eyebrow" data-i18n="sect.how.num">§ 03</span>
     <h2 data-i18n="sect.how.h">how it works</h2>
+    <p class="sect-lead" data-i18n="sect.how.lead">Four pieces. The kernel knows nothing about platforms — everything else plugs in.</p>
   </div>
-  <p class="sect-lead" data-i18n="sect.how.lead">Four pieces. The kernel knows nothing about platforms — everything else plugs in.</p>
 
   <div class="how">
 <pre>      <span class="k">files</span>            <span class="k">kernel</span>           <span class="k">cli · sm</span>           <span class="k">ui</span>
@@ -193,22 +237,22 @@
   <p class="how-legend" data-i18n="how.legend">scanner emits structured nodes/links/issues → kernel applies rules → cli serves json → ui renders.</p>
 </section>
 
-<div class="rule" aria-hidden="true"></div>
-
 <section id="quickstart">
   <div class="sect-head">
-    <span class="num" data-i18n="sect.quick.num">§ 04</span>
+    <span class="eyebrow" data-i18n="sect.quick.num">§ 04</span>
     <h2 data-i18n="sect.quick.h">quickstart</h2>
+    <p class="sect-lead" data-i18n="sect.quick.lead">One install. One scan. Zero LLM calls unless you ask for them.</p>
   </div>
-  <p class="sect-lead" data-i18n="sect.quick.lead">One install. One scan. Zero LLM calls unless you ask for them.</p>
 
-  <button type="button" class="copy-btn" data-copy>
-    <span data-copy-label data-i18n="quick.copy">copy</span>
-  </button>
-<pre class="term" id="quick-code"><span class="prompt">$</span> <span class="cmd">npm i -g @skill-map/cli</span>
+  <div class="quick-wrap">
+    <button type="button" class="copy-btn" data-copy>
+      <span data-copy-label data-i18n="quick.copy">copy</span>
+    </button>
+<pre class="quick-term" id="quick-code"><span class="prompt">$</span> <span class="cmd">npm i -g @skill-map/cli</span>
 <span class="prompt">$</span> <span class="cmd">sm scan</span>
 <span class="prompt">$</span> <span class="cmd">sm inspect path/to/skill.md</span>
 <span class="prompt">$</span> <span class="cmd">sm issues --json</span></pre>
+  </div>
 
   <ul class="quick-points">
     <li><span data-i18n="quick.p1">pure typescript · node ≥ 20 · offline by default.</span></li>
@@ -217,14 +261,12 @@
   </ul>
 </section>
 
-<div class="rule" aria-hidden="true"></div>
-
 <section id="spec">
   <div class="sect-head">
-    <span class="num" data-i18n="sect.spec.num">§ 05</span>
+    <span class="eyebrow" data-i18n="sect.spec.num">§ 05</span>
     <h2 data-i18n="sect.spec.h">spec</h2>
+    <p class="sect-lead" data-i18n="sect.spec.lead">29 JSON Schemas (draft 2020-12) + 7 prose contracts + a conformance suite. Every version is on npm. The spec is the contract — build your UI, your impl, your renderer.</p>
   </div>
-  <p class="sect-lead" data-i18n="sect.spec.lead">29 JSON Schemas (draft 2020-12) + 7 prose contracts + a conformance suite. Every version is on npm. The spec is the contract — build your UI, your impl, your renderer.</p>
 
   <div class="spec-row">
     <div>
@@ -234,62 +276,68 @@
       <p class="url">https://skill-map.dev/spec/v0/&lt;path&gt;.schema.json</p>
     </div>
     <div class="spec-actions">
-      <a class="btn btn-primary" href="/spec/v0/"><span data-i18n="cta.spec">browse spec</span></a>
+      <a class="btn btn-primary btn-arrow" href="/spec/v0/"><span data-i18n="cta.spec">browse spec</span></a>
       <a class="btn" href="https://www.npmjs.com/package/@skill-map/spec/v/{{SPEC_VERSION}}" target="_blank" rel="noopener"><span data-i18n="cta.npm">npm</span></a>
     </div>
   </div>
 </section>
 
-<div class="rule" aria-hidden="true"></div>
-
 <section id="roadmap">
   <div class="sect-head">
-    <span class="num" data-i18n="sect.road.num">§ 06</span>
+    <span class="eyebrow" data-i18n="sect.road.num">§ 06</span>
     <h2 data-i18n="sect.road.h">roadmap</h2>
+    <p class="sect-lead" data-i18n="sect.road.lead">Authoritative narrative lives in ROADMAP.md. Snapshot below.</p>
   </div>
-  <p class="sect-lead" data-i18n="sect.road.lead">Authoritative narrative lives in ROADMAP.md. Snapshot below.</p>
 
-  <table class="road">
-    <thead>
-      <tr>
-        <th></th>
-        <th data-i18n="road.h.step">step</th>
-        <th data-i18n="road.h.desc">description</th>
-        <th class="when-h" data-i18n="road.h.when">when</th>
-        <th data-i18n="road.h.status">status</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr class="done">
-        <td class="mark">[x]</td>
-        <td class="step" data-i18n="road.0a.h">step 0a · spec bootstrap</td>
-        <td class="desc" data-i18n="road.0a.p">schemas, prose contracts, conformance suite, npm release.</td>
-        <td class="when" data-i18n="road.0a.when">2026-Q1</td>
-        <td class="stat" data-i18n="road.0a.s">shipped</td>
-      </tr>
-      <tr class="done">
-        <td class="mark">[x]</td>
-        <td class="step" data-i18n="road.0b.h">step 0b · reference impl</td>
-        <td class="desc" data-i18n="road.0b.p">cli sm boots clean. stub scan verb. kernel-first.</td>
-        <td class="when" data-i18n="road.0b.when">2026-Q1</td>
-        <td class="stat" data-i18n="road.0b.s">shipped</td>
-      </tr>
-      <tr class="next">
-        <td class="mark">[→]</td>
-        <td class="step" data-i18n="road.0c.h">step 0c · ui prototype</td>
-        <td class="desc" data-i18n="road.0c.p">angular spa + foblex flow with mocked data. three views.</td>
-        <td class="when" data-i18n="road.0c.when">now</td>
-        <td class="stat" data-i18n="road.0c.s">active</td>
-      </tr>
-      <tr>
-        <td class="mark">[ ]</td>
-        <td class="step" data-i18n="road.10.h">step 1.0 · public release</td>
-        <td class="desc" data-i18n="road.10.p">stable kernel, plugin marketplace, full integration.</td>
-        <td class="when" data-i18n="road.10.when">soon</td>
-        <td class="stat" data-i18n="road.10.s">planned</td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="road">
+    <div class="road-item done">
+      <div class="road-mark">✓</div>
+      <div class="road-body">
+        <span class="road-step" data-i18n="road.0a.h">step 0a · spec bootstrap</span>
+        <p class="road-desc" data-i18n="road.0a.p">schemas, prose contracts, conformance suite, npm release.</p>
+      </div>
+      <div class="road-meta">
+        <span class="road-when" data-i18n="road.0a.when">2026-Q1</span>
+        <span class="road-stat" data-i18n="road.0a.s">shipped</span>
+      </div>
+    </div>
+
+    <div class="road-item done">
+      <div class="road-mark">✓</div>
+      <div class="road-body">
+        <span class="road-step" data-i18n="road.0b.h">step 0b · reference impl</span>
+        <p class="road-desc" data-i18n="road.0b.p">cli sm boots clean. stub scan verb. kernel-first.</p>
+      </div>
+      <div class="road-meta">
+        <span class="road-when" data-i18n="road.0b.when">2026-Q1</span>
+        <span class="road-stat" data-i18n="road.0b.s">shipped</span>
+      </div>
+    </div>
+
+    <div class="road-item active">
+      <div class="road-mark">→</div>
+      <div class="road-body">
+        <span class="road-step" data-i18n="road.0c.h">step 0c · ui prototype</span>
+        <p class="road-desc" data-i18n="road.0c.p">angular spa + foblex flow with mocked data. three views.</p>
+      </div>
+      <div class="road-meta">
+        <span class="road-when" data-i18n="road.0c.when">now</span>
+        <span class="road-stat" data-i18n="road.0c.s">active</span>
+      </div>
+    </div>
+
+    <div class="road-item planned">
+      <div class="road-mark">○</div>
+      <div class="road-body">
+        <span class="road-step" data-i18n="road.10.h">step 1.0 · public release</span>
+        <p class="road-desc" data-i18n="road.10.p">stable kernel, plugin marketplace, full integration.</p>
+      </div>
+      <div class="road-meta">
+        <span class="road-when" data-i18n="road.10.when">soon</span>
+        <span class="road-stat" data-i18n="road.10.s">planned</span>
+      </div>
+    </div>
+  </div>
 </section>
 
 </main>
