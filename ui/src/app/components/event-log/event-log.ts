@@ -1,14 +1,16 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild, ElementRef } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { BadgeModule } from 'primeng/badge';
+import { ToggleButtonModule } from 'primeng/togglebutton';
 
+import { EVENT_LOG_TEXTS } from '../../../i18n/event-log.texts';
 import { EventBusService, ISimEvent } from '../../../services/event-bus';
 import { ScanSimulatorService } from '../../../services/scan-simulator';
 
 @Component({
   selector: 'app-event-log',
-  standalone: true,
-  imports: [ButtonModule, BadgeModule],
+  imports: [FormsModule, ButtonModule, BadgeModule, ToggleButtonModule],
   templateUrl: './event-log.html',
   styleUrl: './event-log.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -16,6 +18,8 @@ import { ScanSimulatorService } from '../../../services/scan-simulator';
 export class EventLog {
   private readonly bus = inject(EventBusService);
   private readonly simulator = inject(ScanSimulatorService);
+
+  protected readonly texts = EVENT_LOG_TEXTS;
 
   readonly events = this.bus.events;
   readonly count = this.bus.count;
@@ -41,8 +45,8 @@ export class EventLog {
     });
   }
 
-  toggle(): void {
-    this.expanded.update((v) => !v);
+  setExpanded(value: boolean): void {
+    this.expanded.set(value);
   }
 
   clear(): void {

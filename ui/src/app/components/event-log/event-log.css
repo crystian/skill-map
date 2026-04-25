@@ -18,22 +18,47 @@
   font-family: inherit;
 }
 
+/* Row that visually unifies the togglebutton handle and the optional
+   "Clear" p-button as a single header strip. The bg lives on the row so
+   both buttons share it; each button's hover paints over the strip
+   independently. */
+.eventlog__handle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding-right: 0.5rem;
+  background: var(--sm-bg-hover);
+}
+
+/* Togglebutton handle — flat, full-row, no rounding/border. Tokens keep
+   the same chrome regardless of checked/unchecked since "checked" here
+   means "expanded" (content below changes, the handle stays the same). */
 .eventlog__handle {
+  --p-togglebutton-padding: 0;
+  --p-togglebutton-content-padding: 0.55rem 0.9rem;
+  --p-togglebutton-border-radius: 0;
+  --p-togglebutton-content-border-radius: 0;
+  --p-togglebutton-gap: 0.5rem;
+  --p-togglebutton-background: transparent;
+  --p-togglebutton-checked-background: transparent;
+  --p-togglebutton-hover-background: var(--sm-border);
+  --p-togglebutton-content-checked-background: transparent;
+  --p-togglebutton-border-color: transparent;
+  --p-togglebutton-checked-border-color: transparent;
+  --p-togglebutton-color: inherit;
+  --p-togglebutton-hover-color: inherit;
+  --p-togglebutton-checked-color: inherit;
+
+  flex: 1;
+  font-size: 0.85rem;
+}
+
+:host ::ng-deep .eventlog__handle .p-togglebutton-content {
   width: 100%;
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.55rem 0.9rem;
-  background: var(--sm-bg-hover);
-  border: 0;
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: inherit;
-  font-family: inherit;
-}
-
-.eventlog__handle:hover {
-  background: var(--sm-border);
+  justify-content: flex-start;
 }
 
 .eventlog__handle strong {
@@ -72,22 +97,6 @@
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
-}
-
-.eventlog__spacer {
-  flex: 1;
-}
-
-.eventlog__clear {
-  font-size: 0.75rem;
-  color: var(--p-text-muted-color);
-  padding: 0.15rem 0.55rem;
-  border-radius: 0.35rem;
-  cursor: pointer;
-}
-
-.eventlog__clear:hover {
-  background: var(--sm-border);
 }
 
 .eventlog__body {

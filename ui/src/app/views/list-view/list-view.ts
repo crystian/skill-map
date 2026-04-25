@@ -6,12 +6,13 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
 import { ButtonModule } from 'primeng/button';
 
+import { LIST_VIEW_TEXTS } from '../../../i18n/list-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import type {
   TNodeKind,
-  TNodeView,
+  INodeView,
   TStability,
   IFrontmatterAgent,
   IFrontmatterCommand,
@@ -27,7 +28,7 @@ interface IListRow {
   version: string;
   stability: TStability | '—';
   priority: number | null;
-  node: TNodeView;
+  node: INodeView;
 }
 
 const STABILITY_SEVERITY: Record<TStability | '—', 'success' | 'info' | 'warn' | 'danger' | 'secondary'> = {
@@ -47,7 +48,6 @@ const KIND_SEVERITY: Record<TNodeKind, 'info' | 'success' | 'warn' | 'danger' | 
 
 @Component({
   selector: 'app-list-view',
-  standalone: true,
   imports: [
     FilterBar,
     TableModule,
@@ -65,6 +65,8 @@ export class ListView implements OnInit {
   private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
 
+  protected readonly texts = LIST_VIEW_TEXTS;
+
   readonly loading = this.loader.loading;
   readonly error = this.loader.error;
   readonly total = this.loader.count;
@@ -75,10 +77,10 @@ export class ListView implements OnInit {
     return filtered.map((node) => ({
       path: node.path,
       kind: node.kind,
-      name: node.frontmatter.name ?? '—',
+      name: node.frontmatter.name ?? LIST_VIEW_TEXTS.missing,
       detail: nodeDetail(node),
-      version: node.frontmatter.metadata?.version ?? '—',
-      stability: (node.frontmatter.metadata?.stability as TStability | undefined) ?? '—',
+      version: node.frontmatter.metadata?.version ?? LIST_VIEW_TEXTS.missing,
+      stability: (node.frontmatter.metadata?.stability as TStability | undefined) ?? LIST_VIEW_TEXTS.missing,
       priority: node.frontmatter.metadata?.priority ?? null,
       node,
     }));
@@ -109,7 +111,7 @@ export class ListView implements OnInit {
   }
 }
 
-function nodeDetail(n: TNodeView): string | null {
+function nodeDetail(n: INodeView): string | null {
   switch (n.kind) {
     case 'agent':
       return (n.frontmatter as IFrontmatterAgent).model ?? null;
@@ -121,7 +123,7 @@ function nodeDetail(n: TNodeView): string | null {
       const fm = n.frontmatter as IFrontmatterSkill;
       const ins = fm.inputs?.length ?? 0;
       const outs = fm.outputs?.length ?? 0;
-      return ins || outs ? `${ins} in · ${outs} out` : null;
+      return ins || outs ? LIST_VIEW_TEXTS.detail.skillIO(ins, outs) : null;
     }
     default:
       return null;

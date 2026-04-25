@@ -2,13 +2,14 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@a
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 
+import { APP_TEXTS } from '../i18n/app.texts';
+import { THEME_TEXTS } from '../i18n/theme.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
 import { ScanSimulatorService } from '../services/scan-simulator';
 import { ThemeService } from '../services/theme';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
   imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule],
   templateUrl: './app.html',
   styleUrl: './app.css',
@@ -19,6 +20,7 @@ export class App implements OnInit {
   private readonly simulator = inject(ScanSimulatorService);
   private readonly theme = inject(ThemeService);
 
+  protected readonly texts = APP_TEXTS;
   readonly count = this.loader.count;
   readonly scanRunning = this.simulator.running;
   readonly themeMode = this.theme.mode;
@@ -26,7 +28,7 @@ export class App implements OnInit {
     this.themeMode() === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
   );
   readonly themeLabel = computed(() =>
-    this.themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+    this.themeMode() === 'dark' ? THEME_TEXTS.toggleToLight : THEME_TEXTS.toggleToDark,
   );
 
   ngOnInit(): void {

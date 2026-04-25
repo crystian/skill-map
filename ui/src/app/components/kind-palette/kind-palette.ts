@@ -1,5 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ToggleButtonModule } from 'primeng/togglebutton';
+import { TooltipModule } from 'primeng/tooltip';
 
+import { KIND_PALETTE_TEXTS } from '../../../i18n/kind-palette.texts';
+import { KIND_LABELS } from '../../../i18n/kinds.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { ALL_KINDS, FilterStoreService } from '../../../services/filter-store';
 import type { TNodeKind } from '../../../models/node';
@@ -19,14 +24,6 @@ const KIND_ICON: Record<TNodeKind, string> = {
   note: 'pi pi-file',
 };
 
-const KIND_LABEL: Record<TNodeKind, string> = {
-  skill: 'Skills',
-  agent: 'Agents',
-  command: 'Commands',
-  hook: 'Hooks',
-  note: 'Notes',
-};
-
 /**
  * Floating top-left palette for toggling node-kind visibility on the graph
  * view. Mirrors the layout of the call-center example's `flow-palette` in
@@ -41,7 +38,7 @@ const KIND_LABEL: Record<TNodeKind, string> = {
  */
 @Component({
   selector: 'app-kind-palette',
-  standalone: true,
+  imports: [FormsModule, ToggleButtonModule, TooltipModule],
   templateUrl: './kind-palette.html',
   styleUrl: './kind-palette.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -49,6 +46,8 @@ const KIND_LABEL: Record<TNodeKind, string> = {
 export class KindPalette {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
+
+  protected readonly texts = KIND_PALETTE_TEXTS;
 
   protected readonly entries = computed<readonly IKindEntry[]>(() => {
     const counts: Record<TNodeKind, number> = {
@@ -62,7 +61,7 @@ export class KindPalette {
     return ALL_KINDS.map((kind) => ({
       kind,
       icon: KIND_ICON[kind],
-      label: KIND_LABEL[kind],
+      label: KIND_LABELS[kind],
       count: counts[kind],
     }));
   });

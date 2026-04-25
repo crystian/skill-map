@@ -5,7 +5,7 @@
  */
 
 import { Injectable, computed, signal } from '@angular/core';
-import type { TNodeKind, TNodeView, TStability } from '../models/node';
+import type { TNodeKind, INodeView, TStability } from '../models/node';
 
 /**
  * Display order of kinds across the UI (palette, filter-bar dropdown,
@@ -90,7 +90,7 @@ export class FilterStoreService {
    * (1) text search over path / name / description; (2) kind membership;
    * (3) stability membership. Empty filter values are treated as "allow all".
    */
-  apply(nodes: TNodeView[]): TNodeView[] {
+  apply(nodes: INodeView[]): INodeView[] {
     const text = this.searchText().trim().toLowerCase();
     const kinds = this.selectedKinds();
     const stabilities = this.selectedStabilities();
@@ -118,7 +118,7 @@ export class FilterStoreService {
   }
 }
 
-function nodeHasIssues(n: TNodeView): boolean {
+function nodeHasIssues(n: INodeView): boolean {
   const meta = n.frontmatter.metadata;
   if (!meta) return false;
   return meta.stability === 'deprecated' || !!meta.supersededBy;

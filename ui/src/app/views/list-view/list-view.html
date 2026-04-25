@@ -1,12 +1,12 @@
-<section class="list">
+<section class="list" data-testid="list-view">
   <header class="list__header">
     <div>
-      <h2>Nodes</h2>
+      <h2>{{ texts.title }}</h2>
       <p class="list__sub">
         @if (filtersActive()) {
-          Showing <strong>{{ visibleCount() }}</strong> of {{ total() }} nodes.
+          {{ texts.showingPrefix }} <strong>{{ visibleCount() }}</strong>{{ texts.showingSuffix(total()) }}
         } @else {
-          Flat view of the collection · click a row to open the inspector.
+          {{ texts.subtitleDefault }}
         }
       </p>
     </div>
@@ -21,7 +21,7 @@
   @if (loading()) {
     <div class="list__loading">
       <p-progressSpinner strokeWidth="3" />
-      <span>Loading collection…</span>
+      <span>{{ texts.loading }}</span>
     </div>
   } @else if (!error()) {
     <p-table
@@ -32,31 +32,32 @@
       dataKey="path"
       sortMode="single"
       styleClass="p-datatable-sm list__table"
+      data-testid="list-table"
     >
       <ng-template pTemplate="header">
         <tr>
           <th pSortableColumn="kind" style="width: 120px">
-            Kind <p-sortIcon field="kind" />
+            {{ texts.columns.kind }} <p-sortIcon field="kind" />
           </th>
           <th pSortableColumn="name">
-            Name <p-sortIcon field="name" />
+            {{ texts.columns.name }} <p-sortIcon field="name" />
           </th>
           <th pSortableColumn="path">
-            Path <p-sortIcon field="path" />
+            {{ texts.columns.path }} <p-sortIcon field="path" />
           </th>
           <th pSortableColumn="version" style="width: 100px">
-            Version <p-sortIcon field="version" />
+            {{ texts.columns.version }} <p-sortIcon field="version" />
           </th>
           <th pSortableColumn="stability" style="width: 140px">
-            Stability <p-sortIcon field="stability" />
+            {{ texts.columns.stability }} <p-sortIcon field="stability" />
           </th>
           <th pSortableColumn="priority" style="width: 90px">
-            Priority <p-sortIcon field="priority" />
+            {{ texts.columns.priority }} <p-sortIcon field="priority" />
           </th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row>
-        <tr class="list__row" (click)="openInspector(row)">
+        <tr class="list__row" (click)="openInspector(row)" [attr.data-testid]="'list-row-' + row.path">
           <td>
             <p-tag [value]="row.kind" [severity]="kindSeverity(row.kind)" />
           </td>
@@ -75,17 +76,17 @@
               [rounded]="true"
             />
           </td>
-          <td class="list__cell-priority">{{ row.priority ?? '—' }}</td>
+          <td class="list__cell-priority">{{ row.priority ?? texts.missing }}</td>
         </tr>
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
           <td colspan="6" class="list__empty">
             @if (filtersActive()) {
-              <p>No nodes match the current filters.</p>
-              <p-button label="Reset filters" [text]="true" size="small" (onClick)="resetFilters()" />
+              <p data-testid="list-empty-filtered">{{ texts.emptyFiltered }}</p>
+              <p-button [label]="texts.resetFilters" [text]="true" size="small" (onClick)="resetFilters()" data-testid="list-reset-filters" />
             } @else {
-              No nodes loaded.
+              <span data-testid="list-empty-all">{{ texts.emptyAll }}</span>
             }
           </td>
         </tr>

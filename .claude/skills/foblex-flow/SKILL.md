@@ -1,6 +1,6 @@
 ---
 name: foblex-flow
-description: Authoritative guide for working with Foblex Flow (@foblex/flow) in the skill-map UI. Use whenever editing Angular code in ui/ that touches graph rendering — templates with f-flow / f-canvas / f-connection / fNode / fDraggable / fZoom / fMarker directives; TypeScript importing from @foblex/flow (FFlowModule, FCanvasComponent, EFConnectableSide, EFMarkerType, FConnectionMarkerArrow, etc.); CSS targeting .f-* classes or .sm-gnode; angular.json style configuration for the Foblex theme; or any task involving node layout, connector rendering, pan/zoom behavior, edge styling, drag handles, or performance of the graph view. Covers the eight non-negotiable rules learned the hard way, the antipattern checklist, and points at the full API reference for every directive and component.
+description: Authoritative guide for working with Foblex Flow (@foblex/flow) in the skill-map UI. Use whenever editing Angular code in ui/ that touches graph rendering — templates with f-flow / f-canvas / f-connection / fNode / fDraggable / fZoom / fMarker directives; TypeScript importing from @foblex/flow (FFlowModule, FCanvasComponent, EFConnectableSide, EFMarkerType, FConnectionMarkerArrow, etc.); CSS targeting .f-* classes or .sm-gnode; angular.json style configuration for the Foblex theme; or any task involving node layout, connector rendering, pan/zoom behavior, edge styling, drag handles, or performance of the graph view. Covers the nine non-negotiable rules learned the hard way, the antipattern checklist, and points at the full API reference for every directive and component.
 ---
 
 # Foblex Flow — working rules for skill-map
@@ -19,9 +19,9 @@ Foblex Flow (`@foblex/flow`) is the graph library that powers `ui/src/app/views/
 - Connections are **connector-to-connector**, NOT node-to-node. Each edge goes from an `fNodeOutput` (identified by `fOutputId`) to an `fNodeInput` (`fInputId`).
 - Do NOT assume React-Flow-style APIs (`[nodes]`, `[edges]`, `setNodes()`, `addEdge()`). Those do not exist.
 
-## The eight non-negotiables
+## The nine non-negotiables
 
-Skipping any of these produces silent failures: missing visuals, degraded performance, or wrong positioning. All eight were learned the hard way — do not relitigate them, apply them.
+Skipping any of these produces silent failures: missing visuals, degraded performance, or wrong positioning. All nine were learned the hard way — do not relitigate them, apply them.
 
 ### 1. Unique connector IDs per direction
 
@@ -210,6 +210,53 @@ When the directives sit on the card itself, the card IS the connector — connec
 
 If you're tempted to delete CSS rules positioning `[fNodeInput]` / `[fNodeOutput]` because "Foblex's `_socket-frame` covers it" — stop. The socket is positioned `absolute` but with no offsets; you own the offsets.
 
+### 9. Foblex's drag directives consume `pointerup` — use `mouseup` for drag-end detection
+
+`fDragHandle` and `fDraggable` capture the pointer for the drag lifecycle (likely via `setPointerCapture` + propagation handling). A `pointerup` listener registered on `document` — even with `{ capture: true, once: true }` and a `queueMicrotask` defer — does NOT reliably fire when a node drag ends. The event is consumed or rerouted internally before reaching the handler.
+
+Symptom: you wire a `pointerdown` → `pointerup` pair on `document` to detect "drag ended" (e.g. to flush a buffer or persist final positions to localStorage), it works in isolation but never fires after a `[fNode]` drag. State silently never updates.
+
+**Fix**: listen on `mouseup` instead. The browser fires both pointer and mouse events for the same physical interaction; Foblex intercepts pointer events but not mouse events. The middle-mouse pan in `graph-view.ts` (`onCanvasMouseDown` → `document.addEventListener('mouseup', …)`) has used this approach since day one — that was the hint.
+
+```ts
+onNodePointerDown(event: PointerEvent): void {
+  this.pointerDownAt = { x: event.clientX, y: event.clientY };
+  document.addEventListener('mouseup', this.onNodeMouseUp, { once: true });
+}
+
+private dragInProgress = false;
+private dragBuffer: TNodePositions | null = null;
+
+private readonly onNodeMouseUp = (): void => {
+  // Defer one microtask so any final fNodePositionChange Foblex emits
+  // synchronously around the up event lands in the buffer first.
+  queueMicrotask(() => {
+    if (!this.dragInProgress) { this.dragBuffer = null; return; }
+    this.dragInProgress = false;
+    if (this.dragBuffer) this.nodePositions.set(this.dragBuffer);
+    this.dragBuffer = null;
+    writeStoredNodePositions(this.nodePositions());
+  });
+};
+
+onNodePositionChange(id: string, position: IPoint): void {
+  // Buffer in a non-signal field. Writing the signal here would
+  // invalidate the `graph` computed and force a full @for diff over
+  // nodes/edges 60–120×/sec for nothing — Foblex already updates the
+  // dragged node's DOM transform internally during drag.
+  if (!this.dragBuffer) this.dragBuffer = { ...this.nodePositions() };
+  this.dragBuffer[id] = { x: position.x, y: position.y };
+  this.dragInProgress = true;
+}
+```
+
+Two reinforcing perf wins land in this pattern, both hidden by a 120 fps rAF reading:
+
+1. **Single signal write at drag-end** — not 60–120/sec during drag. Eliminates the `graph` computed invalidation cascade through the @for over nodes and edges.
+2. **Single localStorage I/O at drag-end** — sync `setItem` calls during drag pile up as 1–5 ms stalls each (more on slow disks). The avg fps stays high but every frame during drag has a stall, producing perceivable jank.
+
+If you reach for `pointerup` thinking it is the "modern pointer event API", read this rule first.
+
 ## Antipattern checklist
 
 If you catch yourself typing any of these, stop and re-read the rule in parentheses:
@@ -229,6 +276,9 @@ If you catch yourself typing any of these, stop and re-read the rule in parenthe
 - Wrapping the `<div fNode>` inner DOM in a shared `<ng-template>` and projecting it with `<ng-container *ngTemplateOutlet>` for DRY-ness — Foblex's content queries on `[fNode]` don't reach into embedded views, so connectors disappear and every node renders at `(0,0)` in a redraw loop. Duplicate the markup in each branch instead (see "Performance levers from the stress-test example")
 - Adding `<f-background>` and seeing the grid only at the edges (centre is solid colour) — `<f-canvas>` paints `--ff-canvas-background-color` opaque on top of the background layer. Override it to `transparent` at your wrapper (see "Background grid" canonical pattern)
 - Painting an `:hover` / `:focus` outline using `border-color` change on `[fNode]` cards while a sibling-class state (`.sm-gnode--selected` / `.sm-gnode--highlighted`) sets the same property — the cascade fights between user gestures and selection state. Keep gesture state on a different property (`box-shadow`) so the two layers compose instead of conflict
+- `document.addEventListener('pointerup', …)` to detect the end of a `[fNode]` drag — `fDragHandle` consumes pointerup; the listener never fires. Use `mouseup` instead (rule 9)
+- Writing to a signal that feeds the `graph` computed (typically `nodePositions`) on every `(fNodePositionChange)` — invalidates the @for over nodes/edges 60–120×/sec. Buffer the position in a non-signal field and flush once at `mouseup` (rule 9)
+- Calling `localStorage.setItem` (or any sync I/O) from inside `(fNodePositionChange)` — sync writes during drag stall the main thread per frame and produce visible jank even when rAF reads 120 fps. Defer to the `mouseup` flush (rule 9)
 
 ## Canonical patterns
 
@@ -505,4 +555,6 @@ In order of likelihood:
 10. **All nodes pile up at canvas origin (0,0), canvas is mostly blank with only shadows, and the tab keeps redrawing** → the inner DOM of `[fNode]` was extracted to an `<ng-template>` and reused via `<ng-container *ngTemplateOutlet>`. Angular content queries don't cross into embedded views, so Foblex sees no `fNodeInput` / `fNodeOutput`, geometry never resolves, redraw runs forever. Duplicate the markup inline in each branch instead.
 11. **Background grid renders only at the edges of the canvas wrap; centre region around the nodes is solid colour** → `<f-canvas>` is opaque (`--ff-canvas-background-color`) and covers `<f-background>` underneath. Override the canvas background to `transparent` at the wrapper (see "Background grid" canonical pattern).
 12. **Filtering changes the layout — unmoved nodes jump and the viewport re-fits** → dagre is being run over the filtered subset on every change. Run dagre once over the FULL collection (cached `computed`) and only project to `visibleIds` at render time. Do not call `fitToScreen` from a filter-change effect; restrict it to the first render only and let the user use the explicit "Fit" toolbar button afterwards.
-13. **Anything else** → open the matching file under [`references/examples/`](references/examples/) and diff our shape against the canonical one. If our code does not match, align it before inventing a workaround.
+13. **Drag a node, release, refresh — the node is back at its previous position; pointerup-based persistence "just doesn't fire"** → `fDragHandle` consumes `pointerup` (rule 9). Switch the document listener to `mouseup`. Same fix applies to any one-off post-drag side effect (analytics, undo snapshot, etc.).
+14. **Drag feels choppy even though the perf HUD reads 120 fps** → state is being written on every `(fNodePositionChange)`. Two compounding causes: (a) signal write invalidates the `graph` computed → @for diff over all nodes/edges 60–120×/sec; (b) sync `localStorage.setItem` per move adds 1–5 ms stalls per frame. Buffer the position in a non-signal field, flush at `mouseup` (rule 9).
+15. **Anything else** → open the matching file under [`references/examples/`](references/examples/) and diff our shape against the canonical one. If our code does not match, align it before inventing a workaround.

@@ -11,6 +11,10 @@ import {
   signal,
   viewChild,
 } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { ToggleButtonModule } from 'primeng/togglebutton';
+
+import { PERF_HUD_TEXTS } from '../../../i18n/perf-hud.texts';
 
 /** Max samples retained for the FPS sparkline (one sample per second). */
 const SPARKLINE_SAMPLES = 30;
@@ -32,7 +36,7 @@ const SPARKLINE_H = 14;
  */
 @Component({
   selector: 'app-perf-hud',
-  standalone: true,
+  imports: [FormsModule, ToggleButtonModule],
   templateUrl: './perf-hud.html',
   styleUrl: './perf-hud.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -46,6 +50,8 @@ export class PerfHud {
   readonly edges = input<number>(0);
   /** `performance.now()` timestamp of the last full layout compute. */
   readonly cacheAt = input<number | null>(null);
+
+  protected readonly texts = PERF_HUD_TEXTS;
 
   private readonly destroyRef = inject(DestroyRef);
   private readonly zone = inject(NgZone);
@@ -142,9 +148,9 @@ export class PerfHud {
     });
   }
 
-  toggle(): void {
-    this.expanded.update((v) => !v);
-    writeStoredExpanded(this.expanded());
+  setExpanded(value: boolean): void {
+    this.expanded.set(value);
+    writeStoredExpanded(value);
   }
 }
 

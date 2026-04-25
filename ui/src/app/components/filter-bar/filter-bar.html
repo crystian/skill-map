@@ -1,12 +1,13 @@
-<div class="filter-bar">
+<div class="filter-bar" data-testid="filter-bar">
   <p-iconfield iconPosition="left" class="filter-bar__search">
     <p-inputicon styleClass="pi pi-search" />
     <input
       pInputText
       type="text"
-      placeholder="Search path, name, description…"
+      [placeholder]="texts.searchPlaceholder"
       [ngModel]="searchText()"
       (ngModelChange)="onSearchChange($event)"
+      data-testid="filter-search"
     />
   </p-iconfield>
 
@@ -17,11 +18,12 @@
       (ngModelChange)="onKindsChange($event)"
       optionLabel="label"
       optionValue="value"
-      placeholder="All kinds"
+      [placeholder]="texts.allKindsPlaceholder"
       display="chip"
       styleClass="filter-bar__ms"
       [showToggleAll]="false"
       [filter]="false"
+      data-testid="filter-kinds"
     />
   }
 
@@ -31,30 +33,33 @@
     (ngModelChange)="onStabilitiesChange($event)"
     optionLabel="label"
     optionValue="value"
-    placeholder="All stabilities"
+    [placeholder]="texts.allStabilitiesPlaceholder"
     display="chip"
     styleClass="filter-bar__ms"
     [showToggleAll]="false"
     [filter]="false"
+    data-testid="filter-stabilities"
   />
 
   <p-togglebutton
     [ngModel]="hasIssuesOnly()"
     (ngModelChange)="onIssuesToggle($event)"
-    onLabel="Has issues"
-    offLabel="Has issues"
+    [onLabel]="texts.hasIssues"
+    [offLabel]="texts.hasIssues"
     onIcon="pi pi-exclamation-triangle"
     offIcon="pi pi-exclamation-triangle"
     styleClass="filter-bar__toggle"
+    data-testid="filter-has-issues"
   />
 
   @if (isActive()) {
     <p-button
-      label="Reset"
+      [label]="texts.reset"
       severity="secondary"
       [text]="true"
       size="small"
       (onClick)="reset()"
+      data-testid="filter-reset"
     />
   }
 </div>

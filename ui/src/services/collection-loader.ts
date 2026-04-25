@@ -12,11 +12,13 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { load as parseYaml } from 'js-yaml';
 import { firstValueFrom } from 'rxjs';
+
+import { COLLECTION_LOADER_TEXTS } from '../i18n/collection-loader.texts';
 import type {
   IMockIndex,
   TFrontmatter,
   TNodeKind,
-  TNodeView,
+  INodeView,
 } from '../models/node';
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
@@ -26,7 +28,7 @@ const MOCK_BASE = '/mock-collection';
 export class CollectionLoaderService {
   private readonly http = inject(HttpClient);
 
-  private readonly _nodes = signal<TNodeView[]>([]);
+  private readonly _nodes = signal<INodeView[]>([]);
   private readonly _loading = signal<boolean>(false);
   private readonly _error = signal<string | null>(null);
 
@@ -36,7 +38,7 @@ export class CollectionLoaderService {
 
   readonly count = computed(() => this._nodes().length);
   readonly byKind = computed(() => {
-    const buckets: Record<TNodeKind, TNodeView[]> = {
+    const buckets: Record<TNodeKind, INodeView[]> = {
       skill: [],
       agent: [],
       command: [],
@@ -60,7 +62,7 @@ export class CollectionLoaderService {
       const files = await Promise.all(
         index.paths.map((p) => this.fetchOne(p)),
       );
-      this._nodes.set(files.filter((n): n is TNodeView => n !== null));
+      this._nodes.set(files.filter((n): n is INodeView => n !== null));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error.set(msg);
@@ -69,14 +71,14 @@ export class CollectionLoaderService {
     }
   }
 
-  private async fetchOne(relPath: string): Promise<TNodeView | null> {
+  private async fetchOne(relPath: string): Promise<INodeView | null> {
     const url = `${MOCK_BASE}/${relPath}`;
     const raw = await firstValueFrom(
       this.http.get(url, { responseType: 'text' }),
     );
     const parsed = this.parseFrontmatter(raw);
     if (!parsed) {
-      console.warn(`[collection-loader] no frontmatter in ${relPath}`);
+      console.warn(COLLECTION_LOADER_TEXTS.warnNoFrontmatter(relPath));
       return null;
     }
     return {
@@ -98,7 +100,7 @@ export class CollectionLoaderService {
       const fm = parseYaml(match[1]) as TFrontmatter;
       return { frontmatter: fm, body: match[2] };
     } catch (err) {
-      console.warn('[collection-loader] yaml parse failed', err);
+      console.warn(COLLECTION_LOADER_TEXTS.warnYamlParseFailed, err);
       return null;
     }
   }

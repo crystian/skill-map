@@ -1,31 +1,33 @@
-<button
-  type="button"
-  class="perf-hud"
-  [attr.aria-label]="expanded() ? 'Collapse performance HUD' : 'Expand performance HUD'"
-  [attr.aria-expanded]="expanded()"
-  (click)="toggle()"
+<p-togglebutton
+  [ngModel]="expanded()"
+  (ngModelChange)="setExpanded($event)"
+  [ariaLabel]="expanded() ? texts.a11y.collapse : texts.a11y.expand"
+  styleClass="perf-hud"
+  data-testid="perf-hud"
 >
-  <span class="perf-hud__cell">{{ fps() }} fps</span>
+  <ng-template #content>
+    <span class="perf-hud__cell">{{ texts.units.fps(fps()) }}</span>
 
-  @if (expanded()) {
-    <canvas #sparkline class="perf-hud__sparkline" aria-hidden="true"></canvas>
-    <span class="perf-hud__sep" aria-hidden="true">·</span>
-    <span class="perf-hud__cell">{{ frameTimeMs() }}ms</span>
-    @if (hasHeap()) {
+    @if (expanded()) {
+      <canvas #sparkline class="perf-hud__sparkline" aria-hidden="true"></canvas>
       <span class="perf-hud__sep" aria-hidden="true">·</span>
-      <span class="perf-hud__cell">{{ heapMb() }} MB</span>
-    }
-    <span class="perf-hud__sep" aria-hidden="true">·</span>
-    <span class="perf-hud__cell">{{ longTasks() }} long</span>
-    <span class="perf-hud__sep" aria-hidden="true">·</span>
-    <span class="perf-hud__cell">{{ domNodes() }} dom</span>
-    <span class="perf-hud__sep" aria-hidden="true">·</span>
-    <span class="perf-hud__cell">{{ visible() }}/{{ total() }} nodes</span>
-    <span class="perf-hud__sep" aria-hidden="true">·</span>
-    <span class="perf-hud__cell">{{ edges() }} edges</span>
-    @if (cacheAgeSec() !== null) {
+      <span class="perf-hud__cell">{{ texts.units.ms(frameTimeMs()) }}</span>
+      @if (hasHeap()) {
+        <span class="perf-hud__sep" aria-hidden="true">·</span>
+        <span class="perf-hud__cell">{{ texts.units.mb(heapMb()!) }}</span>
+      }
       <span class="perf-hud__sep" aria-hidden="true">·</span>
-      <span class="perf-hud__cell">cache {{ cacheAgeSec() }}s</span>
+      <span class="perf-hud__cell">{{ texts.units.longTasks(longTasks()) }}</span>
+      <span class="perf-hud__sep" aria-hidden="true">·</span>
+      <span class="perf-hud__cell">{{ texts.units.domNodes(domNodes()) }}</span>
+      <span class="perf-hud__sep" aria-hidden="true">·</span>
+      <span class="perf-hud__cell">{{ texts.units.nodes(visible(), total()) }}</span>
+      <span class="perf-hud__sep" aria-hidden="true">·</span>
+      <span class="perf-hud__cell">{{ texts.units.edges(edges()) }}</span>
+      @if (cacheAgeSec() !== null) {
+        <span class="perf-hud__sep" aria-hidden="true">·</span>
+        <span class="perf-hud__cell">{{ texts.units.cacheAge(cacheAgeSec()!) }}</span>
+      }
     }
-  }
-</button>
+  </ng-template>
+</p-togglebutton>

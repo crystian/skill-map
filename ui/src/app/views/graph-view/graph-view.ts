@@ -11,6 +11,8 @@ import {
   viewChild,
 } from '@angular/core';
 import { Router } from '@angular/router';
+import { ButtonModule } from 'primeng/button';
+import { TooltipModule } from 'primeng/tooltip';
 import {
   FCanvasComponent,
   FFlowModule,
@@ -22,6 +24,8 @@ import {
 } from '@foblex/flow';
 import { graphlib, layout as dagreLayout } from '@dagrejs/dagre';
 
+import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
+import { THEME_TEXTS } from '../../../i18n/theme.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -32,7 +36,7 @@ import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
 import type {
   TNodeKind,
-  TNodeView,
+  INodeView,
   IFrontmatterAgent,
   IFrontmatterCommand,
   IFrontmatterHook,
@@ -89,8 +93,7 @@ type TNodePositions = Record<string, IPoint>;
 
 @Component({
   selector: 'app-graph-view',
-  standalone: true,
-  imports: [FilterBar, FFlowModule, FVirtualFor, KindPalette, PerfHud],
+  imports: [FilterBar, FFlowModule, FVirtualFor, KindPalette, PerfHud, ButtonModule, TooltipModule],
   templateUrl: './graph-view.html',
   styleUrl: './graph-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -131,12 +134,14 @@ export class GraphView implements OnInit, OnDestroy {
   protected readonly canZoomIn = computed(() => this.scale() < ZOOM_MAX - 1e-6);
   protected readonly canZoomOut = computed(() => this.scale() > ZOOM_MIN + 1e-6);
 
+  protected readonly texts = GRAPH_VIEW_TEXTS;
+
   protected readonly themeMode = this.theme.mode;
   protected readonly themeIcon = computed(() =>
     this.themeMode() === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
   );
   protected readonly themeLabel = computed(() =>
-    this.themeMode() === 'dark' ? 'Switch to light theme' : 'Switch to dark theme',
+    this.themeMode() === 'dark' ? THEME_TEXTS.toggleToLight : THEME_TEXTS.toggleToDark,
   );
 
   private middlePanOrigin: { mouseX: number; mouseY: number; canvasX: number; canvasY: number } | null = null;
@@ -246,11 +251,15 @@ export class GraphView implements OnInit, OnDestroy {
   }
 
   onNodePositionChange(id: string, position: IPoint): void {
-    this.nodePositions.update((current) => ({
-      ...current,
-      [id]: { x: position.x, y: position.y },
-    }));
-    writeStoredNodePositions(this.nodePositions());
+    // During drag, accumulate positions in a non-signal buffer. Writing
+    // to `nodePositions` here would invalidate the `graph` computed
+    // (which projects positions into the @for) on every move, forcing
+    // Angular to reconcile all node + edge bindings 60–120×/sec — pure
+    // overhead since Foblex already manages the dragged node's DOM
+    // transform internally. We flush the buffer once at pointerup.
+    if (!this.dragBuffer) this.dragBuffer = { ...this.nodePositions() };
+    this.dragBuffer[id] = { x: position.x, y: position.y };
+    this.nodeDragInProgress = true;
   }
 
   zoomIn(): void {
@@ -274,9 +283,7 @@ export class GraphView implements OnInit, OnDestroy {
       this.canvas()?.fitToScreen({ x: 40, y: 40 }, true);
       return;
     }
-    const ok = window.confirm(
-      'Reset all node positions to the automatic layout? This cannot be undone.',
-    );
+    const ok = window.confirm(GRAPH_VIEW_TEXTS.resetLayoutConfirm);
     if (!ok) return;
     this.nodePositions.set({});
     try {
@@ -303,18 +310,34 @@ export class GraphView implements OnInit, OnDestroy {
     document.addEventListener('mouseup', this.onMiddlePanEnd);
   }
 
+  private middlePanRafId: number | null = null;
+  private pendingPanPosition: IPoint | null = null;
+
   private readonly onMiddlePanMove = (event: MouseEvent): void => {
     if (!this.middlePanOrigin) return;
-    const canvas = this.canvas();
-    if (!canvas) return;
-    canvas.setPosition({
+    // High-polling mice fire mousemove 500–1000×/sec. setPosition needs a
+    // matching canvas.redraw() to flush to the DOM, but redrawing per
+    // event is wasteful — coalesce into one redraw per animation frame.
+    this.pendingPanPosition = {
       x: this.middlePanOrigin.canvasX + (event.clientX - this.middlePanOrigin.mouseX),
       y: this.middlePanOrigin.canvasY + (event.clientY - this.middlePanOrigin.mouseY),
+    };
+    if (this.middlePanRafId !== null) return;
+    this.middlePanRafId = requestAnimationFrame(() => {
+      this.middlePanRafId = null;
+      const canvas = this.canvas();
+      if (!canvas || !this.pendingPanPosition) return;
+      canvas.setPosition(this.pendingPanPosition);
+      canvas.redraw();
     });
-    canvas.redraw();
   };
 
   private readonly onMiddlePanEnd = (): void => {
+    if (this.middlePanRafId !== null) {
+      cancelAnimationFrame(this.middlePanRafId);
+      this.middlePanRafId = null;
+    }
+    this.pendingPanPosition = null;
     this.middlePanOrigin = null;
     document.removeEventListener('mousemove', this.onMiddlePanMove);
     document.removeEventListener('mouseup', this.onMiddlePanEnd);
@@ -327,7 +350,32 @@ export class GraphView implements OnInit, OnDestroy {
 
   onNodePointerDown(event: PointerEvent): void {
     this.pointerDownAt = { x: event.clientX, y: event.clientY };
+    // Defer localStorage persistence + signal flush to mouseup. Foblex
+    // intercepts pointer events via fDragHandle, so listening on
+    // `mouseup` (the same channel the existing middle-mouse pan uses
+    // successfully on `document`) is the reliable path. `queueMicrotask`
+    // inside the handler defers the flush until after any final
+    // fNodePositionChange that Foblex may emit synchronously.
+    document.addEventListener('mouseup', this.onNodeMouseUp, { once: true });
   }
+
+  private nodeDragInProgress = false;
+  private dragBuffer: TNodePositions | null = null;
+
+  private readonly onNodeMouseUp = (): void => {
+    queueMicrotask(() => {
+      if (!this.nodeDragInProgress) {
+        this.dragBuffer = null;
+        return;
+      }
+      this.nodeDragInProgress = false;
+      if (this.dragBuffer) {
+        this.nodePositions.set(this.dragBuffer);
+        this.dragBuffer = null;
+      }
+      writeStoredNodePositions(this.nodePositions());
+    });
+  };
 
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.isClickWithoutDrag(event)) return;
@@ -398,7 +446,7 @@ export class GraphView implements OnInit, OnDestroy {
 
 interface IFullLayout {
   /** Node views indexed by path — handy to project without re-iterating. */
-  nodesByPath: Map<string, TNodeView>;
+  nodesByPath: Map<string, INodeView>;
   /** Deduped, valid edges (both endpoints present in the loaded set). */
   edges: IGraphEdge[];
   /** Dagre-computed top-left positions for every loaded node. */
@@ -412,7 +460,7 @@ interface IFullLayout {
  * reused as the user filters — see `fullLayout` computed in GraphView.
  * Filters never trigger a re-layout, so unmoved nodes never jump.
  */
-function computeFullLayout(allNodes: TNodeView[]): IFullLayout {
+function computeFullLayout(allNodes: INodeView[]): IFullLayout {
   const loadedIds = new Set(allNodes.map((n) => n.path));
   const edges: IGraphEdge[] = [];
 
@@ -470,7 +518,7 @@ function computeFullLayout(allNodes: TNodeView[]): IFullLayout {
     });
   }
 
-  const nodesByPath = new Map<string, TNodeView>();
+  const nodesByPath = new Map<string, INodeView>();
   for (const n of allNodes) nodesByPath.set(n.path, n);
 
   return { nodesByPath, edges: uniqueEdges, positions, computedAt: performance.now() };
@@ -597,7 +645,7 @@ function edgeId(prefix: string, from: string, to: string): string {
   return `${prefix}:${a}::${b}`;
 }
 
-function nodeSubtitle(n: TNodeView): string | null {
+function nodeSubtitle(n: INodeView): string | null {
   switch (n.kind) {
     case 'agent':
       return (n.frontmatter as IFrontmatterAgent).model ?? null;

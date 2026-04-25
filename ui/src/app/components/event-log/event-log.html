@@ -1,31 +1,43 @@
-<aside class="eventlog" [class.is-expanded]="expanded()">
-  <button type="button" class="eventlog__handle" (click)="toggle()" [attr.aria-expanded]="expanded()">
-    <span class="pi" [class.pi-chevron-down]="expanded()" [class.pi-chevron-up]="!expanded()"></span>
-    <strong>Events</strong>
-    <span class="eventlog__count">{{ count() }}</span>
-    @if (scanRunning()) {
-      <span class="eventlog__live">
-        <span class="dot"></span> scanning
-      </span>
-    }
-    <span class="eventlog__spacer"></span>
+<aside class="eventlog" [class.is-expanded]="expanded()" data-testid="event-log">
+  <header class="eventlog__handle-row">
+    <p-togglebutton
+      [ngModel]="expanded()"
+      (ngModelChange)="setExpanded($event)"
+      [ariaLabel]="expanded() ? texts.a11y.collapse : texts.a11y.expand"
+      styleClass="eventlog__handle"
+      data-testid="event-log-handle"
+    >
+      <ng-template #content>
+        <span class="pi" [class.pi-chevron-down]="expanded()" [class.pi-chevron-up]="!expanded()"></span>
+        <strong>{{ texts.title }}</strong>
+        <span class="eventlog__count">{{ count() }}</span>
+        @if (scanRunning()) {
+          <span class="eventlog__live">
+            <span class="dot"></span> {{ texts.scanning }}
+          </span>
+        }
+      </ng-template>
+    </p-togglebutton>
+
     @if (expanded() && count() > 0) {
-      <span
-        class="eventlog__clear"
-        role="button"
-        tabindex="0"
-        (click)="$event.stopPropagation(); clear()"
-        (keydown.enter)="$event.stopPropagation(); clear()"
-      >Clear</span>
+      <p-button
+        [label]="texts.clear"
+        severity="secondary"
+        [text]="true"
+        size="small"
+        styleClass="eventlog__clear"
+        (onClick)="clear()"
+        data-testid="event-log-clear"
+      />
     }
-  </button>
+  </header>
 
   @if (expanded()) {
     <div class="eventlog__body" #scroll>
       @if (recent().length === 0) {
         <div class="eventlog__empty-state">
           <span class="pi pi-inbox"></span>
-          No events yet — trigger a scan from the topbar.
+          {{ texts.emptyState }}
         </div>
       } @else {
         @for (e of recent(); track e.id) {

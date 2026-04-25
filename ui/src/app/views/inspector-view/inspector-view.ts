@@ -6,6 +6,7 @@ import { CardModule } from 'primeng/card';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
+import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { EventBusService } from '../../../services/event-bus';
 import type {
@@ -14,7 +15,7 @@ import type {
   IFrontmatterHook,
   IFrontmatterSkill,
   TNodeKind,
-  TNodeView,
+  INodeView,
   TStability,
 } from '../../../models/node';
 
@@ -34,7 +35,6 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
 
 @Component({
   selector: 'app-inspector-view',
-  standalone: true,
   imports: [RouterLink, TagModule, ChipModule, CardModule, ButtonModule, TooltipModule],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
@@ -45,12 +45,21 @@ export class InspectorView implements OnInit {
   private readonly router = inject(Router);
   private readonly bus = inject(EventBusService);
 
+  protected readonly texts = INSPECTOR_VIEW_TEXTS;
+
   readonly path = input<string | undefined>(undefined);
 
-  readonly node = computed<TNodeView | null>(() => {
+  readonly node = computed<INodeView | null>(() => {
     const path = this.path();
     if (!path) return null;
     return this.loader.nodes().find((n) => n.path === path) ?? null;
+  });
+
+  /** O(1) path lookup, rebuilt only when the loaded nodes change. */
+  private readonly pathSet = computed<ReadonlySet<string>>(() => {
+    const set = new Set<string>();
+    for (const n of this.loader.nodes()) set.add(n.path);
+    return set;
   });
 
   readonly asAgent = computed<IFrontmatterAgent | null>(() =>
@@ -85,7 +94,7 @@ export class InspectorView implements OnInit {
   }
 
   pathExists(path: string): boolean {
-    return this.loader.nodes().some((n) => n.path === path);
+    return this.pathSet().has(path);
   }
 
   triggerDet(): void {
@@ -95,7 +104,7 @@ export class InspectorView implements OnInit {
       family: 'scan',
       name: 'scan.progress',
       severity: 'info',
-      message: `[det] Re-scanning ${n.path}`,
+      message: INSPECTOR_VIEW_TEXTS.events.detProgress(n.path),
       data: { path: n.path, kind: n.kind },
     });
     setTimeout(() => {
@@ -103,7 +112,7 @@ export class InspectorView implements OnInit {
         family: 'scan',
         name: 'scan.completed',
         severity: 'success',
-        message: `[det] ${n.path} — deterministic refresh done.`,
+        message: INSPECTOR_VIEW_TEXTS.events.detCompleted(n.path),
         data: { path: n.path },
       });
     }, 300);
@@ -116,7 +125,7 @@ export class InspectorView implements OnInit {
       family: 'job',
       name: 'job.submitted',
       severity: 'info',
-      message: `[prob] Submitted ${n.kind}-summarizer for ${n.path}`,
+      message: INSPECTOR_VIEW_TEXTS.events.probSubmitted(n.kind, n.path),
       data: { path: n.path, kind: n.kind, action: `${n.kind}-summarizer` },
     });
     setTimeout(() => {
@@ -124,7 +133,7 @@ export class InspectorView implements OnInit {
         family: 'job',
         name: 'job.completed',
         severity: 'success',
-        message: `[prob] ${n.kind}-summarizer completed for ${n.path}`,
+        message: INSPECTOR_VIEW_TEXTS.events.probCompleted(n.kind, n.path),
         data: { path: n.path },
       });
     }, 1500);

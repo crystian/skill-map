@@ -8,6 +8,8 @@
  */
 
 import { Injectable, inject, signal } from '@angular/core';
+
+import { SCAN_SIMULATOR_TEXTS } from '../i18n/scan-simulator.texts';
 import { CollectionLoaderService } from './collection-loader';
 import { EventBusService } from './event-bus';
 
@@ -31,7 +33,7 @@ export class ScanSimulatorService {
       family: 'scan',
       name: 'scan.started',
       severity: 'info',
-      message: `Scanning ${total} nodes…`,
+      message: SCAN_SIMULATOR_TEXTS.scanStarted(total),
       data: { total, scope: 'mock-collection' },
     });
 
@@ -42,7 +44,7 @@ export class ScanSimulatorService {
         family: 'scan',
         name: 'scan.progress',
         severity: 'info',
-        message: `[${i + 1}/${total}] ${n.path}`,
+        message: SCAN_SIMULATOR_TEXTS.scanProgress(i + 1, total, n.path),
         data: { index: i + 1, total, path: n.path, kind: n.kind },
       });
 
@@ -53,7 +55,7 @@ export class ScanSimulatorService {
           family: 'issue',
           name: 'issue.added',
           severity: 'warn',
-          message: `Deprecated: ${n.path}`,
+          message: SCAN_SIMULATOR_TEXTS.issueDeprecated(n.path),
           data: {
             path: n.path,
             ruleId: 'deprecated-node',
@@ -69,7 +71,7 @@ export class ScanSimulatorService {
       family: 'scan',
       name: 'scan.completed',
       severity: 'success',
-      message: `Scan completed in ${(durationMs / 1000).toFixed(1)}s — ${total} nodes.`,
+      message: SCAN_SIMULATOR_TEXTS.scanCompleted((durationMs / 1000).toFixed(1), total),
       data: { total, durationMs },
     });
 

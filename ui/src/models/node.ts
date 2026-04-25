@@ -7,7 +7,7 @@
  * because the mock collection is the only consumer and the schemas are small.
  *
  * DO NOT extend these with ui-specific fields. Keep the shapes as pure
- * reflections of the spec; put ui state on `TNodeView` below.
+ * reflections of the spec; put ui state on `INodeView` below.
  */
 
 export type TNodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
@@ -110,7 +110,7 @@ export type TFrontmatter =
  * (path, body, derived kind). This is the type stored in the in-memory
  * collection and passed to views.
  */
-export interface TNodeView {
+export interface INodeView {
   path: string;
   kind: TNodeKind;
   frontmatter: TFrontmatter;

@@ -6,27 +6,34 @@
   pointer-events: none;
 }
 
+/* The togglebutton host gets the `perf-hud` class via `styleClass`. Tokens
+   keep the same visual regardless of `checked` state — here "checked"
+   means "expanded" (content changes, chrome stays). */
 .perf-hud {
   pointer-events: auto;
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.25rem 0.7rem;
-  border: 1px solid var(--sm-border);
-  border-radius: 999px;
-  background: var(--sm-bg-content);
-  color: var(--p-text-muted-color);
+
+  --p-togglebutton-padding: 0;
+  --p-togglebutton-content-padding: 0.25rem 0.7rem;
+  --p-togglebutton-border-radius: 999px;
+  --p-togglebutton-content-border-radius: 999px;
+  --p-togglebutton-gap: 0.4rem;
+  --p-togglebutton-background: var(--sm-bg-content);
+  --p-togglebutton-checked-background: var(--sm-bg-content);
+  --p-togglebutton-hover-background: var(--sm-bg-content);
+  --p-togglebutton-border-color: var(--sm-border);
+  --p-togglebutton-checked-border-color: var(--sm-border);
+  --p-togglebutton-content-checked-background: transparent;
+  --p-togglebutton-color: var(--p-text-muted-color);
+  --p-togglebutton-hover-color: var(--p-text-color);
+  --p-togglebutton-checked-color: var(--p-text-muted-color);
+
   box-shadow: var(--sm-shadow-floating);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.7rem;
   font-weight: 500;
   /* Match the sparkline canvas height (14px) so collapsed and expanded
-     states render the pill at the same total height. Without this, the
-     14px canvas pulls the expanded pill ~3px taller than the text-only
-     collapsed one. */
+     states render the pill at the same total height. */
   line-height: 14px;
-  cursor: pointer;
   opacity: 0.75;
   transition:
     opacity 0.15s ease,
@@ -35,7 +42,13 @@
 
 .perf-hud:hover {
   opacity: 1;
-  color: var(--p-text-color);
+}
+
+/* Projected children land inside the togglebutton's content span. */
+:host ::ng-deep .perf-hud .p-togglebutton-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .perf-hud__cell {

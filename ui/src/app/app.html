@@ -1,22 +1,22 @@
-<div class="shell">
-  <header class="shell__topbar">
+<div class="shell" data-testid="shell">
+  <header class="shell__topbar" data-testid="shell-topbar">
     <div class="shell__brand">
       <span class="shell__brand-mark">sm</span>
       <div>
-        <h1>skill-map</h1>
-        <p class="shell__tag">ui prototype · Step 3</p>
+        <h1>{{ texts.brand }}</h1>
+        <p class="shell__tag">{{ texts.tag }}</p>
       </div>
     </div>
 
-    <nav class="shell__nav" aria-label="View switcher">
-      <a routerLink="/list" routerLinkActive="is-active">List</a>
-      <a routerLink="/graph" routerLinkActive="is-active">Graph</a>
-      <a routerLink="/inspector" routerLinkActive="is-active">Inspector</a>
+    <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
+      <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
+      <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
+      <a routerLink="/inspector" routerLinkActive="is-active" data-testid="nav-inspector">{{ texts.nav.inspector }}</a>
     </nav>
 
     <div class="shell__actions">
       <p-button
-        label="Simulate scan"
+        [label]="texts.actions.simulateScan"
         icon="pi pi-play"
         severity="secondary"
         [outlined]="true"
@@ -24,6 +24,7 @@
         [disabled]="scanRunning()"
         [loading]="scanRunning()"
         (onClick)="simulateScan()"
+        data-testid="action-simulate-scan"
       />
       <p-button
         [icon]="themeIcon()"
@@ -33,9 +34,10 @@
         [rounded]="true"
         size="small"
         (onClick)="toggleTheme()"
+        data-testid="action-theme-toggle"
       />
-      <div class="shell__badge" aria-live="polite">
-        <strong>{{ count() }}</strong> nodes
+      <div class="shell__badge" aria-live="polite" data-testid="shell-nodes-badge">
+        <strong>{{ count() }}</strong> {{ texts.badge.nodes }}
       </div>
     </div>
   </header>

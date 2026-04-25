@@ -7,6 +7,9 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { ButtonModule } from 'primeng/button';
 import { ToggleButtonModule } from 'primeng/togglebutton';
 
+import { FILTER_BAR_TEXTS } from '../../../i18n/filter-bar.texts';
+import { KIND_LABELS } from '../../../i18n/kinds.texts';
+import { STABILITY_LABELS } from '../../../i18n/stabilities.texts';
 import {
   ALL_KINDS,
   ALL_STABILITIES,
@@ -16,7 +19,6 @@ import type { TNodeKind, TStability } from '../../../models/node';
 
 @Component({
   selector: 'app-filter-bar',
-  standalone: true,
   imports: [
     FormsModule,
     IconFieldModule,
@@ -33,6 +35,8 @@ import type { TNodeKind, TStability } from '../../../models/node';
 export class FilterBar {
   private readonly store = inject(FilterStoreService);
 
+  protected readonly texts = FILTER_BAR_TEXTS;
+
   /**
    * Hide the kind multi-select. The graph view renders a floating
    * `<app-kind-palette>` that exposes the same toggle (sharing the same
@@ -48,8 +52,8 @@ export class FilterBar {
   readonly hasIssuesOnly = this.store.hasIssuesOnly;
   readonly isActive = this.store.isActive;
 
-  readonly kindOptions = ALL_KINDS.map((kind) => ({ label: kind, value: kind }));
-  readonly stabilityOptions = ALL_STABILITIES.map((s) => ({ label: s, value: s }));
+  readonly kindOptions = ALL_KINDS.map((kind) => ({ label: KIND_LABELS[kind], value: kind }));
+  readonly stabilityOptions = ALL_STABILITIES.map((s) => ({ label: STABILITY_LABELS[s], value: s }));
 
   onSearchChange(value: string): void {
     this.store.setSearchText(value);

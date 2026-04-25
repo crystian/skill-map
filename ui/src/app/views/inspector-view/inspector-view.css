@@ -77,7 +77,7 @@
   grid-column: 1 / -1;
 }
 
-::ng-deep .inspector__card--hero .p-card {
+:host ::ng-deep .inspector__card--hero .p-card {
   border-left: 3px solid var(--p-primary-color);
 }
 
@@ -151,25 +151,25 @@ h4:first-child {
   gap: 0.4rem;
 }
 
-::ng-deep .chip--link .p-chip {
+:host ::ng-deep .chip--link .p-chip {
   cursor: pointer;
   background: var(--p-primary-50);
   color: var(--p-primary-color);
   transition: background 0.15s ease;
 }
 
-::ng-deep .chip--link:hover .p-chip {
+:host ::ng-deep .chip--link:hover .p-chip {
   background: var(--p-primary-100);
 }
 
-::ng-deep .chip--dead .p-chip {
+:host ::ng-deep .chip--dead .p-chip {
   background: var(--sm-bg-hover);
   color: var(--p-text-muted-color);
   text-decoration: line-through;
   cursor: not-allowed;
 }
 
-::ng-deep .chip--warn .p-chip {
+:host ::ng-deep .chip--warn .p-chip {
   background: var(--sm-kind-command-bg);
   color: var(--sm-kind-command-fg);
 }

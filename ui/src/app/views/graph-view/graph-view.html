@@ -1,11 +1,11 @@
-<section class="graph">
+<section class="graph" data-testid="graph-view">
   <header class="graph__header">
     <div>
-      <h2>Graph</h2>
+      <h2>{{ texts.title }}</h2>
       <p class="graph__sub">
-        Auto-laid-out (Dagre, top-bottom) · edges from <code>supersedes</code>,
-        <code>requires</code>, <code>related</code>. Click to highlight neighbors,
-        double-click to inspect.
+        {{ texts.subtitlePrefix }}<code>{{ texts.legend.supersedes }}</code>,
+        <code>{{ texts.legend.requires }}</code>,
+        <code>{{ texts.legend.related }}</code>{{ texts.subtitleSuffix }}
       </p>
     </div>
   </header>
@@ -13,21 +13,21 @@
   <app-filter-bar [showKinds]="false" />
 
   @if (loading()) {
-    <div class="empty-state">
+    <div class="empty-state" data-testid="graph-loading">
       <span class="empty-state__icon pi pi-spin pi-spinner"></span>
-      <p class="empty-state__title">Loading collection</p>
+      <p class="empty-state__title">{{ texts.loading }}</p>
     </div>
   } @else if (error()) {
-    <div class="empty-state">
+    <div class="empty-state" data-testid="graph-error">
       <span class="empty-state__icon pi pi-exclamation-circle" style="color: var(--sm-severity-error); opacity: 1"></span>
-      <p class="empty-state__title">Failed to load</p>
+      <p class="empty-state__title">{{ texts.errorTitle }}</p>
       <p class="empty-state__desc">{{ error() }}</p>
     </div>
   } @else if (!hasData()) {
-    <div class="empty-state">
+    <div class="empty-state" data-testid="graph-empty">
       <span class="empty-state__icon pi pi-filter-slash"></span>
-      <p class="empty-state__title">No nodes match</p>
-      <p class="empty-state__desc">Adjust or reset the filters above.</p>
+      <p class="empty-state__title">{{ texts.emptyTitle }}</p>
+      <p class="empty-state__desc">{{ texts.emptyDesc }}</p>
     </div>
   } @else {
     <div
@@ -35,6 +35,7 @@
       #canvasWrap
       (mousedown)="onCanvasMouseDown($event)"
       (click)="onCanvasClick($event)"
+      data-testid="graph-canvas-wrap"
     >
       <f-flow fDraggable [fCache]="perf.cache" (fLoaded)="onLoaded()">
         <f-background>
@@ -94,6 +95,7 @@
                 (pointerdown)="onNodePointerDown($event)"
                 (click)="selectNode(node, $event)"
                 (dblclick)="openNode(node)"
+                [attr.data-testid]="'graph-node-' + node.id"
               >
                 <div
                   fNodeInput
@@ -187,71 +189,83 @@
         />
       }
 
-      <div class="graph__toolbar" role="toolbar" aria-label="Graph controls">
-        <button
-          type="button"
-          class="graph__toolbar-btn"
-          aria-label="Zoom in"
-          title="Zoom in"
-          (click)="zoomIn()"
+      <div class="graph__toolbar" role="toolbar" [attr.aria-label]="texts.a11y.toolbar" data-testid="graph-toolbar">
+        <p-button
+          icon="pi pi-search-plus"
+          [ariaLabel]="texts.toolbar.zoomIn"
+          [pTooltip]="texts.toolbar.zoomIn"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
           [disabled]="!canZoomIn()"
-        >
-          <i class="pi pi-search-plus" aria-hidden="true"></i>
-        </button>
-        <button
-          type="button"
-          class="graph__toolbar-btn"
-          aria-label="Zoom out"
-          title="Zoom out"
-          (click)="zoomOut()"
+          (onClick)="zoomIn()"
+          data-testid="graph-zoom-in"
+        />
+        <p-button
+          icon="pi pi-search-minus"
+          [ariaLabel]="texts.toolbar.zoomOut"
+          [pTooltip]="texts.toolbar.zoomOut"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
           [disabled]="!canZoomOut()"
-        >
-          <i class="pi pi-search-minus" aria-hidden="true"></i>
-        </button>
-        <button
-          type="button"
-          class="graph__toolbar-btn"
-          aria-label="Fit to screen"
-          title="Fit to screen"
-          (click)="fitToScreen()"
-        >
-          <i class="pi pi-arrow-down-left-and-arrow-up-right-to-center" aria-hidden="true"></i>
-        </button>
-        <button
-          type="button"
-          class="graph__toolbar-btn"
-          aria-label="Reset zoom to 1:1"
-          title="Reset zoom (1:1)"
-          (click)="resetZoom()"
-        >
-          <i class="pi pi-stop" aria-hidden="true"></i>
-        </button>
+          (onClick)="zoomOut()"
+          data-testid="graph-zoom-out"
+        />
+        <p-button
+          icon="pi pi-arrow-down-left-and-arrow-up-right-to-center"
+          [ariaLabel]="texts.toolbar.fitToScreen"
+          [pTooltip]="texts.toolbar.fitToScreen"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          (onClick)="fitToScreen()"
+          data-testid="graph-fit-to-screen"
+        />
+        <p-button
+          icon="pi pi-stop"
+          [ariaLabel]="texts.toolbar.resetZoomLabel"
+          [pTooltip]="texts.toolbar.resetZoomTooltip"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          (onClick)="resetZoom()"
+          data-testid="graph-reset-zoom"
+        />
         <span class="graph__toolbar-sep" aria-hidden="true"></span>
-        <button
-          type="button"
-          class="graph__toolbar-btn"
-          [attr.aria-label]="themeLabel()"
-          [title]="themeLabel()"
-          (click)="toggleTheme()"
-        >
-          <i [class]="themeIcon()" aria-hidden="true"></i>
-        </button>
-        <button
-          type="button"
-          class="graph__toolbar-btn"
-          aria-label="Reset layout"
-          title="Reset layout (re-run auto layout, clear saved positions)"
-          (click)="resetLayout()"
-        >
-          <i class="pi pi-refresh" aria-hidden="true"></i>
-        </button>
+        <p-button
+          [icon]="themeIcon()"
+          [ariaLabel]="themeLabel()"
+          [pTooltip]="themeLabel()"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          (onClick)="toggleTheme()"
+          data-testid="graph-theme-toggle"
+        />
+        <p-button
+          icon="pi pi-refresh"
+          [ariaLabel]="texts.toolbar.resetLayoutLabel"
+          [pTooltip]="texts.toolbar.resetLayoutTooltip"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          (onClick)="resetLayout()"
+          data-testid="graph-reset-layout"
+        />
       </div>
     </div>
 
-    <aside class="graph__legend" aria-label="Edge legend">
-      <span><span class="swatch swatch--supersedes"></span> supersedes</span>
-      <span><span class="swatch swatch--requires"></span> requires</span>
-      <span><span class="swatch swatch--related"></span> related</span>
+    <aside class="graph__legend" [attr.aria-label]="texts.a11y.edgeLegend" data-testid="graph-legend">
+      <span><span class="swatch swatch--supersedes"></span> {{ texts.legend.supersedes }}</span>
+      <span><span class="swatch swatch--requires"></span> {{ texts.legend.requires }}</span>
+      <span><span class="swatch swatch--related"></span> {{ texts.legend.related }}</span>
     </aside>
   }
 </section>

@@ -118,44 +118,6 @@
   pointer-events: auto;
 }
 
-.graph__toolbar-btn {
-  appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  height: 2rem;
-  padding: 0 0.5rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--p-text-muted-color);
-  font-size: 0.8rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition:
-    background 0.12s ease,
-    color 0.12s ease;
-}
-
-.graph__toolbar-btn:hover:not([disabled]) {
-  background: var(--sm-bg-hover);
-  color: var(--p-text-color);
-}
-
-.graph__toolbar-btn:active:not([disabled]) {
-  background: var(--sm-border);
-}
-
-.graph__toolbar-btn[disabled] {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-.graph__toolbar-btn .pi {
-  font-size: 0.95rem;
-}
-
 .graph__toolbar-sep {
   width: 1px;
   height: 18px;
