@@ -121,7 +121,7 @@ Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem.
 Self-describing introspection.
 
 - `human` (default): pretty terminal output.
-- `md`: canonical markdown for documentation sites. Implementations MUST NOT hand-maintain equivalent markdown; `docs/cli-reference.md` (in the reference impl) is regenerated from this output in CI.
+- `md`: canonical markdown for documentation sites. Implementations MUST NOT hand-maintain equivalent markdown; `context/cli-reference.md` (in the reference impl) is regenerated from this output in CI.
 - `json`: structured surface dump. Shape:
 
 ```json
@@ -314,7 +314,7 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 ### Introspection
 
 - `sm help --format json` — structured CLI surface dump.
-- `sm help --format md` — canonical markdown, CI-enforced for the reference impl's `docs/cli-reference.md`.
+- `sm help --format md` — canonical markdown, CI-enforced for the reference impl's `context/cli-reference.md`.
 
 These two formats are NORMATIVE: any change to verbs, flags, or exit codes MUST reflect in `--format json` output immediately. Third-party consumers rely on this.
 
@@ -390,7 +390,7 @@ The `done in …` stderr line, its format grammar, and the `elapsedMs` field con
 - [`job-lifecycle.md`](./job-lifecycle.md) — state machine behind `sm job` verbs.
 - [`job-events.md`](./job-events.md) — event stream emitted via `--json` and `--stream-output`.
 - [`db-schema.md`](./db-schema.md) — tables behind `sm db` verbs.
-- [`../docs/cli-reference.md`](../docs/cli-reference.md) — auto-generated reference from `sm help --format md`.
+- [`../context/cli-reference.md`](../context/cli-reference.md) — auto-generated reference from `sm help --format md`.
 - [`conformance/`](./conformance/README.md) — test suite exercising CLI behavior.
 
 ---

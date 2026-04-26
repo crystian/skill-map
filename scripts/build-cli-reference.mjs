@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * Regenerate docs/cli-reference.md from `sm help --format md`.
+ * Regenerate context/cli-reference.md from `sm help --format md`.
  *
  *   node scripts/build-cli-reference.mjs           → write the file
  *   node scripts/build-cli-reference.mjs --check   → fail if drift
  *
  * --check is what CI runs: it captures the current output, compares to
- * docs/cli-reference.md, and exits 1 with a diff pointer on mismatch. The
- * reference file itself is committed so diff reviewers can see the CLI
+ * context/cli-reference.md, and exits 1 with a diff pointer on mismatch.
+ * The reference file itself is committed so diff reviewers can see the CLI
  * surface evolve alongside feature commits; CI blocks any PR that edits
  * the CLI without re-running this script.
  */
@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(here, '..');
-const TARGET = resolve(ROOT, 'docs/cli-reference.md');
+const TARGET = resolve(ROOT, 'context/cli-reference.md');
 
 const args = process.argv.slice(2);
 const CHECK = args.includes('--check');
@@ -43,7 +43,7 @@ if (CHECK) {
   const current = readFileSync(TARGET, 'utf8');
   if (current !== generated) {
     console.error(
-      'docs/cli-reference.md is out of sync with `sm help --format md`.\n' +
+      'context/cli-reference.md is out of sync with `sm help --format md`.\n' +
         'Run: node scripts/build-cli-reference.mjs',
     );
     process.exit(1);

@@ -100,15 +100,67 @@ Run `sm scan` first to populate the DB.
 
 ### `sm orphans`
 
-History rows whose target node is missing.
+List orphan / auto-rename issues from the last scan. --json emits an array conforming to issue.schema.json.
+
+Surfaces every active issue with ruleId in (orphan, auto-rename-medium, 
+auto-rename-ambiguous) so the user can decide whether to reconcile (forward) or 
+undo-rename (reverse).
+
+Filter with --kind: orphan | medium | ambiguous.
+
+**Examples:**
+
+- List every orphan / auto-rename issue
+  ```
+  sm orphans
+  ```
+- Just the ambiguous ones, JSON
+  ```
+  sm orphans --kind ambiguous --json
+  ```
 
 ### `sm orphans reconcile`
 
-Migrate history rows from an orphan path to a live node.
+Migrate state_* FKs from an orphan path to a live node, resolving the orphan issue.
+
+Forward direction: when the rename heuristic could not find a match (e.g. 
+semantic-only rename, body rewrite), use this verb to attach the orphan's 
+history to a live node.
+
+Validates that <new.path> exists in scan_nodes (exit 5 otherwise) and that an 
+active orphan issue exists for <orphan.path> (exit 5 otherwise). Migration is 
+atomic via a single transaction.
+
+**Examples:**
+
+- Reattach orphan history
+  ```
+  sm orphans reconcile skills/old.md --to skills/new.md
+  ```
 
 ### `sm orphans undo-rename`
 
-Reverse a medium- or ambiguous-confidence auto-rename.
+Reverse a medium- or ambiguous-confidence auto-rename. Migrates state_* FKs back, emits a new orphan on the prior path.
+
+Use when the rename heuristic auto-migrated history to a node that turned out to 
+be unrelated.
+
+For an active auto-rename-medium issue on <new.path>, the prior path is read 
+from issue.data.from — omit --from. For an active auto-rename-ambiguous issue, 
+--from <old.path> is REQUIRED to pick a candidate from data.candidates.
+
+Destructive (changes FK ownership). Prompts for confirmation unless --force.
+
+**Examples:**
+
+- Undo a medium-confidence auto-rename
+  ```
+  sm orphans undo-rename skills/new.md
+  ```
+- Undo an ambiguous, picking a candidate
+  ```
+  sm orphans undo-rename skills/new.md --from skills/old-a.md
+  ```
 
 ### `sm show`
 
@@ -210,11 +262,64 @@ read-only inspection.
 
 ### `sm history`
 
-Filter execution records.
+Filter execution records. --json emits an array conforming to execution-record.schema.json.
+
+Reads from state_executions. Filters:   -n <path>          restrict to 
+executions whose nodeIds[] contains <path>
+
+  --action <id>      restrict to a specific extension (action / audit) id
+
+  --status <s,...>   restrict to one or more of completed,failed,cancelled
+
+  --since <ISO>      lower bound on startedAt (inclusive, ISO-8601)
+
+  --until <ISO>      upper bound on startedAt (exclusive, ISO-8601)
+
+  --limit N          cap result count
+
+Output is most-recent-first. Run `sm scan` first to provision the DB.
+
+**Examples:**
+
+- Recent executions
+  ```
+  sm history --limit 10
+  ```
+- Failures in the last week
+  ```
+  sm history --status failed --since 2026-04-19T00:00:00Z
+  ```
+- Machine-readable, scoped to one node
+  ```
+  sm history -n skills/foo.md --json
+  ```
 
 ### `sm history stats`
 
-Aggregates over state_executions: totals, tokens, periods, top N nodes, error rates.
+Aggregate counts, tokens, periods, top nodes, and error rates over state_executions. --json conforms to history-stats.schema.json.
+
+Defaults: --period month, --top 10, all-time when --since omitted.
+
+Window: --since is inclusive, --until is exclusive. Both ISO-8601.
+
+The --json output ALWAYS includes the full per-failure-reason key set 
+(zero-filled if a reason has no occurrences) so dashboards see a predictable 
+shape.
+
+**Examples:**
+
+- All-time stats
+  ```
+  sm history stats
+  ```
+- Last 30 days, daily buckets
+  ```
+  sm history stats --since 2026-03-26T00:00:00Z --period day
+  ```
+- Top 5 nodes, JSON
+  ```
+  sm history stats --top 5 --json
+  ```
 
 ## Introspection
 
@@ -226,7 +331,7 @@ Without a verb: overview of every registered command grouped by category. With a
 verb: the detail view for that single command.
 
 Formats:   human (default) — pretty terminal output.   md              — 
-canonical markdown. docs/cli-reference.md is                     regenerated 
+canonical markdown. context/cli-reference.md is                     regenerated 
 from this and CI fails on drift.   json            — structured surface dump per 
 spec/cli-contract.md.
 

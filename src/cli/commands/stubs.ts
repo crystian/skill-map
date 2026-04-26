@@ -4,7 +4,7 @@
  *
  * 1. Registers the same paths as the final command will (so `sm help` sees
  *    the full surface today, and the CI drift check against
- *    `docs/cli-reference.md` works).
+ *    `context/cli-reference.md` works).
  * 2. Advertises its future home via the `category` / `description` / `details`
  *    in the Usage block — this is what the Step 1c introspection layer
  *    serialises to json / md.

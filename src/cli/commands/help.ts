@@ -9,7 +9,7 @@
  * `human` delegates to Clipanion's own Cli.usage() for overview and
  * Cli.usage(command) for a specific verb so we match the built-in
  * formatting exactly. `md` emits canonical markdown grouped by category;
- * `docs/cli-reference.md` is regenerated from this and diffed in CI.
+ * `context/cli-reference.md` is regenerated from this and diffed in CI.
  * `json` emits the structured surface dump.
  */
 
@@ -71,7 +71,7 @@ export class HelpCommand extends Command {
 
       Formats:
         human (default) — pretty terminal output.
-        md              — canonical markdown. docs/cli-reference.md is
+        md              — canonical markdown. context/cli-reference.md is
                           regenerated from this and CI fails on drift.
         json            — structured surface dump per spec/cli-contract.md.
     `,

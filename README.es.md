@@ -134,7 +134,7 @@ El workspace `ui/` se une como tercer peer en Step 0c (Angular SPA + Foblex Flow
 - Política de versionado del spec: [spec/versioning.md](./spec/versioning.md)
 - Arquitectura (ports & adapters): [spec/architecture.md](./spec/architecture.md)
 - Contrato CLI: [spec/cli-contract.md](./spec/cli-contract.md)
-- Referencia CLI (auto-generada): [docs/cli-reference.md](./docs/cli-reference.md)
+- Referencia CLI (auto-generada): [context/cli-reference.md](./context/cli-reference.md)
 - Guía operativa de Foblex Flow: [.claude/skills/foblex-flow/SKILL.md](./.claude/skills/foblex-flow/SKILL.md) — reglas, patrones y referencia completa de API. Invocar con `/foblex-flow` al trabajar en la vista de grafo.
 - Implementación de referencia: [src/README.md](./src/README.md)
 - Versión en inglés de este README: [README.md](./README.md)
