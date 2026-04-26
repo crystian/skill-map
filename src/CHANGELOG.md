@@ -1,5 +1,980 @@
 # skill-map
 
+## 0.3.2
+
+### Patch Changes
+
+- dacd4d9: Move the auto-generated CLI reference from `docs/cli-reference.md` to
+  `context/cli-reference.md`. Spec change is editorial: `cli-contract.md`
+  references the file path in three spots (`--format md` description, the
+  NORMATIVE introspection section, and the "Related" link list); all three
+  updated to the new location. No schema or behavioural change.
+
+  Reference impl: `scripts/build-cli-reference.mjs` writes to the new path,
+  the `cli:reference` / `cli:check` npm scripts point there, and `sm help`
+  output (which embeds the path in the `--format md` flag description) is
+  regenerated. The `docs/` folder is gone.
+
+- 551f6ec: Persist scan results to SQLite (scan_nodes/links/issues).
+
+  `sm scan` now writes the ScanResult into `<cwd>/.skill-map/skill-map.db`
+  with replace-all semantics across `scan_nodes`, `scan_links`, and
+  `scan_issues`. The DB is auto-migrated on first run. Persistence is
+  skipped under `--no-built-ins` so the kernel-empty-boot conformance
+  probe cannot wipe an existing snapshot.
+
+  Also fixes the bundled-CLI default migrations directory: the prior
+  resolver assumed an unbundled `kernel/adapters/sqlite/` path layout,
+  which silently missed `dist/migrations/` in the tsup-bundled CLI.
+
+- 4c34af1: Step 4.10 — scenario coverage. Pure regression-test growth, no behavior
+  changes, no new dependencies, no migrations, no spec edits. Backfills
+  the scenarios surfaced by the manual end-to-end validation in
+  `.tmp/sandbox/` that the existing test suite did not codify:
+
+  - Hash discrimination: body-only edits leave `frontmatter_hash` and
+    `bytes_frontmatter` byte-equal; frontmatter-only edits leave
+    `body_hash` and `bytes_body` byte-equal. Locks in that the two
+    SHA-256 streams are independent.
+  - `external_refs_count` lifecycle across body edits: 0 → 2 → 2 (dedup) →
+    1 (malformed URL silently dropped), and `scan_links.target_path`
+    never carries an `http(s)` value at any step.
+  - Replace-all ID rotation: synthetic `scan_links.id` /
+    `scan_issues.id` are not promised to round-trip across re-scans;
+    the natural keys (source/kind/target/normalized-trigger and
+    ruleId/nodeIds) do. Documents the contract via assertion.
+  - Deletion-driven dynamic broken-ref re-evaluation, full-scan path:
+    companion to the existing incremental-path test. Confirms rules
+    always re-run over the merged graph even on the all-fresh path.
+  - Trigger-collision interaction with `--changed`: editing one
+    advertiser keeps the collision firing (cached node still claims
+    the trigger); deleting one advertiser clears it.
+  - `sm scan --no-tokens` at the CLI handler level (the existing test
+    exercised the orchestrator only): default → `tokens_total`
+    populated; `--no-tokens` → null; default again → repopulated.
+  - `sm scan --changed --no-built-ins` rejection: exit 2 with an
+    explanatory stderr, no DB I/O.
+
+  Test count delta: 133 → 143.
+
+- 4c34af1: Step 4.11 — three layers of defense against accidental DB wipes when
+  `sm scan` receives invalid or empty inputs:
+
+  - `runScan` validates every root path exists as a directory before
+    walking, throwing on the first failure (was: silently yielded zero
+    files via the claude adapter swallowing `ENOENT` in `readdir`).
+  - `sm scan` surfaces the validation error with exit code 2 and a clear
+    stderr message naming the bad path.
+  - `sm scan` refuses to overwrite a populated DB with a zero-result scan
+    unless `--allow-empty` is passed. Prevents the typo-trap reported in
+    the e2e validation: `sm scan -- --dry-run` (where clipanion's `--`
+    made `--dry-run` a positional root that did not exist) silently
+    cleared the user's data. The new flag is opt-in by design — the
+    natural case of "empty repo on first scan" is preserved (DB starts
+    empty, scan returns 0 rows, persist proceeds without prompting).
+
+  Test count delta: 143 → 151.
+
+- 551f6ec: Compute per-node token counts via `js-tiktoken`.
+
+  `runScan` now populates `node.tokens` (frontmatter / body / total) using
+  the `cl100k_base` BPE — the modern OpenAI tokenizer used by
+  GPT-4 / GPT-3.5-turbo. The encoder is constructed once per scan and
+  reused across nodes (the BPE table is heavyweight to load). Tokens are
+  computed against the raw frontmatter bytes (not the parsed YAML
+  object) so the count stays reproducible from on-disk content.
+
+  The new `sm scan --no-tokens` flag opts out of tokenization; `node.tokens`
+  is left undefined, which is spec-valid because the field is optional in
+  `spec/schemas/node.schema.json`. Persistence already handles the absence
+  (maps to NULL across `tokens_frontmatter` / `tokens_body` / `tokens_total`).
+
+- 551f6ec: Add `external-url-counter` detector and orchestrator-level segregation for
+  external pseudo-links.
+
+  The new detector scans node bodies for `http(s)://` URLs, normalizes them
+  (lowercase host, drop fragment, preserve scheme / port / path / query),
+  dedupes per node, and emits one `references` pseudo-link per distinct URL
+  at `low` confidence. URL parsing uses Node's built-in WHATWG `URL` — no
+  new dependency.
+
+  `runScan` now partitions emitted links into internal (graph) and external
+  (URL pseudo-link) sets by checking `target.startsWith('http://')` or
+  `'https://'`. Internal links flow through the rules layer, populate
+  `linksOutCount` / `linksInCount`, and land in `result.links` and
+  `scan_links` as before. External pseudo-links are counted into
+  `node.externalRefsCount` and then dropped — they never reach rules,
+  never appear in `result.links`, and never persist to `scan_links`. This
+  keeps the spec's `link.kind` enum locked and `scan_links` semantically
+  clean (graph relations only) while giving the inspector a cheap "external
+  references" badge.
+
+  This is the drop-in proof from Step 2: the kernel boots, detectors plug
+  in, and a new built-in extension lands without spec or migration changes.
+
+- 551f6ec: Add `sm scan -n` / `--dry-run` (in-memory, no DB writes) and `sm scan
+--changed` (incremental scan against the persisted prior snapshot).
+
+  `-n` / `--dry-run` runs the full pipeline in memory and skips every DB
+  operation (no auto-migration, no persistence). The human-mode summary
+  now ends with `Would persist N nodes / M links / K issues to <path>
+(dry-run).` so the operator sees what would land. `--json` output is
+  unchanged.
+
+  `--changed` opens the project DB read-side, loads the prior snapshot via
+  the new `loadScanResult` helper, walks the filesystem, and reuses
+  unchanged nodes (matched by `path` + `bodyHash` + `frontmatterHash`).
+  Only new / modified files run through the detector pipeline; rules
+  always re-run over the merged graph (issue state can change for an
+  unchanged node when a sibling moves). Persistence semantics are
+  unchanged — replace-all over the merged ScanResult — so the on-disk
+  shape stays canonical regardless of how the result was assembled.
+
+  Combination rules:
+
+  - `--changed --no-built-ins` is rejected with exit code 2 — a
+    zero-filled pipeline has nothing to merge against.
+  - `--changed -n` is supported: load the prior, compute the merged
+    result, emit it, do NOT persist. Useful for "what would change?"
+    inspection.
+  - `--changed` against an empty / missing DB degrades to a full scan and
+    prints `--changed: no prior snapshot found; running full scan.` to
+    stderr. Exit code unaffected.
+
+  Internals: `runScan` gains an optional `priorSnapshot` field on
+  `RunScanOptions`. The orchestrator emits `scan.progress` events with a
+  new `cached: boolean` field so future UIs can show the
+  reused-vs-reprocessed delta. External pseudo-links are never persisted,
+  so for cached nodes the prior `externalRefsCount` is preserved as-is;
+  new / modified nodes recompute it from a fresh detector pass. The
+  `loadScanResult` helper documents the external-pseudo-link omission
+  explicitly — it returns zero pseudo-links by definition, but the
+  per-node count survives in the loaded node row.
+
+- 551f6ec: Promote `sm list`, `sm show`, `sm check` from stubs to real
+  implementations backed by the persisted `scan_*` snapshot.
+
+  `sm list [--kind <k>] [--issue] [--sort-by <field>] [--limit N] [--json]`
+  emits a tabular view (PATH / KIND / OUT / IN / EXT / ISSUES / BYTES) of
+  every node in `scan_nodes`. `--kind` and `--issue` filter rows; the
+  issue filter uses a SQL `EXISTS` over `scan_issues` so the work stays
+  in the DB. `--sort-by` is whitelisted (`path`, `kind`, `bytes_total`,
+  `links_out_count`, `links_in_count`, `external_refs_count`) — anything
+  else exits 2 with a clear stderr message. Numeric columns sort
+  descending by default so `--sort-by bytes_total --limit N` returns the
+  heaviest nodes; textual columns sort ascending. `--json` emits a flat
+  array conforming to `node.schema.json`.
+
+  `sm show <node.path> [--json]` prints the per-node detail view: header
+  with kind / adapter, optional title / description / stability /
+  version / author lines, the bytes (and tokens, when present) triple
+  split, the parsed frontmatter, links out, links in, and current
+  issues. `--json` emits `{ node, linksOut, linksIn, issues, findings,
+summary }`; `findings` is reserved as `[]` and `summary` as `null`
+  until Step 10 (`state_findings`) and Step 11 (`state_summaries`) ship.
+  A missing path exits 5 with `Node not found: <path>` on stderr.
+
+  `sm check [--json]` reads every row from `scan_issues`, prints them
+  grouped by severity (errors first, then warns, then infos) as
+  `[<severity>] <ruleId>: <message> — <node-paths>`, and exits 1 if any
+  issue carries severity `error`, otherwise 0. Equivalent to
+  `sm scan --json | jq '.issues'` but without the walk-and-detect cost.
+  `--json` emits an `Issue[]`.
+
+  All three verbs honor the `-g/--global` and `--db <path>` global flags,
+  and exit 5 with `DB not found at <path>; run \`sm scan\` first.` when
+  the snapshot has not been persisted yet.
+
+  Internals: extracted the `resolveDbPath` and DB-existence guard from
+  `sm db` into a shared `cli/util/db-path.ts` so the read-side commands
+  and the lifecycle commands stay byte-aligned on path resolution.
+  Promoted the row→Node / row→Link / row→Issue mappers in
+  `scan-load.ts` from private helpers to module exports so the readers
+  reuse the exact mapping the incremental loader uses, keeping the
+  read-side aligned with the spec schemas.
+
+- 551f6ec: Add Step 4.6 acceptance coverage: a self-scan test and a 500-MD
+  performance benchmark.
+
+  `src/test/self-scan.test.ts` runs `runScan` directly against the
+  project repo (no persistence — never writes `.skill-map/skill-map.db`)
+  with the full built-in pipeline and asserts: `schemaVersion === 1`;
+  every node, link, and issue conforms to its authoritative spec
+  schema (mirrors the `validate-all` audit's per-element strategy);
+  nodes count > 0; the expected node kinds appear (relaxed to allow
+  `command` and `hook` as missing today since neither
+  `.claude/commands/` nor `.claude/hooks/` exists in the working tree
+  — the tolerated-missing set auto-tightens the moment either grows
+  a real file); no `error`-severity issues survive; tokens are
+  populated for ≥ 1 node (Step 4.2 smoke test); `externalRefsCount > 0`
+  for ≥ 1 node (Step 4.3 smoke test). Failures print actionable detail
+  (missing kinds present, full per-issue dump) so a regression is
+  diagnosable without re-running with extra logging.
+
+  `src/test/scan-benchmark.test.ts` materialises 500 synthetic
+  markdown files under `<repo>/.tmp/scan-bench-<random>/` (gitignored,
+  project-local per AGENTS.md) — 100 each of agents, commands, hooks,
+  skills (with `SKILL.md` per-skill subdir), and notes — each carrying
+  a slash invocation, an `@`-directive, and an http URL so every
+  detector fires. Ten agents share the same `name` so
+  `trigger-collision` has work to do; some commands cross-reference
+  each other through `metadata.related[]`. Asserts the full scan
+  (tokenize + 4 detectors + 3 rules) completes within a 2000 ms
+  budget (measured ~930 ms locally), `nodesCount === 500`, and
+  `linksCount > 0`. Always prints a `[bench] 500 nodes / N links / M
+issues in Tms` line to stderr so a CI failure surfaces the actual
+  measurement, not a bare assertion. Comment above the threshold
+  documents the escape hatch (profile cl100k_base cold-start before
+  bumping; never disable).
+
+  Adds `.tmp` to the `claude` adapter's `DEFAULT_IGNORE` set so the
+  walker never traverses transient AI/test artifacts. Without this,
+  the benchmark's fixture would appear in the self-scan and races
+  between the two tests would flake the suite. The convention is
+  already enforced everywhere else (gitignore, AGENTS.md), so the
+  adapter now matches.
+
+  Both tests run inside the standard `npm test` / `npm run test:ci`
+  flow; no separate `bench` script is needed (runtime delta well under
+  a second).
+
+- 551f6ec: Reconcile the runtime `ScanResult` shape with `spec/schemas/scan-result.schema.json`.
+
+  The runtime has been silently violating the spec since Step 0c. The
+  spec is the source of truth and has been correct all along; this change
+  is a one-way fix — `src/` catches up to `spec/`. No spec edit, no
+  spec changeset.
+
+  What changed at the runtime boundary:
+
+  - `scannedAt` is now `number` (Unix milliseconds, integer ≥ 0). It used
+    to be an ISO-8601 `string` that the persistence layer parsed back to
+    an int via `Date.parse()`; both conversions are gone. The DB column
+    has always been `INTEGER` — only the in-memory shape moved.
+  - `scope` is now emitted: `'project' | 'global'`. Defaults to
+    `'project'`; overridable via the new `RunScanOptions.scope?` field.
+    The CLI surface (`sm scan`) hardcodes `'project'` for now — the
+    `--global` flag wiring lands in Step 6 (config + onboarding).
+  - `roots` is now hard-required to be non-empty. `runScan` throws
+    `"runScan: roots must contain at least one path (spec requires
+minItems: 1)"` when called with `roots: []`. The CLI already
+    defaults `roots = ['.']` when no positional args are supplied, so
+    the throw is a programming-error guard, not a user-visible regression.
+  - `adapters: string[]` is now emitted (the ids of every adapter that
+    participated in classification; `[]` when no adapter ran). Optional
+    in spec; emitted unconditionally for self-describing output.
+  - `scannedBy: { name, version, specVersion }` is now emitted.
+    `name` is hardcoded `'skill-map'`; `version` is read once at module
+    init from this package's `package.json` (static JSON import, same
+    pattern as `cli/version.ts`); `specVersion` reuses the existing
+    `installedSpecVersion()` helper from the plugin loader (reads
+    `@skill-map/spec/package.json#version` off disk, with a safe fallback
+    to `'unknown'`).
+  - `stats.filesWalked: number` is now emitted. Counts every `IRawNode`
+    yielded by the adapter walkers. With one adapter it equals
+    `nodesCount`; with future multi-adapter scans on overlapping roots
+    it will diverge.
+  - `stats.filesSkipped: number` is now emitted. Spec definition: "Files
+    walked but not classified by any adapter." Today every walked file
+    IS classified (the `claude` adapter's `classify()` always returns a
+    kind, falling back to `'note'`), so this is **always 0**. Wired now
+    so the field shape is spec-conformant; meaningful once multiple
+    adapters compete (Step 9+).
+
+  Ripple changes:
+
+  - `persistScanResult` no longer parses `scannedAt`; it validates
+    `Number.isInteger(scannedAt) && scannedAt >= 0` and uses the value
+    as-is. The error message updated to "expected non-negative integer
+    ms"; the matching test case renamed from "rejects an unparseable
+    scannedAt" to "rejects a non-integer scannedAt".
+  - `loadScanResult` returns a synthetic envelope: `scannedAt` is
+    derived from `max(scan_nodes.scanned_at)` (or `Date.now()` for
+    empty snapshots); `scope` defaults to `'project'`; `roots: ['.']`
+    to satisfy the spec's `minItems: 1` (NOT load-bearing — the
+    orchestrator's incremental path only reads `nodes` / `links` /
+    `issues` from a prior, never the meta); `adapters: []`;
+    `stats.filesWalked` / `filesSkipped` / `durationMs` are zeroed.
+    The header comment documents the omissions and points at the
+    follow-up `state_scan_meta` table that would let the loader return
+    real values.
+  - `ScanCommand` (`sm scan`) explicitly passes `scope: 'project'` into
+    `runScan`. No change to the CLI surface.
+
+  Self-scan acceptance test (`src/test/self-scan.test.ts`) upgraded:
+  the per-element node / link / issue validation is replaced with a
+  single top-level `scan-result.schema.json` validation. This is the
+  strong assertion for the reconciliation: the whole `ScanResult` now
+  parses against the authoritative top-level schema.
+
+  **Breaking change for runtime consumers**: anyone who was reading the
+  buggy ISO `scannedAt` string off `result` (or from `JSON.stringify(result)`
+  via `sm scan --json`) now sees an integer. The fix is one line:
+  `new Date(result.scannedAt)`. The runtime contract was buggy — the
+  spec said integer all along — but the buggy runtime was the de-facto
+  contract for downstream tooling tracking the `0.3.x` line, so call
+  this out explicitly. `schemaVersion` stays at 1 because the spec did
+  not move.
+
+- 551f6ec: Three fixes surfaced by the Step 4 end-to-end validation:
+
+  - `sm scan` exit code now matches `sm check`: returns `1` only when issues
+    at `error` severity exist (was: `1` on any issue, including warn / info).
+    Honors `spec/cli-contract.md` §Exit codes. The exit code is now
+    consistent across `--json` and the human format — previously the
+    `--json` branch always returned `0`, which made an agent loop scripting
+    `sm scan --json | jq` blind to error-severity issues.
+  - `sm show` human output now reports `External refs: <N>` after the
+    Weight section. The `--json` output already exposed
+    `node.externalRefsCount`; the human format had a parity gap. Rendered
+    unconditionally (including `External refs: 0`) for honest reporting.
+  - `sm scan --changed` no longer drops `supersedes`-inversion links from
+    cached nodes. The frontmatter detector emits `supersededBy` edges with
+    `source = newer-node` and `target = older-node`; the prior cached-reuse
+    filter incorrectly required `link.source === node.path`, which dropped
+    these inverted edges (the source path is often not even a real node).
+    Repro on the skill-map repo: `sm scan` then `sm scan --changed`
+    previously yielded 470 → 468 links; both now yield 470 with the link
+    sets set-equal. The fix introduces an `originatingNodeOf(link,
+priorNodePaths)` helper in the orchestrator: for `kind === 'supersedes'`
+    it falls back to `link.target` only when `link.source` is not a known
+    prior node path, which handles BOTH the inverted case (originating =
+    target) and the forward `metadata.supersedes[]` case (originating =
+    source). Frontmatter is currently the only detector that emits
+    cross-source links — a future detector adding another inversion case
+    would escalate to a persisted `Link.detectedFromPath` field with a
+    schema bump rather than extending this heuristic.
+
+- 4c34af1: Two more fixes from the Step 4 end-to-end validation pass:
+
+  - `trigger-collision` rule now also detects cases where two nodes advertise
+    the same trigger via their `frontmatter.name` (e.g. two commands both
+    named `deploy` in different files — the canonical example in the rule's
+    own doc comment). Previously the rule only fired on case-mismatch
+    invocations between different sources; commands competing for a
+    namespace silently passed because the implementation iterated `links`
+    alone and never looked at `nodes`. The rule now buckets two kinds of
+    claims on each normalized trigger — advertisements (`'/' +
+frontmatter.name` for `command` / `skill` / `agent` nodes) and
+    invocations (raw `link.target`) — and emits one `error` issue per
+    bucket with two or more distinct advertiser paths, two or more distinct
+    invocation forms, or one advertiser plus a non-canonical invocation
+    (e.g. an upper-cased trigger against a lower-cased advertiser name).
+    Issue payload exposes
+    `{ normalizedTrigger, invocationTargets, advertiserPaths }` so callers
+    can render either side.
+  - `sm scan` now runs `PRAGMA wal_checkpoint(TRUNCATE)` after persisting,
+    so external read-only tools (sqlitebrowser, DBeaver, ad-hoc `sqlite3`
+    clients) see fresh state without manual intervention. Previously the
+    main `.db` could lag the `.db-wal` arbitrarily — for typical small-repo
+    scans the WAL never crossed the 1000-page auto-checkpoint threshold,
+    so the canonical snapshot stayed in the sidecar indefinitely. The
+    checkpoint runs on the top-level Kysely handle (not inside the
+    transaction); cost is `~ms` on small DBs and there are no concurrent
+    readers to contend with.
+
+- 9a89124: Step 5.1 — Persist scan-result metadata in a new `scan_meta` table so
+  `loadScanResult` returns real values for `scope` / `roots` / `scannedAt` /
+  `scannedBy` / `adapters` / `stats.filesWalked` / `stats.filesSkipped` /
+  `stats.durationMs` instead of the synthetic envelope shipped at Step 4.7.
+
+  **Spec change (additive, minor)**:
+
+  - New `scan_meta` table in zone `scan_*`, single-row (CHECK `id = 1`).
+    Columns: `scope`, `roots_json`, `scanned_at`, `scanned_by_name`,
+    `scanned_by_version`, `scanned_by_spec_version`, `adapters_json`,
+    `stats_files_walked`, `stats_files_skipped`, `stats_duration_ms`.
+    `nodesCount` / `linksCount` / `issuesCount` are not stored — they are
+    derived from `COUNT(*)` of the sibling tables.
+  - Replaced atomically with the rest of `scan_*` on every `sm scan`.
+
+  **Runtime change**:
+
+  - New kernel migration `002_scan_meta.sql`.
+  - `IScanMetaTable` added to `src/kernel/adapters/sqlite/schema.ts` and
+    bound in `IDatabase`.
+  - `persistScanResult` writes the row (and deletes prior rows in the same
+    transaction).
+  - `loadScanResult` reads from `scan_meta` when the row exists; degrades
+    to the previous synthetic envelope when it does not (DB freshly
+    migrated, never scanned, or pre-5.1 snapshot).
+  - The Step 4.7 follow-up notes in `scan-load.ts` documenting the
+    synthetic envelope are simplified to describe both branches.
+
+  Test count: 151 → 154 (+3 covering meta round-trip, replace-all
+  single-row invariant, and synthetic-fallback on empty DB).
+
+- 9a89124: Step 5.10 — Two polish fixes for the `sm history` CLI surfaces, both
+  surfaced during end-to-end walkthrough.
+
+  **Fix 1 — `sm history` (human) table columns no longer collapse**:
+  the previous `formatRow` padded every non-ID column to a flat 11
+  chars. The STARTED column writes a 20-char ISO-8601 timestamp
+  (`2026-04-26T14:00:00Z`), which exceeds the 11-char width — `padEnd`
+  silently no-ops when content is longer than the target width, so the
+  timestamp ran into the next ACTION cell with zero whitespace
+  between (`...T14:00:00Zsummarize`). Replaced with a per-column
+  `COL_WIDTHS` array sized so the longest expected content fits with
+  ≥2 trailing spaces:
+
+  | Column   | Width | Rationale                      |
+  | -------- | ----- | ------------------------------ |
+  | ID       | 28    | truncate to 26 + 2 padding     |
+  | STARTED  | 22    | 20-char ISO + 2 padding        |
+  | ACTION   | 26    | truncate to 24 + 2 padding     |
+  | STATUS   | 12    | longest enum (`completed`) + 3 |
+  | DURATION | 10    | longest format (`1m 42s`) + 3  |
+  | TOKENS   | 14    | typical `12345/6789` + buffer  |
+  | NODES    | 6     | small int + buffer             |
+
+  **Fix 2 — `sm history stats --json` `elapsedMs` accuracy**: the field
+  was captured at `stats` construction time, BEFORE
+  `loadSchemaValidators()` (which loads + AJV-compiles 29 schemas from
+  disk on every CLI invocation, ~100 ms cold). Result: the JSON
+  reported `elapsedMs: 10` while stderr showed `done in 111ms` —
+  divergence of ~10× that misled anyone trying to correlate the two
+  numbers. Fixed by re-stamping `stats.elapsedMs = elapsed.ms()` AFTER
+  the validator load but BEFORE serialise. Schema validation is
+  order-independent for `elapsedMs` (any non-negative integer
+  satisfies the schema), so re-stamping post-validate is safe. The
+  ~10 ms remaining gap (serialise + write) is below user-perception
+  threshold.
+
+  The validator load itself is still uncached — addressing that is a
+  deeper refactor (module-level cache or pre-compiled validators) and
+  out of scope for this polish pass.
+
+  Test: 1 new in `src/test/history-cli.test.ts` — "table columns do
+  not collapse" — asserts the rendered output contains an ISO
+  timestamp followed by ≥2 spaces before the action id. Catches the
+  pre-5.10 regression directly.
+
+  Test count: 206 → 207.
+
+- 9a89124: Step 5.11 — `sm history` human renderer now shows `failure_reason`
+  inline when present, so the human path stops hiding info that's
+  already in `--json`.
+
+  Before:
+
+  ```
+  h-008  ...  audit-bar  failed     200ms  50/0     1
+  h-006  ...  audit-foo  cancelled  50ms   20/0     1
+  ```
+
+  After:
+
+  ```
+  h-008  ...  audit-bar  failed (runner-error)         200ms  50/0   1
+  h-006  ...  audit-foo  cancelled (user-cancelled)    50ms   20/0   1
+  ```
+
+  `completed` rows are unchanged (no parens noise). The STATUS column
+  widened from 12 to 30 chars to fit the longest enum
+  (`cancelled (user-cancelled)` = 26).
+
+  Test count: 207 → 208.
+
+- 9a89124: Step 5.12 — `loadSchemaValidators()` now caches the compiled validator
+  set at module level. Before: every call paid ~100 ms cold to read +
+  AJV-compile 17 schemas (plus 8 supporting `$ref` targets). After: the
+  first call costs the same; every subsequent call in the same process
+  returns the same instance for free.
+
+  For a one-shot CLI like `sm history stats --json`, this is a no-op
+  (only one call per process). The win shows up once a future verb
+  validates at multiple boundaries — likely candidates: `sm doctor`,
+  `sm record`, plugin manifest re-checks, the audit pipeline. Lays the
+  groundwork without forcing those callers to thread a cached
+  validators bundle through their call stacks.
+
+  Test-only escape hatch `_resetSchemaValidatorsCacheForTests()`
+  exported so tests can re-trigger the cold load deterministically. The
+  public `loadSchemaValidators` signature is unchanged.
+
+  Test count: 208 → 211 (+3 in `kernel/adapters/schema-validators.test.ts`).
+
+- 9a89124: Step 5.13 — `frontmatter_hash` is now computed over a CANONICAL YAML
+  form of the parsed frontmatter, not over the raw text bytes.
+
+  **Why**: a YAML formatter pass on the user's editor (Prettier YAML,
+  IDE autoformat, manual indent fix, key reordering) used to silently
+  break the medium-confidence rename heuristic — two files with
+  identical logical frontmatter but different YAML formatting got
+  different `frontmatter_hash` values, so the heuristic saw them as
+  "different frontmatter" and demoted what should have been a
+  medium-confidence rename to an `orphan` issue. Surfaced during the
+  end-to-end walkthrough (the `cat <<EOF` output didn't byte-match the
+  file written via the Write tool, even though both blocks looked
+  identical to a human).
+
+  **How**: new `canonicalFrontmatter(parsed, raw)` helper in
+  `kernel/orchestrator.ts`. Re-emits the parsed frontmatter via
+  `yaml.dump` with deterministic options:
+
+  - `sortKeys: true` — keys in lexicographic order regardless of
+    declaration order.
+  - `lineWidth: -1` — no auto-wrap.
+  - `noRefs: true` — no `*alias` shorthand.
+  - `noCompatMode: true` — modern YAML 1.2 output.
+
+  Comments are lost (they're not semantic). Hash is then `sha256` of
+  that canonical string instead of `raw.frontmatterRaw`.
+
+  **Fallback**: when the adapter's parse failed silently (yields
+  `parsed = {}` for non-empty `raw`), we fall back to hashing the raw
+  text so a malformed-YAML file still hashes deterministically against
+  itself across rescans. Without this, every malformed file would
+  collapse to the same `sha256(yaml.dump({}))` and erroneously match
+  each other for rename.
+
+  **Migration impact**: existing DBs have `frontmatter_hash` values
+  computed over raw text. After this lands, the next `sm scan` will
+  see every file as "frontmatter changed" (cache miss in `--changed`
+  mode; otherwise cosmetic). No data loss. `state_*` rows aren't
+  affected — they key on `node.path`, not on `frontmatter_hash`. Once
+  the new hashes settle, behaviour stabilises.
+
+  Tests: 2 new in `src/test/scan-mutation.test.ts`:
+
+  - "two files with the same logical frontmatter but DIFFERENT YAML
+    formatting hash to the same fm_hash" — exercises key reordering,
+    quote-style change, trailing-newline change, all in one fixture
+    pair.
+  - "logically-different frontmatters still produce different
+    fm_hashes" — guard against canonicalization collapsing distinct
+    values.
+
+  Test count: 211 → 213.
+
+- 9a89124: Step 5.2 — Storage helpers for the history readers (`sm history`,
+  `sm history stats`) and for the rename heuristic / `sm orphans` verbs
+  landing in 5.3 — 5.6.
+
+  New module `src/kernel/adapters/sqlite/history.ts` with four entry
+  points, all accepting either a `Kysely<IDatabase>` or a
+  `Transaction<IDatabase>` so callers can compose them inside a larger
+  tx (the rename heuristic does this):
+
+  - `insertExecution(db, exec)` — write a `state_executions` row.
+    Surfaces today through tests; consumed by `sm record` / `sm job run`
+    at Step 9.
+  - `listExecutions(db, filter)` — read with optional filters: `nodePath`
+    (JSON-array containment via `json_each`, mirroring the
+    `sm list --issue` subquery in `cli/commands/list.ts`), `actionId`
+    (exact match on `extension_id`), `statuses[]`, `sinceMs` /
+    `untilMs` (since inclusive, until exclusive), `limit`. Sorted
+    most-recent first.
+  - `aggregateHistoryStats(db, range, period, topN)` — totals,
+    per-action token rollup (sorted desc by `tokensIn + tokensOut`),
+    per-period bucketing via `bucketStartMs` (UTC `day` / `week` /
+    `month`), top-N nodes by frequency (tie-break `lastExecutedAt`
+    desc), and error rates: global, per-action, and per-failure-reason.
+    The per-failure-reason map ALWAYS includes all six enum values
+    (zero-filled), so dashboards see a predictable shape.
+  - `migrateNodeFks(trx, fromPath, toPath)` — repoint every `state_*`
+    reference to a node from `fromPath` to `toPath`. Handles the three
+    FK shapes the kernel uses today: simple column on `state_jobs`,
+    JSON-array contents on `state_executions.node_ids_json`
+    (pull-modify-update), and composite PKs on `state_summaries`,
+    `state_enrichments`, `state_plugin_kvs` (delete + insert at the new
+    PK). Composite-PK collisions are resolved conservatively: the
+    destination row is preserved (it represents the live node's
+    history), the migrating row is dropped, and the drop is reported
+    back via `IMigrateNodeFksReport.collisions[]` so callers can surface
+    a diagnostic. The empty-string sentinel for plugin-global keys is
+    intentionally skipped.
+
+  Exports `bucketStartMs(dateMs, period)` for direct use by the
+  `sm history stats` CLI (5.4) and to keep bucketing testable in
+  isolation.
+
+  New domain types in `src/kernel/types.ts`: `ExecutionRecord`,
+  `ExecutionKind`, `ExecutionStatus`, `ExecutionFailureReason`,
+  `ExecutionRunner`, plus `HistoryStats` and its sub-shapes —
+  mirroring `spec/schemas/execution-record.schema.json` and
+  `spec/schemas/history-stats.schema.json` respectively.
+
+  Test count: 154 → 169 (+15 covering insert/list filter axes,
+  bucket boundaries for day/week/month, totals + per-action +
+  per-period + top-nodes + error-rates aggregation including the
+  all-six-keys failure-reason invariant, FK migration across the
+  three shapes, sentinel preservation, and conservative collision
+  resolution).
+
+- 9a89124: Step 5.3 — `sm history` CLI lands. The stub is removed from
+  `stubs.ts`; the real implementation lives at `src/cli/commands/history.ts`
+  and is registered in `cli/entry.ts`.
+
+  Surface (matches `spec/cli-contract.md` §History):
+
+  - `-n <path>` — restrict to executions whose `nodeIds[]` contains `<path>`
+    (JSON-array containment via `json_each`, mirroring the
+    `sm list --issue` subquery).
+  - `--action <id>` — exact match on `extension_id`.
+  - `--status <s,...>` — comma-separated subset of
+    `completed,failed,cancelled`. Unknown values rejected with exit 2.
+  - `--since <ISO>` / `--until <ISO>` — Unix-ms boundaries on
+    `started_at`. Since inclusive, until exclusive (per the schema's
+    `range` semantics). Unparseable input → exit 2.
+  - `--limit N` — positive integer cap. Non-positive → exit 2.
+  - `--json` — emits an array conforming to
+    `spec/schemas/execution-record.schema.json` (no top-level
+    `elapsedMs` for array outputs, per `cli-contract.md` §Elapsed time).
+  - `--quiet` — suppresses the `done in <…>` stderr line.
+
+  Exit codes follow `cli-contract.md`: 0 ok (including empty result),
+  2 bad flag, 5 DB missing.
+
+  New shared util `src/cli/util/elapsed.ts` (`startElapsed` /
+  `formatElapsed` / `emitDoneStderr`) carries the §Elapsed time
+  formatting (`34ms` / `2.4s` / `1m 42s`). Used by `sm history` /
+  `sm history stats` only — retrofitting `list` / `show` / `check` /
+  `scan` is a known drift kept out of Step 5 scope.
+
+  Tests: 9 new under `src/test/history-cli.test.ts` covering the missing
+  DB, empty DB, --json schema validation, every filter axis (-n, --status,
+  window boundaries), and bad-input exit codes.
+
+  `context/cli-reference.md` regenerated.
+
+  Test count: 169 → 184.
+
+- 9a89124: Step 5.4 — `sm history stats` CLI lands alongside `sm history` in
+  `src/cli/commands/history.ts`. The stub is removed from `stubs.ts`
+  and the real class registered in `cli/entry.ts`.
+
+  Surface (matches `spec/cli-contract.md` §History):
+
+  - `--since <ISO>` / `--until <ISO>` — window boundaries. Since defaults
+    to `null` (all-time); until defaults to `now()`. Both validated.
+  - `--period day|week|month` — bucket granularity. Default `month`. Bucket
+    start computed in UTC (`bucketStartMs` from 5.2): day = 00:00 of the
+    date, week = Monday 00:00 UTC, month = day-1 00:00 UTC.
+  - `--top N` — caps the `topNodes` array. Default 10. Non-positive → exit 2.
+  - `--json` — emits a `HistoryStats` object conforming to
+    `spec/schemas/history-stats.schema.json`. The output is **self-validated
+    before emit** via `loadSchemaValidators().validate('history-stats', …)` —
+    same pattern as `src/test/self-scan.test.ts` — so a runtime shape
+    regression surfaces as exit 2 with a clear stderr message rather than
+    drifting silently.
+  - `--quiet` — suppresses the `done in <…>` stderr line.
+
+  Top-level `elapsedMs` is included in the JSON object per the schema.
+  Stderr always carries `done in <formatted>` unless `--quiet`.
+
+  The per-failure-reason map ALWAYS contains all six enum values
+  (`runner-error`, `report-invalid`, `timeout`, `abandoned`,
+  `job-file-missing`, `user-cancelled`), zero-filled when a reason has
+  no occurrences — predictable shape for dashboards.
+
+  Tests: 6 new in `src/test/history-cli.test.ts` covering schema
+  self-validation, day-period bucketing, invalid `--period`, `--top`
+  cap, `range.since` shape (`null` vs ISO string), and the empty-DB
+  all-zero totals path.
+
+  `context/cli-reference.md` regenerated.
+
+- 9a89124: Step 5.5 — Auto-rename heuristic lands at scan time per
+  `spec/db-schema.md` §Rename detection.
+
+  **Orchestrator changes**:
+
+  - New post-rule phase in `runScan` that classifies the diff
+    `priorPaths \ currentPaths` × `currentPaths \ priorPaths`:
+    - **High** (body hash match): emits a `RenameOp` with confidence
+      `high`. NO issue — silent migration per spec.
+    - **Medium** (frontmatter hash, exactly one remaining candidate
+      after high pass): emits `RenameOp` + `auto-rename-medium` issue
+      (severity `warn`) with `data: { from, to, confidence: 'medium' }`.
+    - **Ambiguous** (frontmatter hash, more than one remaining
+      candidate): emits `auto-rename-ambiguous` issue with
+      `data: { to, candidates: [<old1>, <old2>, …] }` and `nodeIds: [to]`.
+      NO migration; the candidates fall through to the orphan pass.
+    - **Orphan**: every unclaimed deletion yields an `orphan` issue
+      (severity `info`) with `data: { path: <deletedPath> }`.
+  - 1-to-1 matching is enforced (a `newPath` claimed by an earlier
+    stage cannot be reused). Iteration is lex-asc on both sides for
+    deterministic output across runs and conformance fixtures.
+  - Body-hash match wins over frontmatter-hash match (high pass runs
+    before medium pass and consumes its `newPath`).
+
+  **API surface**:
+
+  - `runScan(kernel, opts)` continues to return `ScanResult` only —
+    preserved for backward compatibility with tests and external
+    consumers.
+  - New `runScanWithRenames(kernel, opts)` returns
+    `{ result: ScanResult; renameOps: RenameOp[] }` — the variant `sm scan`
+    consumes so it can hand `renameOps` to `persistScanResult` for
+    in-tx FK migration.
+  - New `detectRenamesAndOrphans(prior, currentNodes, issues)` exported
+    for direct testing and reuse by future surfaces (e.g. `sm orphans`
+    reconciliation paths).
+  - New `RenameOp` type exported from `kernel/index.ts`:
+    `{ from: string; to: string; confidence: 'high' | 'medium' }`.
+
+  **Persistence changes**:
+
+  - `persistScanResult(db, result, renameOps?)` accepts an optional
+    ops list. The migration runs **first inside the tx** (via the
+    Step 5.2 `migrateNodeFks` helper), then the scan zone replace-all.
+    A failure during FK migration rolls back the entire scan persist —
+    either all renames land or none do (per spec). Returns
+    `{ renames: IMigrateNodeFksReport[] }` so callers can surface
+    collision diagnostics.
+
+  **`sm scan`**:
+
+  - Switches to `runScanWithRenames` and forwards the ops to
+    `persistScanResult`. No new flags. CLI exit code semantics are
+    unchanged: `auto-rename-medium` and `auto-rename-ambiguous` are
+    `warn`-severity and `orphan` is `info`-severity, so they do NOT
+    trip exit code 1 (which still requires at least one `error`).
+
+  Test count: 184 → 190 (+6: high happy path, medium issue + FK
+  migration, ambiguous N:1 leaving FKs intact, orphan info-issue,
+  body-wins-frontmatter precedence, deterministic 1-to-1 lex matching).
+
+  `context/cli-reference.md` unchanged — `sm scan` flag surface stays
+  identical.
+
+- 9a89124: Step 5.6 — `sm orphans` verbs land. The three stubs are removed from
+  `stubs.ts`; the real implementations live at
+  `src/cli/commands/orphans.ts` and are registered as `ORPHANS_COMMANDS`
+  in `cli/entry.ts`.
+
+  **`sm orphans [--kind orphan|medium|ambiguous] [--json]`**:
+  Lists every active issue with `ruleId IN (orphan, auto-rename-medium,
+auto-rename-ambiguous)`. `--json` emits an array of `Issue` objects
+  (per `spec/schemas/issue.schema.json`); the human path renders a
+  one-line summary per issue grouped by ruleId.
+
+  **`sm orphans reconcile <orphan.path> --to <new.path>`**:
+  Forward direction. Validates `<new.path>` exists in `scan_nodes`
+  (exit 5 otherwise) and that an active `orphan` issue with
+  `data.path === <orphan.path>` exists (exit 5 otherwise). Migrates
+  state\_\* FKs via `migrateNodeFks` (5.2) inside a single transaction
+  along with the `DELETE FROM scan_issues` of the resolved orphan
+  issue. Surfaces composite-PK collision diagnostics on stderr when
+  they occur.
+
+  **`sm orphans undo-rename <new.path> [--from <old.path>] [--force]`**:
+  Reverse direction. Resolves the active `auto-rename-medium` or
+  `auto-rename-ambiguous` issue on `<new.path>`:
+
+  - For `auto-rename-medium`, reads `data.from` (omit `--from`).
+    Passing a `--from` that does not match `data.from` → exit 2.
+  - For `auto-rename-ambiguous`, requires `--from <old.path>` to pick
+    one of `data.candidates` (exit 5 if missing or not in candidates).
+
+  Migrates state\_\* FKs back to the prior path (the reverse of what the
+  heuristic did), deletes the auto-rename issue, and emits a new
+  `orphan` issue on the prior path (per spec: "the previous path
+  becomes an `orphan`"). Destructive — prompts via `readline` unless
+  `--force`.
+
+  **Refactor**: the `confirm()` helper used by `sm db restore` /
+  `sm db reset --state` / `sm db reset --hard` is extracted to
+  `src/cli/util/confirm.ts` so `sm orphans undo-rename` reuses the
+  exact same prompt shape (`<question> [y/N] `, stderr-emitting
+  readline interface). `db.ts` now imports it; behaviour identical.
+
+  Test count: 190 → 201 (+11 covering: list happy path, --kind filter,
+  --kind invalid, reconcile happy path / target-missing / no-issue,
+  undo-rename medium force, --from mismatch, no-issue exit 5,
+  ambiguous --from required + outside-candidates + valid).
+
+  `context/cli-reference.md` regenerated.
+
+- 9a89124: Step 5.7 — Conformance coverage for the rename heuristic.
+
+  **Spec change (additive, minor)**:
+
+  - `spec/schemas/conformance-case.schema.json` gains
+    `setup.priorScans: Array<{ fixture, flags? }>` — an ordered list of
+    staging scans the runner executes BEFORE the main `invoke`. Each
+    step replaces every non-`.skill-map/` directory in the scope with
+    the named fixture and runs `sm scan` (with optional flags). The DB
+    persists across steps because `.skill-map/` is preserved between
+    swaps. After the last step, the runner copies the top-level
+    `fixture` and runs the case's `invoke`.
+
+    Required to express scenarios that need a prior snapshot (rename
+    heuristic, future incremental cases). The schema is purely
+    additive — every existing case keeps passing without modification.
+
+  - Two new conformance cases under `spec/conformance/cases/`:
+
+    - **`rename-high`** — moving a single file with identical body
+      triggers a high-confidence auto-rename. Asserts:
+      `stats.nodesCount === 1`, `stats.issuesCount === 0`,
+      `nodes[0].path === skills/bar.md`. Verifies the spec invariant
+      that high-confidence renames emit NO issue.
+    - **`orphan-detection`** — deleting a file with no replacement
+      emits exactly one `orphan` issue (severity `info`). Asserts the
+      `ruleId` and `severity` directly.
+
+  - Four new fixture directories under `spec/conformance/fixtures/`:
+    `rename-high-before/`, `rename-high-after/`,
+    `orphan-before/`, `orphan-after/`.
+
+  - `spec/conformance/coverage.md`: row I (Rename heuristic) flips
+    from `🔴 missing` to `🟢 covered`. Notes the medium / ambiguous
+    branches stay covered by `src/test/rename-heuristic.test.ts` for
+    now (assertion vocabulary in the schema is not rich enough to
+    express "the issues array contains an item with ruleId X and
+    data.confidence === 'medium'" — when the conformance schema gains
+    array-filter assertions, those branches can land here too).
+
+  **Runtime change**:
+
+  - `src/conformance/index.ts` runner: implements `setup.priorScans`.
+    Helper `replaceFixture(scope, specRoot, fixture)` clears every
+    top-level entry in the scope except `.skill-map/`, then copies the
+    named fixture on top. Used by both staging steps and the main
+    `fixture` phase.
+  - `src/test/conformance.test.ts`: includes the two new cases in the
+    Step-0b subset. Total conformance cases passing in CI: 1 → 3.
+
+  **`spec/index.json`** regenerated (50 → 57 files). `npm run spec:check`
+  green.
+
+  Test count: 201 → 203 (+2 conformance cases). The Step 5 totals close
+  at: 151 → 203 (+52 across 7 sub-steps).
+
+- 9a89124: Step 5.8 — fire the rename heuristic on every `sm scan`, not just
+  `sm scan --changed`. Closes the follow-up flagged at the close of
+  Step 5.
+
+  Before this change, `priorSnapshot` in `RunScanOptions` carried two
+  coupled responsibilities:
+
+  1. Source for the rename heuristic (5.5).
+  2. Source for cache reuse (5.4 / Step 4.4 — skip detectors on
+     hash-matching nodes).
+
+  Loading prior was gated on `--changed` in `scan.ts`, so a plain
+  `sm scan` after reorganising files emitted no rename / orphan issues
+  and migrated no `state_*` FKs. The user-visible expectation — and a
+  defensible reading of the spec ("`sm scan` is the only surface that
+  triggers automatic rename detection") — is that **every** `sm scan`
+  fires the heuristic.
+
+  The fix decouples the two responsibilities:
+
+  - New `RunScanOptions.enableCache?: boolean` (default `false`).
+    Controls cache reuse only. The orchestrator's "cached" check is now
+    `enableCache && prior !== null && hashes match`.
+  - `priorSnapshot` reverts to a single meaning: "data from the prior
+    scan". Always passed when a prior exists, regardless of `--changed`.
+  - `scan.ts` always loads the prior when the DB exists and the user
+    isn't running `--no-built-ins`. The `--changed`-only stderr warning
+    ("no prior snapshot found") survives — without `--changed` the
+    empty-prior path is silent (it's the normal first-scan behaviour).
+  - `scan.ts` sets `enableCache: this.changed` when `priorSnapshot` is
+    passed, so `--changed` keeps its perf win and the contract for
+    cache-reliant tests doesn't break.
+
+  Behaviour matrix after the fix:
+
+  | Invocation                      | Prior loaded? | Cache reuse? | Rename heuristic? |
+  | ------------------------------- | ------------- | ------------ | ----------------- |
+  | `sm scan` (DB exists)           | yes           | no           | yes               |
+  | `sm scan` (DB empty)            | no            | n/a          | no                |
+  | `sm scan --changed` (DB exists) | yes           | yes          | yes               |
+  | `sm scan --changed` (DB empty)  | no — warns    | n/a          | no                |
+  | `sm scan --no-built-ins`        | no            | n/a          | no (no walk)      |
+
+  `--changed --no-built-ins` rejection (exit 2) stays as-is — the
+  combination is still incoherent.
+
+  Tests:
+
+  - `scan-incremental.test.ts` — pre-existing tests assert on cache
+    events; they now pass `enableCache: true` explicitly to keep that
+    contract under test.
+  - `cli.test.ts` — new e2e: write file → `sm scan` → delete file →
+    `sm scan --json` (no --changed) → assert one `orphan` issue in the
+    result. Closes the gap at the binary level.
+
+  Test count: 203 → 204.
+
+  Internal API note: `runScanWithRenames` continues to return
+  `{ result, renameOps }`. Both the heuristic and the cache use the
+  same prior data, so the wrapper's signature didn't change.
+
+- 9a89124: Step 5.9 — Orphan issues now persist across scans as long as `state_*`
+  has stranded references. Closes a gap surfaced during end-to-end
+  walkthrough.
+
+  **The bug**: `persistScanResult` does `DELETE FROM scan_issues` before
+  inserting the new issues. The per-scan rename heuristic
+  (`detectRenamesAndOrphans`) only emits `orphan` for paths in `prior \
+current` of the _immediately preceding_ scan. So after a deletion-scan
+  emitted an `orphan` issue, the very next scan (with no further
+  mutations) wiped that issue and emitted nothing — leaving the stranded
+  `state_*` rows invisible. Worst consequence:
+  `sm orphans reconcile <orphan.path>` requires an active orphan issue,
+  so once the issue silently expired, the user had no way to reconcile
+  the stranded references.
+
+  This contradicts `spec/db-schema.md` §Rename detection:
+
+  > "the kernel emits an issue (...) and keeps the `state_*` rows
+  > referencing the dead path untouched **until the user runs
+  > `sm orphans reconcile`** or accepts the orphan."
+
+  The "until" language implies the issue stays surfaceable as long as
+  the stranded refs remain.
+
+  **The fix**: new `findStrandedStateOrphans(trx, livePaths)` helper in
+  `src/kernel/adapters/sqlite/history.ts` sweeps every node reference
+  across `state_jobs`, `state_executions` (json_each over the JSON
+  array), `state_summaries`, `state_enrichments`, and `state_plugin_kvs`
+  (skipping the empty-string sentinel for plugin-global keys). Returns
+  the set of distinct `node_id` values not present in the live snapshot,
+  deterministically lex-asc.
+
+  `persistScanResult` calls the sweep AFTER applying `renameOps` and
+  BEFORE the replace-all of `scan_issues`. For each stranded path not
+  already covered by a per-scan orphan issue, it appends a new orphan
+  issue to `result.issues`. Then the replace-all writes the augmented
+  list. `result.stats.issuesCount` is updated to keep `sm scan --json`
+  self-consistent.
+
+  **Behaviour**:
+
+  - High / medium renames migrate state\_\* → no stranded refs → no extra
+    orphan issues. Unchanged.
+  - Ambiguous → state stays on the old paths → next scan emits orphans
+    for each previously-stranded path automatically.
+  - Pure orphan (deleted, no rename match) → emits orphan in the same
+    scan, persists across subsequent scans until the user reconciles
+    via `sm orphans reconcile <path> --to <new.path>` or rewrites the
+    state row manually.
+  - Once `state_*` no longer references the dead path, the next scan
+    emits no orphan for it. Self-healing.
+
+  The sweep is deduplicated against per-scan emissions via
+  `knownOrphanPaths`, so the same path never appears twice in
+  `scan_issues` after a single scan.
+
+  Tests: 2 new in `rename-heuristic.test.ts`:
+
+  - "orphan issue persists across subsequent scans while state\_\*
+    references the dead path" — 4 scans walking the full lifecycle
+    (seed → delete → re-scan persistence → reconcile-via-state-edit).
+  - "per-scan orphan and stranded sweep do not duplicate the same path"
+    — same path emitted by both pathways, only 1 issue in result.
+
+  Test count: 204 → 206.
+
+- Updated dependencies [dacd4d9]
+- Updated dependencies [9a89124]
+- Updated dependencies [9a89124]
+  - @skill-map/spec@0.6.0
+
 ## 0.3.1
 
 ### Patch Changes
