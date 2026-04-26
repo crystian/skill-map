@@ -22,7 +22,12 @@ import type { IAdapter, IRawNode } from '../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../kernel/types.js';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-const DEFAULT_IGNORE = new Set(['.git', 'node_modules', 'dist', '.skill-map']);
+// `.tmp` is the project-wide convention (per AGENTS.md) for transient
+// artifacts AI agents and tests generate; it is gitignored everywhere
+// and should never appear in a scan. Skipping it here keeps the
+// self-scan acceptance test stable when other tests (e.g. the perf
+// benchmark) materialise large fixtures under the repo's `.tmp/`.
+const DEFAULT_IGNORE = new Set(['.git', 'node_modules', 'dist', '.skill-map', '.tmp']);
 
 export const claudeAdapter: IAdapter = {
   id: 'claude',

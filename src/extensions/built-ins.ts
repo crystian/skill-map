@@ -23,6 +23,7 @@ import { claudeAdapter } from './adapters/claude/index.js';
 import { frontmatterDetector } from './detectors/frontmatter/index.js';
 import { slashDetector } from './detectors/slash/index.js';
 import { atDirectiveDetector } from './detectors/at-directive/index.js';
+import { externalUrlCounterDetector } from './detectors/external-url-counter/index.js';
 import { triggerCollisionRule } from './rules/trigger-collision/index.js';
 import { brokenRefRule } from './rules/broken-ref/index.js';
 import { supersededRule } from './rules/superseded/index.js';
@@ -40,7 +41,7 @@ export interface IBuiltIns {
 export function builtIns(): IBuiltIns {
   return {
     adapters: [claudeAdapter],
-    detectors: [frontmatterDetector, slashDetector, atDirectiveDetector],
+    detectors: [frontmatterDetector, slashDetector, atDirectiveDetector, externalUrlCounterDetector],
     rules: [triggerCollisionRule, brokenRefRule, supersededRule],
     renderers: [asciiRenderer],
     audits: [validateAllAudit],

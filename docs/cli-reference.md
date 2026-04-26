@@ -1,9 +1,9 @@
 # `sm` CLI reference
 
-Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface. For the normative verb contract, see [`spec/cli-contract.md`](../spec/cli-contract.md).
+Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface.
 
-- CLI version: `0.2.0`
-- Spec version: `0.4.0`
+- CLI version: `0.3.1`
+- Spec version: `0.5.1`
 
 ## Global flags
 
@@ -35,6 +35,22 @@ Execute an audit. --json emits the audit report per its declared shape.
 
 Print all current issues (reads from DB, faster than sm scan --json | jq).
 
+Loads every row from scan_issues. Exits 1 if any issue has severity `error`, 
+otherwise 0. `warn` and `info` do not fail.
+
+Run `sm scan` first to populate the DB.
+
+**Examples:**
+
+- Print every current issue
+  ```
+  sm check
+  ```
+- Machine-readable issue list
+  ```
+  sm check --json
+  ```
+
 ### `sm export`
 
 Filtered export. Query syntax is implementation-defined pre-1.0.
@@ -51,6 +67,37 @@ Render the full graph via the named renderer.
 
 Tabular listing of nodes. --json emits an array conforming to node.schema.json.
 
+Reads from the persisted scan snapshot (scan_nodes). Filters: --kind <k> 
+restricts to one node kind; --issue keeps only nodes
+
+that touch at least one current issue.
+
+--sort-by accepts: path, kind, bytes_total, links_out_count,
+
+links_in_count, external_refs_count. Default: path. --limit N caps the result; 
+default is no limit.
+
+Run `sm scan` first to populate the DB.
+
+**Examples:**
+
+- List every node
+  ```
+  sm list
+  ```
+- List only agents
+  ```
+  sm list --kind agent
+  ```
+- Top 5 by total bytes
+  ```
+  sm list --sort-by bytes_total --limit 5
+  ```
+- Only nodes with issues, machine-readable
+  ```
+  sm list --issue --json
+  ```
+
 ### `sm orphans`
 
 History rows whose target node is missing.
@@ -66,6 +113,23 @@ Reverse a medium- or ambiguous-confidence auto-rename.
 ### `sm show`
 
 Node detail: weight, frontmatter, links, issues, findings, summary.
+
+Loads a single node from the persisted snapshot, plus every link (in and out) 
+and every current issue touching it. Findings and summaries are reserved slots 
+and remain empty / null until the Step 10 / Step 11 features land.
+
+Run `sm scan` first to populate the DB.
+
+**Examples:**
+
+- Show a single node
+  ```
+  sm show .claude/agents/architect.md
+  ```
+- Machine-readable detail
+  ```
+  sm show .claude/agents/architect.md --json
+  ```
 
 ## Config
 
@@ -242,14 +306,25 @@ Show a single plugin's manifest + loaded extensions.
 Scan roots for markdown nodes, run detectors and rules.
 
 Walks the given roots with the built-in claude adapter, runs the frontmatter / 
-slash / at-directive detectors per node, then the trigger-collision / broken-ref 
-/ superseded rules over the full graph. Emits a ScanResult conforming to 
-scan-result.schema.json.
+slash / at-directive / external-url-counter detectors per node, then the 
+trigger-collision / broken-ref / superseded rules over the full graph. Emits a 
+ScanResult conforming to scan-result.schema.json.
+
+The result is persisted into <cwd>/.skill-map/skill-map.db (replace-all over 
+scan_nodes/links/issues). Pass --no-built-ins to skip both the pipeline and the 
+persistence step (kernel-empty-boot parity).
+
+Pass -n / --dry-run to skip every DB operation (the result is computed in memory 
+and emitted to stdout). Pass --changed to load the prior snapshot from the DB, 
+reuse unchanged nodes, and only reprocess new / modified files.
 
 **Flags:**
 
 - `--json` `boolean` — Emit a machine-readable ScanResult document on stdout.
-- `--no-built-ins` `boolean` — Skip the built-in extension set. Yields a zero-filled ScanResult (kernel-empty-boot parity).
+- `--no-built-ins` `boolean` — Skip the built-in extension set. Yields a zero-filled ScanResult (kernel-empty-boot parity); skips DB persistence.
+- `--no-tokens` `boolean` — Skip per-node token counts (cl100k_base BPE). Leaves node.tokens undefined; spec-valid since the field is optional.
+- `--dry-run`, `-n` `boolean` — Run the scan in memory and skip every DB write. Combined with --changed, still opens the DB read-side to load the prior snapshot.
+- `--changed` `boolean` — Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.
 
 **Examples:**
 
@@ -264,6 +339,18 @@ scan-result.schema.json.
 - Empty-pipeline conformance
   ```
   sm scan --no-built-ins --json
+  ```
+- Dry-run, no DB writes
+  ```
+  sm scan -n --json
+  ```
+- Incremental scan against prior snapshot
+  ```
+  sm scan --changed
+  ```
+- What would the next incremental scan persist?
+  ```
+  sm scan --changed -n --json
   ```
 
 ## Server

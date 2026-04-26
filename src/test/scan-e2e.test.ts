@@ -130,4 +130,97 @@ describe('scan end-to-end', () => {
     strictEqual(result.stats.linksCount, 0);
     strictEqual(result.stats.issuesCount, 0);
   });
+
+  it('computes token counts by default', async () => {
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+    });
+
+    strictEqual(result.nodes.length > 0, true);
+    for (const node of result.nodes) {
+      ok(node.tokens, `node ${node.path} missing tokens`);
+      const { frontmatter, body, total } = node.tokens;
+      ok(Number.isInteger(frontmatter) && frontmatter >= 0, 'frontmatter token count is a non-negative integer');
+      ok(Number.isInteger(body) && body >= 0, 'body token count is a non-negative integer');
+      ok(Number.isInteger(total) && total >= 0, 'total token count is a non-negative integer');
+      strictEqual(total, frontmatter + body);
+      // Every fixture has both a frontmatter block and a body, so both
+      // token counts must be strictly positive.
+      ok(frontmatter > 0, `node ${node.path} expected frontmatter tokens > 0`);
+      ok(body > 0, `node ${node.path} expected body tokens > 0`);
+    }
+  });
+
+  it('skips tokenization with `tokenize: false`', async () => {
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      tokenize: false,
+    });
+
+    strictEqual(result.nodes.length > 0, true);
+    for (const node of result.nodes) {
+      strictEqual(node.tokens, undefined, `node ${node.path} should not have tokens`);
+    }
+  });
+
+  it('counts external URLs into externalRefsCount and strips pseudo-links from result.links', async () => {
+    // Isolated fixture so the per-node counts in this test don't depend
+    // on the shared one above.
+    const local = mkdtempSync(join(tmpdir(), 'skill-map-e2e-urls-'));
+    try {
+      const writeLocal = (rel: string, content: string) => {
+        const abs = join(local, rel);
+        mkdirSync(join(abs, '..'), { recursive: true });
+        writeFileSync(abs, content);
+      };
+      // Two distinct URLs (https://example.com and https://example.com/path)
+      // + one duplicate of the first + one syntactically invalid URL that
+      // `new URL()` rejects. Expected externalRefsCount: 2.
+      writeLocal(
+        '.claude/agents/links.md',
+        [
+          '---',
+          'name: links',
+          'description: Has external URLs',
+          '---',
+          '',
+          'See https://example.com for the docs.',
+          'Also [more](https://example.com/path).',
+          'Already mentioned https://example.com above.',
+          'Bad: https://[bad here.',
+        ].join('\n'),
+      );
+
+      const kernel = createKernel();
+      for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+
+      const result = await runScan(kernel, {
+        roots: [local],
+        extensions: builtIns(),
+      });
+
+      const links = result.nodes.find((n) => n.path === '.claude/agents/links.md');
+      ok(links, 'links node was scanned');
+      strictEqual(links!.externalRefsCount, 2, 'two distinct normalized URLs counted');
+      // No external pseudo-link survives in result.links.
+      const externalSurvivors = result.links.filter(
+        (l) => l.target.startsWith('http://') || l.target.startsWith('https://'),
+      );
+      strictEqual(externalSurvivors.length, 0, 'external pseudo-links were stripped');
+      // linksOutCount reflects ONLY internal detectors (frontmatter + slash + at).
+      // This fixture has no frontmatter references, no slash commands, no @handles —
+      // so linksOutCount must be 0, untouched by the URL counter.
+      strictEqual(links!.linksOutCount, 0, 'URL counter does not inflate linksOutCount');
+    } finally {
+      rmSync(local, { recursive: true, force: true });
+    }
+  });
 });

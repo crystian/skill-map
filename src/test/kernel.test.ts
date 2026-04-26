@@ -56,15 +56,29 @@ describe('createKernel', () => {
 });
 
 describe('runScan', () => {
-  it('produces a zero-filled ScanResult for empty roots', async () => {
-    const result = await runScan(createKernel(), { roots: [] });
+  it('produces a zero-filled ScanResult for a single root with no extensions', async () => {
+    // Spec requires `roots: minItems: 1`; runScan throws on an empty
+    // array. Use `['.']` with no extensions to exercise the
+    // kernel-empty-boot path while staying spec-conformant.
+    const result = await runScan(createKernel(), { roots: ['.'] });
     assert.equal(result.schemaVersion, 1);
+    assert.equal(result.scope, 'project');
+    assert.deepEqual(result.adapters, []);
     assert.equal(result.nodes.length, 0);
     assert.equal(result.links.length, 0);
     assert.equal(result.issues.length, 0);
+    assert.equal(result.stats.filesWalked, 0);
+    assert.equal(result.stats.filesSkipped, 0);
     assert.equal(result.stats.nodesCount, 0);
     assert.equal(result.stats.linksCount, 0);
     assert.equal(result.stats.issuesCount, 0);
+  });
+
+  it('throws on empty roots (spec requires minItems: 1)', async () => {
+    await assert.rejects(
+      () => runScan(createKernel(), { roots: [] }),
+      /at least one path/i,
+    );
   });
 
   it('preserves roots in the result', async () => {
@@ -72,9 +86,27 @@ describe('runScan', () => {
     assert.deepEqual(result.roots, ['./a', './b']);
   });
 
-  it('emits an ISO-8601 timestamp', async () => {
-    const result = await runScan(createKernel(), { roots: [] });
-    assert.match(result.scannedAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+  it('emits a positive integer Unix-ms timestamp', async () => {
+    const before = Date.now();
+    const result = await runScan(createKernel(), { roots: ['.'] });
+    const after = Date.now();
+    assert.ok(Number.isInteger(result.scannedAt), 'scannedAt is an integer');
+    assert.ok(result.scannedAt >= before && result.scannedAt <= after, 'scannedAt within wall-clock window');
+  });
+
+  it('honours options.scope (defaults to project, override with global)', async () => {
+    const dflt = await runScan(createKernel(), { roots: ['.'] });
+    assert.equal(dflt.scope, 'project');
+    const explicit = await runScan(createKernel(), { roots: ['.'], scope: 'global' });
+    assert.equal(explicit.scope, 'global');
+  });
+
+  it('embeds scannedBy { name, version, specVersion } for self-describing output', async () => {
+    const result = await runScan(createKernel(), { roots: ['.'] });
+    assert.ok(result.scannedBy, 'scannedBy is populated');
+    assert.equal(result.scannedBy.name, 'skill-map');
+    assert.match(result.scannedBy.version, /^\d+\.\d+\.\d+/);
+    assert.equal(typeof result.scannedBy.specVersion, 'string');
   });
 
   it('emits scan.started and scan.completed in canonical order', async () => {

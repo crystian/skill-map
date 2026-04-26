@@ -18,7 +18,6 @@ import {
   readdirSync,
   rmSync,
 } from 'node:fs';
-import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { createInterface } from 'node:readline';
@@ -31,20 +30,7 @@ import {
   planMigrations,
   writeBackup,
 } from '../../kernel/adapters/sqlite/migrations.js';
-
-const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
-const DEFAULT_GLOBAL_DB = '.skill-map/skill-map.db';
-
-interface IDbLocationOptions {
-  global: boolean;
-  db: string | undefined;
-}
-
-function resolveDbPath(options: IDbLocationOptions): string {
-  if (options.db) return resolve(options.db);
-  if (options.global) return join(homedir(), DEFAULT_GLOBAL_DB);
-  return resolve(process.cwd(), DEFAULT_PROJECT_DB);
-}
+import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 
 async function confirm(question: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stderr });
@@ -54,12 +40,6 @@ async function confirm(question: string): Promise<boolean> {
   } finally {
     rl.close();
   }
-}
-
-function requireDbFile(path: string, stderr: NodeJS.WritableStream): boolean {
-  if (path === ':memory:' || existsSync(path)) return true;
-  stderr.write(`DB file not found: ${path}\n`);
-  return false;
 }
 
 // --- backup ---------------------------------------------------------------
@@ -83,7 +63,7 @@ export class DbBackupCommand extends Command {
 
   async execute(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db });
-    if (!requireDbFile(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return 5;
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const outPath = this.out ? resolve(this.out) : join(dirname(path), 'backups', `${ts}.db`);
@@ -197,7 +177,7 @@ export class DbResetCommand extends Command {
       return 0;
     }
 
-    if (!requireDbFile(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return 5;
 
     if (this.state && !this.yes) {
       const ok = await confirm(`Drop scan_* AND state_* in ${path}?`);
@@ -252,7 +232,7 @@ export class DbShellCommand extends Command {
 
   async execute(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db });
-    if (!requireDbFile(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return 5;
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
@@ -281,7 +261,7 @@ export class DbDumpCommand extends Command {
 
   async execute(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db });
-    if (!requireDbFile(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return 5;
 
     const args = ['-readonly', path, '.dump'];
     if (this.tables && this.tables.length > 0) {

@@ -1,21 +1,38 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { Command, Option } from 'clipanion';
 
 import { createKernel, runScan } from '../../kernel/index.js';
+import type { ScanResult } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
+import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
+import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
+
+const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
 /**
- * `sm scan [roots...] [--json] [--no-built-ins]`
+ * `sm scan [roots...] [--json] [--no-built-ins] [-n|--dry-run] [--changed]`
  *
  * Scans the given roots using the built-in extension set (claude adapter,
- * 3 detectors, 3 rules). The registry is populated with manifest rows so
+ * 4 detectors, 3 rules). The registry is populated with manifest rows so
  * introspection (`sm help`, future `sm plugins`) sees what's active; the
  * orchestrator consumes the callable instances separately.
  *
- * The kernel-empty-boot invariant still holds: passing `--no-built-ins`
- * reproduces the zero-filled ScanResult that `kernel-empty-boot`
- * validates. The conformance fixture runs `--no-built-ins` so the
- * invariant stays testable without building the built-in set into the
- * baseline.
+ * Result is persisted into `<cwd>/.skill-map/skill-map.db` (auto-migrated)
+ * with replace-all semantics across `scan_nodes / scan_links / scan_issues`.
+ *
+ * - `--no-built-ins` skips both the pipeline and the persistence step
+ *   (kernel-empty-boot parity); cannot be combined with `--changed`.
+ * - `-n` / `--dry-run` runs the scan in-memory and skips ALL DB writes.
+ *   Combined with `--changed` it still opens the DB read-side to load
+ *   the prior snapshot, then exits without writing.
+ * - `--changed` performs an incremental scan against the persisted prior
+ *   snapshot. Reuses unchanged nodes (matched by path + bodyHash +
+ *   frontmatterHash) and reprocesses new / modified files only. If the
+ *   DB doesn't exist or the prior snapshot is empty, degrades to a full
+ *   scan and prints a one-liner to stderr.
  */
 export class ScanCommand extends Command {
   static override paths = [['scan']];
@@ -25,14 +42,28 @@ export class ScanCommand extends Command {
     description: 'Scan roots for markdown nodes, run detectors and rules.',
     details: `
       Walks the given roots with the built-in claude adapter, runs the
-      frontmatter / slash / at-directive detectors per node, then the
-      trigger-collision / broken-ref / superseded rules over the full
-      graph. Emits a ScanResult conforming to scan-result.schema.json.
+      frontmatter / slash / at-directive / external-url-counter
+      detectors per node, then the trigger-collision / broken-ref /
+      superseded rules over the full graph. Emits a ScanResult
+      conforming to scan-result.schema.json.
+
+      The result is persisted into <cwd>/.skill-map/skill-map.db
+      (replace-all over scan_nodes/links/issues). Pass --no-built-ins
+      to skip both the pipeline and the persistence step (kernel-empty-boot
+      parity).
+
+      Pass -n / --dry-run to skip every DB operation (the result is
+      computed in memory and emitted to stdout). Pass --changed to load
+      the prior snapshot from the DB, reuse unchanged nodes, and only
+      reprocess new / modified files.
     `,
     examples: [
       ['Scan the current directory', '$0 scan'],
       ['Scan multiple roots and print JSON', '$0 scan ./docs ./skills --json'],
       ['Empty-pipeline conformance', '$0 scan --no-built-ins --json'],
+      ['Dry-run, no DB writes', '$0 scan -n --json'],
+      ['Incremental scan against prior snapshot', '$0 scan --changed'],
+      ['What would the next incremental scan persist?', '$0 scan --changed -n --json'],
     ],
   });
 
@@ -41,10 +72,29 @@ export class ScanCommand extends Command {
     description: 'Emit a machine-readable ScanResult document on stdout.',
   });
   noBuiltIns = Option.Boolean('--no-built-ins', false, {
-    description: 'Skip the built-in extension set. Yields a zero-filled ScanResult (kernel-empty-boot parity).',
+    description: 'Skip the built-in extension set. Yields a zero-filled ScanResult (kernel-empty-boot parity); skips DB persistence.',
+  });
+  noTokens = Option.Boolean('--no-tokens', false, {
+    description: 'Skip per-node token counts (cl100k_base BPE). Leaves node.tokens undefined; spec-valid since the field is optional.',
+  });
+  dryRun = Option.Boolean('-n,--dry-run', false, {
+    description: 'Run the scan in memory and skip every DB write. Combined with --changed, still opens the DB read-side to load the prior snapshot.',
+  });
+  changed = Option.Boolean('--changed', false, {
+    description: 'Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.',
   });
 
   async execute(): Promise<number> {
+    // --- flag combinatorics -------------------------------------------------
+    // `--no-built-ins` zero-fills the pipeline; combining it with
+    // `--changed` (which loads a prior to merge against) is incoherent.
+    if (this.changed && this.noBuiltIns) {
+      this.context.stderr.write(
+        '--changed and --no-built-ins cannot be combined: --no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.\n',
+      );
+      return 2;
+    }
+
     const kernel = createKernel();
     const roots = this.roots.length > 0 ? this.roots : ['.'];
 
@@ -53,13 +103,69 @@ export class ScanCommand extends Command {
       for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     }
 
-    const runOptions: Parameters<typeof runScan>[1] = { roots };
+    // --- prior snapshot for --changed --------------------------------------
+    // Load the persisted snapshot (read-only; the adapter is closed
+    // before the scan runs). If the DB doesn't exist yet, or the
+    // snapshot is empty, degrade to a full scan and warn.
+    const dbPath = resolve(process.cwd(), DEFAULT_PROJECT_DB);
+    let priorSnapshot: ScanResult | null = null;
+    if (this.changed) {
+      if (!existsSync(dbPath)) {
+        this.context.stderr.write(
+          '--changed: no prior snapshot found; running full scan.\n',
+        );
+      } else {
+        const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+        await adapter.init();
+        try {
+          const loaded = await loadScanResult(adapter.db);
+          if (loaded.nodes.length === 0) {
+            this.context.stderr.write(
+              '--changed: no prior snapshot found; running full scan.\n',
+            );
+          } else {
+            priorSnapshot = loaded;
+          }
+        } finally {
+          await adapter.close();
+        }
+      }
+    }
+
+    const runOptions: Parameters<typeof runScan>[1] = {
+      roots,
+      // `--global` for `sm scan` lands in Step 6 (config + onboarding).
+      // The orchestrator already accepts the scope override; the CLI
+      // surface defaults to `'project'` until the flag is wired.
+      scope: 'project',
+      tokenize: !this.noTokens,
+    };
     if (extensions) runOptions.extensions = extensions;
+    if (priorSnapshot) runOptions.priorSnapshot = priorSnapshot;
     const result = await runScan(kernel, runOptions);
+
+    // --- persist (skipped under --no-built-ins or --dry-run) ---------------
+    let persistedTo: string | null = null;
+    const willPersist = !this.noBuiltIns && !this.dryRun;
+    if (willPersist) {
+      persistedTo = dbPath;
+      const adapter = new SqliteStorageAdapter({ databasePath: persistedTo });
+      await adapter.init();
+      try {
+        await persistScanResult(adapter.db, result);
+      } finally {
+        await adapter.close();
+      }
+    }
+
+    // Exit code mirrors `sm check` (and spec/cli-contract.md §Exit codes):
+    // 1 only when at least one issue is at `error` severity. Warns / infos
+    // do not fail the verb. The exit code is independent of `--json`.
+    const exitCode = result.issues.some((i) => i.severity === 'error') ? 1 : 0;
 
     if (this.json) {
       this.context.stdout.write(JSON.stringify(result) + '\n');
-      return 0;
+      return exitCode;
     }
 
     this.context.stdout.write(
@@ -67,6 +173,13 @@ export class ScanCommand extends Command {
         `${result.stats.nodesCount} nodes, ${result.stats.linksCount} links, ` +
         `${result.stats.issuesCount} issues.\n`,
     );
-    return result.stats.issuesCount > 0 ? 1 : 0;
+    if (persistedTo) {
+      this.context.stdout.write(`Persisted to ${persistedTo}\n`);
+    } else if (this.dryRun && !this.noBuiltIns) {
+      this.context.stdout.write(
+        `Would persist ${result.stats.nodesCount} nodes / ${result.stats.linksCount} links / ${result.stats.issuesCount} issues to ${dbPath} (dry-run).\n`,
+      );
+    }
+    return exitCode;
   }
 }

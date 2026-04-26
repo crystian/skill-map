@@ -81,16 +81,46 @@ export interface Issue {
 }
 
 export interface ScanStats {
+  /**
+   * Files visited by the adapter walkers. With a single adapter this
+   * matches `nodesCount`; with multiple adapters running on overlapping
+   * roots it can diverge (each yielded `IRawNode` is one walked file).
+   */
+  filesWalked: number;
+  /**
+   * Files walked but not classified by any adapter. Today every walked
+   * file is classified by its adapter (the `claude` adapter falls back to
+   * `'note'`), so this is always 0; the field will matter once multiple
+   * adapters compete in Step 9+.
+   */
+  filesSkipped: number;
   nodesCount: number;
   linksCount: number;
   issuesCount: number;
   durationMs: number;
 }
 
+export interface ScanScannedBy {
+  name: string;
+  version: string;
+  specVersion: string;
+}
+
 export interface ScanResult {
   schemaVersion: 1;
-  scannedAt: string;
+  /** Unix milliseconds when the scan started. */
+  scannedAt: number;
+  /** Scan scope. `project` walks the cwd repo; `global` walks user-level skill dirs. */
+  scope: 'project' | 'global';
+  /**
+   * Filesystem roots that were walked during this scan. Spec requires
+   * `minItems: 1` — `runScan` throws if `roots: []` is supplied.
+   */
   roots: string[];
+  /** Adapter ids that participated in classification. Empty if no adapter matched. */
+  adapters: string[];
+  /** Implementation metadata. Populated by `runScan` for self-describing output. */
+  scannedBy?: ScanScannedBy;
   nodes: Node[];
   links: Link[];
   issues: Issue[];

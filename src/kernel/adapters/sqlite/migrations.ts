@@ -51,18 +51,27 @@ export interface IApplyResult {
 }
 
 /**
- * Default migrations directory — resolves `src/migrations/` relative to
- * this file so it works in both dev (tsx) and dist (tsup output) as long
- * as `package.json#files` ships the `migrations/` folder alongside `dist/`.
- * Consumers may override via `discoverMigrations(dir)`.
+ * Default migrations directory — resolves the bundled `migrations/` folder
+ * relative to this file so it works in both dev (tsx) and dist (tsup
+ * output) as long as `package.json#files` ships the `migrations/` folder
+ * alongside `dist/`.
+ *
+ * Two layouts to handle:
+ *   - dev (tsx, source files):
+ *       src/kernel/adapters/sqlite/migrations.ts → src/migrations/
+ *       (three levels up from `here`).
+ *   - dist (tsup bundle, single flat `cli.js`):
+ *       src/dist/cli.js → src/dist/migrations/
+ *       (one level up — `here` IS the dist root, not a nested
+ *       `kernel/adapters/sqlite/` path, because the bundle is flat).
+ *
+ * We probe the flat layout first, then fall back to the source-shaped
+ * layout. Consumers may override via `discoverMigrations(dir)`.
  */
 export function defaultMigrationsDir(): string {
-  // dev: src/kernel/adapters/sqlite/migrations.ts → src/migrations/
-  // dist: dist/kernel/adapters/sqlite/migrations.js → dist/../migrations/
-  //   (populated by a package.json files copy or by a tsup onSuccess hook)
   const here = dirname(fileURLToPath(import.meta.url));
-  // Walk up to the workspace root ('src' or 'dist'), then append 'migrations'.
-  // here endsWith kernel/adapters/sqlite → three levels up is the workspace root.
+  const flatLayout = resolve(here, 'migrations');
+  if (existsSync(flatLayout)) return flatLayout;
   return resolve(here, '..', '..', '..', 'migrations');
 }
 

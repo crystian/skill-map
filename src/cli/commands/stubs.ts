@@ -132,49 +132,10 @@ export class ConfigShowCommand extends Command {
 // ---------------------------------------------------------------------------
 // Browse
 // ---------------------------------------------------------------------------
-
-export class ListCommand extends Command {
-  static override paths = [['list']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'Tabular listing of nodes. --json emits an array conforming to node.schema.json.',
-  });
-  kind = Option.String('--kind', { required: false });
-  issue = Option.Boolean('--issue', false);
-  sortBy = Option.String('--sort-by', { required: false });
-  limit = Option.String('--limit', { required: false });
-  json = Option.Boolean('--json', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'list', '3');
-  }
-}
-
-export class ShowCommand extends Command {
-  static override paths = [['show']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'Node detail: weight, frontmatter, links, issues, findings, summary.',
-  });
-  nodePath = Option.String({ required: true });
-  json = Option.Boolean('--json', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'show', '3');
-  }
-}
-
-export class CheckCommand extends Command {
-  static override paths = [['check']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'Print all current issues (reads from DB, faster than sm scan --json | jq).',
-  });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'check', '3');
-  }
-}
+//
+// `sm list`, `sm show`, `sm check` left this file in Step 4.5; they live
+// in src/cli/commands/{list,show,check}.ts now. The remaining Browse
+// stubs (findings / graph / export / orphans*) ship in later Steps.
 
 export class FindingsCommand extends Command {
   static override paths = [['findings']];
@@ -565,9 +526,6 @@ export const STUB_COMMANDS = [
   ConfigSetCommand,
   ConfigResetCommand,
   ConfigShowCommand,
-  ListCommand,
-  ShowCommand,
-  CheckCommand,
   FindingsCommand,
   GraphCommand,
   ExportCommand,
