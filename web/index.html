@@ -101,9 +101,13 @@
                 <polyline points="12 5 19 12 12 19"/>
               </svg>
             </a>
-            <a class="btn btn--mono btn--xl" href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener" data-i18n="hero.cta.npm">
-              npm i -g @skill-map/cli
-            </a>
+            <button type="button" class="btn btn--mono btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">
+              <span data-i18n="hero.cta.npm">npm i -g @skill-map/cli</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="13" height="13" rx="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -210,14 +214,9 @@
         <div>
           <div class="roadmap__badge" data-i18n="rm.eyebrow">Roadmap</div>
           <h2 class="roadmap__title">
-            <span data-i18n="rm.title.1">Ten steps to 2.0.</span><br>
-            <span class="roadmap__title-soft" data-i18n="rm.title.2">We're on the third.</span>
+            <span data-i18n="rm.title">The plan.</span><br>
+            <span class="roadmap__title-soft" data-i18n="rm.sub">A definition, three phases to 1.0, and what comes after.</span>
           </h2>
-        </div>
-        <div class="roadmap__legend">
-          <div class="roadmap__legend-item roadmap__legend-item--done"><i></i><span data-i18n="rm.legend.done">Shipped</span></div>
-          <div class="roadmap__legend-item roadmap__legend-item--current"><i></i><span data-i18n="rm.legend.current">In progress</span></div>
-          <div class="roadmap__legend-item roadmap__legend-item--planned"><i></i><span data-i18n="rm.legend.planned">Planned</span></div>
         </div>
       </div>
       <div id="roadmap-mount"></div>
@@ -530,12 +529,13 @@
         <p class="cta-bar__sub" data-i18n="cta.sub">One command. No config. MIT licensed. Built for the people who never closed iTerm.</p>
 
         <div class="cta-bar__ctas">
-          <a class="btn btn--accent btn--xl" href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener">
-            npm i -g @skill-map/cli
-            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-              <path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/>
+          <button type="button" class="btn btn--accent btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">
+            <span>npm i -g @skill-map/cli</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
             </svg>
-          </a>
+          </button>
           <a class="btn btn--ghost btn--xl" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 2C6.48 2 2 6.58 2 12.21c0 4.5 2.87 8.32 6.84 9.67.5.09.68-.22.68-.49 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.36-3.37-1.36-.45-1.18-1.11-1.49-1.11-1.49-.91-.63.07-.62.07-.62 1.01.07 1.54 1.06 1.54 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.55-1.13-4.55-5.04 0-1.11.39-2.02 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.04A9.4 9.4 0 0112 7.16c.85.004 1.7.12 2.5.34 1.91-1.31 2.75-1.04 2.75-1.04.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.74 0 3.92-2.34 4.78-4.57 5.03.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.59.69.49C19.14 20.52 22 16.7 22 12.21 22 6.58 17.52 2 12 2z"/>
@@ -606,7 +606,11 @@
 
       <div class="lp-footer__bottom">
         <div data-i18n="foot.copy">© 2026 skill-map · MIT licensed · Built for people who read source code for fun.</div>
-        <div class="lp-footer__cmd">npm i -g @skill-map/cli</div>
+        <button type="button" class="lp-footer__cmd js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">npm i -g @skill-map/cli</button>
+      </div>
+
+      <div class="lp-footer__powered">
+        <span data-i18n="foot.powered.pre">A </span><a href="https://www.makersia.com" target="_blank" rel="noopener">Makersia</a><span data-i18n="foot.powered.post"> project</span>
       </div>
     </footer>
 

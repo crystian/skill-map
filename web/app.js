@@ -740,152 +740,156 @@
 })();
 
 // ============================================================
-// Roadmap timeline — interactive milestones
+// Roadmap timeline — phase-based interactive milestones
 // ------------------------------------------------------------
-// Renders the timeline strip + initial detail panel into
-// #roadmap-mount on load, then wires click handlers that swap
-// the detail when a milestone is selected. The dataset is
-// kept here (not in i18n.json) because it's data, not UI copy.
+// Five segments (Phase 0 / A / B / C / D) on a horizontal strip.
+// Each segment shows internal progress and opens a detail panel
+// with a brief plus a sub-list (highlights for 0, steps for
+// A/B/C, sketches for D). Phase data is colocated EN/ES inline
+// because it's content, not UI chrome — the framework strings
+// (status labels, section headers, hint) live in i18n.json.
 // ============================================================
 (() => {
   const mount = document.getElementById('roadmap-mount');
   if (!mount) return;
   const lang = document.documentElement.lang === 'es' ? 'es' : 'en';
 
-  const MILESTONES = [
-    { v: 'v0.1', q: 'Q3 2024', status: 'done',
-      title: { en: 'Initial scan',   es: 'Primer escaneo' },
-      sub:   { en: 'Static graph rendering', es: 'Render estático del grafo' },
-      brief: { en: 'The first walking version: scan a directory of markdown skills, build the adjacency graph, render a static SVG. No interaction, no daemon — just proof that the structure exists.',
-               es: 'La primera versión que caminaba: escanear un directorio de skills en markdown, armar el grafo de adyacencia, renderizar un SVG estático. Sin interacción, sin daemon — solo prueba de que la estructura existe.' } },
-    { v: 'v0.3', q: 'Q4 2024', status: 'done',
-      title: { en: 'CLI shipped',    es: 'CLI publicada' },
-      sub:   { en: 'Flags, JSON, --watch', es: 'Flags, JSON, --watch' },
-      brief: { en: '`sm scan` matures into a real CLI: --json for piping into jq, --watch for live reruns, --filter for slicing by node type. Exit codes that play nicely with CI.',
-               es: '`sm scan` madura como CLI: --json para hacer pipe a jq, --watch para reruns en vivo, --filter para cortar por tipo de nodo. Exit codes que se llevan bien con CI.' } },
-    { v: 'v0.5', q: 'Q1 2025', status: 'current',
-      title: { en: 'Web explorer',   es: 'Explorador web' },
-      sub:   { en: 'Live, interactive, force-directed', es: 'En vivo, interactivo, force-directed' },
-      brief: { en: "The graph becomes interactive. `sm open` boots a local server, opens the browser, force-directed layout that responds to drag, zoom, and pan. This is what you're looking at right now.",
-               es: 'El grafo se vuelve interactivo. `sm open` levanta un servidor local, abre el navegador, layout force-directed que responde a drag, zoom y pan. Esto es lo que estás viendo ahora mismo.' } },
-    { v: 'v0.7', q: 'Q2 2025', status: 'planned',
-      title: { en: 'Trigger collisions', es: 'Colisiones de triggers' },
-      sub:   { en: 'Catch ambiguous invocations', es: 'Detectar invocaciones ambiguas' },
-      brief: { en: 'When two skills both claim the trigger phrase "deploy", the runtime picks whichever loads first. v0.7 surfaces these conflicts at scan time so you fix them before the agent guesses wrong in production.',
-               es: 'Cuando dos skills reclaman la frase trigger "deploy", el runtime elige la que cargue primero. v0.7 muestra estos conflictos al escanear para que los arregles antes de que el agente adivine mal en producción.' } },
-    { v: 'v0.8', q: 'Q2 2025', status: 'planned',
-      title: { en: 'Orphan detection', es: 'Detección de huérfanos' },
-      sub:   { en: 'Find dead skills', es: 'Encontrar skills muertas' },
-      brief: { en: 'Skills that are defined but referenced by nothing — the equivalent of dead code, but for your agent ecosystem. Clean them up or mark them as entry points so the graph stops nagging.',
-               es: 'Skills que están definidas pero nada las referencia — el equivalente a código muerto, pero para tu ecosistema de agentes. Limpialas o marcalas como entry points para que el grafo deje de joder.' } },
-    { v: 'v0.9', q: 'Q3 2025', status: 'planned',
-      title: { en: 'Weighted edges', es: 'Edges con peso' },
-      sub:   { en: 'Token cost per reference', es: 'Costo de tokens por referencia' },
-      brief: { en: 'Each edge gains a weight: the token cost a skill imposes on its callers. Heavy nodes light up red. Now you can see at a glance which 5% of your skills are eating 80% of your context window.',
-               es: 'Cada edge gana un peso: el costo en tokens que una skill le impone a sus llamadores. Los nodos pesados se prenden en rojo. Ahora podés ver de un vistazo qué 5% de tus skills se comen el 80% de tu ventana de contexto.' } },
-    { v: 'v1.0', q: 'Q4 2025', status: 'planned',
-      title: { en: 'Stable 1.0', es: '1.0 estable' },
-      sub:   { en: 'Public API · semver guarantees', es: 'API pública · garantías de semver' },
-      brief: { en: 'Public, frozen schema for the JSON output. Plugin contract sealed. Backwards compatibility promise from here forward. We ship docs, examples, a real changelog.',
-               es: 'Schema público y congelado para el output JSON. Contrato de plugins sellado. Promesa de compatibilidad hacia atrás de acá en adelante. Documentamos, damos ejemplos, escribimos un changelog real.' } },
-    { v: 'v1.2', q: 'Q1 2026', status: 'planned',
-      title: { en: 'Plugin system', es: 'Sistema de plugins' },
-      sub:   { en: 'Custom node types & rules', es: 'Nodos y reglas custom' },
-      brief: { en: 'Bring your own node type. Write a plugin to scan, say, your internal RPC schema and have it appear in the graph alongside skills and agents. Same goes for custom lint rules — write code, not config.',
-               es: 'Trae tu propio tipo de nodo. Escribí un plugin que escanee, digamos, tu schema RPC interno y aparece en el grafo junto a skills y agents. Igual para reglas de lint custom — código, no config.' } },
-    { v: 'v1.4', q: 'Q2 2026', status: 'planned',
-      title: { en: 'Cross-repo federation', es: 'Federación entre repos' },
-      sub:   { en: 'Join graphs across projects', es: 'Unir grafos entre proyectos' },
-      brief: { en: 'Most teams have their skills scattered across 4–5 repos. v1.4 lets each project publish its graph as a manifest and lets you mount others as namespaced subgraphs — query the whole org at once.',
-               es: 'La mayoría de los equipos tiene sus skills repartidas en 4 o 5 repos. v1.4 deja que cada proyecto publique su grafo como un manifest y monte los otros como subgrafos con namespace — consultá toda la org de una.' } },
-    { v: 'v2.0', q: 'Q4 2026', status: 'planned',
-      title: { en: 'Team dashboards', es: 'Dashboards de equipo' },
-      sub:   { en: 'Optional cloud sync', es: 'Sync en la nube opcional' },
-      brief: { en: "Opt-in service that aggregates your team's graphs over time. See drift between branches, who introduced which collision, when an orphan first appeared. Self-hostable. Local-first stays the default.",
-               es: 'Servicio opt-in que agrega los grafos del equipo en el tiempo. Ver drift entre branches, quién introdujo qué colisión, cuándo apareció un huérfano. Self-hostable. Local-first sigue siendo el default.' } },
+  const PHASES = [
+    {
+      id: '0',
+      status: 'done',
+      release: { en: '@skill-map/spec', es: '@skill-map/spec' },
+      title: { en: 'Definition', es: 'Definición' },
+      sub: { en: 'Project shape and the standard.', es: 'Forma del proyecto y el estándar.' },
+      brief: {
+        en: 'Before a line of impl shipped, skill-map had to decide what it was. The result: a hexagonal architecture with a kernel and pluggable extensions, six extension kinds, two persistence scopes, a job subsystem designed around an LLM that can be absent, a plugin model with three storage modes, a frontmatter standard, and a strict spec-first discipline. The standard itself — 29 JSON Schemas, 7 prose contracts, a conformance suite — is published as @skill-map/spec so anyone can build a second implementation against the same contract. Eighty-nine architectural decisions, logged.',
+        es: 'Antes de una sola línea de implementación, skill-map tuvo que decidir qué era. El resultado: una arquitectura hexagonal con un kernel y extensiones plug-in, seis tipos de extensión, dos scopes de persistencia, un subsistema de jobs diseñado alrededor de un LLM que puede no estar, un modelo de plugins con tres modos de almacenamiento, un estándar de frontmatter, y disciplina spec-first estricta. El estándar mismo — 29 JSON Schemas, 7 contratos en prosa, una suite de conformance — está publicado como @skill-map/spec para que cualquiera pueda construir una segunda implementación contra el mismo contrato. Ochenta y nueve decisiones arquitectónicas, registradas.',
+      },
+      list: 'highlights',
+      items: [
+        { en: 'Hexagonal architecture · kernel + ports + adapters + 6 extension kinds', es: 'Arquitectura hexagonal · kernel + puertos + adaptadores + 6 tipos de extensión' },
+        { en: 'Persistence model · 2 scopes × 3 zones', es: 'Modelo de persistencia · 2 scopes × 3 zonas' },
+        { en: 'Job subsystem · atomic claim, nonce, kernel-enforced preamble', es: 'Subsistema de jobs · claim atómico, nonce, preamble forzado por el kernel' },
+        { en: 'Plugin model · 3 storage modes, triple protection', es: 'Modelo de plugins · 3 modos de storage, triple protección' },
+        { en: 'Frontmatter standard · base + 5 kind-specific schemas', es: 'Estándar de frontmatter · base + 5 schemas por tipo' },
+        { en: 'Trigger normalization · 6-step pipeline', es: 'Normalización de triggers · pipeline de 6 pasos' },
+        { en: 'Config hierarchy · defaults → global → project → local → env', es: 'Jerarquía de config · defaults → global → proyecto → local → env' },
+        { en: 'Versioning policy · changesets, independent semver per package', es: 'Política de versionado · changesets, semver independiente por paquete' },
+        { en: 'Spec as a standard · separable from reference impl', es: 'Spec como estándar · separable de la implementación de referencia' },
+        { en: '29 schemas + 7 prose contracts + conformance suite', es: '29 schemas + 7 contratos en prosa + suite de conformance' },
+        { en: '89 architectural decisions, logged', es: '89 decisiones arquitectónicas, registradas' },
+        { en: '@skill-map/spec published on npm', es: '@skill-map/spec publicado en npm' },
+      ],
+    },
+    {
+      id: 'A',
+      status: 'current',
+      release: { en: 'target: v0.6.0', es: 'objetivo: v0.6.0' },
+      title: { en: 'Deterministic core', es: 'Núcleo determinista' },
+      sub: { en: 'Scan, model, query. No LLM.', es: 'Escanear, modelar, consultar. Sin LLM.' },
+      brief: {
+        en: 'The offline product. Scan any folder of agent files, build the reference graph, surface collisions and orphans. Ships with a CLI, a kernel, a plugin loader, and the first set of detectors and rules. Nothing here needs an LLM.',
+        es: 'El producto offline. Escaneá cualquier carpeta de archivos de agentes, armá el grafo de referencias, sacá a la luz colisiones y huérfanos. Incluye una CLI, un kernel, un cargador de plugins, y el primer set de detectores y reglas. Acá no hace falta ningún LLM.',
+      },
+      list: 'steps',
+      items: [
+        { id: '0b', status: 'done',    title: { en: 'Implementation bootstrap',     es: 'Bootstrap de implementación' },         body: { en: 'Workspace, kernel shell, CLI binary, conformance harness, CI green',                                                                       es: 'Workspace, kernel shell, binario CLI, harness de conformance, CI en verde' } },
+        { id: '0c', status: 'done',    title: { en: 'UI prototype (Flavor A)',      es: 'Prototipo de UI (Sabor A)' },             body: { en: 'Angular + Foblex Flow + PrimeNG, mock collection, list / graph / inspector views',                                                          es: 'Angular + Foblex Flow + PrimeNG, colección mock, vistas list / graph / inspector' } },
+        { id: '1a', status: 'done',    title: { en: 'Storage + migrations',          es: 'Storage + migraciones' },                  body: { en: 'SQLite via node:sqlite, kernel migrations, auto-backup, sm db * verbs',                                                                     es: 'SQLite vía node:sqlite, migraciones de kernel, auto-backup, verbos sm db *' } },
+        { id: '1b', status: 'done',    title: { en: 'Registry + plugin loader',      es: 'Registry + cargador de plugins' },        body: { en: 'Six kinds enforced, drop-in plugin discovery, sm plugins list / show / doctor',                                                            es: 'Seis tipos forzados, descubrimiento drop-in de plugins, sm plugins list / show / doctor' } },
+        { id: '1c', status: 'done',    title: { en: 'Orchestrator + CLI dispatcher', es: 'Orquestador + dispatcher de CLI' },       body: { en: 'Scan skeleton, full Clipanion verb registration, sm help, autogenerated CLI reference',                                                    es: 'Esqueleto del scan, registro completo de verbos en Clipanion, sm help, referencia CLI autogenerada' } },
+        { id: '2',  status: 'done',    title: { en: 'First extensions',              es: 'Primeras extensiones' },                   body: { en: 'claude adapter · 3 detectors (frontmatter / slash / at-directive) · 3 rules (collision / broken-ref / superseded) · ASCII renderer · validate-all audit', es: 'Adaptador claude · 3 detectores (frontmatter / slash / at-directive) · 3 reglas (collision / broken-ref / superseded) · renderer ASCII · audit validate-all' } },
+        { id: '3',  status: 'done',    title: { en: 'UI design refinement',          es: 'Refinamiento de diseño de UI' },           body: { en: 'Node cards, connection styling, inspector layout, dark mode parity, responsive baseline',                                                  es: 'Cards de nodos, estilo de conexiones, layout del inspector, paridad en dark mode, baseline responsive' } },
+        { id: '4',  status: 'done',    title: { en: 'Scan end-to-end',               es: 'Scan end-to-end' },                        body: { en: 'sm scan persists to SQLite · per-node tokens · external-url-counter detector · --changed incremental · sm list / show / check reading the snapshot', es: 'sm scan persiste en SQLite · tokens por nodo · detector external-url-counter · --changed incremental · sm list / show / check leyendo el snapshot' } },
+        { id: '5',  status: 'current', title: { en: 'History + orphans',             es: 'Historia + huérfanos' },                   body: { en: 'state_executions · sm history · automatic rename heuristic via body_hash · sm orphans reconcile',                                          es: 'state_executions · sm history · heurística automática de rename vía body_hash · sm orphans reconcile' } },
+        { id: '6',  status: 'planned', title: { en: 'Config + onboarding',           es: 'Config + onboarding' },                    body: { en: '.skill-map/settings(.local).json · .skill-mapignore · sm init · frontmatter strict mode',                                                  es: '.skill-map/settings(.local).json · .skill-mapignore · sm init · modo estricto de frontmatter' } },
+        { id: '7',  status: 'planned', title: { en: 'Robustness',                    es: 'Robustez' },                                body: { en: 'Detector conflict resolution · chokidar incremental scan · trigger normalization wired everywhere · sm job prune',                       es: 'Resolución de conflictos entre detectores · scan incremental con chokidar · normalización de triggers en todos lados · sm job prune' } },
+        { id: '8',  status: 'planned', title: { en: 'Diff + export',                 es: 'Diff + export' },                          body: { en: 'sm scan --compare-with · sm export · sm graph',                                                                                          es: 'sm scan --compare-with · sm export · sm graph' } },
+        { id: '9',  status: 'planned', title: { en: 'Plugin author UX',              es: 'UX para autores de plugins' },             body: { en: 'skill-map/testkit exported · plugin API docs · broken-plugin diagnostics',                                                                es: 'skill-map/testkit exportado · docs del API de plugins · diagnósticos de plugins rotos' } },
+      ],
+    },
+    {
+      id: 'B',
+      status: 'planned',
+      release: { en: 'target: v0.8.0', es: 'objetivo: v0.8.0' },
+      title: { en: 'LLM as an optional layer', es: 'El LLM como capa opcional' },
+      sub: { en: 'Summaries, semantic verbs, findings.', es: 'Resúmenes, verbos semánticos, findings.' },
+      brief: {
+        en: 'Once the deterministic core is shipped, the LLM joins as an opt-in. A job subsystem queues summarisation work, the first summariser turns a skill into a structured brief, then the rest follow with semantic verbs. Nothing breaks if claude is not installed.',
+        es: 'Una vez que el núcleo determinista está listo, el LLM entra como opt-in. Un subsistema de jobs encola el trabajo de resumen, el primer summarizer convierte una skill en un brief estructurado, después siguen el resto con verbos semánticos. Nada se rompe si claude no está instalado.',
+      },
+      list: 'steps',
+      items: [
+        { id: '10', status: 'planned', title: { en: 'Job subsystem + first summarizer', es: 'Subsistema de jobs + primer summarizer' }, body: { en: 'state_jobs with atomic claim · kernel-enforced preamble · sm job submit / run / … · ClaudeCliRunner · skill-summarizer · github-enrichment plugin', es: 'state_jobs con claim atómico · preamble forzado por el kernel · sm job submit / run / … · ClaudeCliRunner · skill-summarizer · plugin github-enrichment' } },
+        { id: '11', status: 'planned', title: { en: 'Summarizers + LLM verbs',          es: 'Summarizers + verbos LLM' },              body: { en: 'Agent / command / hook / note summarizers · sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm findings · /skill-map:explore meta-skill', es: 'Summarizers de agent / command / hook / note · sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm findings · meta-skill /skill-map:explore' } },
+      ],
+    },
+    {
+      id: 'C',
+      status: 'planned',
+      release: { en: 'target: v1.0.0', es: 'objetivo: v1.0.0' },
+      title: { en: 'Surface & distribution', es: 'Superficie y distribución' },
+      sub: { en: 'Renderers, full web UI, single-binary release.', es: 'Renderers, UI web completa, release de un binario.' },
+      brief: {
+        en: 'The product reaches 1.0 here. Mermaid and DOT renderers for ops and CI, the full web UI replaces the prototype with a Hono BFF and WebSocket live events, and @skill-map/cli ships as a single npm package with the UI bundled inside. One process, one port, one command.',
+        es: 'Acá el producto llega a 1.0. Renderers Mermaid y DOT para ops y CI, la UI web completa reemplaza el prototipo con un BFF Hono y eventos en vivo por WebSocket, y @skill-map/cli se distribuye como un único paquete npm con la UI empaquetada adentro. Un proceso, un puerto, un comando.',
+      },
+      list: 'steps',
+      items: [
+        { id: '12', status: 'planned', title: { en: 'Additional renderers',  es: 'Renderers adicionales' }, body: { en: 'Mermaid · DOT / Graphviz · subgraph export with filters',                                                                                  es: 'Mermaid · DOT / Graphviz · export de subgrafos con filtros' } },
+        { id: '13', status: 'planned', title: { en: 'Full web UI',           es: 'UI web completa' },        body: { en: 'Hono BFF + WebSocket /ws · single-port mandate · Flavor B vertical slice · command submit from UI · live event streaming',              es: 'BFF Hono + WebSocket /ws · mandato de un solo puerto · slice vertical del Sabor B · submit de comandos desde la UI · streaming de eventos en vivo' } },
+        { id: '14', status: 'planned', title: { en: 'Distribution polish',   es: 'Pulido de distribución' }, body: { en: 'Single npm package with UI bundled · sm + skill-map binary aliases · sm ui sub-command · telemetry opt-in',                              es: 'Paquete npm único con UI incluida · alias de binarios sm + skill-map · sub-comando sm ui · telemetría opt-in' } },
+      ],
+    },
+    {
+      id: 'D',
+      status: 'open',
+      release: { en: 'post-1.0, on demand', es: 'post-1.0, a demanda' },
+      title: { en: 'Deferred', es: 'Diferido' },
+      sub: { en: 'Post-1.0, on demand only.', es: 'Post-1.0, sólo a demanda.' },
+      brief: {
+        en: "Things deliberately out of scope for 1.0. They land if and when there's demand: editing skills from the UI, richer workflow definitions, more adapters, URL-liveness checks, schema v2 with migration. Listed so nobody confuses 'not yet' with 'never'.",
+        es: 'Cosas deliberadamente fuera del scope de 1.0. Aterrizan si y cuando aparece demanda: editar skills desde la UI, definiciones de workflow más ricas, más adaptadores, chequeos de URL viva, schema v2 con migración. Listadas para que nadie confunda "todavía no" con "nunca".',
+      },
+      list: 'sketches',
+      items: [
+        { en: 'Write-back from UI · edit / create / refactor skills',           es: 'Escritura desde la UI · editar / crear / refactorizar skills' },
+        { en: 'More adapters · Codex, Gemini, Copilot, generic',                es: 'Más adaptadores · Codex, Gemini, Copilot, genérico' },
+        { en: 'Plugin test harness · dry-run / real / subprocess',              es: 'Test harness para plugins · dry-run / real / subproceso' },
+        { en: 'URL liveness · optional plugin for broken-external-ref',         es: 'URL viva · plugin opcional para broken-external-ref' },
+        { en: 'Schema v2 + migration',                                          es: 'Schema v2 + migración' },
+      ],
+    },
   ];
 
   const STATUS_LABEL = {
     done:    { en: 'Shipped',     es: 'Lanzado' },
     current: { en: 'In progress', es: 'En curso' },
     planned: { en: 'Planned',     es: 'Planeado' },
+    open:    { en: 'Open',        es: 'Abierto' },
+  };
+
+  const SECTION_LABEL = {
+    highlights: { en: 'Highlights', es: 'Hitos' },
+    steps:      { en: 'Steps',      es: 'Pasos' },
+    sketches:   { en: 'Sketches',   es: 'Bocetos' },
   };
 
   const tx = (obj) => obj[lang] ?? obj.en;
-  const currentIdx = MILESTONES.findIndex((m) => m.status === 'current');
+  const ofWord = lang === 'es' ? 'de' : 'of';
+
+  const currentIdx = PHASES.findIndex((p) => p.status === 'current');
   let selected = currentIdx >= 0 ? currentIdx : 0;
 
-  // --- Build the strip + dots once ---
-  const strip = document.createElement('div');
-  strip.className = 'roadmap__strip';
-
-  const rail = document.createElement('div');
-  rail.className = 'roadmap__rail';
-  strip.appendChild(rail);
-
-  const progress = document.createElement('div');
-  progress.className = 'roadmap__progress';
-  // Width = position of the current milestone along the inner 92% rail.
-  const progressPct = currentIdx >= 0
-    ? (currentIdx / (MILESTONES.length - 1)) * 92
-    : 0;
-  progress.style.width = `${progressPct}%`;
-  strip.appendChild(progress);
-
-  const dots = document.createElement('div');
-  dots.className = 'roadmap__dots';
-
-  MILESTONES.forEach((m, i) => {
-    const above = i % 2 === 0;
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'roadmap__milestone';
-    btn.dataset.idx = String(i);
-    btn.dataset.status = m.status;
-    btn.setAttribute('aria-current', i === selected ? 'true' : 'false');
-    btn.setAttribute('aria-label', `${m.v} — ${tx(m.title)}`);
-
-    const labelHtml = `
-      <div class="roadmap__label roadmap__label--${above ? 'above' : 'below'}">
-        <div class="roadmap__label-v">${m.v}</div>
-        <div class="roadmap__label-t">${escapeHtml(tx(m.title))}</div>
-      </div>`;
-    const dotHtml = `
-      <div class="roadmap__dot-wrap">
-        <span class="roadmap__pulse" aria-hidden="true"></span>
-        <span class="roadmap__sel-ring" aria-hidden="true"></span>
-        <span class="roadmap__dot" aria-hidden="true"></span>
-      </div>`;
-    btn.innerHTML = above ? labelHtml + dotHtml : dotHtml + labelHtml;
-    dots.appendChild(btn);
-  });
-
-  strip.appendChild(dots);
-  mount.appendChild(strip);
-
-  // --- Build the detail panel ---
-  const detail = document.createElement('div');
-  detail.className = 'roadmap__detail';
-  detail.innerHTML = `
-    <div>
-      <div class="roadmap__detail-q"></div>
-      <div class="roadmap__detail-v"></div>
-      <div class="roadmap__detail-status"></div>
-    </div>
-    <div>
-      <h3 class="roadmap__detail-title"></h3>
-      <div class="roadmap__detail-sub"></div>
-      <p class="roadmap__detail-brief"></p>
-    </div>
-  `;
-  mount.appendChild(detail);
-
-  const hint = document.createElement('div');
-  hint.className = 'roadmap__hint';
-  hint.textContent = lang === 'es'
-    ? 'Hacé clic en cualquier hito para ver el brief.'
-    : 'Click any milestone to read the brief.';
-  mount.appendChild(hint);
+  // For phases with a `steps` list, count how many steps are done so the
+  // segment can show a `done of total` progress bar. Highlights / sketches
+  // phases return null and the segment shows the release line instead.
+  function progressOf(p) {
+    if (p.list !== 'steps') return null;
+    const total = p.items.length;
+    const done = p.items.filter((it) => it.status === 'done').length;
+    return { done, total };
+  }
 
   function escapeHtml(s) {
     return String(s)
@@ -893,45 +897,210 @@
       .replaceAll('"', '&quot;').replaceAll("'", '&#39;');
   }
 
+  // --- Build the strip (5 segments) ---
+  const strip = document.createElement('div');
+  strip.className = 'roadmap__strip';
+
+  const segments = document.createElement('div');
+  segments.className = 'roadmap__segments';
+  strip.appendChild(segments);
+
+  PHASES.forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'roadmap__seg';
+    btn.dataset.idx = String(i);
+    btn.dataset.status = p.status;
+    btn.setAttribute('aria-current', i === selected ? 'true' : 'false');
+    btn.setAttribute('aria-label', `Phase ${p.id} — ${tx(p.title)}`);
+
+    const prog = progressOf(p);
+    const barHtml = prog
+      ? `<div class="roadmap__seg-bar"><span style="width:${(prog.done / prog.total) * 100}%"></span></div>
+         <div class="roadmap__seg-prog">${prog.done} ${ofWord} ${prog.total}</div>`
+      : `<div class="roadmap__seg-bar roadmap__seg-bar--empty"></div>
+         <div class="roadmap__seg-prog">${escapeHtml(tx(p.release))}</div>`;
+
+    btn.innerHTML = `
+      <div class="roadmap__seg-id">${p.id}</div>
+      <div class="roadmap__seg-title">${escapeHtml(tx(p.title))}</div>
+      ${barHtml}
+      <div class="roadmap__seg-status">${escapeHtml(tx(STATUS_LABEL[p.status]))}</div>
+    `;
+    segments.appendChild(btn);
+  });
+
+  mount.appendChild(strip);
+
+  // --- Build the detail panel ---
+  const detail = document.createElement('div');
+  detail.className = 'roadmap__detail';
+  detail.innerHTML = `
+    <aside class="roadmap__detail-meta">
+      <div class="roadmap__detail-id"></div>
+      <div class="roadmap__detail-release"></div>
+      <div class="roadmap__detail-status"></div>
+    </aside>
+    <div class="roadmap__detail-body">
+      <h3 class="roadmap__detail-title"></h3>
+      <div class="roadmap__detail-sub"></div>
+      <p class="roadmap__detail-brief"></p>
+      <div class="roadmap__detail-list-h"></div>
+      <ul class="roadmap__detail-list"></ul>
+    </div>
+  `;
+  mount.appendChild(detail);
+
+  const hint = document.createElement('div');
+  hint.className = 'roadmap__hint';
+  hint.textContent = lang === 'es'
+    ? 'Hacé clic en cualquier fase para ver el brief.'
+    : 'Click any phase to read the brief.';
+  mount.appendChild(hint);
+
   function setSelected(i) {
-    if (i < 0 || i >= MILESTONES.length) return;
+    if (i < 0 || i >= PHASES.length) return;
     selected = i;
-    for (const btn of dots.children) {
+    for (const btn of segments.children) {
       btn.setAttribute('aria-current', String(+btn.dataset.idx === i));
     }
     renderDetail();
   }
 
   function renderDetail() {
-    const m = MILESTONES[selected];
-    detail.dataset.status = m.status;
-    detail.querySelector('.roadmap__detail-q').textContent = m.q;
-    detail.querySelector('.roadmap__detail-v').textContent = m.v;
-    detail.querySelector('.roadmap__detail-status').textContent = tx(STATUS_LABEL[m.status]);
-    detail.querySelector('.roadmap__detail-title').textContent = tx(m.title);
-    detail.querySelector('.roadmap__detail-sub').textContent = tx(m.sub);
-    detail.querySelector('.roadmap__detail-brief').textContent = tx(m.brief);
+    const p = PHASES[selected];
+    detail.dataset.status = p.status;
+    detail.querySelector('.roadmap__detail-id').textContent = `Phase ${p.id}`;
+    detail.querySelector('.roadmap__detail-release').textContent = tx(p.release);
+    detail.querySelector('.roadmap__detail-status').textContent = tx(STATUS_LABEL[p.status]);
+    detail.querySelector('.roadmap__detail-title').textContent = tx(p.title);
+    detail.querySelector('.roadmap__detail-sub').textContent = tx(p.sub);
+    detail.querySelector('.roadmap__detail-brief').textContent = tx(p.brief);
+    detail.querySelector('.roadmap__detail-list-h').textContent = tx(SECTION_LABEL[p.list]);
+
+    const ul = detail.querySelector('.roadmap__detail-list');
+    ul.className = `roadmap__detail-list roadmap__detail-list--${p.list}`;
+    ul.innerHTML = '';
+    for (const item of p.items) {
+      const li = document.createElement('li');
+      if (p.list === 'steps') {
+        li.dataset.status = item.status;
+        li.innerHTML = `
+          <span class="roadmap__step-mark" aria-hidden="true"></span>
+          <span class="roadmap__step-id">${escapeHtml(item.id)}</span>
+          <span class="roadmap__step-text">
+            <strong>${escapeHtml(tx(item.title))}</strong>
+            <span>${escapeHtml(tx(item.body))}</span>
+          </span>`;
+      } else {
+        li.innerHTML = `<span>${escapeHtml(tx(item))}</span>`;
+      }
+      ul.appendChild(li);
+    }
   }
 
-  // Click delegation on the dots row.
-  dots.addEventListener('click', (e) => {
-    const btn = e.target.closest('.roadmap__milestone');
+  // Click delegation on segments.
+  segments.addEventListener('click', (e) => {
+    const btn = e.target.closest('.roadmap__seg');
     if (!btn) return;
     setSelected(+btn.dataset.idx);
   });
 
-  // Keyboard nav: arrow left/right on focused milestone.
-  dots.addEventListener('keydown', (e) => {
+  // Keyboard nav: arrow left/right on focused segment.
+  segments.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     const focused = document.activeElement;
-    if (!focused?.classList.contains('roadmap__milestone')) return;
+    if (!focused?.classList.contains('roadmap__seg')) return;
     const i = +focused.dataset.idx;
-    const next = e.key === 'ArrowLeft' ? Math.max(0, i - 1) : Math.min(MILESTONES.length - 1, i + 1);
-    dots.children[next].focus();
+    const next = e.key === 'ArrowLeft' ? Math.max(0, i - 1) : Math.min(PHASES.length - 1, i + 1);
+    segments.children[next].focus();
     setSelected(next);
     e.preventDefault();
   });
 
-  // Initial paint.
   renderDetail();
+})();
+
+// ============================================================
+// Click-to-copy with toast
+// ------------------------------------------------------------
+// Any element with class `js-copy` is a copy trigger. The text
+// to copy comes from `data-copy` (preferred) or textContent. On
+// success we surface a small bottom-center toast; on failure we
+// fall back to a hidden-textarea selection + execCommand, and as
+// a last resort tell the user to press the OS copy combo.
+// Vanilla — no dependency.
+// ============================================================
+(() => {
+  const lang = document.documentElement.lang === 'es' ? 'es' : 'en';
+  const MSG = {
+    en: { ok: 'Copied to clipboard', err: 'Press ⌘C / Ctrl+C to copy' },
+    es: { ok: 'Copiado al portapapeles', err: 'Presioná ⌘C / Ctrl+C para copiar' },
+  };
+
+  let toast = null;
+  let timer = null;
+
+  function ensureToast() {
+    if (toast) return toast;
+    toast = document.createElement('div');
+    toast.className = 'copy-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    document.body.appendChild(toast);
+    return toast;
+  }
+
+  function showToast(message, kind = 'ok') {
+    const t = ensureToast();
+    t.classList.toggle('copy-toast--err', kind === 'err');
+    const iconOk = '<polyline points="20 6 9 17 4 12"/>';
+    const iconErr = '<circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="16" x2="12" y2="16.01"/>';
+    t.innerHTML = `
+      <svg class="copy-toast__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        ${kind === 'err' ? iconErr : iconOk}
+      </svg>
+      <span></span>
+    `;
+    t.querySelector('span').textContent = message;
+    t.classList.add('copy-toast--show');
+    clearTimeout(timer);
+    timer = setTimeout(() => t.classList.remove('copy-toast--show'), 2000);
+  }
+
+  async function copyText(text) {
+    // Modern path: navigator.clipboard (HTTPS / localhost only).
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch { /* fall through */ }
+    // Legacy fallback: hidden textarea + execCommand.
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-1000px';
+      ta.style.opacity = '0';
+      ta.style.pointerEvents = 'none';
+      document.body.appendChild(ta);
+      ta.select();
+      ta.setSelectionRange(0, ta.value.length);
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+
+  document.addEventListener('click', async (e) => {
+    const trigger = e.target.closest('.js-copy');
+    if (!trigger) return;
+    const text = trigger.dataset.copy || trigger.textContent.trim();
+    const ok = await copyText(text);
+    showToast(ok ? MSG[lang].ok : MSG[lang].err, ok ? 'ok' : 'err');
+  });
 })();

@@ -134,13 +134,11 @@
                        "es": "Funciona offline · Sin telemetría · Skills Apache + MIT bienvenidas" },
 
   "rm.eyebrow":      { "en": "Roadmap", "es": "Roadmap" },
-  "rm.title.1":      { "en": "Ten steps to 2.0.",       "es": "Diez pasos hasta 2.0." },
-  "rm.title.2":      { "en": "We're on the third.",     "es": "Estamos en el tercero." },
-  "rm.hint":         { "en": "Click any milestone to read the brief.",
-                       "es": "Hacé clic en cualquier hito para ver el brief." },
-  "rm.legend.done":     { "en": "Shipped",     "es": "Lanzado" },
-  "rm.legend.current":  { "en": "In progress", "es": "En curso" },
-  "rm.legend.planned":  { "en": "Planned",     "es": "Planeado" },
+  "rm.title":        { "en": "The plan.", "es": "El plan." },
+  "rm.sub":          { "en": "Eighty-nine decisions before the first commit. Five phases until 1.0. No shortcuts.",
+                       "es": "Ochenta y nueve decisiones antes del primer commit. Cinco fases hasta 1.0. Sin atajos." },
+  "rm.hint":         { "en": "Click any phase to read the brief.",
+                       "es": "Hacé clic en cualquier fase para ver el brief." },
 
   "foot.tagline":    { "en": "A graph explorer for Markdown-based AI-agent ecosystems.",
                        "es": "Un explorador de grafos para ecosistemas de agentes basados en Markdown." },
@@ -150,6 +148,10 @@
   "foot.h.company":  { "en": "Company",    "es": "Empresa" },
   "foot.copy":       { "en": "© 2026 skill-map · MIT licensed · Built for people who read source code for fun.",
                        "es": "© 2026 skill-map · Licencia MIT · Hecho para quien lee código fuente por placer." },
+  "foot.powered.pre":  { "en": "A ",        "es": "Un proyecto de " },
+  "foot.powered.post": { "en": " project",  "es": "" },
+
+  "copy.aria":         { "en": "Copy install command to clipboard", "es": "Copiar comando de instalación al portapapeles" },
 
   "lang.toggle.label": { "en": "Switch language", "es": "Cambiar idioma" },
   "nav.menu.label":    { "en": "Toggle navigation menu", "es": "Abrir/cerrar menú de navegación" },
