@@ -16,7 +16,11 @@ const BIN = resolve(WORKSPACE, 'bin', 'sm.mjs');
  * The rest of the suite (e.g. `basic-scan`, `preamble-bitwise-match`) lands
  * when the features they depend on are implemented.
  */
-const STEP_0B_CASES = ['kernel-empty-boot'] as const;
+const STEP_0B_CASES = [
+  'kernel-empty-boot',
+  'rename-high',
+  'orphan-detection',
+] as const;
 
 describe('conformance suite (Step 0b subset)', () => {
   for (const caseId of STEP_0B_CASES) {

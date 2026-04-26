@@ -28,12 +28,32 @@
     },
     "setup": {
       "type": "object",
-      "description": "Pre-invocation toggles. All default to `false`.",
+      "description": "Pre-invocation toggles and ordered staging steps. All toggles default to `false`. `priorScans`, when present, run BEFORE the main `invoke` so a case can establish a prior snapshot the heuristic-driven verbs (e.g. `sm scan` rename detection) can react to.",
       "additionalProperties": false,
       "properties": {
         "disableAllAdapters": { "type": "boolean" },
         "disableAllDetectors": { "type": "boolean" },
-        "disableAllRules": { "type": "boolean" }
+        "disableAllRules": { "type": "boolean" },
+        "priorScans": {
+          "type": "array",
+          "description": "Ordered staging scans, each running before the next. For step N, the runner first replaces the scope's adapter content with `priorScans[N].fixture`, then invokes `sm scan` with the supplied flags. After the last step, the runner copies the top-level `fixture` (overwriting again) and runs the main `invoke`. The DB persists across all steps because `.skill-map/` is preserved between fixture swaps.",
+          "items": {
+            "type": "object",
+            "required": ["fixture"],
+            "additionalProperties": false,
+            "properties": {
+              "fixture": {
+                "type": "string",
+                "description": "Folder under `conformance/fixtures/` to copy into the scope, replacing every non-`.skill-map/` directory."
+              },
+              "flags": {
+                "type": "array",
+                "description": "Flags passed to `sm scan`. Default: empty (full scan).",
+                "items": { "type": "string" }
+              }
+            }
+          }
+        }
       }
     },
     "invoke": {

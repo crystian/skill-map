@@ -96,6 +96,22 @@ export interface IScanIssuesTable {
   dataJson: string | null;
 }
 
+export type TScanScope = 'project' | 'global';
+
+export interface IScanMetaTable {
+  id: number;
+  scope: TScanScope;
+  rootsJson: string;
+  scannedAt: number;
+  scannedByName: string;
+  scannedByVersion: string;
+  scannedBySpecVersion: string;
+  adaptersJson: string;
+  statsFilesWalked: number;
+  statsFilesSkipped: number;
+  statsDurationMs: number;
+}
+
 // --- State zone ------------------------------------------------------------
 
 export interface IStateJobsTable {
@@ -194,6 +210,7 @@ export interface IDatabase {
   scan_nodes: IScanNodesTable;
   scan_links: IScanLinksTable;
   scan_issues: IScanIssuesTable;
+  scan_meta: IScanMetaTable;
 
   state_jobs: IStateJobsTable;
   state_executions: IStateExecutionsTable;

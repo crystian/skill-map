@@ -357,6 +357,103 @@ describe('persistScanResult', () => {
     }
   });
 
+  it('persists scan_meta and loadScanResult returns the real envelope (no synthesis)', async () => {
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      scope: 'project',
+    });
+
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('persist'), autoBackup: false });
+    await adapter.init();
+    try {
+      await persistScanResult(adapter.db, result);
+
+      const metaRows = await adapter.db.selectFrom('scan_meta').selectAll().execute();
+      strictEqual(metaRows.length, 1, 'scan_meta is single-row');
+      const meta = metaRows[0]!;
+      strictEqual(meta.id, 1);
+      strictEqual(meta.scope, 'project');
+      strictEqual(meta.scannedAt, result.scannedAt);
+      deepStrictEqual(JSON.parse(meta.rootsJson), result.roots);
+      deepStrictEqual(JSON.parse(meta.adaptersJson), result.adapters);
+      ok(meta.scannedByName.length > 0, 'scannedByName persisted');
+      ok(meta.scannedByVersion.length > 0, 'scannedByVersion persisted');
+      ok(meta.scannedBySpecVersion.length > 0, 'scannedBySpecVersion persisted');
+      strictEqual(meta.statsFilesWalked, result.stats.filesWalked);
+      strictEqual(meta.statsFilesSkipped, result.stats.filesSkipped);
+      strictEqual(meta.statsDurationMs, result.stats.durationMs);
+
+      const { loadScanResult } = await import('../kernel/adapters/sqlite/scan-load.js');
+      const loaded = await loadScanResult(adapter.db);
+      strictEqual(loaded.scannedAt, result.scannedAt);
+      strictEqual(loaded.scope, result.scope);
+      deepStrictEqual(loaded.roots, result.roots);
+      deepStrictEqual(loaded.adapters, result.adapters);
+      ok(loaded.scannedBy, 'scannedBy round-trips');
+      strictEqual(loaded.scannedBy!.name, result.scannedBy!.name);
+      strictEqual(loaded.scannedBy!.version, result.scannedBy!.version);
+      strictEqual(loaded.scannedBy!.specVersion, result.scannedBy!.specVersion);
+      strictEqual(loaded.stats.filesWalked, result.stats.filesWalked);
+      strictEqual(loaded.stats.filesSkipped, result.stats.filesSkipped);
+      strictEqual(loaded.stats.durationMs, result.stats.durationMs);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('replace-all keeps scan_meta a single row across two consecutive scans', async () => {
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    const first = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+      scope: 'project',
+    });
+
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('persist'), autoBackup: false });
+    await adapter.init();
+    try {
+      await persistScanResult(adapter.db, first);
+      strictEqual((await adapter.db.selectFrom('scan_meta').selectAll().execute()).length, 1);
+
+      const second = await runScan(kernel, {
+        roots: [fixture],
+        extensions: builtIns(),
+        scope: 'project',
+      });
+      await persistScanResult(adapter.db, second);
+      const rows = await adapter.db.selectFrom('scan_meta').selectAll().execute();
+      strictEqual(rows.length, 1, 'still single-row after second persist');
+      strictEqual(rows[0]!.scannedAt, second.scannedAt, 'meta reflects the latest scan');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('loadScanResult on a freshly-migrated DB without scan_meta degrades to synthetic envelope', async () => {
+    const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('persist'), autoBackup: false });
+    await adapter.init();
+    try {
+      const { loadScanResult } = await import('../kernel/adapters/sqlite/scan-load.js');
+      const loaded = await loadScanResult(adapter.db);
+      strictEqual(loaded.scope, 'project', 'fallback scope');
+      deepStrictEqual(loaded.roots, ['.'], 'fallback roots satisfy minItems: 1');
+      deepStrictEqual(loaded.adapters, []);
+      ok(Number.isInteger(loaded.scannedAt) && loaded.scannedAt > 0);
+      strictEqual(loaded.stats.filesWalked, 0);
+      strictEqual(loaded.stats.filesSkipped, 0);
+      strictEqual(loaded.stats.durationMs, 0);
+      strictEqual(loaded.nodes.length, 0);
+      strictEqual(loaded.links.length, 0);
+      strictEqual(loaded.issues.length, 0);
+    } finally {
+      await adapter.close();
+    }
+  });
+
   it('rejects a non-integer scannedAt without touching the DB', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('persist'), autoBackup: false });
     await adapter.init();

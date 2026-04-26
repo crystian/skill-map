@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
@@ -73,5 +73,52 @@ describe('CLI binary', () => {
     assert.equal(r.status, 0);
     assert.match(r.stdout, /0 nodes/);
     assert.match(r.stdout, /0 issues/);
+  });
+
+  it('Step 5.8: plain `sm scan` (no --changed) fires the rename heuristic when a prior exists', () => {
+    // Provision a sandbox with a single file, scan it (populates DB),
+    // delete the file, then re-scan WITHOUT --changed. The orphan
+    // issue MUST appear because the heuristic now runs on every scan
+    // that has a prior to compare against.
+    const sandbox = resolve(HERE, '..', '.tmp', 'rename-on-plain-scan');
+    rmSync(sandbox, { recursive: true, force: true });
+    mkdirSync(resolve(sandbox, '.claude/skills'), { recursive: true });
+    const fooPath = resolve(sandbox, '.claude/skills/foo.md');
+    const fooContent = [
+      '---', 'name: foo', 'metadata:', '  version: 1.0.0', '---',
+      '', 'Body of foo.',
+    ].join('\n');
+    // 1. write + scan (populates DB)
+    writeFileSync(fooPath, fooContent);
+    const first = sm(['scan'], sandbox);
+    assert.equal(first.status, 0, `first scan failed: ${first.stderr}`);
+
+    // Add a sibling so the after-state isn't empty (avoids the
+    // --allow-empty guard).
+    const keepPath = resolve(sandbox, '.claude/skills/keep.md');
+    writeFileSync(
+      keepPath,
+      [
+        '---', 'name: keep', 'metadata:', '  version: 1.0.0', '---',
+        '', 'Survivor.',
+      ].join('\n'),
+    );
+    sm(['scan'], sandbox); // re-scan to record both files in prior
+
+    // 2. delete foo.md and re-scan WITHOUT --changed.
+    rmSync(fooPath);
+    const second = sm(['scan', '--json'], sandbox);
+    assert.equal(second.status, 0, `second scan failed: ${second.stderr}`);
+    const result = JSON.parse(second.stdout);
+    const orphanIssues = (result.issues as Array<{ ruleId: string }>).filter(
+      (i) => i.ruleId === 'orphan',
+    );
+    assert.equal(
+      orphanIssues.length,
+      1,
+      `expected 1 orphan issue from plain sm scan, got ${orphanIssues.length}: ${JSON.stringify(result.issues)}`,
+    );
+
+    rmSync(sandbox, { recursive: true, force: true });
   });
 });

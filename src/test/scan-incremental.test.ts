@@ -124,6 +124,9 @@ async function incrementalScan(
     roots: [fixture],
     extensions: builtIns(),
     priorSnapshot: prior,
+    // Step 5.8: cache reuse is opt-in. The incremental tests below
+    // assert on `cached: true` events, so flip the flag explicitly.
+    enableCache: true,
   };
   if (emitter) opts.emitter = emitter;
   return runScan(kernel, opts);

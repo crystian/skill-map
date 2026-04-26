@@ -219,6 +219,87 @@ describe('hash discrimination on body-only / frontmatter-only mutations', () => 
   });
 });
 
+// --- Step 5.13: frontmatter hash whitespace tolerance ---------------------
+
+describe('frontmatter hash is canonical (Step 5.13 — yaml-canonicalize)', () => {
+  it('two files with the same logical frontmatter but DIFFERENT YAML formatting hash to the same fm_hash', async () => {
+    const fixture = freshFixture('canonical-fm');
+
+    // Pair 1: original — keys in declaration order, 2-space indent.
+    writeFixtureFile(
+      fixture,
+      '.claude/agents/style-a.md',
+      [
+        '---',
+        'name: shared',
+        'description: Same logical frontmatter',
+        'metadata:',
+        '  version: 1.0.0',
+        '  stability: stable',
+        '---',
+        '',
+        'Body A.',
+      ].join('\n'),
+    );
+
+    // Pair 2: same logical frontmatter, but: (a) keys in different order,
+    // (b) double-quoted strings, (c) extra trailing newline before `---`,
+    // (d) different inline-vs-block layout for `metadata`. A reasonable
+    // YAML formatter pass produces this kind of diff.
+    writeFixtureFile(
+      fixture,
+      '.claude/agents/style-b.md',
+      [
+        '---',
+        'description: "Same logical frontmatter"',
+        'metadata:',
+        '  stability: "stable"',
+        '  version: "1.0.0"',
+        'name: "shared"',
+        '',
+        '---',
+        '',
+        'Body B.',
+      ].join('\n'),
+    );
+
+    const result = await fullScan(fixture);
+    const a = result.nodes.find((n) => n.path === '.claude/agents/style-a.md');
+    const b = result.nodes.find((n) => n.path === '.claude/agents/style-b.md');
+    ok(a, 'style-a node was scanned');
+    ok(b, 'style-b node was scanned');
+    strictEqual(
+      a!.frontmatterHash,
+      b!.frontmatterHash,
+      'YAML-formatter-equivalent frontmatters MUST hash to the same value',
+    );
+    // Body hashes should differ (different bodies).
+    notStrictEqual(a!.bodyHash, b!.bodyHash);
+  });
+
+  it('logically-different frontmatters still produce different fm_hashes', async () => {
+    const fixture = freshFixture('canonical-fm-diff');
+    writeFixtureFile(
+      fixture,
+      '.claude/agents/v1.md',
+      ['---', 'name: x', 'metadata:', '  version: 1.0.0', '---', '', 'Body.'].join('\n'),
+    );
+    writeFixtureFile(
+      fixture,
+      '.claude/agents/v2.md',
+      ['---', 'name: x', 'metadata:', '  version: 2.0.0', '---', '', 'Body.'].join('\n'),
+    );
+    const result = await fullScan(fixture);
+    const v1 = result.nodes.find((n) => n.path === '.claude/agents/v1.md');
+    const v2 = result.nodes.find((n) => n.path === '.claude/agents/v2.md');
+    notStrictEqual(
+      v1!.frontmatterHash,
+      v2!.frontmatterHash,
+      'A real value diff (version 1.0.0 vs 2.0.0) MUST still change the hash',
+    );
+  });
+});
+
 // --- Gap B: external_refs_count lifecycle ---------------------------------
 
 describe('external_refs_count lifecycle across body edits', () => {

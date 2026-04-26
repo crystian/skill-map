@@ -134,6 +134,28 @@ One row per rule-emitted issue, matching [`schemas/issue.schema.json`](./schemas
 
 Indexes: `ix_scan_issues_rule_id`, `ix_scan_issues_severity`.
 
+### `scan_meta`
+
+Single-row table holding the metadata of the last persisted scan. Lets `loadScanResult` return the real `scope` / `roots` / `scannedAt` / `scannedBy` / `adapters` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of the `scan_*` zone on every `sm scan`.
+
+`nodesCount` / `linksCount` / `issuesCount` are not stored here — they derive from `COUNT(*)` of the sibling tables.
+
+| Column | Type | Constraint |
+|---|---|---|
+| `id` | INTEGER | PRIMARY KEY, CHECK `id = 1` |
+| `scope` | TEXT | NOT NULL, CHECK in (`project`, `global`) |
+| `roots_json` | TEXT | NOT NULL | JSON array of strings (filesystem roots walked). |
+| `scanned_at` | INTEGER | NOT NULL | Unix milliseconds. |
+| `scanned_by_name` | TEXT | NOT NULL |
+| `scanned_by_version` | TEXT | NOT NULL |
+| `scanned_by_spec_version` | TEXT | NOT NULL |
+| `adapters_json` | TEXT | NOT NULL | JSON array of adapter ids. |
+| `stats_files_walked` | INTEGER | NOT NULL |
+| `stats_files_skipped` | INTEGER | NOT NULL |
+| `stats_duration_ms` | INTEGER | NOT NULL |
+
+No indexes (single row).
+
 ---
 
 ## Table catalog: zone `state_`

@@ -106,6 +106,104 @@ export interface ScanScannedBy {
   specVersion: string;
 }
 
+export type ExecutionKind = 'action' | 'audit';
+export type ExecutionStatus = 'completed' | 'failed' | 'cancelled';
+export type ExecutionFailureReason =
+  | 'runner-error'
+  | 'report-invalid'
+  | 'timeout'
+  | 'abandoned'
+  | 'job-file-missing'
+  | 'user-cancelled';
+export type ExecutionRunner = 'cli' | 'skill' | 'in-process';
+
+/**
+ * One row of execution history (`state_executions`). Matches
+ * `spec/schemas/execution-record.schema.json`. `nodeIds` is the camelCased
+ * domain field name; storage flattens it to `node_ids_json`.
+ */
+export interface ExecutionRecord {
+  id: string;
+  kind: ExecutionKind;
+  extensionId: string;
+  extensionVersion: string;
+  nodeIds?: string[];
+  contentHash?: string | null;
+  status: ExecutionStatus;
+  failureReason?: ExecutionFailureReason | null;
+  exitCode?: number | null;
+  runner?: ExecutionRunner | null;
+  startedAt: number;
+  finishedAt: number;
+  durationMs?: number | null;
+  tokensIn?: number | null;
+  tokensOut?: number | null;
+  reportPath?: string | null;
+  jobId?: string | null;
+}
+
+export interface HistoryStatsTotals {
+  executionsCount: number;
+  completedCount: number;
+  failedCount: number;
+  tokensIn: number;
+  tokensOut: number;
+  durationMsTotal: number;
+}
+
+export interface HistoryStatsTokensPerAction {
+  actionId: string;
+  actionVersion: string;
+  executionsCount: number;
+  tokensIn: number;
+  tokensOut: number;
+  durationMsMean: number | null;
+  durationMsMedian: number | null;
+}
+
+export interface HistoryStatsExecutionsPerPeriod {
+  periodStart: string; // ISO-8601
+  periodUnit: 'day' | 'week' | 'month';
+  executionsCount: number;
+  tokensIn: number;
+  tokensOut: number;
+}
+
+export interface HistoryStatsTopNode {
+  nodePath: string;
+  executionsCount: number;
+  lastExecutedAt: number;
+}
+
+export interface HistoryStatsPerActionRate {
+  actionId: string;
+  rate: number;
+  executionsCount: number;
+  failedCount: number;
+}
+
+export interface HistoryStatsErrorRates {
+  global: number;
+  perAction: HistoryStatsPerActionRate[];
+  perFailureReason: Record<ExecutionFailureReason, number>;
+}
+
+/**
+ * `sm history stats --json` payload, conforming to
+ * `spec/schemas/history-stats.schema.json`. `elapsedMs` is the command's
+ * own wall-clock per `cli-contract.md` §Elapsed time.
+ */
+export interface HistoryStats {
+  schemaVersion: 1;
+  range: { since: string | null; until: string };
+  totals: HistoryStatsTotals;
+  tokensPerAction: HistoryStatsTokensPerAction[];
+  executionsPerPeriod: HistoryStatsExecutionsPerPeriod[];
+  topNodes: HistoryStatsTopNode[];
+  errorRates: HistoryStatsErrorRates;
+  elapsedMs: number;
+}
+
 export interface ScanResult {
   schemaVersion: 1;
   /** Unix milliseconds when the scan started. */

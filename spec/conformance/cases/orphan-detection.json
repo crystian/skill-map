@@ -1,0 +1,22 @@
+{
+  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "id": "orphan-detection",
+  "description": "Deleting a file with no replacement triggers the orphan branch of the rename heuristic: exactly one issue with ruleId `orphan` is emitted, severity `info`, naming the dead path. The remaining survivor node is reported normally.",
+  "fixture": "orphan-after",
+  "setup": {
+    "priorScans": [
+      { "fixture": "orphan-before" }
+    ]
+  },
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--changed", "--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.issues[0].ruleId", "equals": "orphan" },
+    { "type": "json-path", "path": "$.issues[0].severity", "equals": "info" }
+  ]
+}

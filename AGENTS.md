@@ -44,6 +44,23 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
 - **No hacks — read the official docs first.** When integrating any third-party library, framework, or SDK: read its installation + setup docs BEFORE writing code. If code doesn't work as expected, re-read the docs before inventing workarounds (manual CSS overrides, wrappers that emulate missing behavior, hardcoded defaults that hide misconfiguration). Symptoms like "I had to add `fill: none` and custom stroke widths manually" or "I needed a fallback selector" are red flags that a setup step was skipped. The correct fix is almost always to wire up the official piece (theme import, module registration, schematic, peer dep) — not to paper over it. If you cannot find the official way, project-local `.claude/skills/*` (e.g. the `foblex-flow` skill) are the second authority; third, context7 MCP for current upstream docs.
 - **When AGENTS.md and ROADMAP.md disagree**: ROADMAP.md wins (it is the canonical design narrative and planning authority). AGENTS.md should be updated to match. When `spec/` and either disagree, spec wins.
 
+## Agent delegation (when to spawn subagents)
+
+The orchestrator does not have to do everything itself. For this repo:
+
+- **Use `cli-agent` for multi-file mechanical implementation** (storage helpers, CLI command bodies from existing stubs, schema extensions + runner updates, test scaffolding around a known surface). Trigger when the task touches **≥ 3 files** AND the spec is settled AND there is **low design ambiguity**. The agent runs `npm run build` / `npm test -w src` before reporting, which catches mechanical errors that an in-context loop tends to bounce on.
+- **Use `Explore` for codebase research that takes more than ~3 queries**: mapping unfamiliar areas, finding patterns to reuse, understanding existing conventions before writing. Up to 3 in parallel for orthogonal questions. Brief them with the full context — they have no memory of the conversation.
+- **Use `Plan` only for genuinely ambiguous design questions** where you want a second pass on tradeoffs. Skip for trivial or already-scoped tasks.
+- **Use the audit agents** (`api-architect` / `app-architect` / `cli-architect` / `*-hacker` / `*-ruler` / `app-a11y`) for review passes, not implementation. They are read-only and verify against current docs (some via context7).
+
+**Do NOT delegate** when:
+- Spec wording or zone semantics need a judgement call (e.g. `scan_meta` vs `state_scan_meta`, conformance schema extension shape).
+- The task is a bug investigation with no known root cause.
+- Cross-cutting refactors where the right cut depends on weighing tradeoffs.
+- Anything that requires reading the user's mind on a non-obvious preference.
+
+A useful smell test: if you can write a self-contained 200-word brief that names the files to read, the spec to follow, the tests to add, and the success criteria — delegate. If the brief would be "figure out what to do here", do it yourself.
+
 ## Rules for AI agents editing `spec/`
 
 1. **Spec is the source of truth**. When spec and `ROADMAP.md` disagree, spec wins. ROADMAP is the design narrative; it may lag.

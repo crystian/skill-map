@@ -37,6 +37,7 @@ import { existsSync, statSync } from 'node:fs';
 
 import { Tiktoken } from 'js-tiktoken/lite';
 import cl100k_base from 'js-tiktoken/ranks/cl100k_base';
+import yaml from 'js-yaml';
 
 import pkg from '../package.json' with { type: 'json' };
 
@@ -89,6 +90,18 @@ export interface IScanExtensions {
   rules: IRule[];
 }
 
+/**
+ * Confidence-tagged plan to repoint `state_*` references from one node
+ * path to another. Emitted by the rename heuristic during `runScan` and
+ * consumed by `persistScanResult` so the FK migration runs inside the
+ * same transaction as the scan zone replace-all.
+ */
+export interface RenameOp {
+  from: string;
+  to: string;
+  confidence: 'high' | 'medium';
+}
+
 export interface RunScanOptions {
   /**
    * Filesystem roots to walk. Spec requires `minItems: 1`; passing an
@@ -112,21 +125,65 @@ export interface RunScanOptions {
    */
   tokenize?: boolean;
   /**
-   * Prior snapshot for incremental scans (`sm scan --changed`). When
-   * provided, nodes whose `path` exists in the prior with both
-   * `bodyHash` and `frontmatterHash` matching the freshly-computed
-   * hashes are reused as-is (their internal links and
-   * `externalRefsCount` survive); only new / modified nodes run through
-   * detectors. Rules always re-run over the merged graph. Pass `null`
-   * (or omit) for a full scan.
+   * Prior snapshot for two purposes (decoupled at Step 5.8):
+   *
+   *   1. **Rename heuristic** (`spec/db-schema.md` §Rename detection):
+   *      always evaluated when `priorSnapshot` is supplied. The
+   *      heuristic compares prior vs current node paths and emits
+   *      high / medium / ambiguous / orphan classifications. This
+   *      runs on EVERY `sm scan` (with or without `--changed`) so
+   *      reorganising files always preserves history, never silently.
+   *
+   *   2. **Cache reuse** (`sm scan --changed`): only kicks in when
+   *      `enableCache: true` is also passed. With the flag set, nodes
+   *      whose `path` exists in the prior with both `bodyHash` and
+   *      `frontmatterHash` matching the freshly-computed hashes are
+   *      reused as-is (their internal links and `externalRefsCount`
+   *      survive); only new / modified nodes run through detectors.
+   *      Rules always re-run over the merged graph.
+   *
+   * Pass `null` (or omit) for a fresh scan with no rename detection.
    */
   priorSnapshot?: ScanResult | null;
+  /**
+   * Reuse unchanged nodes from `priorSnapshot` instead of re-running
+   * detectors over them. Defaults to `false` so a plain `sm scan`
+   * always re-walks deterministically. `sm scan --changed` flips this
+   * to `true` for the perf win on unchanged files.
+   *
+   * Has no effect without `priorSnapshot`; setting it to `true` with
+   * a null prior is a no-op (every file is "new").
+   */
+  enableCache?: boolean;
+}
+
+/**
+ * Same as `runScan` but also returns the rename heuristic's `RenameOp[]`
+ * — the high- and medium-confidence renames the persistence layer must
+ * apply to `state_*` rows inside the same tx as the scan zone replace-
+ * all (per `spec/db-schema.md` §Rename detection). Most callers want
+ * `runScan` (which returns just `ScanResult`); the CLI's `sm scan`
+ * uses this variant so it can hand the ops off to `persistScanResult`.
+ */
+export async function runScanWithRenames(
+  _kernel: Kernel,
+  options: RunScanOptions,
+): Promise<{ result: ScanResult; renameOps: RenameOp[] }> {
+  return runScanInternal(_kernel, options);
 }
 
 export async function runScan(
   _kernel: Kernel,
   options: RunScanOptions,
 ): Promise<ScanResult> {
+  const { result } = await runScanInternal(_kernel, options);
+  return result;
+}
+
+async function runScanInternal(
+  _kernel: Kernel,
+  options: RunScanOptions,
+): Promise<{ result: ScanResult; renameOps: RenameOp[] }> {
   // Spec contract (`scan-result.schema.json#/properties/roots/minItems: 1`):
   // a ScanResult must report at least one walked root. The CLI already
   // defaults `roots` to `['.']` when no positional args are supplied, so
@@ -166,6 +223,7 @@ export async function runScan(
   // once); reuse a single instance across the whole scan.
   const encoder = tokenize ? new Tiktoken(cl100k_base) : null;
   const prior = options.priorSnapshot ?? null;
+  const enableCache = options.enableCache === true;
 
   // Index prior state by path so per-file lookup is O(1). The link
   // index is keyed by the **originating node** of each link — the node
@@ -210,9 +268,26 @@ export async function runScan(
     for await (const raw of adapter.walk(options.roots)) {
       filesWalked += 1;
       const bodyHash = sha256(raw.body);
-      const frontmatterHash = sha256(raw.frontmatterRaw);
+      // Step 5.13 — hash a CANONICAL form of the frontmatter so a YAML
+      // formatter pass (re-indent, sort keys, normalise trailing
+      // newline, swap single↔double quotes) doesn't break the
+      // medium-confidence rename heuristic. We re-emit the parsed
+      // object via `yaml.dump` with sorted keys + no line-wrap +
+      // no anchors. Loses comment fidelity, but comments aren't
+      // semantic and never affect identity. Fallback to raw text
+      // when canonicalisation produces empty (e.g., parse failed in
+      // the adapter and `raw.frontmatter` is `{}` despite a
+      // non-empty `raw.frontmatterRaw`) so a malformed-YAML file
+      // still hashes deterministically against itself.
+      const frontmatterHash = sha256(canonicalFrontmatter(raw.frontmatter, raw.frontmatterRaw));
       const priorNode = priorNodesByPath.get(raw.path);
+      // Cache reuse is gated on the explicit `enableCache` option (Step
+      // 5.8). The presence of a `prior` alone is no longer enough — a
+      // plain `sm scan` always re-walks deterministically; only
+      // `sm scan --changed` flips `enableCache` on. The rename heuristic
+      // below uses `prior` independently of `enableCache`.
       const cached =
+        enableCache &&
         prior !== null &&
         priorNode !== undefined &&
         priorNode.bodyHash === bodyHash &&
@@ -301,6 +376,16 @@ export async function runScan(
     }
   }
 
+  // --- rename heuristic ---------------------------------------------------
+  // Runs after rules so the merged graph is final. Adds issues for
+  // medium / ambiguous / orphan classifications; high-confidence renames
+  // emit no issue (per spec). The returned `RenameOp[]` flows through
+  // to `persistScanResult` so FK migration lands inside the same tx as
+  // the scan zone replace-all.
+  const renameOps = prior
+    ? detectRenamesAndOrphans(prior, nodes, issues)
+    : [];
+
   const stats = {
     // `filesSkipped` is "files walked but not classified by any adapter".
     // Today every walked file IS classified by its adapter (the `claude`
@@ -318,16 +403,19 @@ export async function runScan(
   emitter.emit(makeEvent('scan.completed', { stats }));
 
   return {
-    schemaVersion: 1,
-    scannedAt,
-    scope,
-    roots: options.roots,
-    adapters: exts.adapters.map((a) => a.id),
-    scannedBy: SCANNED_BY,
-    nodes,
-    links: internalLinks,
-    issues,
-    stats,
+    result: {
+      schemaVersion: 1,
+      scannedAt,
+      scope,
+      roots: options.roots,
+      adapters: exts.adapters.map((a) => a.id),
+      scannedBy: SCANNED_BY,
+      nodes,
+      links: internalLinks,
+      issues,
+      stats,
+    },
+    renameOps,
   };
 }
 
@@ -360,6 +448,156 @@ function originatingNodeOf(link: Link, priorNodePaths: Set<string>): string {
     return link.target;
   }
   return link.source;
+}
+
+/**
+ * Pure rename / orphan classification per `spec/db-schema.md` §Rename
+ * detection. Mutates `issues` in place — caller passes the in-progress
+ * issue list; returns the `RenameOp[]` for the persistence layer to
+ * apply inside its tx.
+ *
+ * Pipeline (1-to-1: a `newPath` claimed by one stage cannot be reused
+ * by another):
+ *
+ *   1. **High-confidence**: pair each `deletedPath` with a `newPath`
+ *      that has the same `bodyHash`. No issue, no prompt.
+ *   2. **Medium-confidence (1:1)**: of the remaining deletions, pair
+ *      each with the *unique* unclaimed `newPath` that shares its
+ *      `frontmatterHash`. Emits `auto-rename-medium` (severity warn)
+ *      with `data: { from, to, confidence: 'medium' }`.
+ *   3. **Ambiguous (N:1)**: when a single `newPath` has more than one
+ *      remaining frontmatter-matching candidate, emit ONE
+ *      `auto-rename-ambiguous` issue per `newPath`, listing all
+ *      candidates in `data.candidates`. NO migration.
+ *   4. **Orphan**: every `deletedPath` left after steps 1-3 yields one
+ *      `orphan` issue (severity info) with `data: { path: <deletedPath> }`.
+ *
+ * Determinism: `deletedPaths` and `newPaths` are iterated in lex-asc
+ * order so the same input always produces the same matches —
+ * required for reproducible tests and conformance fixtures (the spec
+ * does not prescribe an order, but stability is the obvious contract).
+ */
+export function detectRenamesAndOrphans(
+  prior: ScanResult,
+  current: Node[],
+  issues: Issue[],
+): RenameOp[] {
+  const priorByPath = new Map<string, Node>();
+  for (const n of prior.nodes) priorByPath.set(n.path, n);
+  const currentByPath = new Map<string, Node>();
+  for (const n of current) currentByPath.set(n.path, n);
+
+  // Sets / sorted lists so iteration is deterministic.
+  const deletedPaths = [...priorByPath.keys()]
+    .filter((p) => !currentByPath.has(p))
+    .sort();
+  const newPaths = [...currentByPath.keys()]
+    .filter((p) => !priorByPath.has(p))
+    .sort();
+
+  const claimedDeleted = new Set<string>();
+  const claimedNew = new Set<string>();
+  const ops: RenameOp[] = [];
+
+  // 1. high-confidence — body hash match.
+  for (const fromPath of deletedPaths) {
+    if (claimedDeleted.has(fromPath)) continue;
+    const fromNode = priorByPath.get(fromPath)!;
+    for (const toPath of newPaths) {
+      if (claimedNew.has(toPath)) continue;
+      const toNode = currentByPath.get(toPath)!;
+      if (toNode.bodyHash === fromNode.bodyHash) {
+        ops.push({ from: fromPath, to: toPath, confidence: 'high' });
+        claimedDeleted.add(fromPath);
+        claimedNew.add(toPath);
+        break;
+      }
+    }
+  }
+
+  // 2/3. frontmatter classification — bucket every newPath by the set
+  //      of remaining deletions that share its frontmatterHash.
+  const candidatesByNew = new Map<string, string[]>();
+  for (const toPath of newPaths) {
+    if (claimedNew.has(toPath)) continue;
+    const toNode = currentByPath.get(toPath)!;
+    const matches: string[] = [];
+    for (const fromPath of deletedPaths) {
+      if (claimedDeleted.has(fromPath)) continue;
+      const fromNode = priorByPath.get(fromPath)!;
+      if (toNode.frontmatterHash === fromNode.frontmatterHash) {
+        matches.push(fromPath);
+      }
+    }
+    if (matches.length > 0) candidatesByNew.set(toPath, matches);
+  }
+
+  // First pass: claim every `newPath` whose candidate set is a
+  // singleton AND whose lone candidate is not already promised
+  // elsewhere as a singleton candidate — i.e. mutual exclusivity.
+  // Because each candidate path is iterated under at most one
+  // surviving `newPath` (the deletion is "shared" only by virtue of
+  // distinct newPaths matching it), we resolve singletons greedily by
+  // sorted newPath order; a deletion claimed by an earlier singleton
+  // is removed from later candidate lists.
+  for (const toPath of newPaths) {
+    if (claimedNew.has(toPath)) continue;
+    const candidates = candidatesByNew.get(toPath);
+    if (!candidates) continue;
+    const remaining = candidates.filter((p) => !claimedDeleted.has(p));
+    if (remaining.length === 1) {
+      const fromPath = remaining[0]!;
+      ops.push({ from: fromPath, to: toPath, confidence: 'medium' });
+      issues.push({
+        ruleId: 'auto-rename-medium',
+        severity: 'warn',
+        nodeIds: [toPath],
+        message: `Auto-rename (medium confidence): ${fromPath} → ${toPath}`,
+        data: { from: fromPath, to: toPath, confidence: 'medium' },
+      });
+      claimedDeleted.add(fromPath);
+      claimedNew.add(toPath);
+    }
+  }
+
+  // Second pass: any remaining `newPath` with more than one viable
+  // candidate after singletons settled is ambiguous. Emit one
+  // `auto-rename-ambiguous` issue listing every candidate; no
+  // migration is applied.
+  for (const toPath of newPaths) {
+    if (claimedNew.has(toPath)) continue;
+    const candidates = candidatesByNew.get(toPath);
+    if (!candidates) continue;
+    const remaining = candidates.filter((p) => !claimedDeleted.has(p));
+    if (remaining.length > 1) {
+      issues.push({
+        ruleId: 'auto-rename-ambiguous',
+        severity: 'warn',
+        nodeIds: [toPath],
+        message:
+          `Auto-rename ambiguous: ${toPath} matches ${remaining.length} ` +
+          `prior frontmatters — pick one with \`sm orphans undo-rename ` +
+          `${toPath} --from <old.path>\`.`,
+        data: { to: toPath, candidates: remaining },
+      });
+      // Note: the candidate deletions are NOT claimed — they remain as
+      // orphans below so the user can reconcile them manually.
+    }
+  }
+
+  // 4. orphan — every unclaimed deletion.
+  for (const fromPath of deletedPaths) {
+    if (claimedDeleted.has(fromPath)) continue;
+    issues.push({
+      ruleId: 'orphan',
+      severity: 'info',
+      nodeIds: [fromPath],
+      message: `Orphan history: ${fromPath} was deleted; no rename match found.`,
+      data: { path: fromPath },
+    });
+  }
+
+  return ops;
 }
 
 function isExternalUrlLink(link: Link): boolean {
@@ -424,6 +662,48 @@ function countTokens(encoder: Tiktoken, frontmatterRaw: string, body: string): T
 
 function sha256(input: string): string {
   return createHash('sha256').update(input, 'utf8').digest('hex');
+}
+
+/**
+ * Step 5.13 — canonical YAML form for frontmatter hashing.
+ *
+ * Goal: two `.md` files whose frontmatter parses to the same logical
+ * value MUST produce the same `frontmatter_hash`, even if the raw bytes
+ * differ in indentation, key order, quote style, or trailing whitespace.
+ * Without this canonicalisation, a YAML formatter pass on the user's
+ * editor (Prettier YAML, IDE autoformat, manual indent fix) silently
+ * breaks the medium-confidence rename heuristic.
+ *
+ * Strategy:
+ *   1. Take the parsed object the adapter already produced.
+ *   2. Re-emit via `yaml.dump` with `sortKeys: true`, `lineWidth: -1`
+ *      (no auto-wrap), `noRefs: true` (no `*alias` shorthand),
+ *      `noCompatMode: true` (modern YAML 1.2 output).
+ *   3. Hash the result.
+ *
+ * Fallback: when `parsed` is the empty object `{}` BUT `raw` is
+ * non-empty, the adapter's parse failed silently. We fall back to
+ * hashing the raw text — a malformed-YAML file should still hash
+ * deterministically against itself across rescans, even if the
+ * canonical form would be empty.
+ */
+function canonicalFrontmatter(
+  parsed: Record<string, unknown>,
+  raw: string,
+): string {
+  const hasParsedKeys = Object.keys(parsed).length > 0;
+  const hasRawText = raw.length > 0;
+  if (!hasParsedKeys && hasRawText) {
+    // Parse failed but raw text exists. Hash the raw — preserves
+    // identity for malformed-YAML files across scans.
+    return raw;
+  }
+  return yaml.dump(parsed, {
+    sortKeys: true,
+    lineWidth: -1,
+    noRefs: true,
+    noCompatMode: true,
+  });
 }
 
 function pickMetadata(fm: Record<string, unknown>): Record<string, unknown> | null {

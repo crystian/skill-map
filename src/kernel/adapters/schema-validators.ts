@@ -96,7 +96,27 @@ export interface ISchemaValidators {
   validatePluginManifest<T = unknown>(data: unknown): { ok: true; data: T } | { ok: false; errors: string };
 }
 
+// Step 5.12 — module-level cache. The first call compiles 17 validators
+// (~29 schemas counting supporting refs) which is ~100 ms cold for a CLI
+// startup. Subsequent calls in the same process return the same instance,
+// so future verbs that validate at multiple boundaries pay the cost once.
+// `null` means "not yet loaded"; we never expose a way to invalidate
+// because the schemas are static, baked-in, and the underlying spec
+// package version doesn't change at runtime.
+let cachedValidators: ISchemaValidators | null = null;
+
+/** Test-only escape hatch — drop the cache so a test can re-trigger load. */
+export function _resetSchemaValidatorsCacheForTests(): void {
+  cachedValidators = null;
+}
+
 export function loadSchemaValidators(): ISchemaValidators {
+  if (cachedValidators !== null) return cachedValidators;
+  cachedValidators = buildSchemaValidators();
+  return cachedValidators;
+}
+
+function buildSchemaValidators(): ISchemaValidators {
   const specRoot = resolveSpecRoot();
   const ajv: TAjv = new Ajv2020({
     strict: false,

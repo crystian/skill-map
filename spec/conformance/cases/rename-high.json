@@ -1,0 +1,21 @@
+{
+  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "id": "rename-high",
+  "description": "Moving a single file with identical body across the rename triggers a high-confidence auto-rename: NO issue is emitted (per spec/db-schema.md §Rename detection), the new path is the only node in the result, and the rename heuristic operates silently.",
+  "fixture": "rename-high-after",
+  "setup": {
+    "priorScans": [
+      { "fixture": "rename-high-before" }
+    ]
+  },
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--changed", "--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 1 },
+    { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
+    { "type": "json-path", "path": "$.nodes[0].path", "equals": "skills/bar.md" }
+  ]
+}

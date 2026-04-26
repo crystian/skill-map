@@ -12,7 +12,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -48,6 +48,7 @@ interface ConformanceCase {
     disableAllAdapters?: boolean;
     disableAllDetectors?: boolean;
     disableAllRules?: boolean;
+    priorScans?: Array<{ fixture: string; flags?: string[] }>;
   };
   invoke: {
     verb: string;
@@ -79,9 +80,41 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
 
   const scope = mkdtempSync(join(tmpdir(), `sm-conformance-${c.id}-`));
   try {
+    // 1. Run every priorScan in order. Each step replaces every non-
+    //    `.skill-map/` directory with the named fixture, then runs
+    //    `sm scan` so the snapshot persists into the scope DB. The
+    //    scope DB survives across steps because we never delete
+    //    `.skill-map/`.
+    for (const step of c.setup?.priorScans ?? []) {
+      replaceFixture(scope, options.specRoot, step.fixture);
+      const stepArgv = ['scan', ...(step.flags ?? [])];
+      const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
+        cwd: scope,
+        env: { ...process.env, ...options.env },
+        encoding: 'utf8',
+      });
+      if ((stepChild.status ?? 0) !== 0) {
+        return {
+          caseId: c.id,
+          passed: false,
+          exitCode: stepChild.status ?? 0,
+          stdout: stepChild.stdout ?? '',
+          stderr: stepChild.stderr ?? '',
+          assertions: [
+            {
+              ok: false,
+              type: 'priorScan',
+              reason: `setup.priorScans step \`${step.fixture}\` failed with exit ${stepChild.status ?? 0}: ${stepChild.stderr ?? ''}`,
+            },
+          ],
+        };
+      }
+    }
+
+    // 2. Copy the main fixture (replacing prior fixture content but
+    //    preserving the DB), then run the case's `invoke`.
     if (c.fixture) {
-      const src = join(options.specRoot, 'conformance', 'fixtures', c.fixture);
-      cpSync(src, scope, { recursive: true });
+      replaceFixture(scope, options.specRoot, c.fixture);
     }
 
     const argv = [c.invoke.verb];
@@ -108,6 +141,21 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
   } finally {
     rmSync(scope, { recursive: true, force: true });
   }
+}
+
+/**
+ * Replace every top-level entry in `scope` EXCEPT `.skill-map/` (which
+ * holds the kernel DB and persists across staging steps), then copy
+ * the fixture's contents on top. Used by `priorScans` and the main
+ * fixture phase to swap adapter content while keeping the DB stable.
+ */
+function replaceFixture(scope: string, specRoot: string, fixture: string): void {
+  for (const entry of readdirSync(scope)) {
+    if (entry === '.skill-map') continue;
+    rmSync(join(scope, entry), { recursive: true, force: true });
+  }
+  const src = join(specRoot, 'conformance', 'fixtures', fixture);
+  cpSync(src, scope, { recursive: true });
 }
 
 interface AssertionContext {

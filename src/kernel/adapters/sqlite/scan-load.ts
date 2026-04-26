@@ -20,27 +20,26 @@
  * preserves that count for "unchanged" nodes and re-derives it for
  * new / modified nodes from a fresh detector pass.
  *
- * Synthetic `ScanResult` envelope: this loader cannot fully reconstruct
- * the spec-required meta fields because the snapshot tables today only
- * persist per-node `scanned_at` and never the original `scope` / `roots` /
- * `adapters` / `scannedBy` / `stats`. The loader therefore fabricates a
- * spec-conformant envelope:
+ * Meta envelope: since Step 5.1 the `scan_meta` table persists `scope` /
+ * `roots` / `scannedAt` / `scannedBy` / `adapters` / `stats.filesWalked` /
+ * `stats.filesSkipped` / `stats.durationMs`. When the row exists, those
+ * fields come back authoritatively. When it does not (DB freshly migrated
+ * but never scanned, or a pre-5.1 DB never re-persisted), the loader
+ * degrades to a synthetic envelope:
  *
  *   - `scannedAt` ← max(`scan_nodes.scanned_at`); falls back to `Date.now()`
  *     for empty snapshots so the field stays a positive integer.
- *   - `scope`     ← `'project'` (the original scope is not persisted today
- *     — persisting it requires a `state_scan_meta` table; deferred).
- *   - `roots`     ← `['.']` so the spec's `minItems: 1` holds even on
- *     empty / synthetic snapshots. NOT load-bearing: the orchestrator's
- *     incremental path only reads `nodes` / `links` / `issues` from the
- *     prior; it never reuses the prior `roots`.
- *   - `adapters`  ← `[]` (also not persisted; rebuild is left to the
- *     fresh scan that consumes this snapshot).
- *   - `stats`     ← zeros for `filesWalked` / `filesSkipped` / `durationMs`
- *     and the live counts derived from the loaded rows.
+ *   - `scope`     ← `'project'`.
+ *   - `roots`     ← `['.']` to satisfy spec's `minItems: 1`. NOT
+ *     load-bearing: the orchestrator's incremental path only reads
+ *     `nodes` / `links` / `issues` from the prior; it never reuses the
+ *     prior `roots`.
+ *   - `adapters`  ← `[]`.
+ *   - `stats`     ← zeros for `filesWalked` / `filesSkipped` /
+ *     `durationMs`; the three count fields derive from row counts.
  *
- * Once `state_scan_meta` lands, this loader can return the real values
- * and the synthetic notes go away.
+ * Both branches keep `nodesCount` / `linksCount` / `issuesCount` derived
+ * from `COUNT(*)` of the loaded rows — never persisted, always recomputed.
  */
 
 import type { Kysely } from 'kysely';
@@ -56,6 +55,7 @@ import type {
   Node,
   NodeKind,
   ScanResult,
+  ScanScannedBy,
   Severity,
   Stability,
   TripleSplit,
@@ -64,26 +64,54 @@ import type {
   IDatabase,
   IScanIssuesTable,
   IScanLinksTable,
+  IScanMetaTable,
   IScanNodesTable,
+  TScanScope,
 } from './schema.js';
 import type { Selectable } from 'kysely';
 
 export async function loadScanResult(
   db: Kysely<IDatabase>,
 ): Promise<ScanResult> {
-  const [nodeRows, linkRows, issueRows] = await Promise.all([
+  const [nodeRows, linkRows, issueRows, metaRow] = await Promise.all([
     db.selectFrom('scan_nodes').selectAll().execute(),
     db.selectFrom('scan_links').selectAll().execute(),
     db.selectFrom('scan_issues').selectAll().execute(),
+    db.selectFrom('scan_meta').selectAll().executeTakeFirst(),
   ]);
 
   const nodes = nodeRows.map(rowToNode);
   const links = linkRows.map(rowToLink);
   const issues = issueRows.map(rowToIssue);
 
-  // Pick the most recent persisted scannedAt so the synthetic envelope
-  // matches what `persistScanResult` wrote. Within a single snapshot
-  // every node row carries the same value; max() is just defensive.
+  if (metaRow) {
+    const scannedBy: ScanScannedBy = {
+      name: metaRow.scannedByName,
+      version: metaRow.scannedByVersion,
+      specVersion: metaRow.scannedBySpecVersion,
+    };
+    return {
+      schemaVersion: 1,
+      scannedAt: metaRow.scannedAt,
+      scope: metaRow.scope as TScanScope,
+      roots: parseJsonArray<string>(metaRow.rootsJson),
+      adapters: parseJsonArray<string>(metaRow.adaptersJson),
+      scannedBy,
+      nodes,
+      links,
+      issues,
+      stats: {
+        filesWalked: metaRow.statsFilesWalked,
+        filesSkipped: metaRow.statsFilesSkipped,
+        nodesCount: nodes.length,
+        linksCount: links.length,
+        issuesCount: issues.length,
+        durationMs: metaRow.statsDurationMs,
+      },
+    };
+  }
+
+  // Synthetic fallback: pre-5.1 DB or never-scanned scope.
   let scannedAt = 0;
   for (const row of nodeRows) {
     if (row.scannedAt > scannedAt) scannedAt = row.scannedAt;
@@ -94,8 +122,6 @@ export async function loadScanResult(
     schemaVersion: 1,
     scannedAt,
     scope: 'project',
-    // synthetic — see scan-load.ts header. Spec requires minItems: 1; the
-    // orchestrator's incremental path never reads this field from a prior.
     roots: ['.'],
     adapters: [],
     nodes,

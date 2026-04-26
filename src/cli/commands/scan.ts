@@ -4,8 +4,8 @@ import { resolve } from 'node:path';
 import { Command, Option } from 'clipanion';
 import type { Kysely } from 'kysely';
 
-import { createKernel, runScan } from '../../kernel/index.js';
-import type { ScanResult } from '../../kernel/index.js';
+import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
+import type { RenameOp, ScanResult } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
@@ -108,33 +108,37 @@ export class ScanCommand extends Command {
       for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     }
 
-    // --- prior snapshot for --changed --------------------------------------
-    // Load the persisted snapshot (read-only; the adapter is closed
-    // before the scan runs). If the DB doesn't exist yet, or the
-    // snapshot is empty, degrade to a full scan and warn.
+    // --- prior snapshot --------------------------------------------------
+    // Step 5.8 decoupled "prior for rename detection" from "prior for
+    // cache reuse". Now: ALWAYS load the prior when the DB exists and
+    // we plan to walk (i.e. not under `--no-built-ins`). The orchestrator
+    // uses `priorSnapshot` to fire the rename heuristic (every scan that
+    // can detect deletes / additions), and uses `enableCache` —
+    // independently — to decide whether to skip detectors on
+    // hash-matching nodes (`--changed` only).
+    //
+    // When `--changed` is set but no prior is found, we still warn so
+    // the user gets feedback that the incremental flag had nothing to
+    // act on. Without `--changed`, an empty / missing prior is silent
+    // (it's the normal first-scan path).
     const dbPath = resolve(process.cwd(), DEFAULT_PROJECT_DB);
     let priorSnapshot: ScanResult | null = null;
-    if (this.changed) {
-      if (!existsSync(dbPath)) {
-        this.context.stderr.write(
-          '--changed: no prior snapshot found; running full scan.\n',
-        );
-      } else {
-        const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-        await adapter.init();
-        try {
-          const loaded = await loadScanResult(adapter.db);
-          if (loaded.nodes.length === 0) {
-            this.context.stderr.write(
-              '--changed: no prior snapshot found; running full scan.\n',
-            );
-          } else {
-            priorSnapshot = loaded;
-          }
-        } finally {
-          await adapter.close();
+    if (!this.noBuiltIns && existsSync(dbPath)) {
+      const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+      await adapter.init();
+      try {
+        const loaded = await loadScanResult(adapter.db);
+        if (loaded.nodes.length > 0) {
+          priorSnapshot = loaded;
         }
+      } finally {
+        await adapter.close();
       }
+    }
+    if (this.changed && priorSnapshot === null) {
+      this.context.stderr.write(
+        '--changed: no prior snapshot found; running full scan.\n',
+      );
     }
 
     const runOptions: Parameters<typeof runScan>[1] = {
@@ -146,15 +150,24 @@ export class ScanCommand extends Command {
       tokenize: !this.noTokens,
     };
     if (extensions) runOptions.extensions = extensions;
-    if (priorSnapshot) runOptions.priorSnapshot = priorSnapshot;
+    if (priorSnapshot) {
+      runOptions.priorSnapshot = priorSnapshot;
+      // Cache reuse is opt-in via `--changed`. With a prior loaded but
+      // no `--changed`, the rename heuristic still fires but every file
+      // re-walks through detectors deterministically.
+      runOptions.enableCache = this.changed;
+    }
 
     // Surface root-validation errors from the orchestrator as clean
     // operational failures (exit 2) rather than crash-trace dumps.
     // `runScan` validates each root exists as a directory up front;
     // those messages start with `runScan: root path ...`.
     let result: ScanResult;
+    let renameOps: RenameOp[];
     try {
-      result = await runScan(kernel, runOptions);
+      const ran = await runScanWithRenames(kernel, runOptions);
+      result = ran.result;
+      renameOps = ran.renameOps;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.context.stderr.write(`sm scan: ${message}\n`);
@@ -187,7 +200,7 @@ export class ScanCommand extends Command {
             return 2;
           }
         }
-        await persistScanResult(adapter.db, result);
+        await persistScanResult(adapter.db, result, renameOps);
       } finally {
         await adapter.close();
       }

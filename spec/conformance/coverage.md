@@ -54,7 +54,7 @@ These have their own conformance cases even though they are not JSON Schemas.
 | F | Nonce mismatch | — | 🔴 missing | Blocked by Step 10. `sm record` with wrong nonce → exit 4. |
 | G | Reap | — | 🔴 missing | Blocked by Step 10. Set TTL to 1s; claim; wait; next `sm job run` reaps with reason `abandoned`. |
 | H | `run.*` event envelope for Skill agent | — | 🔴 missing | Blocked by Step 10. Skill-agent flow emits synthetic `r-ext-*` run envelope around one job. |
-| I | Rename heuristic | — | 🔴 missing | Blocked by Step 5. Move a file; same-`body_hash` → high-confidence auto-rename; `state_*` FK rows migrated; no issue emitted. |
+| I | Rename heuristic | `rename-high`, `orphan-detection` | 🟢 covered | High-confidence rename emits no issue and the new path is the sole node. Orphan branch emits exactly one `orphan` issue (severity `info`) when a deleted node has no replacement. Medium / ambiguous branches are exercised by `src/test/rename-heuristic.test.ts` until the conformance schema grows richer assertions. |
 | J | Plugin DDL rejection | — | 🔴 missing | Blocked by Step 9. Plugin migration referencing `state_jobs` → disabled with `invalid-manifest`. |
 | K | Plugin prefix injection | — | 🔴 missing | Blocked by Step 9. Plugin declares `CREATE TABLE foo` → kernel applies as `plugin_<id>_foo`. |
 | L | Elapsed-time reporting | — | 🔴 missing | Blocked by Step 4 (first real verb work). Run any in-scope verb; stderr last line MUST match `/^done in (\d+ms\|\d+\.\d+s\|\d+m \d+s)$/`. In-scope verb with `--json` returning an object MUST carry `elapsedMs`. Exempt verb (`sm version`) MUST NOT emit the line. |

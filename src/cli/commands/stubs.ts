@@ -180,46 +180,8 @@ export class ExportCommand extends Command {
   }
 }
 
-export class OrphansCommand extends Command {
-  static override paths = [['orphans']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'History rows whose target node is missing.',
-  });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'orphans', '4');
-  }
-}
-
-export class OrphansReconcileCommand extends Command {
-  static override paths = [['orphans', 'reconcile']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'Migrate history rows from an orphan path to a live node.',
-  });
-  orphanPath = Option.String({ required: true });
-  to = Option.String('--to', { required: true });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'orphans reconcile', '4');
-  }
-}
-
-export class OrphansUndoRenameCommand extends Command {
-  static override paths = [['orphans', 'undo-rename']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'Reverse a medium- or ambiguous-confidence auto-rename.',
-  });
-  newPath = Option.String({ required: true });
-  from = Option.String('--from', { required: false });
-  force = Option.Boolean('--force', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'orphans undo-rename', '4');
-  }
-}
+// orphans / orphans reconcile / orphans undo-rename — moved to ./orphans.ts
+// at Step 5.6
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -398,43 +360,8 @@ export class RecordCommand extends Command {
 }
 
 // ---------------------------------------------------------------------------
-// History
+// History — moved to ./history.ts at Step 5.3 / 5.4
 // ---------------------------------------------------------------------------
-
-export class HistoryCommand extends Command {
-  static override paths = [['history']];
-  static override usage = Command.Usage({
-    category: 'History',
-    description: 'Filter execution records.',
-  });
-  node = Option.String('-n', { required: false });
-  action = Option.String('--action', { required: false });
-  status = Option.String('--status', { required: false });
-  since = Option.String('--since', { required: false });
-  until = Option.String('--until', { required: false });
-  json = Option.Boolean('--json', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'history', '4');
-  }
-}
-
-export class HistoryStatsCommand extends Command {
-  static override paths = [['history', 'stats']];
-  static override usage = Command.Usage({
-    category: 'History',
-    description: 'Aggregates over state_executions: totals, tokens, periods, top N nodes, error rates.',
-  });
-  since = Option.String('--since', { required: false });
-  until = Option.String('--until', { required: false });
-  period = Option.String('--period', { required: false });
-  top = Option.String('--top', { required: false });
-  json = Option.Boolean('--json', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'history stats', '4');
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Plugins — toggle verbs (list/show/doctor already live)
@@ -529,9 +456,6 @@ export const STUB_COMMANDS = [
   FindingsCommand,
   GraphCommand,
   ExportCommand,
-  OrphansCommand,
-  OrphansReconcileCommand,
-  OrphansUndoRenameCommand,
   ActionsListCommand,
   ActionsShowCommand,
   JobSubmitCommand,
@@ -544,8 +468,6 @@ export const STUB_COMMANDS = [
   JobCancelCommand,
   JobPruneCommand,
   RecordCommand,
-  HistoryCommand,
-  HistoryStatsCommand,
   PluginsEnableCommand,
   PluginsDisableCommand,
   AuditListCommand,

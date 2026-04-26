@@ -20,7 +20,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { createInterface } from 'node:readline';
+import { confirm } from '../util/confirm.js';
 
 import { Command, Option } from 'clipanion';
 
@@ -31,16 +31,6 @@ import {
   writeBackup,
 } from '../../kernel/adapters/sqlite/migrations.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
-
-async function confirm(question: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
-  try {
-    const answer = await new Promise<string>((resolveP) => rl.question(`${question} [y/N] `, resolveP));
-    return /^y(es)?$/i.test(answer.trim());
-  } finally {
-    rl.close();
-  }
-}
 
 // --- backup ---------------------------------------------------------------
 
