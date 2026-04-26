@@ -53,14 +53,18 @@
   }
   </script>
 
-  <!-- Favicon swaps with the user's OS color scheme (the browser tab follows
-       prefers-color-scheme, not the site's theme). For now the site is always
-       dark, so the white icon will show on most users (dark tab) and the black
-       icon on those running a light browser theme. PNG is a fallback for
-       legacy clients that don't honor SVG icons. -->
-  <link rel="icon" type="image/svg+xml" href="/img/favicon-white.svg" media="(prefers-color-scheme: dark)">
-  <link rel="icon" type="image/svg+xml" href="/img/favicon-black.svg" media="(prefers-color-scheme: light)">
-  <link rel="alternate icon" type="image/png" href="/img/favicon-white.png">
+  <!-- Single adaptive SVG favicon: the file carries an inline `prefers-color-scheme`
+       <style> block that flips strokes/fills between #0E131A (light tabs) and
+       #FFFFFF (dark tabs). This sidesteps the older cascade of three <link>
+       tags with `media` attributes — that strategy is unreliable because
+       browsers disagree on which entry wins (Chromium picks the last matching
+       <link>, which makes a no-media fallback override a more specific media
+       match; Firefox ignores `media` on <link rel="icon"> entirely per Mozilla
+       bug 1294466). One SVG with internal CSS works in every modern browser.
+       The PNG is a last-resort fallback for ancient clients that don't render
+       SVG favicons at all. -->
+  <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-white.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
