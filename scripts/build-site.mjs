@@ -277,14 +277,10 @@ async function main() {
   if (existsSync(SITE_DST)) await rm(SITE_DST, { recursive: true });
 
   // 1. Copy the editable landing into the build output.
-  //    Skip:
-  //      - web/tmp/      (reference JSX/CSS dropped by the author for porting)
-  //      - web/i18n.json (build-time only — translations are baked into HTML)
+  //    Skip web/i18n.json — build-time only, translations are baked into HTML.
   await cp(WEB_SRC, SITE_DST, {
     recursive: true,
-    filter: (src) => !src.includes(`${WEB_SRC}/tmp`)
-                   && !src.endsWith('/i18n.json')
-                   && !src.endsWith('\\i18n.json'),
+    filter: (src) => !src.endsWith('/i18n.json') && !src.endsWith('\\i18n.json'),
   });
 
   // 2. Read the spec version + i18n dictionary, then render one HTML per language.

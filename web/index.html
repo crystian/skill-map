@@ -5,7 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="spec-version" content="{{SPEC_VERSION}}">
   <title>skill-map · landing</title>
-  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <!-- Favicon swaps with the user's OS color scheme (the browser tab follows
+       prefers-color-scheme, not the site's theme). For now the site is always
+       dark, so the white icon will show on most users (dark tab) and the black
+       icon on those running a light browser theme. PNG is a fallback for
+       legacy clients that don't honor SVG icons. -->
+  <link rel="icon" type="image/svg+xml" href="/img/favicon-white.svg" media="(prefers-color-scheme: dark)">
+  <link rel="icon" type="image/svg+xml" href="/img/favicon-black.svg" media="(prefers-color-scheme: light)">
+  <link rel="alternate icon" type="image/png" href="/img/favicon-white.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
@@ -18,7 +25,7 @@
     <nav class="lp-nav" data-i18n-aria-label="nav.primary.label">
       <a class="lp-nav__logo" href="/">
         <span class="lp-nav__logo-mark">
-          <img src="/img/skill-map-mark-dark.svg" alt="">
+          <img src="/img/skill-map-mark-light.svg" alt="">
         </span>
         skill-map
       </a>
@@ -87,7 +94,7 @@
           </p>
 
           <div class="hero__ctas">
-            <a class="btn btn--primary btn--xl" href="#cta">
+            <a class="btn btn--accent btn--xl" href="#cta">
               <span data-i18n="hero.cta.demo">Try the demo</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -122,6 +129,8 @@
               <span class="alert">1 <span data-i18n="graph.orphans">orphan</span></span>
             </div>
           </div>
+
+          <canvas class="hg-particles" aria-hidden="true"></canvas>
 
           <div class="hero__graph-legend">
             <div><i style="background:#00C853"></i><span data-i18n="graph.legend.skill">Skill</span></div>
@@ -163,19 +172,19 @@
             <g class="select-fx"></g>
 
             <g class="nodes">
-              <g class="node" data-id="oauth"      data-type="skill"   transform="translate(280, 200)"><circle r="16" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="32" text-anchor="middle">oauth-flow</text></g>
-              <g class="node" data-id="deploy"     data-type="skill"   transform="translate(460, 140)"><circle r="18" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="34" text-anchor="middle">deploy</text></g>
-              <g class="node" data-id="ship"       data-type="skill"   transform="translate(580, 240)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">ship</text></g>
-              <g class="node" data-id="release"    data-type="skill"   transform="translate(480, 340)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">release</text></g>
-              <g class="node" data-id="reviewer"   data-type="agent"   transform="translate(340, 360)"><circle r="22" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="38" text-anchor="middle">reviewer</text></g>
-              <g class="node" data-id="planner"    data-type="agent"   transform="translate(700, 380)"><circle r="20" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="36" text-anchor="middle">planner</text></g>
-              <g class="node" data-id="pre-commit" data-type="hook"    transform="translate(170, 320)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">pre-commit</text></g>
-              <g class="node" data-id="post-merge" data-type="hook"    transform="translate(220, 460)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">post-merge</text></g>
-              <g class="node" data-id="fs-read"    data-type="command" transform="translate(800, 240)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">fs/read</text></g>
-              <g class="node" data-id="git-log"    data-type="command" transform="translate(760, 130)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">git/log</text></g>
-              <g class="node" data-id="legacy"     data-type="orphan"  transform="translate(100, 180)"><circle r="11" fill="transparent" stroke="#5A6472" stroke-width="1.5" stroke-dasharray="3 3"/><text class="node-label" y="27" text-anchor="middle">legacy.md</text></g>
-              <g class="node" data-id="pdf-read"   data-type="skill"   transform="translate(620, 460)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">read-pdf</text></g>
-              <g class="node" data-id="notes"      data-type="note"    transform="translate(420, 460)"><circle r="10" fill="#8A93A1" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="26" text-anchor="middle">CLAUDE.md</text></g>
+              <g class="node" data-id="oauth"      data-type="skill"   data-tokens="1,842" data-bytes="6.1 KB"  data-lastscan="312ms" transform="translate(280, 200)"><circle r="16" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="32" text-anchor="middle">oauth-flow</text></g>
+              <g class="node" data-id="deploy"     data-type="skill"   data-tokens="3,407" data-bytes="11.2 KB" data-lastscan="287ms" transform="translate(460, 140)"><circle r="18" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="34" text-anchor="middle">deploy</text></g>
+              <g class="node" data-id="ship"       data-type="skill"   data-tokens="1,124" data-bytes="3.8 KB"  data-lastscan="318ms" transform="translate(580, 240)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">ship</text></g>
+              <g class="node" data-id="release"    data-type="skill"   data-tokens="1,609" data-bytes="5.4 KB"  data-lastscan="295ms" transform="translate(480, 340)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">release</text></g>
+              <g class="node" data-id="reviewer"   data-type="agent"   data-tokens="2,134" data-bytes="8.4 KB"  data-lastscan="287ms" data-warn="warn.collision" transform="translate(340, 360)"><circle r="22" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="38" text-anchor="middle">reviewer</text></g>
+              <g class="node" data-id="planner"    data-type="agent"   data-tokens="4,872" data-bytes="15.9 KB" data-lastscan="301ms" transform="translate(700, 380)"><circle r="20" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="36" text-anchor="middle">planner</text></g>
+              <g class="node" data-id="pre-commit" data-type="hook"    data-tokens="412"   data-bytes="1.3 KB"  data-lastscan="276ms" transform="translate(170, 320)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">pre-commit</text></g>
+              <g class="node" data-id="post-merge" data-type="hook"    data-tokens="389"   data-bytes="1.2 KB"  data-lastscan="269ms" transform="translate(220, 460)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">post-merge</text></g>
+              <g class="node" data-id="fs-read"    data-type="command" data-tokens="217"   data-bytes="720 B"   data-lastscan="245ms" transform="translate(800, 240)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">fs/read</text></g>
+              <g class="node" data-id="git-log"    data-type="command" data-tokens="184"   data-bytes="612 B"   data-lastscan="241ms" transform="translate(760, 130)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">git/log</text></g>
+              <g class="node" data-id="legacy"     data-type="orphan"  data-tokens="987"   data-bytes="3.2 KB"  data-lastscan="14d"   data-warn="warn.orphan" transform="translate(100, 180)"><circle r="11" fill="transparent" stroke="#5A6472" stroke-width="1.5" stroke-dasharray="3 3"/><text class="node-label" y="27" text-anchor="middle">legacy.md</text></g>
+              <g class="node" data-id="pdf-read"   data-type="skill"   data-tokens="2,891" data-bytes="9.7 KB"  data-lastscan="304ms" transform="translate(620, 460)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">read-pdf</text></g>
+              <g class="node" data-id="notes"      data-type="note"    data-tokens="1,256" data-bytes="4.1 KB"  data-lastscan="298ms" transform="translate(420, 460)"><circle r="10" fill="#8A93A1" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="26" text-anchor="middle">CLAUDE.md</text></g>
             </g>
             </g><!-- /hg-viewport -->
           </svg>
@@ -194,6 +203,412 @@
         </div>
       </div>
     </section>
+
+    <!-- ============== ROADMAP ============== -->
+    <section class="roadmap" id="roadmap">
+      <div class="roadmap__head">
+        <div>
+          <div class="roadmap__badge" data-i18n="rm.eyebrow">Roadmap</div>
+          <h2 class="roadmap__title">
+            <span data-i18n="rm.title.1">Ten steps to 2.0.</span><br>
+            <span class="roadmap__title-soft" data-i18n="rm.title.2">We're on the third.</span>
+          </h2>
+        </div>
+        <div class="roadmap__legend">
+          <div class="roadmap__legend-item roadmap__legend-item--done"><i></i><span data-i18n="rm.legend.done">Shipped</span></div>
+          <div class="roadmap__legend-item roadmap__legend-item--current"><i></i><span data-i18n="rm.legend.current">In progress</span></div>
+          <div class="roadmap__legend-item roadmap__legend-item--planned"><i></i><span data-i18n="rm.legend.planned">Planned</span></div>
+        </div>
+      </div>
+      <div id="roadmap-mount"></div>
+      <noscript>
+        <p style="text-align:center;color:rgba(255,255,255,.6);font-size:14px;margin-top:24px">
+          Interactive timeline requires JavaScript.
+          Read the full <a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" style="color:var(--violet-400)">ROADMAP.md</a> on GitHub.
+        </p>
+      </noscript>
+    </section>
+
+    <!-- ============== FEATURES ============== -->
+    <section class="section" id="features">
+      <header class="section-header">
+        <div>
+          <div class="section-eyebrow section-eyebrow--green" data-i18n="feat.eyebrow">Features</div>
+          <h2 class="section-title" data-i18n="feat.title">Six checks that turn agent-soup into a map you can read.</h2>
+        </div>
+        <p class="section-sub">
+          <span data-i18n="feat.sub">Built for repos with hundreds of skills, dozens of agents, and the kind of cross-file coupling that makes </span><code>grep</code><span data-i18n="feat.sub.tail"> stop being enough.</span>
+        </p>
+      </header>
+
+      <div class="features-grid">
+        <article class="feature feature--green">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.scan.t">Recursive scan</h3>
+            <span class="feature__tag">scan</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.scan.b">Walks any folder of Markdown, JSON, or YAML and indexes every skill, agent, hook, command, and note in one pass.</p>
+        </article>
+
+        <article class="feature feature--violet">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/>
+              <path stroke-linecap="round" d="M6.6 7.6 11 16M17.4 7.6 13 16M7 6h10"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.xref.t">Cross-references</h3>
+            <span class="feature__tag">graph</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.xref.b">Detects every link between files — invocation phrases, file imports, command calls, fetched URLs.</p>
+        </article>
+
+        <article class="feature feature--amber">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.coll.t">Trigger collisions</h3>
+            <span class="feature__tag">collisions</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.coll.b">Two skills claiming the same invocation? skill-map flags it before your agent picks the wrong one at runtime.</p>
+        </article>
+
+        <article class="feature feature--green">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.orph.t">Orphan detection</h3>
+            <span class="feature__tag">orphans</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.orph.b">Surfaces files that are defined but never referenced. Dead code, but for your agent ecosystem.</p>
+        </article>
+
+        <article class="feature feature--violet">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.tok.t">Token weight</h3>
+            <span class="feature__tag">weight</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.tok.b">Per-node byte and token counts. Find the bloated skill that's eating your context window.</p>
+        </article>
+
+        <article class="feature feature--amber">
+          <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3z"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.deps.t">External deps</h3>
+            <span class="feature__tag">deps</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.deps.b">Lists every URL and fetched asset your skills reach for. Audit your supply chain.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============== HOW IT WORKS ============== -->
+    <section class="section" id="how">
+      <header class="section-header section-header--center">
+        <div class="section-eyebrow" data-i18n="how.eyebrow">How it works</div>
+        <h2 class="section-title" data-i18n="how.title">Three steps. No config file.</h2>
+      </header>
+
+      <ol class="howit-grid">
+        <li class="howit-step">
+          <div class="howit-step__num"><span>01</span></div>
+          <h3 class="howit-step__title" data-i18n="how.s1.t">Point it at a folder.</h3>
+          <p class="howit-step__body" data-i18n="how.s1.b">One command. ~/.claude/skills, your repo root, any folder — anything with skills, agents, hooks, or notes inside.</p>
+          <div class="howit-step__code"><span class="prompt">$</span> sm scan ~/.claude/skills</div>
+        </li>
+
+        <li class="howit-step">
+          <div class="howit-step__num"><span>02</span></div>
+          <h3 class="howit-step__title" data-i18n="how.s2.t">Get the graph.</h3>
+          <p class="howit-step__body" data-i18n="how.s2.b">Static analysis builds the full reference graph. Trigger collisions, orphans, byte weights, external deps — surfaced in milliseconds.</p>
+          <div class="howit-step__code"><span class="prompt">$</span> 1,247 nodes &middot; 3,891 edges &middot; 287ms</div>
+        </li>
+
+        <li class="howit-step">
+          <div class="howit-step__num"><span>03</span></div>
+          <h3 class="howit-step__title" data-i18n="how.s3.t">Open the explorer.</h3>
+          <p class="howit-step__body" data-i18n="how.s3.b">Visual graph in your browser. Click any node to inspect. Filter by type. ⌘K to jump anywhere. Or stay in the terminal — your call.</p>
+          <div class="howit-step__code"><span class="prompt">$</span> sm open  &rarr;  http://localhost:7800</div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ============== USE CASES ============== -->
+    <section class="section" id="cases">
+      <header class="section-header section-header--stacked">
+        <div class="section-eyebrow section-eyebrow--green" data-i18n="cases.eyebrow">Use cases</div>
+        <h2 class="section-title" data-i18n="cases.title">For people who read code for fun.</h2>
+        <p class="section-sub" data-i18n="cases.sub">No promises. No "magic". Just a graph and the data already in your repo.</p>
+      </header>
+
+      <div class="cases-grid">
+        <article class="case case--green">
+          <div class="case__tag" data-i18n="cases.c1.tag">For skill authors</div>
+          <h3 class="case__title" data-i18n="cases.c1.t">Audit before you ship.</h3>
+          <p class="case__body" data-i18n="cases.c1.b">Every skill touches dozens of others. skill-map shows you the blast radius of any change before you push it.</p>
+          <div class="case__stat">
+            <span class="case__stat-num">127</span>
+            <span class="case__stat-label" data-i18n="cases.c1.s">avg refs per skill</span>
+          </div>
+        </article>
+
+        <article class="case case--violet">
+          <div class="case__tag" data-i18n="cases.c2.tag">For platform teams</div>
+          <h3 class="case__title" data-i18n="cases.c2.t">Know what your fleet runs.</h3>
+          <p class="case__body" data-i18n="cases.c2.b">Map every agent across every project. Find duplicates, deprecated forks, and the orphan skills nobody owns anymore.</p>
+          <div class="case__stat">
+            <span class="case__stat-num">12&times;</span>
+            <span class="case__stat-label" data-i18n="cases.c2.s">fewer trigger collisions</span>
+          </div>
+        </article>
+
+        <article class="case case--amber">
+          <div class="case__tag" data-i18n="cases.c3.tag">For agent debuggers</div>
+          <h3 class="case__title" data-i18n="cases.c3.t">Trace a misfire to its source.</h3>
+          <p class="case__body" data-i18n="cases.c3.b">Agent picked the wrong skill? Trace the invocation back through hooks, commands, and trigger phrases in seconds.</p>
+          <div class="case__stat">
+            <span class="case__stat-num">&lt; 300ms</span>
+            <span class="case__stat-label" data-i18n="cases.c3.s">graph rebuild</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============== CLI ============== -->
+    <section class="section" id="cli">
+      <div class="cli-grid">
+        <div class="cli-copy">
+          <div class="section-eyebrow section-eyebrow--green" data-i18n="cli.eyebrow">CLI first</div>
+          <h2 class="section-title" data-i18n="cli.title">The terminal is the surface. The browser is optional.</h2>
+          <p class="section-sub">
+            <span data-i18n="cli.sub.a">Built for people who never closed iTerm. Pipe scan output to </span><code>jq</code><span data-i18n="cli.sub.b">, gate CI on collisions, embed it in pre-commit hooks.</span>
+          </p>
+
+          <div class="code-tags">
+            <span class="code-tag">--json</span>
+            <span class="code-tag">--watch</span>
+            <span class="code-tag">--filter type=skill</span>
+            <span class="code-tag">--no-color</span>
+            <span class="code-tag">--max-depth=3</span>
+            <span class="code-tag">--ignore-orphans</span>
+          </div>
+
+          <div class="cli-ctas">
+            <a class="btn btn--accent btn--lg" href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener">
+              <span data-i18n="cli.cta.install">Install CLI</span>
+              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+                <path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/>
+              </svg>
+            </a>
+            <a class="btn btn--ghost btn--lg" href="https://github.com/crystian/skill-map/tree/main/docs" target="_blank" rel="noopener" data-i18n="cli.cta.docs">Read docs</a>
+          </div>
+        </div>
+
+        <div class="term" aria-hidden="true">
+          <div class="term__chrome">
+            <span class="term__dot term__dot--red"></span>
+            <span class="term__dot term__dot--yellow"></span>
+            <span class="term__dot term__dot--green"></span>
+            <span class="term__title">~/.claude — sm scan</span>
+          </div>
+          <div class="term__body">
+            <div class="term__line"><span class="prefix">$</span>sm scan ~/.claude/skills</div>
+            <div class="term__line term__line--spacer">&nbsp;</div>
+            <div class="term__line term__line--muted"><span class="prefix">◢</span>scanning 247 files...</div>
+            <div class="term__line term__line--ok"><span class="prefix">✓</span>127 skills · 12 agents · 8 hooks · 23 notes</div>
+            <div class="term__line term__line--spacer">&nbsp;</div>
+            <div class="term__line term__line--warn"><span class="prefix">⚠</span>trigger collision: 3 skills claim "deploy"</div>
+            <div class="term__line term__line--muted"><span class="prefix"> </span>   skills/deploy.md  skills/ship.md  skills/release.md</div>
+            <div class="term__line term__line--spacer">&nbsp;</div>
+            <div class="term__line term__line--warn"><span class="prefix">⚠</span>orphan: skills/legacy.md (defined, never referenced)</div>
+            <div class="term__line term__line--spacer">&nbsp;</div>
+            <div class="term__line term__line--ok"><span class="prefix">✓</span>scan complete · 287ms · 1,247 nodes · 3,891 edges</div>
+            <div class="term__line"><span class="prefix">$</span>sm open</div>
+            <div class="term__line term__line--link"><span class="prefix">→</span>http://localhost:7800</div>
+            <div class="term__cursor-row">
+              <span class="prompt">$</span>
+              <span class="term__cursor"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============== QUOTES ============== -->
+    <section class="section" id="quotes">
+      <header class="section-header section-header--stacked">
+        <div class="section-eyebrow" data-i18n="quotes.eyebrow">Quotes</div>
+        <h2 class="section-title" data-i18n="quotes.title">What people who use it say.</h2>
+      </header>
+
+      <div class="quotes-grid">
+        <article class="quote">
+          <div class="quote__stars" aria-hidden="true">
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+          </div>
+          <p class="quote__text">&ldquo;<span data-i18n="quotes.q1">Found 14 trigger collisions across our internal agent fleet on the first run. We'd been debugging the resulting misfires for weeks.</span>&rdquo;</p>
+          <div class="quote__person">
+            <div class="quote__avatar" aria-hidden="true">MC</div>
+            <div>
+              <div class="quote__name">Maya Chen</div>
+              <div class="quote__role" data-i18n="quotes.r1">Platform Lead, Finch Labs</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="quote">
+          <div class="quote__stars" aria-hidden="true">
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+          </div>
+          <p class="quote__text">&ldquo;<span data-i18n="quotes.q2">The orphan check alone is worth it. We had 38 skills defined but never referenced. Dead code, just for agents.</span>&rdquo;</p>
+          <div class="quote__person">
+            <div class="quote__avatar" aria-hidden="true">JR</div>
+            <div>
+              <div class="quote__name">Jordan Reyes</div>
+              <div class="quote__role" data-i18n="quotes.r2">Skill author · Anthropic Builders</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="quote">
+          <div class="quote__stars" aria-hidden="true">
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+            <svg viewBox="0 0 14 14" fill="currentColor"><path d="M7 1l1.8 4 4.2.4-3.2 2.8 1 4.3L7 10.4 3.2 12.5l1-4.3L1 5.4 5.2 5z"/></svg>
+          </div>
+          <p class="quote__text">&ldquo;<span data-i18n="quotes.q3">I run sm in CI. If a PR introduces a collision or an external dep we don't allow-list, the build fails. End of debate.</span>&rdquo;</p>
+          <div class="quote__person">
+            <div class="quote__avatar" aria-hidden="true">PV</div>
+            <div>
+              <div class="quote__name">Priya Vasquez</div>
+              <div class="quote__role" data-i18n="quotes.r3">Eng Manager, Recurse</div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ============== CTA BAR ============== -->
+    <section class="cta-bar" id="cta">
+      <div class="cta-bar__bg" aria-hidden="true"></div>
+      <div class="cta-bar__inner">
+        <h2 class="cta-bar__title">
+          <span data-i18n="cta.title.1">Stop reading dirs.</span><br>
+          <span data-i18n="cta.title.2">Start reading graphs.</span>
+        </h2>
+        <p class="cta-bar__sub" data-i18n="cta.sub">One command. No config. MIT licensed. Built for the people who never closed iTerm.</p>
+
+        <div class="cta-bar__ctas">
+          <a class="btn btn--accent btn--xl" href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener">
+            npm i -g @skill-map/cli
+            <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/>
+            </svg>
+          </a>
+          <a class="btn btn--ghost btn--xl" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 2C6.48 2 2 6.58 2 12.21c0 4.5 2.87 8.32 6.84 9.67.5.09.68-.22.68-.49 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.36-3.37-1.36-.45-1.18-1.11-1.49-1.11-1.49-.91-.63.07-.62.07-.62 1.01.07 1.54 1.06 1.54 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.55-1.13-4.55-5.04 0-1.11.39-2.02 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.04A9.4 9.4 0 0112 7.16c.85.004 1.7.12 2.5.34 1.91-1.31 2.75-1.04 2.75-1.04.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.74 0 3.92-2.34 4.78-4.57 5.03.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.59.69.49C19.14 20.52 22 16.7 22 12.21 22 6.58 17.52 2 12 2z"/>
+            </svg>
+            <span data-i18n="cta.btn.repo">View on GitHub</span>
+          </a>
+        </div>
+
+        <div class="cta-bar__fineprint" data-i18n="cta.fineprint">Works offline · Zero telemetry · Apache + MIT skills welcome</div>
+      </div>
+    </section>
+
+    <!-- ============== FOOTER ============== -->
+    <footer class="lp-footer">
+      <div class="lp-footer__grid">
+        <div class="lp-footer__brand">
+          <a class="lp-footer__logo" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">
+            <span class="lp-nav__logo-mark"><img src="/img/skill-map-mark-light.svg" alt=""></span>
+            skill-map
+          </a>
+          <p class="lp-footer__tagline" data-i18n="foot.tagline">A graph explorer for Markdown-based AI-agent ecosystems.</p>
+          <div class="lp-footer__tags">
+            <span class="code-tag">v {{SPEC_VERSION}}</span>
+            <span class="code-tag lp-footer__online">● online</span>
+          </div>
+        </div>
+
+        <div class="lp-footer__col">
+          <h4 class="lp-footer__h" data-i18n="foot.h.product">Product</h4>
+          <ul>
+            <li><a href="#features" data-i18n="nav.features">Features</a></li>
+            <li><a href="#how"      data-i18n="nav.how">How it works</a></li>
+            <li><a href="#cli"      data-i18n="nav.cli">CLI</a></li>
+            <li><a href="#cases"    data-i18n="nav.cases">Use cases</a></li>
+            <li><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+          </ul>
+        </div>
+
+        <div class="lp-footer__col">
+          <h4 class="lp-footer__h" data-i18n="foot.h.docs">Docs</h4>
+          <ul>
+            <li><a href="https://github.com/crystian/skill-map#readme" target="_blank" rel="noopener">README</a></li>
+            <li><a href="https://github.com/crystian/skill-map/blob/main/spec/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a></li>
+            <li><a href="https://github.com/crystian/skill-map/blob/main/docs/cli-reference.md" target="_blank" rel="noopener">CLI reference</a></li>
+            <li><a href="/spec/v0/">Spec browse</a></li>
+          </ul>
+        </div>
+
+        <div class="lp-footer__col">
+          <h4 class="lp-footer__h" data-i18n="foot.h.community">Community</h4>
+          <ul>
+            <li><a href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/crystian/skill-map/issues" target="_blank" rel="noopener">Issues</a></li>
+            <li><a href="https://github.com/crystian/skill-map/discussions" target="_blank" rel="noopener">Discussions</a></li>
+            <li><a href="https://github.com/crystian/skill-map/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
+          </ul>
+        </div>
+
+        <div class="lp-footer__col">
+          <h4 class="lp-footer__h" data-i18n="foot.h.company">Company</h4>
+          <ul>
+            <li><a href="https://github.com/crystian/skill-map/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a></li>
+            <li><a href="https://www.npmjs.com/package/@skill-map/spec" target="_blank" rel="noopener">npm: spec</a></li>
+            <li><a href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener">npm: cli</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="lp-footer__bottom">
+        <div data-i18n="foot.copy">© 2026 skill-map · MIT licensed · Built for people who read source code for fun.</div>
+        <div class="lp-footer__cmd">npm i -g @skill-map/cli</div>
+      </div>
+    </footer>
 
   </div>
 </body>
