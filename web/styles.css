@@ -2151,3 +2151,224 @@ svg    { display: block; max-width: 100%; }
 .copy-toast--err .copy-toast__icon {
   color: #ffaa50;
 }
+
+/* ============================================================
+   Audio mini-player
+   ------------------------------------------------------------
+   Floating bottom-right card with a NotebookLM audio overview.
+   Hidden by default; toggled from .lp-nav__listen. State is
+   driven by `data-open` (visibility/animation) and `data-state`
+   (play/pause icon swap).
+   ============================================================ */
+
+/* Nav trigger — sits between .lp-lang and .lp-nav__cta. Compact,
+   matches .lp-nav__cta in shape but uses the violet accent so the
+   "Listen" call to action reads as primary among the right-side
+   controls. Keep the pill height + radius identical to .lp-nav__cta
+   so they line up to the pixel. */
+.lp-nav__listen {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 14px; height: 36px;
+  border-radius: var(--r-md);
+  font-size: 13px; font-weight: 500;
+  background: rgba(124,58,237,.18);
+  color: var(--white);
+  border: 1px solid rgba(167,139,250,.40);
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+.lp-nav__listen:hover {
+  background: rgba(124,58,237,.28);
+  border-color: rgba(167,139,250,.65);
+}
+.lp-nav__listen[aria-expanded="true"] {
+  background: rgba(124,58,237,.35);
+  border-color: rgba(167,139,250,.75);
+}
+.lp-nav__listen svg { width: 12px; height: 12px; }
+
+@media (max-width: 768px) {
+  .lp-nav__listen { height: 44px; font-size: 14px; }
+}
+
+/* Player root — fixed bottom-right, slides up + fades in via
+   data-open. While `hidden` the element is removed from the layout
+   entirely; once JS un-hides it, the data-open transition takes over.
+   z-index sits below copy-toast (9999) but above nav (40) so a copy
+   toast stacks on top if both are visible. */
+.audio-player {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 90;
+  width: 340px;
+  padding: 14px 14px 12px;
+  border-radius: var(--r-lg);
+  background: rgba(8,12,18,.92);
+  border: 1px solid rgba(167,139,250,.30);
+  box-shadow: 0 18px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(167,139,250,.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  color: rgba(255,255,255,.92);
+  font-family: var(--font-mono);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 200ms var(--ease-out), transform 240ms var(--ease-out);
+}
+.audio-player[data-open="true"] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.audio-player__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.audio-player__title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  letter-spacing: .01em;
+  color: rgba(255,255,255,.85);
+}
+.audio-player__brand {
+  width: 14px; height: 14px;
+  color: var(--violet-400);
+  flex: 0 0 auto;
+}
+.audio-player__title {
+  font-weight: 600;
+  letter-spacing: -.005em;
+}
+.audio-player__sep,
+.audio-player__time-sep {
+  color: rgba(255,255,255,.35);
+}
+.audio-player__duration-static {
+  color: rgba(255,255,255,.55);
+}
+
+.audio-player__head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.audio-player__icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 6px;
+  color: rgba(255,255,255,.6);
+  background: transparent;
+  border: 0;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+  cursor: pointer;
+}
+.audio-player__icon-btn:hover {
+  background: rgba(255,255,255,.08);
+  color: var(--white);
+}
+.audio-player__icon-btn svg { width: 14px; height: 14px; }
+
+/* Progress bar — full-width clickable button so it gets keyboard focus
+   and a screen-reader-friendly label. The inner track is purely visual.
+   Click and drag are wired in app.js (no native <input range> because
+   styling it across browsers is a pit). */
+.audio-player__progress {
+  display: block;
+  width: 100%;
+  padding: 8px 0;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+.audio-player__progress:focus-visible {
+  outline: 2px solid var(--violet-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.audio-player__progress-track {
+  position: relative;
+  height: 3px;
+  background: rgba(255,255,255,.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.audio-player__progress-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0%;
+  background: linear-gradient(90deg, var(--violet-500), var(--violet-300));
+  border-radius: 2px;
+  transition: width 100ms linear;
+}
+
+.audio-player__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+.audio-player__time {
+  font-size: 11px;
+  color: rgba(255,255,255,.55);
+  letter-spacing: 0;
+}
+.audio-player__elapsed { color: rgba(255,255,255,.85); }
+
+.audio-player__speed {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,.7);
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-left: auto;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+  cursor: pointer;
+}
+.audio-player__speed:hover {
+  background: rgba(255,255,255,.10);
+  color: var(--white);
+}
+
+.audio-player__playpause {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: var(--violet-600);
+  color: var(--white);
+  border: 0;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              transform 120ms var(--ease-out);
+}
+.audio-player__playpause:hover { background: var(--violet-500); }
+.audio-player__playpause:active { transform: scale(0.94); }
+.audio-player__playpause svg { width: 16px; height: 16px; }
+
+/* Icon swap on play/pause — driven by data-state on the player root.
+   Default (paused) shows the play triangle; playing shows the pause bars. */
+.audio-player__icon--pause { display: none; }
+.audio-player[data-state="playing"] .audio-player__icon--play  { display: none; }
+.audio-player[data-state="playing"] .audio-player__icon--pause { display: inline-block; }
+
+/* Mobile: pin to bottom, full-width with safe insets so it doesn't
+   overlap the home-indicator on iOS. */
+@media (max-width: 480px) {
+  .audio-player {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+}

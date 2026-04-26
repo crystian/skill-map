@@ -22,7 +22,13 @@ import type {
 } from '../models/node';
 
 const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
-const MOCK_BASE = '/mock-collection';
+// Relative (no leading slash) so it resolves against the document's
+// <base href>. When the UI ships under a non-root path (e.g. /demo/ for
+// the public prototype on skill-map.dev), Angular's --base-href build
+// flag injects <base href="/demo/">, and these fetches go to
+// /demo/mock-collection/... automatically. At dev time `ng serve` keeps
+// <base href="/">, so the dev URL stays /mock-collection/...
+const MOCK_BASE = 'mock-collection';
 
 @Injectable({ providedIn: 'root' })
 export class CollectionLoaderService {

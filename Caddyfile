@@ -34,5 +34,32 @@
         -Server
     }
 
+    # Angular SPA prototype mounted at /demo/. Two reasons we use
+    # `handle_path` (which strips the matched prefix) plus a per-handle
+    # `root` instead of plain `handle` + a path-prefixed `try_files`:
+    #   1. After the strip, file_server sees the SPA as a normal
+    #      site rooted at /, so its built-in directory-index lookup
+    #      (`/` → `/index.html`) just works. The plain-handle pattern
+    #      with `try_files {path} /demo/index.html` left a hole when the
+    #      request was exactly `/demo/`: try_files matched the directory
+    #      and short-circuited, but file_server then 404'd because it
+    #      wasn't asked to serve index.html for that path explicitly.
+    #   2. Path-based routing inside the SPA (e.g. /demo/list/foo) needs
+    #      a fallback to /index.html so deep-link refreshes don't 404.
+    #      try_files {path} /index.html, with the stripped path, lands
+    #      cleanly: the asset path resolves first when it exists, the
+    #      SPA's index is the catch-all otherwise.
+    # The bare-`/demo` (no trailing slash) case is handled by file_server's
+    # built-in directory redirect: when the global file_server below hits
+    # /usr/share/caddy/demo (a directory), it 301s to /demo/. We
+    # intentionally do NOT add an explicit `redir /demo /demo/` here
+    # because Caddy's path matcher ignores trailing slashes, which would
+    # make `path /demo` match `/demo/` too and cause a redirect loop.
+    handle_path /demo/* {
+        root * /usr/share/caddy/demo
+        try_files {path} {path}/ /index.html
+        file_server
+    }
+
     file_server
 }

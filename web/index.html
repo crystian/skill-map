@@ -112,6 +112,13 @@
             <a class="lp-lang__btn" data-lang="es" href="/es/">ES</a>
           </div>
 
+          <button type="button" class="lp-nav__listen" data-audio-toggle aria-expanded="false" aria-controls="audio-player">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+            <span data-i18n="nav.listen">Listen</span>
+          </button>
+
           <a class="lp-nav__cta" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 2C6.48 2 2 6.58 2 12.21c0 4.5 2.87 8.32 6.84 9.67.5.09.68-.22.68-.49 0-.24-.01-.87-.01-1.7-2.78.62-3.37-1.36-3.37-1.36-.45-1.18-1.11-1.49-1.11-1.49-.91-.63.07-.62.07-.62 1.01.07 1.54 1.06 1.54 1.06.89 1.56 2.34 1.11 2.91.85.09-.66.35-1.11.63-1.36-2.22-.26-4.55-1.13-4.55-5.04 0-1.11.39-2.02 1.03-2.74-.1-.26-.45-1.3.1-2.71 0 0 .84-.27 2.75 1.04A9.4 9.4 0 0112 7.16c.85.004 1.7.12 2.5.34 1.91-1.31 2.75-1.04 2.75-1.04.55 1.41.2 2.45.1 2.71.64.72 1.03 1.63 1.03 2.74 0 3.92-2.34 4.78-4.57 5.03.36.32.68.94.68 1.9 0 1.37-.01 2.47-.01 2.81 0 .27.18.59.69.49C19.14 20.52 22 16.7 22 12.21 22 6.58 17.52 2 12 2z"/>
@@ -142,7 +149,7 @@
           </p>
 
           <div class="hero__ctas">
-            <a class="btn btn--accent btn--xl" href="#cta">
+            <a class="btn btn--accent btn--xl" href="/demo/">
               <span data-i18n="hero.cta.demo">Try the demo</span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -660,6 +667,70 @@
         <span data-i18n="foot.powered.pre">A </span><a href="https://www.makersia.com" target="_blank" rel="noopener">Makersia</a><span data-i18n="foot.powered.post"> project</span>
       </div>
     </footer>
+
+    <!-- ============== AUDIO MINI-PLAYER ============== -->
+    <!-- Floating bottom-right player. Hidden by default; toggled open from
+         .lp-nav__listen. Audio src + NotebookLM URL are language-resolved at
+         build time via data-i18n-* attributes; playback state (open / current
+         time / speed) persisted to localStorage by app.js. -->
+    <aside class="audio-player" id="audio-player" data-state="paused" data-open="false" aria-label="Audio overview player" hidden>
+      <!-- data-fallback-duration is the duration in seconds. JS uses it
+           when audio.duration isn't yet known (e.g., MP3 without Xing
+           header — the browser must scan the whole file to compute it).
+           Update this when swapping audio assets. -->
+      <audio class="audio-player__el" preload="metadata" data-i18n-src="audio.src" src="/audio/skill-map-en.mp3" data-fallback-duration="359"></audio>
+
+      <div class="audio-player__head">
+        <div class="audio-player__title-group">
+          <svg class="audio-player__brand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6"/>
+            <path d="M21 19a2 2 0 0 1-2 2h-1v-6h3v4zM3 19a2 2 0 0 0 2 2h1v-6H3v4z"/>
+          </svg>
+          <span class="audio-player__title" data-i18n="audio.title">Audio overview</span>
+          <span class="audio-player__sep" aria-hidden="true">·</span>
+          <span class="audio-player__duration-static" data-i18n="audio.duration">7 min</span>
+        </div>
+        <div class="audio-player__head-actions">
+          <a class="audio-player__icon-btn" target="_blank" rel="noopener" data-i18n-href="audio.notebook.url" data-i18n-aria-label="audio.open.notebook" aria-label="Open in NotebookLM" href="#">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M14 4h6v6"/>
+              <path d="M20 4 11 13"/>
+              <path d="M19 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h6"/>
+            </svg>
+          </a>
+          <button type="button" class="audio-player__icon-btn audio-player__close" data-audio-close data-i18n-aria-label="audio.close" aria-label="Close audio player">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="6" y1="6"  x2="18" y2="18"/>
+              <line x1="6" y1="18" x2="18" y2="6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <button type="button" class="audio-player__progress" data-audio-scrub data-i18n-aria-label="audio.scrub.label" aria-label="Seek within the audio">
+        <div class="audio-player__progress-track">
+          <div class="audio-player__progress-fill"></div>
+        </div>
+      </button>
+
+      <div class="audio-player__controls">
+        <span class="audio-player__time">
+          <span class="audio-player__elapsed">0:00</span>
+          <span class="audio-player__time-sep">/</span>
+          <span class="audio-player__total">--:--</span>
+        </span>
+        <button type="button" class="audio-player__speed" data-audio-speed data-i18n-title="audio.speed.label" title="Playback speed">1×</button>
+        <button type="button" class="audio-player__playpause" data-audio-playpause data-i18n-aria-label="audio.play" aria-label="Play">
+          <svg class="audio-player__icon audio-player__icon--play" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <svg class="audio-player__icon audio-player__icon--pause" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <rect x="7" y="5" width="3.5" height="14" rx="1"/>
+            <rect x="13.5" y="5" width="3.5" height="14" rx="1"/>
+          </svg>
+        </button>
+      </div>
+    </aside>
 
   </div>
 </body>
