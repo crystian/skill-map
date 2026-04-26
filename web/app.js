@@ -789,7 +789,7 @@
       sub: { en: 'Scan, model, query. No LLM.', es: 'Escanear, modelar, consultar. Sin LLM.' },
       brief: {
         en: 'The offline product. Scan any folder of agent files, build the reference graph, surface collisions and orphans. Ships with a CLI, a kernel, a plugin loader, and the first set of detectors and rules. Nothing here needs an LLM.',
-        es: 'El producto offline. Escaneá cualquier carpeta de archivos de agentes, armá el grafo de referencias, sacá a la luz colisiones y huérfanos. Incluye una CLI, un kernel, un cargador de plugins, y el primer set de detectores y reglas. Acá no hace falta ningún LLM.',
+        es: 'El producto offline. Escanea cualquier carpeta de archivos de agentes, arma el grafo de referencias, saca a la luz colisiones y huérfanos. Incluye una CLI, un kernel, un cargador de plugins, y el primer set de detectores y reglas. Aquí no hace falta ningún LLM.',
       },
       list: 'steps',
       items: [
@@ -832,7 +832,7 @@
       sub: { en: 'Renderers, full web UI, single-binary release.', es: 'Renderers, UI web completa, release de un binario.' },
       brief: {
         en: 'The product reaches 1.0 here. Mermaid and DOT renderers for ops and CI, the full web UI replaces the prototype with a Hono BFF and WebSocket live events, and @skill-map/cli ships as a single npm package with the UI bundled inside. One process, one port, one command.',
-        es: 'Acá el producto llega a 1.0. Renderers Mermaid y DOT para ops y CI, la UI web completa reemplaza el prototipo con un BFF Hono y eventos en vivo por WebSocket, y @skill-map/cli se distribuye como un único paquete npm con la UI empaquetada adentro. Un proceso, un puerto, un comando.',
+        es: 'Aquí el producto llega a 1.0. Renderers Mermaid y DOT para ops y CI, la UI web completa reemplaza el prototipo con un BFF Hono y eventos en vivo por WebSocket, y @skill-map/cli se distribuye como un único paquete npm con la UI empaquetada adentro. Un proceso, un puerto, un comando.',
       },
       list: 'steps',
       items: [
@@ -877,6 +877,7 @@
 
   const tx = (obj) => obj[lang] ?? obj.en;
   const ofWord = lang === 'es' ? 'de' : 'of';
+  const phaseWord = lang === 'es' ? 'Fase' : 'Phase';
 
   const currentIdx = PHASES.findIndex((p) => p.status === 'current');
   let selected = currentIdx >= 0 ? currentIdx : 0;
@@ -912,7 +913,7 @@
     btn.dataset.idx = String(i);
     btn.dataset.status = p.status;
     btn.setAttribute('aria-current', i === selected ? 'true' : 'false');
-    btn.setAttribute('aria-label', `Phase ${p.id} — ${tx(p.title)}`);
+    btn.setAttribute('aria-label', `${phaseWord} ${p.id} — ${tx(p.title)}`);
 
     const prog = progressOf(p);
     const barHtml = prog
@@ -954,7 +955,7 @@
   const hint = document.createElement('div');
   hint.className = 'roadmap__hint';
   hint.textContent = lang === 'es'
-    ? 'Hacé clic en cualquier fase para ver el brief.'
+    ? 'Haz clic en cualquier fase para ver el brief.'
     : 'Click any phase to read the brief.';
   mount.appendChild(hint);
 
@@ -970,7 +971,7 @@
   function renderDetail() {
     const p = PHASES[selected];
     detail.dataset.status = p.status;
-    detail.querySelector('.roadmap__detail-id').textContent = `Phase ${p.id}`;
+    detail.querySelector('.roadmap__detail-id').textContent = `${phaseWord} ${p.id}`;
     detail.querySelector('.roadmap__detail-release').textContent = tx(p.release);
     detail.querySelector('.roadmap__detail-status').textContent = tx(STATUS_LABEL[p.status]);
     detail.querySelector('.roadmap__detail-title').textContent = tx(p.title);

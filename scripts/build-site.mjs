@@ -100,20 +100,26 @@ function renderLanding(html, { lang, defaultLang, langs, version, dict }) {
   );
 
   // 2. data-i18n-<attr>="key" — set/replace <attr> on the same tag.
-  //    Strategy: rewrite the whole tag opening, removing any existing <attr>="…" first.
+  //    Strategy: collect all data-i18n-<attr> pairs, strip any pre-existing
+  //    same-named attribute (so a hardcoded `title="Zoom in"` left in the
+  //    source as a dev fallback doesn't end up duplicated alongside the
+  //    rendered `title="Acercar"`), then re-emit each data-i18n marker
+  //    followed by its resolved attribute.
   out = out.replace(
     /<([a-z][a-z0-9-]*)\b([^>]*?)>/gi,
     (m, tag, attrs) => {
       if (!attrs.includes('data-i18n-')) return m;
-      let next = attrs;
-      next = next.replace(
-        /\sdata-i18n-([a-z-]+)="([^"]+)"/g,
-        (_mm, attr, key) => {
-          // Remove any existing same-named attribute on this tag.
-          next = next.replace(new RegExp(`\\s${attr}="[^"]*"`), '');
-          return ` data-i18n-${attr}="${key}" ${attr}="${escapeAttr(lookup(key))}"`;
-        },
-      );
+      const pairs = [];
+      const re = /\sdata-i18n-([a-z-]+)="([^"]+)"/g;
+      let mm;
+      while ((mm = re.exec(attrs)) !== null) pairs.push({ attr: mm[1], key: mm[2] });
+      let next = attrs.replace(/\sdata-i18n-[a-z-]+="[^"]+"/g, '');
+      for (const { attr } of pairs) {
+        next = next.replace(new RegExp(`\\s${attr}="[^"]*"`, 'g'), '');
+      }
+      for (const { attr, key } of pairs) {
+        next += ` data-i18n-${attr}="${key}" ${attr}="${escapeAttr(lookup(key))}"`;
+      }
       return `<${tag}${next}>`;
     },
   );
@@ -132,8 +138,20 @@ function renderLanding(html, { lang, defaultLang, langs, version, dict }) {
     },
   );
 
-  // 5. {{SPEC_VERSION}}
+  // 5. Substitute build-time placeholders.
+  //    - {{SPEC_VERSION}}    → spec package.json version
+  //    - {{CANONICAL_URL}}   → per-language URL (used by <link canonical>,
+  //                            <meta og:url>, etc.)
+  //    - {{LD_DESCRIPTION}}  → meta.description in the current lang, JSON
+  //                            string-escaped so it is safe to drop inside a
+  //                            JSON-LD string literal (we strip the surrounding
+  //                            quotes that JSON.stringify adds because the
+  //                            placeholder itself is already wrapped in "…").
+  const canonical = `${DOMAIN}${lang === defaultLang ? '/' : `/${lang}/`}`;
+  const ldDescription = JSON.stringify(lookup('meta.description')).slice(1, -1);
   out = out.replaceAll('{{SPEC_VERSION}}', version);
+  out = out.replaceAll('{{CANONICAL_URL}}', canonical);
+  out = out.replaceAll('{{LD_DESCRIPTION}}', ldDescription);
 
   // 6. <link rel="alternate" hreflang> — inject before </head>.
   const alternates = [
@@ -269,6 +287,47 @@ ${renderProseList()}
 `;
 }
 
+/**
+ * robots.txt — universal allow + sitemap pointer. Adjust if we ever need to
+ * block a path; for now the whole site is meant to be crawlable.
+ */
+function renderRobotsTxt() {
+  return `User-agent: *
+Allow: /
+
+Sitemap: ${DOMAIN}/sitemap.xml
+`;
+}
+
+/**
+ * sitemap.xml — one <url> per language with xhtml:link hreflang alternates,
+ * plus an x-default entry. lastmod is set to the build date (UTC, YYYY-MM-DD)
+ * so search engines see a fresh signal on every deploy. The sitemap covers
+ * only the landing surface today; spec/v0/index.html is intentionally left
+ * out (it's a developer index, not a marketing page).
+ */
+function renderSitemapXml({ langs, defaultLang }) {
+  const lastmod = new Date().toISOString().slice(0, 10);
+  const urlFor = (l) => `${DOMAIN}${l === defaultLang ? '/' : `/${l}/`}`;
+  const alternates = [
+    ...langs.map((l) => `    <xhtml:link rel="alternate" hreflang="${l}" href="${urlFor(l)}"/>`),
+    `    <xhtml:link rel="alternate" hreflang="x-default" href="${urlFor(defaultLang)}"/>`,
+  ].join('\n');
+  const entries = langs.map((l) => `  <url>
+    <loc>${urlFor(l)}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>${l === defaultLang ? '1.0' : '0.9'}</priority>
+${alternates}
+  </url>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+${entries}
+</urlset>
+`;
+}
+
 async function main() {
   if (!existsSync(WEB_SRC)) {
     throw new Error(`missing ${WEB_SRC}/ — the editable landing source must exist before build`);
@@ -350,10 +409,17 @@ async function main() {
   // 4. Generate the schema browse index.
   await writeFile(join(SCHEMA_DST, 'index.html'), renderSchemaIndex(validated, version));
 
+  // 5. SEO surface — robots.txt + sitemap.xml at the site root. Both files
+  //    are universal (not per-language); the sitemap encodes the language
+  //    matrix internally via xhtml:link hreflang alternates.
+  await writeFile(join(SITE_DST, 'robots.txt'), renderRobotsTxt());
+  await writeFile(join(SITE_DST, 'sitemap.xml'), renderSitemapXml({ langs, defaultLang }));
+
   console.log(`✓ Validated ${validated.length} schemas.`);
   console.log(`✓ Site built at ${SITE_DST}/ (spec v${version}).`);
   console.log(`  Landing: ${LANDING_PATH}  (from ${WEB_SRC}/)`);
   console.log(`  Schemas: ${SCHEMA_DST}/`);
+  console.log(`  SEO:     ${join(SITE_DST, 'robots.txt')}, ${join(SITE_DST, 'sitemap.xml')}`);
 }
 
 main().catch((err) => {

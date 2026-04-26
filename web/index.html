@@ -4,7 +4,55 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="spec-version" content="{{SPEC_VERSION}}">
-  <title>skill-map · landing</title>
+  <meta name="color-scheme" content="dark light">
+  <meta name="theme-color" content="#0e1116">
+
+  <title data-i18n="meta.title">skill-map · Graph explorer for AI agent skill ecosystems</title>
+  <meta name="description" data-i18n-content="meta.description" content="Map and optimize skills, agents, hooks, and commands in your AI ecosystem. Open-source CLI that spots trigger collisions, orphans, and external deps.">
+
+  <link rel="canonical" href="{{CANONICAL_URL}}">
+
+  <!-- Open Graph (LinkedIn, Slack, Discord, WhatsApp previews) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="skill-map">
+  <meta property="og:url" content="{{CANONICAL_URL}}">
+  <meta property="og:title" data-i18n-content="meta.title" content="skill-map · Graph explorer for AI agent skill ecosystems">
+  <meta property="og:description" data-i18n-content="meta.description" content="Map and optimize skills, agents, hooks, and commands in your AI ecosystem. Open-source CLI that spots trigger collisions, orphans, and external deps.">
+  <meta property="og:image" content="https://skill-map.dev/img/og-image.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" data-i18n-content="meta.og.image.alt" content="skill-map logo on a dark background — a graph explorer for AI-agent ecosystems">
+  <meta property="og:locale" data-i18n-content="meta.og.locale" content="en_US">
+  <meta property="og:locale:alternate" data-i18n-content="meta.og.locale.alternate" content="es_AR">
+
+  <!-- Twitter / X cards -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@crystian">
+  <meta name="twitter:creator" content="@crystian">
+  <meta name="twitter:title" data-i18n-content="meta.title" content="skill-map · Graph explorer for AI agent skill ecosystems">
+  <meta name="twitter:description" data-i18n-content="meta.description" content="Map and optimize skills, agents, hooks, and commands in your AI ecosystem. Open-source CLI that spots trigger collisions, orphans, and external deps.">
+  <meta name="twitter:image" content="https://skill-map.dev/img/og-image.png">
+  <meta name="twitter:image:alt" data-i18n-content="meta.og.image.alt" content="skill-map logo on a dark background — a graph explorer for AI-agent ecosystems">
+
+  <!-- Structured data for Google rich results -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "skill-map",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "macOS, Linux, Windows",
+    "description": "{{LD_DESCRIPTION}}",
+    "url": "https://skill-map.dev",
+    "license": "https://opensource.org/licenses/MIT",
+    "author": {
+      "@type": "Organization",
+      "name": "Makersia",
+      "url": "https://www.makersia.com"
+    }
+  }
+  </script>
+
   <!-- Favicon swaps with the user's OS color scheme (the browser tab follows
        prefers-color-scheme, not the site's theme). For now the site is always
        dark, so the white icon will show on most users (dark tab) and the black
@@ -194,9 +242,9 @@
           </svg>
 
           <div class="hero__graph-zoom" aria-hidden="true">
-            <button type="button" title="Zoom in" disabled>+</button>
-            <button type="button" title="Zoom out" disabled>−</button>
-            <button type="button" title="Reset" disabled class="reset">⟳</button>
+            <button type="button" data-i18n-title="graph.zoom.in" title="Zoom in" disabled>+</button>
+            <button type="button" data-i18n-title="graph.zoom.out" title="Zoom out" disabled>−</button>
+            <button type="button" data-i18n-title="graph.zoom.reset" title="Reset" disabled class="reset">⟳</button>
           </div>
 
           <div class="hero__graph-hint">
@@ -222,8 +270,7 @@
       <div id="roadmap-mount"></div>
       <noscript>
         <p style="text-align:center;color:rgba(255,255,255,.6);font-size:14px;margin-top:24px">
-          Interactive timeline requires JavaScript.
-          Read the full <a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" style="color:var(--violet-400)">ROADMAP.md</a> on GitHub.
+          <span data-i18n="rm.noscript.before">Interactive timeline requires JavaScript. Read the full </span><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" style="color:var(--violet-400)">ROADMAP.md</a><span data-i18n="rm.noscript.after"> on GitHub.</span>
         </p>
       </noscript>
     </section>
@@ -559,7 +606,7 @@
           <p class="lp-footer__tagline" data-i18n="foot.tagline">A graph explorer for Markdown-based AI-agent ecosystems.</p>
           <div class="lp-footer__tags">
             <span class="code-tag">v {{SPEC_VERSION}}</span>
-            <span class="code-tag lp-footer__online">● online</span>
+            <span class="code-tag lp-footer__online">● <span data-i18n="foot.online">online</span></span>
           </div>
         </div>
 
@@ -570,7 +617,7 @@
             <li><a href="#how"      data-i18n="nav.how">How it works</a></li>
             <li><a href="#cli"      data-i18n="nav.cli">CLI</a></li>
             <li><a href="#cases"    data-i18n="nav.cases">Use cases</a></li>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" target="_blank" rel="noopener">Roadmap</a></li>
+            <li><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" target="_blank" rel="noopener" data-i18n="rm.eyebrow">Roadmap</a></li>
           </ul>
         </div>
 
