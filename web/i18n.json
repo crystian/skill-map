@@ -169,14 +169,15 @@
 
   "audio.title":         { "en": "Audio overview",          "es": "Resumen en audio" },
   "audio.duration":      { "en": "7 min",                   "es": "7 min" },
+  "audio.fallbackDuration": { "en": "340",                  "es": "296" },
   "audio.open.notebook": { "en": "Open in NotebookLM",      "es": "Abrir en NotebookLM" },
   "audio.close":         { "en": "Close audio player",      "es": "Cerrar reproductor de audio" },
   "audio.play":          { "en": "Play",                    "es": "Reproducir" },
   "audio.pause":         { "en": "Pause",                   "es": "Pausar" },
   "audio.speed.label":   { "en": "Playback speed",          "es": "Velocidad de reproducción" },
   "audio.scrub.label":   { "en": "Seek within the audio",   "es": "Buscar dentro del audio" },
-  "audio.notebook.url":  { "en": "https://notebooklm.google.com/notebook/dc0d9463-554b-42be-bbdf-a4b5f2bcc52a",
-                           "es": "https://notebooklm.google.com/notebook/dc0d9463-554b-42be-bbdf-a4b5f2bcc52b" },
+  "audio.notebook.url":  { "en": "https://notebooklm.google.com/notebook/b0db0857-d2d3-4b9d-a5c6-276b79e64e86",
+                           "es": "https://notebooklm.google.com/notebook/b0db0857-d2d3-4b9d-a5c6-276b79e64e86" },
   "audio.src":           { "en": "/audio/skill-map-en.mp3",
                            "es": "/audio/skill-map-es.mp3" },
 
