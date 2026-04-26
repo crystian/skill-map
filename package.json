@@ -23,6 +23,7 @@
     "cli:check": "node scripts/build-cli-reference.mjs --check",
     "site:build": "node scripts/build-site.mjs",
     "web": "node scripts/dev-server.mjs",
+    "sqlite": "node scripts/open-sqlite-browser.mjs",
     "build": "npm run build --workspace=@skill-map/cli",
     "typecheck": "npm run typecheck --workspace=@skill-map/cli",
     "test": "npm run test --workspace=@skill-map/cli",
