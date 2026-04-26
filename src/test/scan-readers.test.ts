@@ -196,6 +196,7 @@ interface IScanOverrides {
   noTokens?: boolean;
   dryRun?: boolean;
   changed?: boolean;
+  allowEmpty?: boolean;
 }
 
 function buildScan(overrides: IScanOverrides = {}): ScanCommand {
@@ -206,6 +207,7 @@ function buildScan(overrides: IScanOverrides = {}): ScanCommand {
   cmd.noTokens = overrides.noTokens ?? false;
   cmd.dryRun = overrides.dryRun ?? false;
   cmd.changed = overrides.changed ?? false;
+  cmd.allowEmpty = overrides.allowEmpty ?? false;
   return cmd;
 }
 
@@ -613,6 +615,344 @@ describe('sm check', () => {
       ok('severity' in issue);
       ok('nodeIds' in issue);
       ok('message' in issue);
+    }
+  });
+});
+
+// --- scan flag rejection ---------------------------------------------------
+
+describe('sm scan --changed --no-built-ins', () => {
+  it('rejected combination → exit 2, stderr explains why', async () => {
+    // Documented incoherent combination per spec/cli-contract.md and the
+    // `ScanCommand.execute` flag-combinatorics block: --no-built-ins
+    // yields a zero-filled ScanResult, so there's nothing for --changed
+    // to merge against. Expect exit 2 and an explanatory stderr — the
+    // handler must NOT touch the DB or run a scan.
+    const cap = captureContext();
+    const cmd = buildScan({ changed: true, noBuiltIns: true });
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+
+    strictEqual(code, 2);
+    match(cap.stderr(), /--changed and --no-built-ins cannot be combined/);
+    strictEqual(cap.stdout(), '', 'no stdout when the combination is rejected');
+  });
+});
+
+// --- scan empty / invalid roots & --allow-empty guard ---------------------
+//
+// Layered defenses against the destructive `sm scan -- --dry-run` bug:
+// (B6 in `.tmp/sandbox/` e2e). Clipanion treats `--` as the positional-
+// args separator, so `sm scan -- --dry-run` parses as `scan` with
+// `roots = ['--dry-run']` — a non-existent path. Without these guards
+// the claude adapter's `walk()` swallowed ENOENT, the scan returned
+// zero rows, and `persistScanResult` wiped the populated DB. The CLI
+// now refuses both: orchestrator rejects bad roots up front, and the
+// handler refuses to overwrite a populated DB with a zero-result scan
+// unless `--allow-empty` is passed.
+
+describe('sm scan empty / invalid roots & --allow-empty guard', () => {
+  it('non-existent root → exit 2, stderr names the path; DB untouched', async () => {
+    const fixture = freshFixture('scan-bad-root');
+    const missing = join(fixture, 'definitely-not-here');
+
+    const originalCwd = process.cwd();
+    process.chdir(fixture);
+    try {
+      const cap = captureContext();
+      const cmd = buildScan({ roots: [missing] });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+
+      strictEqual(code, 2);
+      match(cap.stderr(), /sm scan:/);
+      match(cap.stderr(), /does not exist or is not a directory/);
+      ok(cap.stderr().includes(missing), 'stderr names the bad root path');
+      strictEqual(cap.stdout(), '', 'no stdout on validation failure');
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  it('reproducer `sm scan -- --dry-run` (positional `--dry-run`) → exit 2, DB untouched', async () => {
+    // Drive the exact failure mode the user hit: clipanion treats `--`
+    // as the positional separator, so the trailing `--dry-run` arrives
+    // as `roots = ['--dry-run']`. The handler must reject it with
+    // exit 2, NOT silently wipe the DB.
+    const fixture = freshFixture('scan-dashdash-trap');
+    plantClaudeFixture(fixture);
+    // Prime an existing DB so we can assert it survives.
+    const dbPath = join(fixture, '.skill-map', 'skill-map.db');
+    mkdirSync(join(dbPath, '..'), { recursive: true });
+    await primeDb(fixture, dbPath);
+
+    const adapterBefore = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapterBefore.init();
+    const beforeCount = await adapterBefore.db
+      .selectFrom('scan_nodes')
+      .selectAll()
+      .execute();
+    await adapterBefore.close();
+    ok(beforeCount.length > 0, 'precondition: DB has nodes before the bad scan');
+
+    const originalCwd = process.cwd();
+    process.chdir(fixture);
+    try {
+      const cap = captureContext();
+      // Simulating clipanion's parse output for `sm scan -- --dry-run`.
+      // The CLI never sets `cmd.dryRun` here — `--dry-run` is positional.
+      const cmd = buildScan({ roots: ['--dry-run'] });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+
+      strictEqual(code, 2, `expected exit 2, got ${code}; stderr=${cap.stderr()}`);
+      match(cap.stderr(), /does not exist or is not a directory/);
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    // DB must be unchanged.
+    const adapterAfter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapterAfter.init();
+    const afterCount = await adapterAfter.db
+      .selectFrom('scan_nodes')
+      .selectAll()
+      .execute();
+    await adapterAfter.close();
+    strictEqual(
+      afterCount.length,
+      beforeCount.length,
+      'DB row count must survive a rejected scan',
+    );
+  });
+
+  it('zero-result scan over populated DB → exit 2, refuses to wipe; DB survives', async () => {
+    // Prime a populated DB by scanning a real fixture, then run a fresh
+    // scan against an EMPTY fixture (the orchestrator allows it — the
+    // dir exists). Without --allow-empty the handler must refuse to
+    // wipe the prior snapshot.
+    const populated = freshFixture('scan-guard-populated');
+    plantClaudeFixture(populated);
+    const dbPath = join(populated, '.skill-map', 'skill-map.db');
+    mkdirSync(join(dbPath, '..'), { recursive: true });
+    await primeDb(populated, dbPath);
+
+    const empty = freshFixture('scan-guard-empty');
+
+    const originalCwd = process.cwd();
+    process.chdir(populated);
+    try {
+      const cap = captureContext();
+      const cmd = buildScan({ roots: [empty] });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+
+      strictEqual(code, 2, `expected exit 2, got ${code}; stderr=${cap.stderr()}`);
+      match(cap.stderr(), /refusing to wipe a populated DB/);
+      match(cap.stderr(), /--allow-empty/);
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    const rows = await adapter.db.selectFrom('scan_nodes').selectAll().execute();
+    await adapter.close();
+    ok(rows.length > 0, 'DB must still have nodes after the refusal');
+  });
+
+  it('zero-result scan + --allow-empty over populated DB → clears DB and exits 0', async () => {
+    const populated = freshFixture('scan-allow-empty');
+    plantClaudeFixture(populated);
+    const dbPath = join(populated, '.skill-map', 'skill-map.db');
+    mkdirSync(join(dbPath, '..'), { recursive: true });
+    await primeDb(populated, dbPath);
+
+    const empty = freshFixture('scan-allow-empty-target');
+
+    const originalCwd = process.cwd();
+    process.chdir(populated);
+    try {
+      const cap = captureContext();
+      const cmd = buildScan({ roots: [empty], allowEmpty: true });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+
+      strictEqual(code, 0, `expected exit 0, got ${code}; stderr=${cap.stderr()}`);
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    const rows = await adapter.db.selectFrom('scan_nodes').selectAll().execute();
+    await adapter.close();
+    strictEqual(rows.length, 0, '--allow-empty must clear the DB');
+  });
+
+  it('zero-result scan over EMPTY DB (first-ever scan) → exits 0, no guard trip', async () => {
+    // The first scan of a fresh repo is allowed to "wipe" zero rows
+    // with zero rows. Guard must NOT fire when the DB is empty (or
+    // missing) — the natural empty-repo path stays painless.
+    const empty = freshFixture('scan-first-empty');
+
+    const originalCwd = process.cwd();
+    process.chdir(empty);
+    try {
+      const cap = captureContext();
+      const cmd = buildScan({ roots: [empty] });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+
+      strictEqual(code, 0, `expected exit 0 on first-ever empty scan, got ${code}; stderr=${cap.stderr()}`);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  it('--dry-run over a populated DB does NOT trip the guard', async () => {
+    // Dry-run skips persistence entirely (the `willPersist` block
+    // never opens the DB). The guard sits inside that block, so the
+    // pure read-only dry-run path bypasses it by construction. This
+    // test pins that invariant: even with zero result rows + populated
+    // DB, --dry-run exits 0 without writing.
+    const populated = freshFixture('scan-dry-populated');
+    plantClaudeFixture(populated);
+    const dbPath = join(populated, '.skill-map', 'skill-map.db');
+    mkdirSync(join(dbPath, '..'), { recursive: true });
+    await primeDb(populated, dbPath);
+
+    const empty = freshFixture('scan-dry-empty-target');
+
+    const originalCwd = process.cwd();
+    process.chdir(populated);
+    try {
+      const cap = captureContext();
+      const cmd = buildScan({ roots: [empty], dryRun: true });
+      cmd.context = cap.context;
+      const code = await cmd.execute();
+
+      strictEqual(code, 0, `expected exit 0 on dry-run, got ${code}; stderr=${cap.stderr()}`);
+    } finally {
+      process.chdir(originalCwd);
+    }
+
+    // DB must be unchanged.
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    const rows = await adapter.db.selectFrom('scan_nodes').selectAll().execute();
+    await adapter.close();
+    ok(rows.length > 0, 'dry-run must not touch the DB');
+  });
+});
+
+// --- scan --no-tokens ------------------------------------------------------
+//
+// `sm scan` always persists to `<cwd>/.skill-map/skill-map.db` (no --db
+// override on this verb today). To exercise the CLI flag path end-to-end
+// we chdir into a fresh temp fixture, run the handler, then re-open the
+// resulting DB to assert what landed in scan_nodes.tokens_*. The cwd is
+// restored in `finally`.
+
+describe('sm scan --no-tokens (CLI handler)', () => {
+  it('default tokenize → tokens_total populated; --no-tokens → null; default again → repopulated', async () => {
+    const fixture = freshFixture('scan-no-tokens');
+    plantClaudeFixture(fixture);
+
+    const originalCwd = process.cwd();
+    process.chdir(fixture);
+    try {
+      // Run 1: default (tokenize on).
+      {
+        const cap = captureContext();
+        const cmd = buildScan({});
+        cmd.context = cap.context;
+        const code = await cmd.execute();
+        strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+      }
+      const dbPath = join(fixture, '.skill-map', 'skill-map.db');
+      {
+        const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+        await adapter.init();
+        try {
+          const rows = await adapter.db
+            .selectFrom('scan_nodes')
+            .select(['path', 'tokensTotal', 'tokensFrontmatter', 'tokensBody'])
+            .execute();
+          ok(rows.length > 0, 'fixture should yield nodes');
+          for (const r of rows) {
+            ok(
+              r.tokensTotal !== null,
+              `default scan: ${r.path} should have tokens_total populated`,
+            );
+            ok(r.tokensFrontmatter !== null);
+            ok(r.tokensBody !== null);
+          }
+        } finally {
+          await adapter.close();
+        }
+      }
+
+      // Run 2: --no-tokens.
+      {
+        const cap = captureContext();
+        const cmd = buildScan({ noTokens: true });
+        cmd.context = cap.context;
+        const code = await cmd.execute();
+        strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+      }
+      {
+        const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+        await adapter.init();
+        try {
+          const rows = await adapter.db
+            .selectFrom('scan_nodes')
+            .select(['path', 'tokensTotal', 'tokensFrontmatter', 'tokensBody'])
+            .execute();
+          ok(rows.length > 0);
+          for (const r of rows) {
+            strictEqual(
+              r.tokensTotal,
+              null,
+              `--no-tokens: ${r.path} should have tokens_total null`,
+            );
+            strictEqual(r.tokensFrontmatter, null);
+            strictEqual(r.tokensBody, null);
+          }
+        } finally {
+          await adapter.close();
+        }
+      }
+
+      // Run 3: default again — tokens repopulate.
+      {
+        const cap = captureContext();
+        const cmd = buildScan({});
+        cmd.context = cap.context;
+        const code = await cmd.execute();
+        strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+      }
+      {
+        const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+        await adapter.init();
+        try {
+          const rows = await adapter.db
+            .selectFrom('scan_nodes')
+            .select(['path', 'tokensTotal'])
+            .execute();
+          ok(rows.length > 0);
+          for (const r of rows) {
+            ok(
+              r.tokensTotal !== null,
+              `re-enabled: ${r.path} should have tokens_total populated again`,
+            );
+          }
+        } finally {
+          await adapter.close();
+        }
+      }
+    } finally {
+      process.chdir(originalCwd);
     }
   });
 });

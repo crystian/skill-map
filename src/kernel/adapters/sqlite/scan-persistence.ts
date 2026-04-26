@@ -9,9 +9,19 @@
  * snapshot, merge unchanged nodes back in, recompute counts, and call
  * this with the merged ScanResult. The replace-all stays — the merge
  * happens upstream.
+ *
+ * After the transaction commits we run `PRAGMA wal_checkpoint(TRUNCATE)`
+ * to force the WAL contents into the main `.db` file and truncate
+ * `<db>-wal` to zero bytes. SQLite only auto-checkpoints once the WAL
+ * crosses `wal_autocheckpoint` (default 1000 pages); for typical small
+ * scans the WAL never crosses that threshold, so the main `.db` lags
+ * arbitrarily far behind and external read-only tools (sqlitebrowser,
+ * DBeaver) opening the file see stale state. `sm scan` is a single-
+ * writer one-shot, so the truncate cost is negligible (~ms on small
+ * DBs) and there are no concurrent readers to contend with.
  */
 
-import type { Insertable, Kysely } from 'kysely';
+import { sql, type Insertable, type Kysely } from 'kysely';
 
 import type { Issue, Link, Node, ScanResult } from '../../types.js';
 import type {
@@ -62,6 +72,12 @@ export async function persistScanResult(
         .execute();
     }
   });
+
+  // Force the WAL into the main `.db` file so external read-only tools
+  // see the snapshot immediately. Run on the top-level handle, NOT inside
+  // the transaction — `wal_checkpoint` is meaningless mid-transaction.
+  // `:memory:` doesn't use WAL, so the pragma is a no-op there.
+  await sql`PRAGMA wal_checkpoint(TRUNCATE)`.execute(db);
 }
 
 function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {

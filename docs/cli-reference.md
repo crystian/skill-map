@@ -325,6 +325,7 @@ reuse unchanged nodes, and only reprocess new / modified files.
 - `--no-tokens` `boolean` — Skip per-node token counts (cl100k_base BPE). Leaves node.tokens undefined; spec-valid since the field is optional.
 - `--dry-run`, `-n` `boolean` — Run the scan in memory and skip every DB write. Combined with --changed, still opens the DB read-side to load the prior snapshot.
 - `--changed` `boolean` — Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.
+- `--allow-empty` `boolean` — Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
 
 **Examples:**
 

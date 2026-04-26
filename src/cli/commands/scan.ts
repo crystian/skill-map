@@ -2,11 +2,13 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
+import type { Kysely } from 'kysely';
 
 import { createKernel, runScan } from '../../kernel/index.js';
 import type { ScanResult } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 
@@ -83,6 +85,9 @@ export class ScanCommand extends Command {
   changed = Option.Boolean('--changed', false, {
     description: 'Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.',
   });
+  allowEmpty = Option.Boolean('--allow-empty', false, {
+    description: 'Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.',
+  });
 
   async execute(): Promise<number> {
     // --- flag combinatorics -------------------------------------------------
@@ -142,7 +147,19 @@ export class ScanCommand extends Command {
     };
     if (extensions) runOptions.extensions = extensions;
     if (priorSnapshot) runOptions.priorSnapshot = priorSnapshot;
-    const result = await runScan(kernel, runOptions);
+
+    // Surface root-validation errors from the orchestrator as clean
+    // operational failures (exit 2) rather than crash-trace dumps.
+    // `runScan` validates each root exists as a directory up front;
+    // those messages start with `runScan: root path ...`.
+    let result: ScanResult;
+    try {
+      result = await runScan(kernel, runOptions);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.context.stderr.write(`sm scan: ${message}\n`);
+      return 2;
+    }
 
     // --- persist (skipped under --no-built-ins or --dry-run) ---------------
     let persistedTo: string | null = null;
@@ -152,6 +169,24 @@ export class ScanCommand extends Command {
       const adapter = new SqliteStorageAdapter({ databasePath: persistedTo });
       await adapter.init();
       try {
+        // Defensive guard: refuse to wipe a populated DB with a
+        // zero-result scan unless `--allow-empty` is passed. Belt-and-
+        // braces with the orchestrator-level root validation: even if
+        // a future code path or weird edge case yields a zero-filled
+        // ScanResult, an existing populated snapshot survives. The
+        // natural case of "empty repo on first scan" is not affected
+        // (DB starts empty, scan returns 0 rows, persist proceeds).
+        if (result.stats.nodesCount === 0 && !this.allowEmpty) {
+          const existing = await countExistingScanRows(adapter.db);
+          if (existing > 0) {
+            this.context.stderr.write(
+              `sm scan: refusing to wipe a populated DB (${existing} rows in scan_*) ` +
+                `with a zero-result scan. Pass --allow-empty to override. ` +
+                `If this is unexpected, double-check the root paths.\n`,
+            );
+            return 2;
+          }
+        }
         await persistScanResult(adapter.db, result);
       } finally {
         await adapter.close();
@@ -182,4 +217,22 @@ export class ScanCommand extends Command {
     }
     return exitCode;
   }
+}
+
+/**
+ * Sum of `scan_nodes + scan_links + scan_issues` row counts. Used by the
+ * Layer-3 defensive guard in `ScanCommand.execute` to detect that a
+ * zero-result scan is about to wipe a populated snapshot. Three small
+ * `COUNT(*)` queries on tables that have at most a few thousand rows
+ * each — cheap enough to skip a UNION ALL.
+ */
+async function countExistingScanRows(db: Kysely<IDatabase>): Promise<number> {
+  const rows = await Promise.all([
+    db.selectFrom('scan_nodes').select((eb) => eb.fn.countAll<number>().as('c')).executeTakeFirst(),
+    db.selectFrom('scan_links').select((eb) => eb.fn.countAll<number>().as('c')).executeTakeFirst(),
+    db.selectFrom('scan_issues').select((eb) => eb.fn.countAll<number>().as('c')).executeTakeFirst(),
+  ]);
+  let total = 0;
+  for (const r of rows) total += Number(r?.c ?? 0);
+  return total;
 }

@@ -11,6 +11,14 @@
  * the pipeline still produces a valid zero-filled `ScanResult` — the
  * kernel-empty-boot invariant.
  *
+ * Roots are validated up front: each entry of `RunScanOptions.roots`
+ * must exist on disk as a directory. The first failure throws a clear
+ * `Error` naming the offending path. This guards every caller (CLI,
+ * server, skill-agent) against silently producing a zero-filled
+ * `ScanResult` when an adapter walks a non-existent path — the bug
+ * that wiped a populated DB via `sm scan -- --dry-run` (clipanion's
+ * `--` made `--dry-run` a positional root that did not exist).
+ *
  * Incremental scans (Step 4.4): when `priorSnapshot` is supplied, the
  * orchestrator walks the filesystem, hashes each file, and reuses the
  * prior node + its prior-detected internal links whenever both
@@ -25,6 +33,7 @@
  */
 
 import { createHash } from 'node:crypto';
+import { existsSync, statSync } from 'node:fs';
 
 import { Tiktoken } from 'js-tiktoken/lite';
 import cl100k_base from 'js-tiktoken/ranks/cl100k_base';
@@ -126,6 +135,26 @@ export async function runScan(
     throw new Error(
       'runScan: roots must contain at least one path (spec requires minItems: 1)',
     );
+  }
+  // Validate every root exists as a directory BEFORE any IO, BEFORE the
+  // tokenizer is constructed, BEFORE `scan.started` fires. Throw on the
+  // first failure — single-error feedback is enough; the user fixes it
+  // and re-runs. Without this guard the claude adapter's `walk()`
+  // swallows ENOENT inside `readdir` and returns silently, which lets a
+  // non-existent root produce a valid-looking zero-filled `ScanResult`
+  // — directly enabling the `sm scan -- --dry-run` typo-trap that wipes
+  // a populated DB.
+  for (const root of options.roots) {
+    if (!existsSync(root)) {
+      throw new Error(
+        `runScan: root path '${root}' does not exist or is not a directory`,
+      );
+    }
+    if (!statSync(root).isDirectory()) {
+      throw new Error(
+        `runScan: root path '${root}' does not exist or is not a directory`,
+      );
+    }
   }
   const start = Date.now();
   const scannedAt = start;

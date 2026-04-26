@@ -1,50 +1,209 @@
 /**
- * `trigger-collision` rule. Keys on `link.trigger.normalizedTrigger` and
- * emits an `error` issue per group of 2+ links that share a normalized
- * trigger but resolve to different targets.
+ * `trigger-collision` rule. Flags ambiguous trigger ownership. Two
+ * independent kinds of ambiguity contribute claims to the same trigger
+ * bucket:
  *
- * Canonical example: two nodes advertising the same `/deploy` command
- * from different plugins. The user needs to rename one; the rule can't
- * pick which is "right".
+ *   1. **Advertisement claims** — every node with `kind in {command,
+ *      skill, agent}` and a `frontmatter.name` advertises the trigger
+ *      `'/' + normalizeTrigger(name)`. The claim token is `node.path`
+ *      (so two advertisers of `deploy` produce two distinct tokens).
+ *      Canonical example: two commands both declaring `name: deploy`
+ *      from different plugins compete for `/deploy`.
+ *   2. **Invocation claims** — every detected link with a
+ *      `trigger.normalizedTrigger` claims that trigger. The claim token
+ *      is `link.target` (the raw trigger string), so five sources
+ *      invoking `/deploy` collapse to a single token, while `/Deploy`
+ *      and `/deploy` from two different sources stay distinct (the
+ *      case-mismatch ambiguity).
+ *
+ * The rule fires (one `error` issue per trigger) under any of:
+ *   - `≥ 2` distinct advertiser paths, OR
+ *   - `≥ 2` distinct invocation targets, OR
+ *   - exactly one advertiser plus at least one non-canonical invocation
+ *     (raw target does not match the advertiser's literal canonical form
+ *     `'/' + frontmatter.name`). `/Deploy` against advertiser `deploy`
+ *     is non-canonical; `/foblex-flow` against `foblex-flow` is
+ *     canonical (separator unification is a normalizer concern, not a
+ *     user-facing ambiguity).
+ *
+ * The "one advertiser + canonical invocation" case (`name: deploy`
+ * advertised, `/deploy` invoked) is the normal flow and stays silent.
+ * Severity is `error` — the rule can't pick which claim is "right";
+ * the user has to rename one or the other.
  */
 
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
-import type { Issue, Link } from '../../../kernel/types.js';
+import { normalizeTrigger } from '../../../kernel/trigger-normalize.js';
+import type { Issue, NodeKind } from '../../../kernel/types.js';
 
 const ID = 'trigger-collision';
+
+const ADVERTISING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
+  'command',
+  'skill',
+  'agent',
+]);
+
+interface IInvocationClaim {
+  kind: 'invocation';
+  /** Raw `link.target` — the unnormalized trigger string the source emitted. */
+  token: string;
+  /** Path of the source node that issued the invocation. */
+  nodeId: string;
+}
+
+interface IAdvertiserClaim {
+  kind: 'advertiser';
+  /** `node.path` — guarantees two advertisers of the same name produce distinct tokens. */
+  token: string;
+  nodeId: string;
+  /**
+   * Canonical literal form of the advertised trigger: `'/' + frontmatter.name`.
+   * Used to decide whether an invocation in the same bucket is "canonical"
+   * for this advertiser (literal match) vs "non-canonical" (e.g. `/Deploy`
+   * vs advertiser `deploy`, which is a real case-mismatch ambiguity).
+   * Note: this is the LITERAL form, not the normalized one — an
+   * advertiser of `foblex-flow` is canonically `/foblex-flow`, even
+   * though normalization yields `/foblex flow`.
+   */
+  canonicalForm: string;
+}
+
+type IClaim = IInvocationClaim | IAdvertiserClaim;
 
 export const triggerCollisionRule: IRule = {
   id: ID,
   kind: 'rule',
   version: '1.0.0',
-  description: 'Flags invocation triggers (/command, @agent) claimed by multiple distinct targets.',
+  description:
+    'Flags trigger names (/command, @agent) claimed by multiple distinct nodes — by advertisement (frontmatter.name) or by invocation.',
   stability: 'stable',
 
   evaluate(ctx: IRuleContext): Issue[] {
-    // Bucket links by normalized trigger, skipping links without one.
-    const byTrigger = new Map<string, Link[]>();
+    // Bucket claims by normalized trigger.
+    const buckets = new Map<string, IClaim[]>();
+    const push = (key: string, claim: IClaim): void => {
+      const bucket = buckets.get(key) ?? [];
+      bucket.push(claim);
+      buckets.set(key, bucket);
+    };
+
+    // 1. Advertisement claims. Only nodes whose kind can advertise a
+    //    trigger contribute (a `note` happening to carry `frontmatter.name`
+    //    isn't competing for a slash command). The advertised trigger is
+    //    `/<normalized name>`.
+    for (const node of ctx.nodes) {
+      if (!ADVERTISING_KINDS.has(node.kind)) continue;
+      const raw = node.frontmatter?.['name'];
+      if (typeof raw !== 'string' || raw.length === 0) continue;
+      const normalized = `/${normalizeTrigger(raw)}`;
+      // Empty after normalization (e.g. `name: "  "`): ignore — it can't
+      // be invoked anyway.
+      if (normalized === '/') continue;
+      push(normalized, {
+        kind: 'advertiser',
+        token: node.path,
+        nodeId: node.path,
+        canonicalForm: `/${raw}`,
+      });
+    }
+
+    // 2. Invocation claims. Only links carrying a normalized trigger
+    //    contribute. Using `link.target` as the token preserves the
+    //    historical "same target = no collision" behaviour: five sources
+    //    invoking `/deploy` collapse to a single token.
     for (const link of ctx.links) {
       const normalized = link.trigger?.normalizedTrigger;
       if (!normalized) continue;
-      const bucket = byTrigger.get(normalized) ?? [];
-      bucket.push(link);
-      byTrigger.set(normalized, bucket);
+      push(normalized, {
+        kind: 'invocation',
+        token: link.target,
+        nodeId: link.source,
+      });
     }
 
     const issues: Issue[] = [];
-    for (const [normalized, links] of byTrigger) {
-      // A single link is fine; two links with the same target (e.g. same
-      // node mentioned from two different sources) is also fine.
-      const distinctTargets = new Set(links.map((l) => l.target));
-      if (distinctTargets.size < 2) continue;
+    for (const [normalized, claims] of buckets) {
+      const advertiserPaths = [
+        ...new Set(
+          claims.filter((c) => c.kind === 'advertiser').map((c) => c.token),
+        ),
+      ].sort();
+      const invocationTargets = [
+        ...new Set(
+          claims.filter((c) => c.kind === 'invocation').map((c) => c.token),
+        ),
+      ].sort();
 
-      const targets = [...distinctTargets].sort();
+      // Three independent fire conditions:
+      //   1. ≥ 2 distinct advertisers (two nodes both saying `name: deploy`)
+      //      → real ambiguity even with no invocations.
+      //   2. ≥ 2 distinct invocation forms (`/Deploy` and `/deploy` from
+      //      different sources) → the historical case-mismatch ambiguity.
+      //   3. exactly 1 advertiser + ≥ 1 non-canonical invocation. An
+      //      invocation is "canonical" if its raw target equals the
+      //      advertiser's literal canonical form (`/<frontmatter.name>`).
+      //      `/Deploy` invoked against advertiser `deploy` is
+      //      non-canonical (case mismatch). `/foblex-flow` invoked
+      //      against advertiser `foblex-flow` IS canonical, even though
+      //      both normalize to `/foblex flow` — separator unification is
+      //      a normalizer concern, not a user-facing ambiguity.
+      //
+      // The "1 advertiser + canonical invocation" case (`name: deploy`
+      // advertised, `/deploy` invoked) is the normal flow and stays
+      // silent: it's the same logical claim. Multiple invocations of
+      // the same target also stay silent (collapse to one token).
+      const advertisers = claims.filter(
+        (c): c is IAdvertiserClaim => c.kind === 'advertiser',
+      );
+      const advertiserAmbiguous = advertiserPaths.length >= 2;
+      const invocationAmbiguous = invocationTargets.length >= 2;
+
+      // A non-canonical invocation is one whose raw target does not match
+      // ANY advertiser's canonical form in this bucket. In the
+      // single-advertiser case there's only one canonical form to compare
+      // against, which is the realistic shape; in the multi-advertiser
+      // case option 1 already fires regardless.
+      const canonicalForms = new Set(advertisers.map((a) => a.canonicalForm));
+      const nonCanonicalInvocations = invocationTargets.filter(
+        (t) => !canonicalForms.has(t),
+      );
+      const crossKindAmbiguous =
+        advertiserPaths.length === 1 && nonCanonicalInvocations.length >= 1;
+
+      if (!advertiserAmbiguous && !invocationAmbiguous && !crossKindAmbiguous) {
+        continue;
+      }
+
+      const nodeIds = [...new Set(claims.map((c) => c.nodeId))].sort();
+
+      const parts: string[] = [];
+      if (advertiserAmbiguous) {
+        parts.push(
+          `${advertiserPaths.length} nodes advertise it: ${advertiserPaths.join(', ')}`,
+        );
+      }
+      if (invocationAmbiguous) {
+        parts.push(
+          `${invocationTargets.length} distinct invocation forms: ${invocationTargets.join(', ')}`,
+        );
+      } else if (crossKindAmbiguous) {
+        parts.push(
+          `non-canonical invocation${nonCanonicalInvocations.length > 1 ? 's' : ''} ` +
+            `${nonCanonicalInvocations.join(', ')} against advertiser ${advertiserPaths[0]}`,
+        );
+      }
+
       issues.push({
         ruleId: ID,
         severity: 'error',
-        nodeIds: [...new Set(links.map((l) => l.source))].sort(),
-        message: `Trigger "${normalized}" is claimed by ${distinctTargets.size} distinct targets: ${targets.join(', ')}`,
-        data: { normalizedTrigger: normalized, targets },
+        nodeIds,
+        message: `Trigger "${normalized}" has ${parts.join('; and ')}.`,
+        data: {
+          normalizedTrigger: normalized,
+          invocationTargets,
+          advertiserPaths,
+        },
       });
     }
     return issues;

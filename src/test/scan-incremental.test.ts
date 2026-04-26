@@ -617,4 +617,160 @@ describe('incremental scan via priorSnapshot', () => {
       fromNull.links.map(linkKey).sort(),
     );
   });
+
+  it('deletion-driven dynamic broken-ref re-evaluation: full scan after delete also fires the rule on the deleted target', async () => {
+    // Companion to the "drops a deleted node" test above. That one
+    // exercises the INCREMENTAL path (the more interesting one — the
+    // surviving node is cached, no detector re-runs against it, yet the
+    // rule still sees the missing target). This one exercises the FULL
+    // scan path to lock in the same invariant from the other side: rules
+    // always run over the merged graph, regardless of whether nodes came
+    // from the cache or from a fresh detector pass.
+    //
+    // The default fixture's architect already has /unknown + @backend-lead
+    // dangling, so we can't simply assert "broken-ref appears after delete"
+    // — we must assert specifically that broken-ref fires AGAINST the
+    // deleted target (data.target).
+    const fixture = freshFixture('deleted-full');
+    fullFixture(fixture);
+    const first = await fullScan(fixture);
+    ok(first.nodes.find((n) => n.path === '.claude/commands/deploy.md'));
+    // Predicate: a broken-ref whose target is the deploy command (path or
+    // slash trigger). Both forms exist on architect:
+    //   - frontmatter.related → `.claude/commands/deploy.md` (path-style)
+    //   - body `/deploy` (trigger-style, target stored as `/deploy`)
+    const targetsDeploy = (issue: { data?: unknown }): boolean => {
+      const data = issue.data as { target?: string } | undefined;
+      const t = data?.target;
+      return t === '.claude/commands/deploy.md' || t === '/deploy';
+    };
+    const brokenRefsFirst = first.issues.filter((i) => i.ruleId === 'broken-ref');
+    ok(
+      !brokenRefsFirst.some(targetsDeploy),
+      'precondition: no broken-ref targets deploy while deploy.md exists',
+    );
+
+    unlinkSync(join(fixture, '.claude/commands/deploy.md'));
+
+    const second = await fullScan(fixture);
+    ok(
+      !second.nodes.find((n) => n.path === '.claude/commands/deploy.md'),
+      'deploy.md is gone from the full-scan result',
+    );
+    const brokenRefsSecond = second.issues.filter((i) => i.ruleId === 'broken-ref');
+    const fromArchitectAtDeploy = brokenRefsSecond.filter(
+      (i) => i.nodeIds.includes('.claude/agents/architect.md') && targetsDeploy(i),
+    );
+    ok(
+      fromArchitectAtDeploy.length > 0,
+      'broken-ref fires on architect→deploy after deploy.md is deleted (full scan path)',
+    );
+  });
+});
+
+// --- Gap G: trigger-collision interacts with --changed --------------------
+
+describe('trigger-collision rule under --changed', () => {
+  function plantCollidingCommands(root: string, deployDescription: string): void {
+    // Two commands both advertising `name: deploy` — the canonical
+    // collision case from Step 4.9. The advertiser-detection branch of
+    // the rule fires regardless of any invocation links.
+    writeFixtureFile(
+      root,
+      '.claude/commands/deploy-a.md',
+      [
+        '---',
+        'name: deploy',
+        `description: ${deployDescription}`,
+        '---',
+        'Deploy A body.',
+      ].join('\n'),
+    );
+    writeFixtureFile(
+      root,
+      '.claude/commands/deploy-b.md',
+      ['---', 'name: deploy', 'description: Deploy B', '---', 'Deploy B body.'].join('\n'),
+    );
+  }
+
+  it('full scan flags two advertisers as a collision (precondition)', async () => {
+    const fixture = freshFixture('collision-full');
+    plantCollidingCommands(fixture, 'Deploy A');
+    const first = await fullScan(fixture);
+    const collisions = first.issues.filter((i) => i.ruleId === 'trigger-collision');
+    strictEqual(collisions.length, 1, 'two advertisers → exactly one trigger-collision issue');
+    ok(
+      collisions[0]!.nodeIds.includes('.claude/commands/deploy-a.md'),
+      'collision references deploy-a',
+    );
+    ok(
+      collisions[0]!.nodeIds.includes('.claude/commands/deploy-b.md'),
+      'collision references deploy-b',
+    );
+  });
+
+  it('--changed: editing one advertiser (description only, name unchanged) keeps the collision firing', async () => {
+    const fixture = freshFixture('collision-edit');
+    plantCollidingCommands(fixture, 'Deploy A');
+    const first = await fullScan(fixture);
+    const firstCollisions = first.issues.filter((i) => i.ruleId === 'trigger-collision');
+    strictEqual(firstCollisions.length, 1, 'precondition: full scan emits exactly one collision');
+
+    // Mutate the description on ONE advertiser. The frontmatter still
+    // declares `name: deploy`; both nodes still advertise the same trigger.
+    writeFixtureFile(
+      fixture,
+      '.claude/commands/deploy-a.md',
+      [
+        '---',
+        'name: deploy',
+        'description: Deploy A — revised',
+        '---',
+        'Deploy A body.',
+      ].join('\n'),
+    );
+
+    const second = await incrementalScan(fixture, first);
+    const secondCollisions = second.issues.filter((i) => i.ruleId === 'trigger-collision');
+    strictEqual(
+      secondCollisions.length,
+      1,
+      'incremental scan: collision still fires when the colliders survive',
+    );
+    ok(
+      secondCollisions[0]!.nodeIds.includes('.claude/commands/deploy-a.md'),
+      'collision still references deploy-a after edit',
+    );
+    ok(
+      secondCollisions[0]!.nodeIds.includes('.claude/commands/deploy-b.md'),
+      'collision still references deploy-b (cached node) after edit',
+    );
+  });
+
+  it('--changed: deleting one advertiser clears the collision', async () => {
+    const fixture = freshFixture('collision-delete');
+    plantCollidingCommands(fixture, 'Deploy A');
+    const first = await fullScan(fixture);
+    strictEqual(
+      first.issues.filter((i) => i.ruleId === 'trigger-collision').length,
+      1,
+      'precondition: full scan emits the collision',
+    );
+
+    // Remove one of the two competitors. The remaining single advertiser
+    // is no longer in conflict with anyone.
+    unlinkSync(join(fixture, '.claude/commands/deploy-b.md'));
+
+    const second = await incrementalScan(fixture, first);
+    const secondCollisions = second.issues.filter((i) => i.ruleId === 'trigger-collision');
+    strictEqual(
+      secondCollisions.length,
+      0,
+      'incremental scan: collision must clear when one of the colliders is deleted',
+    );
+    ok(
+      !second.nodes.find((n) => n.path === '.claude/commands/deploy-b.md'),
+      'deploy-b really is gone from the merged result',
+    );
+  });
 });

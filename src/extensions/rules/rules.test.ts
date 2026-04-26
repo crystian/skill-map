@@ -4,12 +4,17 @@ import { strictEqual, ok } from 'node:assert';
 import { triggerCollisionRule } from './trigger-collision/index.js';
 import { brokenRefRule } from './broken-ref/index.js';
 import { supersededRule } from './superseded/index.js';
-import type { Issue, Link, Node } from '../../kernel/types.js';
+import type { Issue, Link, Node, NodeKind } from '../../kernel/types.js';
 
-function mockNode(path: string, name?: string, extraMeta: Record<string, unknown> = {}): Node {
+function mockNode(
+  path: string,
+  name?: string,
+  extraMeta: Record<string, unknown> = {},
+  kind: NodeKind = 'note',
+): Node {
   return {
     path,
-    kind: 'note',
+    kind,
     adapter: 'claude',
     bodyHash: 'x'.repeat(64),
     frontmatterHash: 'y'.repeat(64),
@@ -74,6 +79,70 @@ describe('trigger-collision rule', () => {
       { source: 'a.md', target: 'b.md', kind: 'references', confidence: 'high', sources: ['frontmatter'] },
     ];
     const issues = await run(triggerCollisionRule, { nodes: [], links });
+    strictEqual(issues.length, 0);
+  });
+
+  it('flags two advertisers of the same name (no invocations)', async () => {
+    // Canonical example from the rule's doc: two commands declaring
+    // `name: deploy` from different files compete for `/deploy`. Before
+    // the Step 4.9 fix this slipped silently because the rule only
+    // looked at links.
+    const nodes = [
+      mockNode('.claude/commands/deploy.md', 'deploy', {}, 'command'),
+      mockNode('.claude/commands/deploy-v2.md', 'deploy', {}, 'command'),
+    ];
+    const issues = await run(triggerCollisionRule, { nodes, links: [] });
+    strictEqual(issues.length, 1);
+    strictEqual(issues[0]?.severity, 'error');
+    strictEqual(issues[0]?.ruleId, 'trigger-collision');
+    ok(issues[0]?.message.includes('/deploy'));
+    ok(issues[0]?.message.includes('.claude/commands/deploy.md'));
+    ok(issues[0]?.message.includes('.claude/commands/deploy-v2.md'));
+    const data = issues[0]!.data as { advertiserPaths: string[]; invocationTargets: string[] };
+    strictEqual(data.advertiserPaths.length, 2);
+    strictEqual(data.invocationTargets.length, 0);
+    // Both advertising node paths show up in nodeIds.
+    ok(issues[0]!.nodeIds.includes('.claude/commands/deploy.md'));
+    ok(issues[0]!.nodeIds.includes('.claude/commands/deploy-v2.md'));
+  });
+
+  it('mixes claim kinds: one advertiser + one different-cased invocation → collision', async () => {
+    // The advertised path is `.claude/commands/deploy.md` (token A); the
+    // invocation target is `/Deploy` (token B). Both normalize to
+    // `/deploy`, two distinct claim tokens, rule fires.
+    const nodes = [mockNode('.claude/commands/deploy.md', 'deploy', {}, 'command')];
+    const links = [invocation('a.md', '/Deploy', '/deploy')];
+    const issues = await run(triggerCollisionRule, { nodes, links });
+    strictEqual(issues.length, 1);
+    strictEqual(issues[0]?.severity, 'error');
+    const data = issues[0]!.data as { advertiserPaths: string[]; invocationTargets: string[] };
+    ok(data.advertiserPaths.includes('.claude/commands/deploy.md'));
+    ok(data.invocationTargets.includes('/Deploy'));
+  });
+
+  it('does not fire when one advertiser is invoked by its canonical form', async () => {
+    // `name: deploy` advertised + `/deploy` invoked is the normal flow:
+    // the invocation's raw target equals the bucket-key (the normalized
+    // trigger), so it's the canonical form of the advertised name.
+    // Same logical claim, no ambiguity, no issue.
+    const nodes = [mockNode('.claude/commands/deploy.md', 'deploy', {}, 'command')];
+    const links = [
+      invocation('a.md', '/deploy', '/deploy'),
+      invocation('b.md', '/deploy', '/deploy'),
+      invocation('c.md', '/deploy', '/deploy'),
+    ];
+    const issues = await run(triggerCollisionRule, { nodes, links });
+    strictEqual(issues.length, 0);
+  });
+
+  it('ignores frontmatter.name on non-advertising kinds (note)', async () => {
+    // A `note` happening to carry `name: deploy` doesn't compete for
+    // `/deploy`. Only `command`, `skill`, `agent` advertise.
+    const nodes = [
+      mockNode('a.md', 'deploy', {}, 'note'),
+      mockNode('b.md', 'deploy', {}, 'note'),
+    ];
+    const issues = await run(triggerCollisionRule, { nodes, links: [] });
     strictEqual(issues.length, 0);
   });
 });

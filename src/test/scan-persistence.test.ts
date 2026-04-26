@@ -20,9 +20,10 @@
 
 import { describe, it, before, after } from 'node:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { createKernel, runScan } from '../kernel/index.js';
 import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
@@ -158,6 +159,86 @@ describe('persistScanResult', () => {
     } finally {
       await adapter.close();
     }
+  });
+
+  it('checkpoints the WAL: a fresh DatabaseSync sees the persisted rows immediately', async () => {
+    // The writer's connection holds a WAL that, in steady-state, only
+    // auto-checkpoints once it crosses ~1000 pages. Without an explicit
+    // PRAGMA wal_checkpoint(TRUNCATE) at the end of persistScanResult,
+    // a SECOND raw connection opening the same .db file sees stale state
+    // (the rows are still in <db>-wal). With the checkpoint, the second
+    // reader sees the canonical snapshot.
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+    });
+    ok(result.nodes.length > 0, 'fixture should yield nodes');
+
+    const dbPath = freshDbPath('persist-wal-readers');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await persistScanResult(adapter.db, result);
+    } finally {
+      await adapter.close();
+    }
+
+    // Open a brand-new raw connection. This mirrors what an external
+    // tool (sqlitebrowser, DBeaver, an ad-hoc `node:sqlite` consumer)
+    // would do: open the .db file, read scan_* directly. The CamelCase
+    // plugin lives on the writer's Kysely; the reader uses snake_case
+    // SQL identifiers as they exist on disk.
+    const reader = new DatabaseSync(dbPath);
+    try {
+      const nodeCount = (
+        reader.prepare('SELECT COUNT(*) AS n FROM scan_nodes').get() as { n: number }
+      ).n;
+      const linkCount = (
+        reader.prepare('SELECT COUNT(*) AS n FROM scan_links').get() as { n: number }
+      ).n;
+      const issueCount = (
+        reader.prepare('SELECT COUNT(*) AS n FROM scan_issues').get() as { n: number }
+      ).n;
+      strictEqual(nodeCount, result.nodes.length, 'reader sees the nodes');
+      strictEqual(linkCount, result.links.length, 'reader sees the links');
+      strictEqual(issueCount, result.issues.length, 'reader sees the issues');
+    } finally {
+      reader.close();
+    }
+  });
+
+  it('checkpoints the WAL: <db>-wal is empty after persistScanResult + close', async () => {
+    // Structural assertion that the PRAGMA wal_checkpoint(TRUNCATE)
+    // ran. In TRUNCATE mode, the WAL file is truncated to zero bytes
+    // (it may still exist as a 0-byte sidecar; some platforms / SQLite
+    // builds remove it on close). We tolerate "doesn't exist" too.
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    const result = await runScan(kernel, {
+      roots: [fixture],
+      extensions: builtIns(),
+    });
+
+    const dbPath = freshDbPath('persist-wal-truncated');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      await persistScanResult(adapter.db, result);
+    } finally {
+      await adapter.close();
+    }
+
+    const walPath = `${dbPath}-wal`;
+    let walSize: number;
+    try {
+      walSize = statSync(walPath).size;
+    } catch {
+      // ENOENT is acceptable: SQLite may have removed the WAL on close.
+      walSize = 0;
+    }
+    strictEqual(walSize, 0, `<db>-wal should be 0 bytes after checkpoint, got ${walSize}`);
   });
 
   it('replace-all: persisting an empty ScanResult wipes every scan_* table', async () => {

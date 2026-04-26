@@ -54,8 +54,16 @@ describe('CLI binary', () => {
   });
 
   it('scan --json forwards custom roots to the ScanResult', () => {
+    // The orchestrator now validates every root exists as a directory
+    // (Step 4.11 — guards against `sm scan -- --dry-run` accidentally
+    // wiping a populated DB). Create real on-disk subdirs so this test
+    // stays focused on the roots-passthrough invariant.
+    const a = resolve(EMPTY_DIR, 'a');
+    const b = resolve(EMPTY_DIR, 'b');
+    mkdirSync(a, { recursive: true });
+    mkdirSync(b, { recursive: true });
     const r = sm(['scan', './a', './b', '--json'], EMPTY_DIR);
-    assert.equal(r.status, 0);
+    assert.equal(r.status, 0, `unexpected exit ${r.status}; stderr=${r.stderr}`);
     const result = JSON.parse(r.stdout);
     assert.deepEqual(result.roots, ['./a', './b']);
   });

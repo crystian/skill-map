@@ -1,5 +1,8 @@
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { after, before, describe, it } from 'node:test';
 
 import {
   createKernel,
@@ -55,6 +58,18 @@ describe('createKernel', () => {
   });
 });
 
+// Shared scratch for runScan tests that need real on-disk roots (the
+// orchestrator validates every root exists as a directory up front).
+let runScanTmpRoot: string;
+
+before(() => {
+  runScanTmpRoot = mkdtempSync(join(tmpdir(), 'skill-map-kernel-'));
+});
+
+after(() => {
+  rmSync(runScanTmpRoot, { recursive: true, force: true });
+});
+
 describe('runScan', () => {
   it('produces a zero-filled ScanResult for a single root with no extensions', async () => {
     // Spec requires `roots: minItems: 1`; runScan throws on an empty
@@ -82,8 +97,40 @@ describe('runScan', () => {
   });
 
   it('preserves roots in the result', async () => {
-    const result = await runScan(createKernel(), { roots: ['./a', './b'] });
-    assert.deepEqual(result.roots, ['./a', './b']);
+    // Use two real on-disk directories — the orchestrator now validates
+    // each root exists as a directory before walking, so synthetic
+    // paths like `./a` no longer fly. The walk yields zero files (the
+    // dirs are empty) which keeps this test focused on roots-passthrough.
+    const a = mkdtempSync(join(runScanTmpRoot, 'roots-a-'));
+    const b = mkdtempSync(join(runScanTmpRoot, 'roots-b-'));
+    const result = await runScan(createKernel(), { roots: [a, b] });
+    assert.deepEqual(result.roots, [a, b]);
+  });
+
+  it('throws on a non-existent root path (the path appears in the error)', async () => {
+    const missing = join(runScanTmpRoot, 'definitely-not-here');
+    await assert.rejects(
+      () => runScan(createKernel(), { roots: [missing] }),
+      (err: Error) =>
+        err instanceof Error &&
+        err.message.includes(missing) &&
+        /does not exist or is not a directory/.test(err.message),
+    );
+  });
+
+  it('throws on a root that is a file, not a directory', async () => {
+    // The validator must distinguish "exists but not a directory" from
+    // "missing entirely" — both share the same error wording, but the
+    // path that gets named must be the file we created.
+    const filePath = join(runScanTmpRoot, 'i-am-a-file.txt');
+    writeFileSync(filePath, 'not a directory\n');
+    await assert.rejects(
+      () => runScan(createKernel(), { roots: [filePath] }),
+      (err: Error) =>
+        err instanceof Error &&
+        err.message.includes(filePath) &&
+        /does not exist or is not a directory/.test(err.message),
+    );
   });
 
   it('emits a positive integer Unix-ms timestamp', async () => {
