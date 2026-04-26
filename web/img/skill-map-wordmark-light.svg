@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="160" viewBox="0 0 320 80" fill="none">
+  <g>
+    <line x1="14" y1="22" x2="46" y2="22" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"></line>
+    <line x1="14" y1="22" x2="30" y2="50" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"></line>
+    <line x1="46" y1="22" x2="30" y2="50" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round"></line>
+    <circle cx="14" cy="22" r="6" fill="#FFFFFF"></circle>
+    <circle cx="46" cy="22" r="6" fill="#FFFFFF"></circle>
+    <circle cx="30" cy="50" r="8" fill="#7C3AED"></circle>
+  </g>
+  <text x="72" y="48" font-family="-apple-system, BlinkMacSystemFont, &#39;Segoe UI&#39;, Inter, system-ui, sans-serif" font-size="28" font-weight="600" fill="#FFFFFF" letter-spacing="-0.02em">skill-map</text>
+</svg>

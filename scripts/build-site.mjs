@@ -2,11 +2,11 @@
 /**
  * Builds the public site served at skill-map.dev.
  *
- * - Copies web/ → site/ (the editable landing).
- * - Substitutes {{SPEC_VERSION}} placeholders in site/index.html.
+ * - Copies web/ → .tmp/site/ (the editable landing).
+ * - Substitutes {{SPEC_VERSION}} placeholders in .tmp/site/index.html.
  * - Validates that each schema's `$id` matches its target URL exactly,
- *   then copies spec/schemas/**\/*.schema.json → site/spec/v0/...
- * - Generates site/spec/v0/index.html (the schema browse index).
+ *   then copies spec/schemas/**\/*.schema.json → .tmp/site/spec/v0/...
+ * - Generates .tmp/site/spec/v0/index.html (the schema browse index).
  *
  * Zero dependencies. Node >= 22 ESM.
  */
@@ -18,8 +18,9 @@ import { join, dirname, relative } from 'node:path';
 const SCHEMA_SRC = 'spec/schemas';
 const SPEC_PKG_PATH = 'spec/package.json';
 const WEB_SRC = 'web';
-const SITE_DST = 'site';
-const SCHEMA_DST = 'site/spec/v0';
+const SITE_DST = '.tmp/site';
+const SCHEMA_DST = '.tmp/site/spec/v0';
+const I18N_SRC = 'web/i18n.json';
 const LANDING_PATH = join(SITE_DST, 'index.html');
 
 const DOMAIN = 'https://skill-map.dev';
@@ -65,6 +66,83 @@ function escapeHtml(s) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+}
+
+function escapeAttr(s) {
+  return String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;');
+}
+
+/**
+ * Render the landing for a single language.
+ *
+ * Replaces:
+ *   - data-i18n="key"           → inner text of the tag (single-text-only)
+ *   - data-i18n-<attr>="key"    → adds/overwrites <attr>="value"
+ *   - <html lang="…">           → current lang
+ *   - <a … data-lang="…">       → adds aria-current="page" if matches
+ *   - {{SPEC_VERSION}}          → spec package.json version
+ * Injects in <head>:
+ *   - <link rel="alternate" hreflang> for every language + x-default
+ */
+function renderLanding(html, { lang, defaultLang, langs, version, dict }) {
+  const lookup = (key) => {
+    const e = dict[key];
+    if (!e) return key;
+    return e[lang] ?? e[defaultLang] ?? key;
+  };
+
+  // 1. data-i18n="key" — replace inner text. Single-line, single-text-content tags only.
+  let out = html.replace(
+    /(<[a-z][a-z0-9-]*\b[^>]*\sdata-i18n="([^"]+)"[^>]*>)([\s\S]*?)(<\/[a-z][a-z0-9-]*>)/gi,
+    (_m, openTag, key, _inner, closeTag) => `${openTag}${escapeHtml(lookup(key))}${closeTag}`,
+  );
+
+  // 2. data-i18n-<attr>="key" — set/replace <attr> on the same tag.
+  //    Strategy: rewrite the whole tag opening, removing any existing <attr>="…" first.
+  out = out.replace(
+    /<([a-z][a-z0-9-]*)\b([^>]*?)>/gi,
+    (m, tag, attrs) => {
+      if (!attrs.includes('data-i18n-')) return m;
+      let next = attrs;
+      next = next.replace(
+        /\sdata-i18n-([a-z-]+)="([^"]+)"/g,
+        (_mm, attr, key) => {
+          // Remove any existing same-named attribute on this tag.
+          next = next.replace(new RegExp(`\\s${attr}="[^"]*"`), '');
+          return ` data-i18n-${attr}="${key}" ${attr}="${escapeAttr(lookup(key))}"`;
+        },
+      );
+      return `<${tag}${next}>`;
+    },
+  );
+
+  // 3. <html lang="…">
+  out = out.replace(/<html\s+lang="[a-z]+"/i, `<html lang="${lang}"`);
+
+  // 4. data-lang="…" on <a> — add aria-current="page" when active.
+  out = out.replace(
+    /<a\b([^>]*?)\sdata-lang="([a-z]+)"([^>]*)>/gi,
+    (_m, before, langAttr, after) => {
+      const cleanBefore = before.replace(/\saria-current="[^"]*"/g, '');
+      const cleanAfter = after.replace(/\saria-current="[^"]*"/g, '');
+      const aria = langAttr === lang ? ' aria-current="page"' : '';
+      return `<a${cleanBefore} data-lang="${langAttr}"${cleanAfter}${aria}>`;
+    },
+  );
+
+  // 5. {{SPEC_VERSION}}
+  out = out.replaceAll('{{SPEC_VERSION}}', version);
+
+  // 6. <link rel="alternate" hreflang> — inject before </head>.
+  const alternates = [
+    ...langs.map((l) => `  <link rel="alternate" hreflang="${l}" href="${DOMAIN}${l === defaultLang ? '/' : `/${l}/`}">`),
+    `  <link rel="alternate" hreflang="x-default" href="${DOMAIN}/">`,
+  ].join('\n');
+  out = out.replace('</head>', `${alternates}\n</head>`);
+
+  return out;
 }
 
 function groupSchemas(items) {
@@ -199,20 +277,38 @@ async function main() {
   if (existsSync(SITE_DST)) await rm(SITE_DST, { recursive: true });
 
   // 1. Copy the editable landing into the build output.
-  await cp(WEB_SRC, SITE_DST, { recursive: true });
+  //    Skip:
+  //      - web/tmp/      (reference JSX/CSS dropped by the author for porting)
+  //      - web/i18n.json (build-time only — translations are baked into HTML)
+  await cp(WEB_SRC, SITE_DST, {
+    recursive: true,
+    filter: (src) => !src.includes(`${WEB_SRC}/tmp`)
+                   && !src.endsWith('/i18n.json')
+                   && !src.endsWith('\\i18n.json'),
+  });
 
-  // 2. Read the spec version and substitute placeholders in the landing.
+  // 2. Read the spec version + i18n dictionary, then render one HTML per language.
   const pkg = JSON.parse(await readFile(SPEC_PKG_PATH, 'utf8'));
   const version = pkg.version;
   if (!version) throw new Error(`${SPEC_PKG_PATH} has no "version" field`);
 
+  const i18n = JSON.parse(await readFile(I18N_SRC, 'utf8'));
+  const meta = i18n._meta ?? { default: 'en', langs: ['en'] };
+  const langs = meta.langs ?? ['en'];
+  const defaultLang = meta.default ?? langs[0];
+
   if (existsSync(LANDING_PATH)) {
-    const html = await readFile(LANDING_PATH, 'utf8');
-    const subbed = html.replaceAll('{{SPEC_VERSION}}', version);
-    if (subbed === html) {
-      console.warn(`! ${LANDING_PATH} did not contain {{SPEC_VERSION}} — version not injected`);
+    const sourceHtml = await readFile(LANDING_PATH, 'utf8');
+
+    for (const lang of langs) {
+      const rendered = renderLanding(sourceHtml, { lang, defaultLang, langs, version, dict: i18n });
+      const outPath = lang === defaultLang
+        ? LANDING_PATH
+        : join(SITE_DST, lang, 'index.html');
+      await mkdir(dirname(outPath), { recursive: true });
+      await writeFile(outPath, rendered);
     }
-    await writeFile(LANDING_PATH, subbed);
+    console.log(`✓ Landing rendered for: ${langs.join(', ')}`);
   } else {
     console.warn(`! ${LANDING_PATH} does not exist — landing rendering skipped`);
   }

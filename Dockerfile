@@ -13,7 +13,7 @@ RUN node scripts/build-site.mjs
 
 # ------------ serve stage ------------
 FROM caddy:2-alpine
-COPY --from=build /app/site /usr/share/caddy
+COPY --from=build /app/.tmp/site /usr/share/caddy
 COPY Caddyfile /etc/caddy/Caddyfile
 
 # Railway supplies $PORT at runtime; Caddyfile uses it.

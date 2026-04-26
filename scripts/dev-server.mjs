@@ -17,7 +17,7 @@ import { watch } from 'node:fs';
 import { join, extname, normalize, sep } from 'node:path';
 import { spawn } from 'node:child_process';
 
-const ROOT = 'site';
+const ROOT = '.tmp/site';
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || 'localhost';
 const WATCH_DIRS = ['web', 'spec', 'scripts'];
