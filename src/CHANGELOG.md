@@ -1,5 +1,530 @@
 # skill-map
 
+## 0.3.3
+
+### Patch Changes
+
+- 16e782a: Fix `tsc --noEmit` regressions surfaced by CI after the Step 6
+  follow-up commits (`7d4b143`, `4669267`). The commits validated
+  through `tsup` (which does not enforce `noUncheckedIndexedAccess` /
+  `exactOptionalPropertyTypes`) but tripped CI's stricter `npm run
+typecheck` step. Eight TS errors across six files; runtime behaviour
+  unchanged.
+
+  **Type fixes**:
+
+  - `src/cli/commands/config.ts` — `setAtPath` / `deleteAtPath` /
+    `pruneEmptyAncestors` indexed `segments[i]` directly under
+    `noUncheckedIndexedAccess`. Added an early-return guard for
+    empty paths and non-null assertions on segment access.
+  - `src/cli/commands/init.ts` — `GITIGNORE_ENTRIES as const` narrowed
+    `length` to `2`, making the pluralization branch (`=== 1`) a TS
+    "no-overlap" error. Dropped `as const` and typed it as
+    `readonly string[]`.
+  - `src/cli/commands/plugins.ts` — `TogglePluginsBase` extends
+    Clipanion's `Command` but never implemented the abstract
+    `execute()`. Marked the class `abstract` so only its concrete
+    subclasses (`PluginsEnableCommand` / `PluginsDisableCommand`)
+    need to implement it.
+  - `src/kernel/config/loader.ts` — direct cast between
+    `IEffectiveConfig` and `Record<string, unknown>` is no longer
+    accepted; routed through `unknown` at both `deepMerge` call
+    sites.
+  - `src/kernel/scan/ignore.ts` — under `exactOptionalPropertyTypes`,
+    `IBuildIgnoreFilterOptions` did not accept `undefined` even
+    though the runtime tolerated it. Widened the three optional
+    fields to `T | undefined` so callers can forward
+    `readIgnoreFileText()` (which returns `string | undefined`)
+    without a guard.
+  - `src/test/config-loader.test.ts` — `match(warnings[0], …)`
+    failed under `noUncheckedIndexedAccess`; added non-null
+    assertions (the lines above already verify `length === 1`).
+
+  **Prevention** — encadenar typecheck antes del test runner:
+
+  - `src/package.json` — `test` and `test:ci` now run
+    `tsc --noEmit && node --import tsx --test ...`. Local `npm test`
+    picks up strict-mode regressions immediately instead of waiting
+    for CI.
+
+  Test count unchanged: 312 of 312 pass.
+
+- f41dbad: Step 6.2 — Layered config loader for `.skill-map/settings.json`. Walks the
+  six canonical layers (defaults → user → user-local → project → project-local
+  → overrides), deep-merges per key, validates each layer against the
+  `project-config` JSON schema, and is resilient per-key: malformed JSON,
+  schema violations, and type mismatches emit warnings and skip the offending
+  input without invalidating the rest of the layer. Strict mode (`--strict`,
+  wired in 6.3+) re-routes every warning to a thrown `Error`.
+
+  **Runtime change**:
+
+  - `src/config/defaults.json` — bundled defaults derived from `project-config.schema.json`
+    property descriptions (autoMigrate, tokenizer, scan._, jobs._, history.share, i18n.locale).
+  - `src/kernel/config/loader.ts` — `loadConfig(opts)` entry point. Returns
+    `{ effective, sources, warnings }`:
+    - `effective` — fully merged `IEffectiveConfig`.
+    - `sources` — `Map<dotPath, layerName>` so `sm config show --source` (6.3)
+      can answer who set what.
+    - `warnings` — accumulated diagnostics; empty when the load was clean.
+  - Layer dedup: when `scope === 'global'`, project layers (4/5) resolve to
+    the same files as user layers (2/3) and are skipped to avoid double-merging
+    the same source.
+  - Deep-merge semantics: nested objects merge per key; arrays replace whole;
+    `null` values are preserved (e.g. `jobs.retention.failed`).
+  - Schema-failure handling: AJV errors are walked once; `additionalProperties`
+    errors strip the unknown key, type/const/etc. errors strip the offending
+    leaf. The cleaned object is then merged so a single bad value never
+    invalidates the rest of the layer.
+  - No CLI surface yet — `sm config` verbs (6.3) and `--strict` flag
+    (6.3+) consume this loader; the API is internal until then.
+
+  **Tests**: `src/test/config-loader.test.ts` covers defaults application,
+  five-layer precedence, override layer, global-scope dedup, deep-merge
+  nested objects + array replacement + null preservation, malformed-JSON
+  warning + skip, unknown-key strip, type-mismatch strip, partial-bad-file
+  continues, non-object root rejection, and three strict-mode escalations
+  (JSON / schema / unknown-key).
+
+  Test count: 213 → 231 (+18).
+
+- f41dbad: Step 6.3 — `sm config list / get / set / reset / show` go from
+  stub-printing-"not implemented" to real implementations. The five verbs
+  share the layered loader from 6.2 and gain a `--strict` flag on
+  the read side that escalates merge warnings to fatal errors.
+
+  **Runtime change**:
+
+  - `src/cli/commands/config.ts` — five Clipanion commands plus shared
+    helpers (`getAtPath`, `setAtPath`, `deleteAtPath` with empty-parent
+    pruning, JSON-first value coercion, dot-path → human formatter).
+  - `src/cli/commands/stubs.ts` — five `Config*Command` classes removed;
+    `STUB_COMMANDS` array shrunk; replaced-at-step comment kept.
+  - `src/cli/entry.ts` — registers the new `CONFIG_COMMANDS` array.
+  - `context/cli-reference.md` — regenerated from `sm help --format md`;
+    CLI version line now reflects the live `0.3.x` value (the file had
+    drifted at PR #12 against the prior stub descriptions).
+
+  **Verb semantics**:
+
+  - `sm config list [--json] [-g] [--strict]` — prints the merged
+    effective config. Human mode emits sorted `key.path = value` lines;
+    `--json` emits the JSON object. Exempt from `done in <…>` per
+    `spec/cli-contract.md` §Elapsed time.
+  - `sm config get <key> [--json] [-g] [--strict]` — leaf value
+    by dot-path. Unknown key → exit 5. `--json` wraps in JSON literals
+    so callers can pipe into `jq`. Exempt from elapsed-time.
+  - `sm config show <key> [--source] [--json] [-g] [--strict]` —
+    identical to `get` plus optional `--source` that surfaces the winning
+    layer (`defaults / user / user-local / project / project-local /
+override`). For nested objects, the highest-precedence descendant
+    wins. `--source --json` emits `{ value, source }`. Exempt from
+    elapsed-time.
+  - `sm config set <key> <value> [-g]` — writes to project file by
+    default; `-g` writes to user file. JSON-parses the raw value first so
+    CLI ergonomics produce booleans / numbers / arrays / objects naturally
+    (unparseable falls through as plain string). Result is re-validated
+    against `project-config.schema.json`; schema violation → exit 2 with
+    the file untouched. In-scope verb — emits `done in <…>` to stderr.
+  - `sm config reset <key> [-g]` — strips the key from the target file;
+    prunes now-empty parent objects so the file stays tidy. Idempotent —
+    absent key prints "No override at <path>" and exits 0. In-scope verb.
+
+  **Tests**: `src/test/config-cli.test.ts` exercises every verb through
+  the real `bin/sm.mjs` binary with isolated `HOME` and `cwd` per test:
+  list defaults / project / `--json`, get leaf / object / `--json` /
+  unknown-key, show `--source` on leaf and nested object, show `--source
+--json`, show without `--source`, set project default + `-g` + nested
+  dot-path + invalid → exit 2 + preserves siblings + emits `done in`,
+  reset basic + idempotent absent + `-g` + parent-pruning.
+
+  Test count: 231 → 252 (+21).
+
+- f41dbad: Step 6.4 — `.skill-mapignore` parser + scan walker integration.
+  Layered ignore filter composes bundled defaults + `config.ignore`
+  (from `.skill-map/settings.json`) + `.skill-mapignore` file content;
+  the walker honours it so reorganising `node_modules`, `dist`, drafts,
+  or any user-defined private dir keeps them out of the scan in one
+  predictable place.
+
+  **New dependency**: `ignore@7.0.5` (zero-deps, MIT, gitignore-spec
+  compliant — same library used by eslint, prettier). Pinned exact per
+  AGENTS.md.
+
+  **Runtime change**:
+
+  - `src/config/defaults/skill-mapignore` — bundled defaults file shipped
+    with the CLI (`.git/`, `node_modules/`, `dist/`, `build/`, `out/`,
+    `.next/`, `.cache/`, `.tmp/`, `.skill-map/`, `*.log`, `.DS_Store`,
+    `Thumbs.db`, `*.swp`, `*~`). Copied into `dist/config/defaults/` by
+    tsup `onSuccess`.
+  - `src/kernel/scan/ignore.ts` — `buildIgnoreFilter({ configIgnore?,
+ignoreFileText?, includeDefaults? })` returns an `IIgnoreFilter` with
+    one method, `ignores(relativePath)`. Layer order is fixed: defaults
+    → `configIgnore` → `ignoreFileText`. Bundled defaults loaded once
+    (module-level cache); resolves a small candidate-list of paths to
+    cover both the dev layout (`src/`) and the bundled layout (`dist/`).
+  - `src/kernel/scan/ignore.ts` also exports `readIgnoreFileText(scopeRoot)`
+    — convenience to read `<scopeRoot>/.skill-mapignore` and feed it to
+    `buildIgnoreFilter`.
+  - `src/kernel/extensions/adapter.ts` — `IAdapter.walk` signature
+    changes: `options.ignore?: string[]` → `options.ignoreFilter?:
+IIgnoreFilter`. The old shape was unused (no caller passed it), so
+    no compat shim ships.
+  - `src/extensions/adapters/claude/index.ts` — walker tracks the
+    current relative path during recursion and consults the filter for
+    every directory and file. The previous hard-coded `DEFAULT_IGNORE`
+    set is removed; the bundled defaults provide the same baseline.
+    Adapters that omit `ignoreFilter` get the bundled-defaults filter as
+    a defensive fallback, so kernel-empty-boot and direct adapter tests
+    still skip `.git` / `node_modules` / `.tmp`.
+  - `src/kernel/orchestrator.ts` — `RunScanOptions.ignoreFilter?:
+IIgnoreFilter` plumbed through to every `adapter.walk(...)` call.
+  - `src/cli/commands/scan.ts` — `ScanCommand` loads layered config and
+    composes the filter from `cfg.ignore` + the project's
+    `.skill-mapignore`, then passes it via `runOptions.ignoreFilter`.
+
+  **Tests**: `src/test/scan-ignore.test.ts` — 14 tests covering filter
+  defaults (skip / preserve / empty path), `configIgnore` patterns and
+  directory globs, ignore-file text parsing with comments and blanks,
+  three-layer combination including negation that respects gitignore's
+  "can't re-include from excluded directory" rule, `includeDefaults:
+false` opt-out, `readIgnoreFileText` present / missing, plus four
+  end-to-end runScan integrations (`.skill-mapignore` excludes drafts,
+  `config.ignore` excludes a private dir, defaults still skip
+  `node_modules` / `.git` without extra config, file-glob negation
+  re-includes a single file inside an otherwise-excluded directory).
+
+  Test count: 252 → 266 (+14).
+
+- 8a4667f: Step 6.5 — `sm init` scaffolding. Replaces the
+  "not-implemented" stub with a real bootstrap verb that provisions
+  everything Step 6 has built so far in one command:
+
+  - `<scopeRoot>/.skill-map/` directory.
+  - `settings.json` with `{ "schemaVersion": 1 }` (minimal, validated
+    against `project-config.schema.json`).
+  - `settings.local.json` with `{}` (placeholder for personal overrides;
+    appended to `.gitignore` so it never gets committed).
+  - `.skill-mapignore` at the scope root, copied byte-for-byte from
+    `src/config/defaults/skill-mapignore`.
+  - `<scopeRoot>/.skill-map/skill-map.db` provisioned via
+    `SqliteStorageAdapter.init()` (auto-applies kernel migrations).
+  - First scan: walks the scope, persists `scan_*` tables. Exit code
+    mirrors `sm scan` — 1 if any `error`-severity issues land.
+
+  Project scope (default = cwd): also appends two entries to
+  `<cwd>/.gitignore` (`.skill-map/settings.local.json`,
+  `.skill-map/skill-map.db`); creates the file if missing, leaves
+  existing entries untouched, never duplicates. Comments and blank
+  lines in an existing `.gitignore` survive.
+
+  Global scope (`-g`): same scaffolding under `$HOME/.skill-map/`. No
+  `.gitignore` is written — `$HOME` isn't a repo.
+
+  Re-running over an existing scope errors with exit 2 unless `--force`
+  is passed. `--no-scan` skips the first scan (useful in CI where the
+  operator wants to provision before populating roots). `--force`
+  overwrites `settings.json`, `settings.local.json`, and `.skill-mapignore`
+  but keeps the DB and any other state in `.skill-map/`.
+
+  **Runtime change**:
+
+  - `src/cli/commands/init.ts` — new file. The `runFirstScan` helper
+    loads the layered config, builds the ignore filter
+    (defaults + `config.ignore` + the `.skill-mapignore` it just wrote),
+    runs `runScanWithRenames`, and persists. Inline (not subprocess) so
+    the parent owns the elapsed line and stdio cleanly.
+  - `src/cli/commands/stubs.ts` — `InitCommand` removed; replaced-at-step
+    comment kept.
+  - `src/cli/entry.ts` — registers the new `InitCommand`.
+  - `src/kernel/scan/ignore.ts` — new `loadBundledIgnoreText()` export;
+    re-uses the module-level cache so `sm init` reads the defaults file
+    once across the process lifetime.
+  - `context/cli-reference.md` — regenerated; init's flag table and
+    examples block now appear in the reference.
+
+  **Tests**: `src/test/init-cli.test.ts` — 7 tests through the real
+  binary covering project-scope scaffolding (files present, schemaVersion
+  set, ignore template populated), `.gitignore` create-when-missing,
+  `.gitignore` merge without duplicating an existing entry, re-init
+  blocked without `--force`, `--force` overwrites, default first-scan
+  finds and counts a seeded `.claude/agents/foo.md`, global scope under
+  `HOME/.skill-map/` with no `.gitignore` written and no leakage into
+  `cwd`.
+
+  Test count: 266 → 273 (+7).
+
+- 8a4667f: Step 6.6 — `sm plugins enable / disable` + the `config_plugins`
+  override layer they read from. The two stub verbs become real, and
+  the `PluginLoader` finally honours user intent: a disabled plugin
+  surfaces in `sm plugins list` with status `disabled`, but its
+  extensions are NOT imported and the kernel will not run them.
+
+  **Decision (recorded in spec)**: enable/disable resolution favours the
+  DB row over `settings.json` over the installed default. The DB
+  override is local-machine; `settings.json` is the team-shared baseline.
+  A developer can locally disable a misbehaving plugin without
+  committing the toggle to the team's config; conversely, a baseline
+  that explicitly enables a plugin is overridable per-machine. The rule
+  is documented in `spec/db-schema.md` §`config_plugins`.
+
+  **Spec change (additive, patch)**:
+
+  - `spec/db-schema.md` — appended an "Effective enable/disable
+    resolution" subsection under `config_plugins` documenting the
+    three-layer precedence (DB > `settings.json` > installed default).
+    No schema changes; the `config_plugins` table itself was already
+    defined in the initial migration.
+
+  **Runtime change**:
+
+  - `src/kernel/types/plugin.ts` — `TPluginLoadStatus` gains a `disabled`
+    variant. JSDoc explains all five states.
+  - `src/kernel/adapters/sqlite/plugins.ts` — new file. Storage helpers
+    over the `config_plugins` table: `setPluginEnabled` (upsert),
+    `getPluginEnabled` (single read), `loadPluginOverrideMap` (bulk
+    read for one round-trip per process), `deletePluginOverride`
+    (idempotent drop, used by future `sm config reset plugins.<id>`).
+  - `src/kernel/config/plugin-resolver.ts` — new file.
+    `resolvePluginEnabled` implements the precedence above;
+    `makeEnabledResolver` curries the layered config and DB map into
+    the `(id) => boolean` shape `IPluginLoaderOptions.resolveEnabled`
+    expects.
+  - `src/kernel/adapters/plugin-loader.ts` — new optional
+    `resolveEnabled` callback in `IPluginLoaderOptions`. When supplied,
+    the loader checks AFTER manifest + specCompat validation and
+    short-circuits with `status: 'disabled'` (manifest preserved,
+    extensions array omitted, reason `"disabled by config_plugins or
+settings.json"`). Omitting the callback keeps the legacy "always
+    load" behaviour for tests / kernel-empty-boot.
+  - `src/cli/commands/plugins.ts` — wires the loader to the resolver:
+    every read (`list / show / doctor`) loads `config_plugins` once and
+    feeds the resolver. Two new commands `PluginsEnableCommand` and
+    `PluginsDisableCommand` write to the DB. `--all` toggles every
+    discovered plugin; `<id>` and `--all` are mutually exclusive.
+    `sm plugins doctor` now treats `disabled` as intentional (does not
+    contribute to the issue list, does not flip exit code).
+  - `src/cli/commands/plugins.ts` — adds `off` to the status icon legend
+    in human output (`off  mock-a@0.1.0 · disabled by config_plugins or
+settings.json`).
+  - `src/cli/commands/stubs.ts` — `PluginsEnableCommand` and
+    `PluginsDisableCommand` removed; replaced-at-step comment kept.
+  - `context/cli-reference.md` — regenerated; the two new verbs appear
+    with their flag tables.
+
+  **Tests**:
+
+  - `src/test/plugin-overrides.test.ts` — 8 unit tests covering storage
+    round-trip (upsert + read), `loadPluginOverrideMap` bulk read,
+    `deletePluginOverride` idempotency, resolver precedence (default ⇒
+    true, `settings.json` overrides default, DB overrides
+    `settings.json`), `makeEnabledResolver` currying, and PluginLoader
+    surfacing `disabled` status with manifest preserved + no extensions
+    - omitting the resolver still loads.
+  - `src/test/plugins-cli.test.ts` — 9 end-to-end tests via the binary:
+    `disable <id>` writes a DB row + `sm plugins list` reflects `off`,
+    `enable <id>` flips back, `--all` covers every discovered plugin,
+    unknown id → exit 5, no-arg → exit 2, both `<id>` and `--all` →
+    exit 2, `settings.json` baseline overridden by DB `enable`,
+    `settings.json` baseline applies when DB has no row, and
+    `sm plugins doctor` exits 0 when the only non-loaded plugin is
+    intentionally disabled.
+
+  Test count: 273 → 291 (+18).
+
+- 8a4667f: Step 6.7 — Frontmatter strict mode. The orchestrator now validates each
+  node's parsed frontmatter against `frontmatter/<kind>.schema.json`
+  during `sm scan` and emits a `frontmatter-invalid` issue when the shape
+  doesn't conform. Severity is `warn` by default (scan still exits 0);
+  `--strict` (CLI) or `scan.strict: true` (config) promote every such
+  finding to `error` so the scan exits 1.
+
+  **Runtime change**:
+
+  - `src/kernel/adapters/schema-validators.ts` — registers
+    `frontmatter-skill / -agent / -command / -hook / -note` as named
+    top-level validators (they were already loaded as supporting schemas
+    via the AJV `$ref` graph; this step exposes them through the
+    `validate(name, data)` surface). Reuses the module-level cache from
+    Step 5.12 — the validators compile once per process.
+  - `src/kernel/orchestrator.ts` — new `RunScanOptions.strict?: boolean`
+    field. After each adapter yields a node, the orchestrator validates
+    the parsed frontmatter (skipping when no `---` fence is present, so
+    fence-less notes stay clean). A failure produces a single
+    `frontmatter-invalid` issue with `severity: 'warn' | 'error'` per
+    the `strict` flag, the path in `nodeIds`, the AJV error string in
+    `message`, and `data: { kind, errors }` for downstream tools.
+    Issues collected during the walk land in the result alongside the
+    rule-emitted ones.
+  - Incremental-scan (`--changed`) preservation: a per-path
+    `priorFrontmatterIssuesByNode` index walks the prior result once;
+    on a cache hit, the previously-emitted frontmatter issue is re-pushed
+    (re-validating would be wasted work since `frontmatterHash` is
+    unchanged). The `strict` flag still applies on the second pass — a
+    cached `warn` from the first scan becomes `error` on a strict
+    re-run.
+  - `src/cli/commands/scan.ts` — new `--strict` flag. The CLI also reads
+    `cfg.scan.strict` (already in the project-config schema since 0.1)
+    and passes `strict: this.strict || cfg.scan.strict === true` to
+    `runScan`. CLI flag wins when both are set.
+  - `context/cli-reference.md` — regenerated; `--strict` appears under
+    `sm scan` with its description.
+
+  **Tests**:
+
+  - `src/test/scan-frontmatter-strict.test.ts` — 12 tests covering
+    fence-less files (no issue), fenced-but-incomplete frontmatter
+    (warn issue, message names the missing field), `strict: true`
+    promotion to error, valid frontmatter (no issue), type-mismatch
+    on a base field (`name: 42` flagged), per-kind schemas
+    (skill / command / hook / note each emit one issue with the
+    matching `data.kind`), incremental preservation of the cached
+    issue, incremental + strict promotion, and four CLI tests via
+    the binary (`sm scan` exit 0 with warnings, `--strict` → exit 1,
+    `scan.strict: true` config → exit 1, `--strict` overrides
+    `scan.strict: false` config).
+  - `src/test/scan-readers.test.ts` — `rollback.md` fixture extended to
+    include `description` + `metadata` so the `--issue` filter test
+    remains semantically correct (rollback.md is the issue-free node).
+  - `src/test/scan-benchmark.test.ts` — 500-MD perf budget bumped from
+    2000ms → 2500ms with a comment explaining the AJV per-file cost
+    (~50-80μs × 500 = ~25-40ms over the prior ceiling). Warm-scan
+    reality on a developer laptop stays around 1.0-1.2s; the new
+    ceiling preserves headroom for slow CI without lowering the bar.
+
+  Test count: 291 → 303 (+12).
+
+- 7d4b143: Step 6 follow-up — unify the `--strict-config` flag (introduced in 6.2
+  for the layered loader) with the existing `--strict` flag (introduced
+  in 6.7 for frontmatter validation). One name, same intent across every
+  verb that touches user input: "fail loudly on any validation
+  warning".
+
+  **CLI surface change** (renamed flag, same Option.Boolean):
+
+  - `sm config list / get / show` — `--strict-config` → `--strict`.
+  - `sm scan --strict` — already did frontmatter strict; now ALSO
+    propagates strict to `loadConfig` so a bogus key in
+    `settings.json` aborts the scan instead of being silently
+    skipped.
+  - `sm init --strict` — new. Propagates strict to BOTH the loader
+    (so user-layer warnings during the first-scan path become
+    fatal) and the first-scan's frontmatter validator. Affects only
+    the path that actually loads config — `sm init --no-scan`
+    skips the loader entirely so `--strict` has nothing to enforce
+    there.
+
+  The user-visible motivation: one flag to remember. Internally each
+  verb still routes the boolean to whichever validations are reachable
+  from its execution path; the conflated name reflects the conflated
+  intent ("strict mode = no silent input fixups").
+
+  **Runtime change**:
+
+  - `src/cli/commands/config.ts` — `Option.Boolean('--strict-config',
+false)` becomes `Option.Boolean('--strict', false)` in three
+    commands (list / get / show). Local field renamed `strictConfig`
+    → `strict`. Module JSDoc rewritten to point at the unified
+    contract.
+  - `src/cli/commands/scan.ts` — `loadConfig` call in `ScanCommand`
+    now passes `strict: this.strict` and is wrapped in a try/catch
+    emitting `sm scan: <message>` + exit 2 on throw, matching the
+    config-verbs UX from the prior follow-up.
+  - `src/cli/commands/init.ts` — new `Option.Boolean('--strict',
+false)` on `InitCommand`; threaded through `runFirstScan` to
+    both the `loadConfig` call (try/catch) and the `runScan` options.
+  - `context/cli-reference.md` — regenerated; `sm init --strict` flag
+    description now appears in the reference.
+
+  **Spec / docs**:
+
+  - `ROADMAP.md` — every `--strict-config` reference renamed to
+    `--strict` (header status, §Configuration body, completeness
+    marker, Step 14 `sm ui` flag list).
+  - `ui/src/models/settings.ts` JSDoc — same rename.
+  - `.changeset/step-6-2-config-loader.md`,
+    `.changeset/step-6-3-config-verbs.md`,
+    `.changeset/step-6-followup-version-strict-config.md` — all
+    flag mentions in pending changeset bodies updated so the
+    generated CHANGELOG entries match the shipping flag name.
+
+  **Tests**:
+
+  - `src/test/config-cli.test.ts` — `--strict-config` references in
+    the existing `sm config — --strict UX` describe block renamed to
+    `--strict`. Test count unchanged.
+  - `src/test/scan-frontmatter-strict.test.ts` — new
+    `--strict unification` describe block with two end-to-end CLI
+    tests: `sm scan --strict` aborts on a bogus loader key (and
+    the lenient `sm scan` still tolerates it), and `sm init --strict`
+    surfaces the same bogus key during the first-scan path.
+
+  Test count: 310 → 312 (+2).
+
+  No `@skill-map/spec` change — the rename is CLI-only; the spec never
+  defined the flag (only the feature semantics).
+
+- 4669267: Step 6 follow-up — two UX polish fixes surfaced during the post-Step-6
+  manual walkthrough.
+
+  **`sm version` db-schema field**: was hardcoded `'—'` (carried over from
+  Step 1a as a placeholder). The command now resolves the project DB path
+  via the shared `resolveDbPath` helper, opens the DB read-only when it
+  exists, and reads `PRAGMA user_version` (kept in sync by the migrations
+  runner since Step 1a). Returns `'—'` for every failure mode (missing
+  DB, unreadable file, malformed pragma) so an informational verb can
+  never crash on a bad DB.
+
+  - Pre-fix: `db-schema —` regardless of DB state.
+  - Post-fix: `db-schema —` when no DB; `db-schema 2` after `sm init`
+    (= MAX kernel migration version applied).
+
+  **`sm config --strict` UX**: the loader's strict-mode `throw`
+  was reaching Clipanion's default error handler, producing "Internal
+  Error: ..." with a five-line stack trace and exit code 1. Now wrapped
+  in a per-command `tryLoadConfig` helper that catches the throw, writes
+  a one-line `sm config: <message>` to stderr, and returns exit code 2
+  (operational error) per `spec/cli-contract.md` §Exit codes. Applied to
+  `sm config list`, `sm config get`, and `sm config show` — every read
+  verb that exposes `--strict`.
+
+  - Pre-fix: stack trace + exit 1.
+  - Post-fix: clean stderr line + exit 2.
+
+  **Runtime change**:
+
+  - `src/cli/commands/version.ts` — new `resolveDbSchemaVersion()` helper
+    uses `node:sqlite` `DatabaseSync` in read-only mode + `PRAGMA
+user_version`. Three failure paths all collapse to `'—'`. JSDoc
+    expanded with the resolution contract.
+  - `src/cli/commands/config.ts` — new `tryLoadConfig()` private wrapper
+    catches `loadConfig` throws (only emitted under `--strict`).
+    Three call sites in `ConfigListCommand`, `ConfigGetCommand`, and
+    `ConfigShowCommand` updated to early-return with the wrapper's exit
+    code.
+
+  **Tests**:
+
+  - `src/test/cli.test.ts` — two new tests under the existing `CLI binary`
+    suite: `sm version` shows `db-schema —` when no DB exists in cwd
+    (uses `EMPTY_DIR`), and reports the numeric `user_version` after
+    `sm init --no-scan` provisions a DB in a tmpdir. Test asserts the
+    number matches `\d+` and is `>= 1` rather than pinning a specific
+    value, so it survives future kernel migrations.
+  - `src/test/config-cli.test.ts` — new `sm config — --strict UX`
+    describe block (5 tests): warning + exit 0 without the flag,
+    clean-message + exit 2 with the flag (and explicit assertion that
+    no `Internal Error` / stack-trace lines leak through), wrapper
+    applied uniformly to `list / get / show`, and malformed-JSON path
+    also routes through the clean-error path.
+
+  Test count: 303 → 310 (+7).
+
+- Updated dependencies [f41dbad]
+- Updated dependencies [8a4667f]
+  - @skill-map/spec@0.6.1
+
 ## 0.3.2
 
 ### Patch Changes

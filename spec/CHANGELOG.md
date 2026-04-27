@@ -1,5 +1,124 @@
 # Spec changelog
 
+## 0.6.1
+
+### Patch Changes
+
+- f41dbad: Step 6.1 — Spec migration: rename the canonical config file from
+  `.skill-map.json` (single project-root file) to `.skill-map/settings.json`
+  inside the `.skill-map/` scope folder, with a sibling `.skill-map/settings.local.json`
+  partner for machine-specific overrides. Aligns the spec with the layered
+  config hierarchy described in the roadmap (library defaults → user → user-local
+  → project → project-local → env / flags).
+
+  **Spec change (breaking, minor under pre-1.0 versioning policy)**:
+
+  - `spec/schemas/project-config.schema.json` description updated to point at
+    `.skill-map/settings.json` and explicitly mention the `.local.json` partner
+    and the layered-merge contract. The schema _shape_ (keys, types, validation
+    rules) is unchanged — only the on-disk filename moves. Consumers that read
+    values without caring about the source path are unaffected; consumers that
+    hard-code the filename must update.
+  - `spec/db-schema.md` §Scopes: `history.share: true` reference updated to
+    `.skill-map/settings.json`.
+  - `spec/conformance/coverage.md` row #6 description updated to reference the
+    new path and the optional `settings.local.json` overlay.
+
+  **Why minor (not major) at pre-1.0**: per `spec/versioning.md` §Pre-1.0,
+  breaking changes ARE allowed in minor bumps while the spec is `0.y.z`. The
+  shape of the data is unchanged; only the file name on disk moves.
+
+  **No backward-compat shim**: there is no real implementation of the loader
+  yet (lands in 6.2), so no live consumer reads `.skill-map.json` today. The
+  only known prior reference is the demo `mock-collection/.claude/commands/init*.md`
+  fixture, which is updated together with `sm init` in 6.5.
+
+  **Runtime change**: none in 6.1 — pure spec edit. The matching loader,
+  `sm init`, and `sm config` verbs land in subsequent sub-steps.
+
+  **Roadmap update**: `ROADMAP.md` §Configuration "Spec migration" call-out
+  flipped from "pending" to "landed Step 6.1, 2026-04-27".
+
+  Test count: unchanged (213 → 213 — spec-only edit).
+
+- 8a4667f: Step 6.6 — `sm plugins enable / disable` + the `config_plugins`
+  override layer they read from. The two stub verbs become real, and
+  the `PluginLoader` finally honours user intent: a disabled plugin
+  surfaces in `sm plugins list` with status `disabled`, but its
+  extensions are NOT imported and the kernel will not run them.
+
+  **Decision (recorded in spec)**: enable/disable resolution favours the
+  DB row over `settings.json` over the installed default. The DB
+  override is local-machine; `settings.json` is the team-shared baseline.
+  A developer can locally disable a misbehaving plugin without
+  committing the toggle to the team's config; conversely, a baseline
+  that explicitly enables a plugin is overridable per-machine. The rule
+  is documented in `spec/db-schema.md` §`config_plugins`.
+
+  **Spec change (additive, patch)**:
+
+  - `spec/db-schema.md` — appended an "Effective enable/disable
+    resolution" subsection under `config_plugins` documenting the
+    three-layer precedence (DB > `settings.json` > installed default).
+    No schema changes; the `config_plugins` table itself was already
+    defined in the initial migration.
+
+  **Runtime change**:
+
+  - `src/kernel/types/plugin.ts` — `TPluginLoadStatus` gains a `disabled`
+    variant. JSDoc explains all five states.
+  - `src/kernel/adapters/sqlite/plugins.ts` — new file. Storage helpers
+    over the `config_plugins` table: `setPluginEnabled` (upsert),
+    `getPluginEnabled` (single read), `loadPluginOverrideMap` (bulk
+    read for one round-trip per process), `deletePluginOverride`
+    (idempotent drop, used by future `sm config reset plugins.<id>`).
+  - `src/kernel/config/plugin-resolver.ts` — new file.
+    `resolvePluginEnabled` implements the precedence above;
+    `makeEnabledResolver` curries the layered config and DB map into
+    the `(id) => boolean` shape `IPluginLoaderOptions.resolveEnabled`
+    expects.
+  - `src/kernel/adapters/plugin-loader.ts` — new optional
+    `resolveEnabled` callback in `IPluginLoaderOptions`. When supplied,
+    the loader checks AFTER manifest + specCompat validation and
+    short-circuits with `status: 'disabled'` (manifest preserved,
+    extensions array omitted, reason `"disabled by config_plugins or
+settings.json"`). Omitting the callback keeps the legacy "always
+    load" behaviour for tests / kernel-empty-boot.
+  - `src/cli/commands/plugins.ts` — wires the loader to the resolver:
+    every read (`list / show / doctor`) loads `config_plugins` once and
+    feeds the resolver. Two new commands `PluginsEnableCommand` and
+    `PluginsDisableCommand` write to the DB. `--all` toggles every
+    discovered plugin; `<id>` and `--all` are mutually exclusive.
+    `sm plugins doctor` now treats `disabled` as intentional (does not
+    contribute to the issue list, does not flip exit code).
+  - `src/cli/commands/plugins.ts` — adds `off` to the status icon legend
+    in human output (`off  mock-a@0.1.0 · disabled by config_plugins or
+settings.json`).
+  - `src/cli/commands/stubs.ts` — `PluginsEnableCommand` and
+    `PluginsDisableCommand` removed; replaced-at-step comment kept.
+  - `context/cli-reference.md` — regenerated; the two new verbs appear
+    with their flag tables.
+
+  **Tests**:
+
+  - `src/test/plugin-overrides.test.ts` — 8 unit tests covering storage
+    round-trip (upsert + read), `loadPluginOverrideMap` bulk read,
+    `deletePluginOverride` idempotency, resolver precedence (default ⇒
+    true, `settings.json` overrides default, DB overrides
+    `settings.json`), `makeEnabledResolver` currying, and PluginLoader
+    surfacing `disabled` status with manifest preserved + no extensions
+    - omitting the resolver still loads.
+  - `src/test/plugins-cli.test.ts` — 9 end-to-end tests via the binary:
+    `disable <id>` writes a DB row + `sm plugins list` reflects `off`,
+    `enable <id>` flips back, `--all` covers every discovered plugin,
+    unknown id → exit 5, no-arg → exit 2, both `<id>` and `--all` →
+    exit 2, `settings.json` baseline overridden by DB `enable`,
+    `settings.json` baseline applies when DB has no row, and
+    `sm plugins doctor` exits 0 when the only non-loaded plugin is
+    intentionally disabled.
+
+  Test count: 273 → 291 (+18).
+
 ## 0.6.0
 
 ### Minor Changes
