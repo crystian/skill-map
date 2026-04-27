@@ -9,7 +9,7 @@
  */
 
 import type { IExtensionBase } from './base.js';
-import type { Confidence, Link, LinkKind, Node } from '../types.js';
+import type { Confidence, Link, LinkKind, Node, TExecutionMode } from '../types.js';
 
 export interface IDetectContext {
   node: Node;
@@ -19,6 +19,14 @@ export interface IDetectContext {
 
 export interface IDetector extends IExtensionBase {
   kind: 'detector';
+  /**
+   * Execution mode. Optional in the manifest with a default of
+   * `deterministic` per `spec/schemas/extensions/detector.schema.json`.
+   * `probabilistic` detectors invoke an LLM through the kernel's
+   * `RunnerPort` and never participate in scan-time pipelines —
+   * they dispatch only as queued jobs.
+   */
+  mode?: TExecutionMode;
   emitsLinkKinds: LinkKind[];
   defaultConfidence: Confidence;
   scope: 'frontmatter' | 'body' | 'both';

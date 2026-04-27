@@ -74,6 +74,7 @@ type IClaim = IInvocationClaim | IAdvertiserClaim;
 export const triggerCollisionRule: IRule = {
   id: ID,
   kind: 'rule',
+  mode: 'deterministic',
   version: '1.0.0',
   description:
     'Flags trigger names (/command, @agent) claimed by multiple distinct nodes — by advertisement (frontmatter.name) or by invocation.',

@@ -24,6 +24,7 @@ export const frontmatterDetector: IDetector = {
   version: '1.0.0',
   description: 'Reads structured references from the frontmatter (supersedes, supersededBy, requires, related).',
   stability: 'stable',
+  mode: 'deterministic',
   emitsLinkKinds: ['supersedes', 'references'],
   defaultConfidence: 'high',
   scope: 'frontmatter',

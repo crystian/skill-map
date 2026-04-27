@@ -16,3 +16,4 @@ export type { IRule, IRuleContext } from './rule.js';
 export type { IRenderer, IRenderContext } from './renderer.js';
 export type { IAudit, IAuditContext, TAuditReport } from './audit.js';
 export type { IExtensionBase } from './base.js';
+export type { TExecutionMode } from '../types.js';

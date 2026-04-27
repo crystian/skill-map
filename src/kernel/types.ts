@@ -17,6 +17,23 @@ export type Severity = 'error' | 'warn' | 'info';
 
 export type Stability = 'experimental' | 'stable' | 'deprecated';
 
+/**
+ * Execution mode of an analytical extension. Mirrors the per-kind capability
+ * matrix in `spec/architecture.md` §Execution modes:
+ *
+ *   - `deterministic` — pure code, runs synchronously inside `sm scan` /
+ *     `sm check` / `sm audit`. Same input → same output, every run.
+ *   - `probabilistic` — calls an LLM through `RunnerPort`, dispatches only
+ *     as a queued job (`sm job submit <kind>:<id>`); never participates in
+ *     scan-time pipelines.
+ *
+ * Detector / Rule / Action declare it directly (default `deterministic` when
+ * omitted in the manifest). Audit forbids declaring it — the kernel derives
+ * it from `composes[]` at load time. Adapter / Renderer are deterministic-only
+ * and MUST NOT carry the field.
+ */
+export type TExecutionMode = 'deterministic' | 'probabilistic';
+
 export interface TripleSplit {
   frontmatter: number;
   body: number;

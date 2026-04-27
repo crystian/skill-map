@@ -26,6 +26,7 @@ export const brokenRefRule: IRule = {
   version: '1.0.0',
   description: 'Flags links whose target cannot be resolved to a scanned node.',
   stability: 'stable',
+  mode: 'deterministic',
 
   evaluate(ctx: IRuleContext): Issue[] {
     const byPath = new Set(ctx.nodes.map((n) => n.path));

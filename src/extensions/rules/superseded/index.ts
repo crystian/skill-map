@@ -21,6 +21,7 @@ export const supersededRule: IRule = {
   version: '1.0.0',
   description: 'Surfaces nodes that declare a supersededBy replacement in their frontmatter.',
   stability: 'stable',
+  mode: 'deterministic',
 
   evaluate(ctx: IRuleContext): Issue[] {
     const issues: Issue[] = [];
