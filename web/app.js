@@ -48,25 +48,16 @@
     orphan:  '#5A6472',
   };
 
-  const lang = document.documentElement.lang === 'es' ? 'es' : 'en';
+  // Graph chrome strings stay in English in both locales — the audience is
+  // devs, not mathematicians, and the localized labels read awkward.
   const STR = {
-    en: {
-      skill: 'SKILL', agent: 'AGENT', command: 'COMMAND', hook: 'HOOK', note: 'NOTE', orphan: 'ORPHAN',
-      refs: 'refs', tokens: 'tokens', bytes: 'bytes', lastscan: 'last scan',
-      'warn.collision': 'references 5 skills, 1 collides',
-      'warn.orphan':    'no inbound references — never invoked',
-      agoPrefix: '', agoSuffix: 'ago',
-    },
-    es: {
-      skill: 'SKILL', agent: 'AGENTE', command: 'COMANDO', hook: 'HOOK', note: 'NOTA', orphan: 'HUÉRFANO',
-      refs: 'refs', tokens: 'tokens', bytes: 'bytes', lastscan: 'último scan',
-      'warn.collision': 'referencia 5 skills, 1 colisiona',
-      'warn.orphan':    'sin referencias entrantes — nunca invocado',
-      agoPrefix: 'hace ', agoSuffix: '',
-    },
+    skill: 'SKILL', agent: 'AGENT', command: 'COMMAND', hook: 'HOOK', note: 'NOTE', orphan: 'ORPHAN',
+    refs: 'refs', tokens: 'tokens', bytes: 'bytes', lastscan: 'last scan',
+    'warn.collision': 'references 5 skills, 1 collides',
+    'warn.orphan':    'no inbound references — never invoked',
   };
-  const t = (k) => STR[lang][k] ?? STR.en[k] ?? k;
-  const formatAgo = (raw) => `${STR[lang].agoPrefix}${raw}${STR[lang].agoSuffix ? ' ' + STR[lang].agoSuffix : ''}`;
+  const t = (k) => STR[k] ?? k;
+  const formatAgo = (raw) => `${raw} ago`;
 
   // Build adjacency map from edges in the DOM.
   const edges = Array.from(svg.querySelectorAll('.edge'));
@@ -381,12 +372,12 @@
   svg.addEventListener('pointerup', endDrag);
   svg.addEventListener('pointercancel', endDrag);
 
-  // Wire the zoom controls (the buttons started disabled in the static HTML).
-  const zoomBtns = graphCard.querySelectorAll('.hero__graph-zoom button');
-  zoomBtns.forEach((b) => { b.disabled = false; });
-  zoomBtns[0]?.addEventListener('click', () => zoomAt(450, 280, 1.2));
-  zoomBtns[1]?.addEventListener('click', () => zoomAt(450, 280, 1 / 1.2));
-  zoomBtns[2]?.addEventListener('click', () => { view.x = 0; view.y = 0; view.k = 1; applyView(); });
+  // Wire the zoom reset button (started disabled in the static HTML).
+  const resetBtn = graphCard.querySelector('.hero__graph-zoom button.reset');
+  if (resetBtn) {
+    resetBtn.disabled = false;
+    resetBtn.addEventListener('click', () => { view.x = 0; view.y = 0; view.k = 1; applyView(); });
+  }
 
   // Initial paint.
   updateInspector();
@@ -585,8 +576,9 @@
 
   const N_BASE = 80; // tuned for the 1280×560 reference card; scales with area
   const HALO_R = 200;
-  const ATTRACT_R = 220;
-  const TINT_R = 180;
+  const ATTRACT_R = 320;
+  const ATTRACT_F = 0.15; // per-frame acceleration coefficient applied at the cursor
+  const TINT_R = 260;
   // Cap the canvas loop at ~30fps. rAF still wakes at the display rate,
   // but the heavy per-frame work (clear + 80 arc draws) only runs every
   // 33ms — same idea as `steps(45)` does for CSS animations.
@@ -681,7 +673,7 @@
         const d2 = dx * dx + dy * dy;
         if (d2 < ATTRACT_R * ATTRACT_R) {
           const d = Math.sqrt(d2 || 1);
-          const f = (1 - d / ATTRACT_R) * 0.05;
+          const f = (1 - d / ATTRACT_R) * ATTRACT_F;
           p.vx += (dx / d) * f;
           p.vy += (dy / d) * f;
           if (d < TINT_R) {

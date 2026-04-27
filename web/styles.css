@@ -232,7 +232,6 @@ svg    { display: block; max-width: 100%; }
      nothing else is happening. `animation: none` releases the compositor
      layer for them; collapsing duration to .01ms still keeps the layer
      and the work loop alive. */
-  .hero__badge-dot,
   .hero__graph-svg .select-fx-pulse,
   .hero__graph-svg .hg-traveler {
     animation: none !important;
@@ -611,6 +610,19 @@ svg    { display: block; max-width: 100%; }
 }
 .btn--mono:hover { background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.20); }
 
+/* Pre-label inside a mono button: sans, smaller, muted, separated by a divider.
+   The command stays as the visual primary element. */
+.btn--mono .btn__label {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: rgba(255,255,255,.55);
+  padding-right: 10px;
+  border-right: 1px solid rgba(255,255,255,.14);
+}
+
 /* ============================================================
    HERO (graph variant)
    ============================================================ */
@@ -619,8 +631,7 @@ svg    { display: block; max-width: 100%; }
    ------------------------------------------------------------
    Replaces the timing-function of every animation inside .hero with
    `steps(N, end)`. Effective fps = N ÷ animation_duration_seconds.
-   With N = 8 and our three infinite animations:
-     - pulse-glow    (1.5s) → 5.3fps
+   With N = 8 and our two infinite animations:
      - select-pulse  (1.6s) → 5.0fps
      - hg-travel     (1.4s) → 5.7fps
    To re-tune: edit the single number below.
@@ -631,13 +642,6 @@ svg    { display: block; max-width: 100%; }
 .hero, .hero *,
 .hero *::before, .hero *::after {
   animation-timing-function: steps(45, end) !important;
-}
-
-/* Pulse for the badge dot. Uses transform+opacity only (compositor-only,
-   no repaint) — box-shadow animations are notoriously CPU-heavy. */
-@keyframes pulse-glow {
-  0%, 100% { transform: scale(1);   opacity: 1; }
-  50%      { transform: scale(1.6); opacity: .35; }
 }
 
 /* Selected-node ring pulse. Same compositor-only trick: animate transform on
@@ -723,27 +727,6 @@ svg    { display: block; max-width: 100%; }
   text-align: center;
   max-width: 880px;
   margin: 0 auto var(--s-12);
-}
-
-.hero__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  margin-bottom: var(--s-8);
-  border-radius: var(--r-pill);
-  background: rgba(124,58,237,.12);
-  border: 1px solid rgba(124,58,237,.25);
-  font-size: 13px;
-  letter-spacing: -.005em;
-  color: var(--violet-200);
-}
-.hero__badge-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--violet-400);
-  animation: pulse-glow 1.5s infinite;
-  will-change: transform, opacity;
 }
 
 .hero__title {
@@ -872,24 +855,6 @@ svg    { display: block; max-width: 100%; }
 }
 .hero__graph-zoom button:hover { background: rgba(255,255,255,.06); color: #fff; }
 .hero__graph-zoom .reset { font-size: 12px; }
-
-.hero__graph-hint {
-  position: absolute;
-  bottom: 18px; left: 50%;
-  transform: translateX(-50%);
-  display: flex; gap: 14px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: rgba(255,255,255,.4);
-  pointer-events: none;
-}
-.hero__graph-hint .kbd {
-  padding: 1px 6px;
-  border-radius: 3px;
-  background: rgba(255,255,255,.06);
-  border: 1px solid rgba(255,255,255,.10);
-  margin-right: 4px;
-}
 
 .hero__graph-svg {
   position: absolute;
