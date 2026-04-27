@@ -1,8 +1,9 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -32,6 +33,34 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /^spec\s+/m);
     assert.match(r.stdout, /^runtime\s+Node v\d+\.\d+\.\d+/m);
     assert.match(r.stdout, /^db-schema\s+/m);
+  });
+
+  it('`sm version` shows db-schema = "—" when no DB is provisioned in the cwd', () => {
+    // EMPTY_DIR has no .skill-map/skill-map.db; the `db-schema` field
+    // must degrade gracefully to the em-dash sentinel instead of erroring.
+    const r = sm(['version'], EMPTY_DIR);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /^db-schema\s+—\s*$/m);
+  });
+
+  it('`sm version` reports the applied migration version once a DB is provisioned', () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), 'skill-map-version-cli-'));
+    try {
+      // `sm init --no-scan` creates the DB and applies kernel migrations.
+      // After init, `PRAGMA user_version` should equal the latest kernel
+      // migration version (currently 2: 001_initial + 002_scan_meta).
+      const init = sm(['init', '--no-scan'], tmpDir);
+      assert.equal(init.status, 0, `init failed: ${init.stderr}`);
+      const r = sm(['version'], tmpDir);
+      assert.equal(r.status, 0);
+      // Numeric, not the em-dash. Don't pin the exact number — the test
+      // adapts to whatever migrations ship today.
+      const match = /^db-schema\s+(\d+)\s*$/m.exec(r.stdout);
+      assert.ok(match, `db-schema line not numeric: ${r.stdout}`);
+      assert.ok(Number(match[1]) >= 1, 'expected at least one migration applied');
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   it('prints usage on --help', () => {

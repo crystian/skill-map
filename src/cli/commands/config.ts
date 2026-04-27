@@ -38,6 +38,8 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import {
   loadConfig,
   type IEffectiveConfig,
+  type ILoadConfigOptions,
+  type ILoadedConfig,
   type TConfigLayer,
 } from '../../kernel/config/loader.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
@@ -148,6 +150,24 @@ function writeJsonAtomic(path: string, content: Record<string, unknown>): void {
   writeFileSync(path, JSON.stringify(content, null, 2) + '\n', 'utf8');
 }
 
+/**
+ * Load layered config catching `--strict-config` throws so the user sees
+ * a clean stderr line + exit 2 instead of Clipanion's default "Internal
+ * Error" stack trace. Used by every `sm config` read verb.
+ */
+function tryLoadConfig(
+  opts: ILoadConfigOptions,
+  stderr: NodeJS.WritableStream,
+): { ok: true; loaded: ILoadedConfig } | { ok: false; exitCode: number } {
+  try {
+    return { ok: true, loaded: loadConfig(opts) };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    stderr.write(`sm config: ${message}\n`);
+    return { ok: false, exitCode: 2 };
+  }
+}
+
 function* iterDotPaths(
   obj: unknown,
   prefix = '',
@@ -194,10 +214,12 @@ export class ConfigListCommand extends Command {
   strictConfig = Option.Boolean('--strict-config', false);
 
   async execute(): Promise<number> {
-    const { effective, warnings } = loadConfig({
-      scope: this.global ? 'global' : 'project',
-      strict: this.strictConfig,
-    });
+    const result = tryLoadConfig(
+      { scope: this.global ? 'global' : 'project', strict: this.strictConfig },
+      this.context.stderr,
+    );
+    if (!result.ok) return result.exitCode;
+    const { effective, warnings } = result.loaded;
     for (const w of warnings) this.context.stderr.write(w + '\n');
     if (this.json) {
       this.context.stdout.write(JSON.stringify(effective, null, 2) + '\n');
@@ -230,10 +252,12 @@ export class ConfigGetCommand extends Command {
   strictConfig = Option.Boolean('--strict-config', false);
 
   async execute(): Promise<number> {
-    const { effective, warnings } = loadConfig({
-      scope: this.global ? 'global' : 'project',
-      strict: this.strictConfig,
-    });
+    const result = tryLoadConfig(
+      { scope: this.global ? 'global' : 'project', strict: this.strictConfig },
+      this.context.stderr,
+    );
+    if (!result.ok) return result.exitCode;
+    const { effective, warnings } = result.loaded;
     for (const w of warnings) this.context.stderr.write(w + '\n');
     const value = getAtPath(effective, this.key);
     if (value === undefined) {
@@ -269,10 +293,12 @@ export class ConfigShowCommand extends Command {
   strictConfig = Option.Boolean('--strict-config', false);
 
   async execute(): Promise<number> {
-    const { effective, sources, warnings } = loadConfig({
-      scope: this.global ? 'global' : 'project',
-      strict: this.strictConfig,
-    });
+    const result = tryLoadConfig(
+      { scope: this.global ? 'global' : 'project', strict: this.strictConfig },
+      this.context.stderr,
+    );
+    if (!result.ok) return result.exitCode;
+    const { effective, sources, warnings } = result.loaded;
     for (const w of warnings) this.context.stderr.write(w + '\n');
     const value = getAtPath(effective, this.key);
     if (value === undefined) {
