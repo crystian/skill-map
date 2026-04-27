@@ -1,11 +1,12 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { Command, Option } from 'clipanion';
+import { Command, Option, type BaseContext } from 'clipanion';
 import type { Kysely } from 'kysely';
 
-import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
-import type { RenameOp, ScanResult } from '../../kernel/index.js';
+import { computeScanDelta, createKernel, isEmptyDelta, runScan, runScanWithRenames } from '../../kernel/index.js';
+import type { IScanDelta, RenameOp, ScanResult } from '../../kernel/index.js';
+import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
@@ -97,6 +98,10 @@ export class ScanCommand extends Command {
   watch = Option.Boolean('--watch', false, {
     description: 'Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.',
   });
+  compareWith = Option.String('--compare-with', {
+    required: false,
+    description: 'Run a fresh scan in memory and emit a delta against the saved ScanResult dump at <path>. Does NOT touch the DB. Exit 0 on empty delta, 1 if anything diverges, 2 on dump load / validation errors.',
+  });
 
   async execute(): Promise<number> {
     // --- watch alias -----------------------------------------------------
@@ -105,15 +110,41 @@ export class ScanCommand extends Command {
     // Combining `--watch` with one-shot-only flags is incoherent — the
     // watcher always persists incrementally over the prior snapshot.
     if (this.watch) {
-      if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty) {
+      if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty || this.compareWith !== undefined) {
         this.context.stderr.write(
-          '--watch cannot be combined with --no-built-ins, --dry-run, --changed, or --allow-empty.\n',
+          '--watch cannot be combined with --no-built-ins, --dry-run, --changed, --allow-empty, or --compare-with.\n',
         );
         return 2;
       }
       const roots = this.roots.length > 0 ? this.roots : ['.'];
       return runWatchLoop({
         roots,
+        json: this.json,
+        noTokens: this.noTokens,
+        strict: this.strict,
+        context: this.context,
+      });
+    }
+
+    // --- compare-with branch --------------------------------------------
+    // `--compare-with` runs a fresh scan in memory, computes a delta
+    // against the saved dump, and emits a report. Never persists. Combo
+    // with `--watch` is rejected up-front (different lifecycles); combo
+    // with `--changed` is incoherent (the comparison itself is the diff,
+    // there is no prior snapshot to fold in); combo with `--no-built-ins`
+    // would produce a trivially-empty current snapshot, making the
+    // delta meaningless. `--dry-run` is an implicit no-op (we already
+    // skip persistence).
+    if (this.compareWith !== undefined) {
+      if (this.changed || this.noBuiltIns || this.allowEmpty) {
+        this.context.stderr.write(
+          '--compare-with cannot be combined with --changed, --no-built-ins, or --allow-empty.\n',
+        );
+        return 2;
+      }
+      return runCompareWith({
+        comparedWithPath: this.compareWith,
+        roots: this.roots.length > 0 ? this.roots : ['.'],
         json: this.json,
         noTokens: this.noTokens,
         strict: this.strict,
@@ -311,4 +342,154 @@ async function countExistingScanRows(db: Kysely<IDatabase>): Promise<number> {
   let total = 0;
   for (const r of rows) total += Number(r?.c ?? 0);
   return total;
+}
+
+// ---------------------------------------------------------------------------
+// `--compare-with` (Step 8.2)
+// ---------------------------------------------------------------------------
+//
+// Loads the dump JSON at `comparedWithPath`, validates it against
+// `scan-result.schema.json`, runs a fresh scan in memory using the same
+// pipeline as `sm scan` (built-ins, ignore filter, layered config), and
+// emits the delta between the two snapshots. Never touches the DB.
+
+interface IRunCompareWithOptions {
+  comparedWithPath: string;
+  roots: string[];
+  json: boolean;
+  noTokens: boolean;
+  strict: boolean;
+  context: BaseContext;
+}
+
+async function runCompareWith(opts: IRunCompareWithOptions): Promise<number> {
+  const { comparedWithPath, roots, json, noTokens, strict, context } = opts;
+
+  // 1. Load + validate the dump. Errors here are operational (exit 2) —
+  //    a missing file, malformed JSON, or a schema-violating dump are
+  //    all problems with the caller's input, not with the project state.
+  let prior: ScanResult;
+  try {
+    prior = loadAndValidateDump(comparedWithPath);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    context.stderr.write(`sm scan --compare-with: ${message}\n`);
+    return 2;
+  }
+
+  // 2. Run a fresh scan with the same wiring as the normal `sm scan`
+  //    code path. Skip persistence — the verb's contract is read-only.
+  const kernel = createKernel();
+  for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+
+  let cfg;
+  try {
+    cfg = loadConfig({ scope: 'project', strict }).effective;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    context.stderr.write(`sm scan --compare-with: ${message}\n`);
+    return 2;
+  }
+  const ignoreFileText = readIgnoreFileText(process.cwd());
+  const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
+  if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
+  if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
+  const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
+  const effectiveStrict = strict || cfg.scan.strict === true;
+
+  let current: ScanResult;
+  try {
+    current = await runScan(kernel, {
+      roots,
+      scope: 'project',
+      tokenize: !noTokens,
+      ignoreFilter,
+      strict: effectiveStrict,
+      extensions: builtIns(),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    context.stderr.write(`sm scan --compare-with: ${message}\n`);
+    return 2;
+  }
+
+  // 3. Compute + render the delta. Exit 1 iff something diverged; this
+  //    is the CI-friendly contract — wire `sm scan --compare-with
+  //    .skill-map/baseline.json` into a pre-commit / pre-merge hook
+  //    and any drift trips the build.
+  const delta = computeScanDelta(prior, current, comparedWithPath);
+  const exitCode = isEmptyDelta(delta) ? 0 : 1;
+
+  if (json) {
+    context.stdout.write(JSON.stringify(delta) + '\n');
+    return exitCode;
+  }
+  context.stdout.write(renderDeltaHuman(delta));
+  return exitCode;
+}
+
+function loadAndValidateDump(path: string): ScanResult {
+  if (!existsSync(path)) {
+    throw new Error(`dump file not found: ${path}`);
+  }
+  let raw: string;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`could not read dump file ${path}: ${message}`);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`dump file is not valid JSON: ${message}`);
+  }
+  const validators = loadSchemaValidators();
+  const result = validators.validate<ScanResult>('scan-result', parsed);
+  if (!result.ok) {
+    throw new Error(`dump does not conform to scan-result.schema.json: ${result.errors}`);
+  }
+  return result.data;
+}
+
+function renderDeltaHuman(delta: IScanDelta): string {
+  const out: string[] = [];
+  const totalAdded = delta.nodes.added.length + delta.links.added.length + delta.issues.added.length;
+  const totalRemoved = delta.nodes.removed.length + delta.links.removed.length + delta.issues.removed.length;
+  const totalChanged = delta.nodes.changed.length;
+
+  out.push(
+    `Delta vs ${delta.comparedWith}: ` +
+      `${delta.nodes.added.length} nodes added, ${delta.nodes.removed.length} removed, ${delta.nodes.changed.length} changed; ` +
+      `${delta.links.added.length} links added, ${delta.links.removed.length} removed; ` +
+      `${delta.issues.added.length} issues added, ${delta.issues.removed.length} removed.`,
+  );
+
+  if (totalAdded === 0 && totalRemoved === 0 && totalChanged === 0) {
+    out.push('', '(no differences)');
+    return out.join('\n') + '\n';
+  }
+
+  if (delta.nodes.added.length + delta.nodes.removed.length + delta.nodes.changed.length > 0) {
+    out.push('', '## nodes');
+    for (const n of delta.nodes.added) out.push(`+ ${n.path} (${n.kind})`);
+    for (const n of delta.nodes.removed) out.push(`- ${n.path} (${n.kind})`);
+    for (const c of delta.nodes.changed) out.push(`~ ${c.after.path} (${c.reason} changed)`);
+  }
+
+  if (delta.links.added.length + delta.links.removed.length > 0) {
+    out.push('', '## links');
+    for (const l of delta.links.added) out.push(`+ ${l.source} --${l.kind}--> ${l.target}`);
+    for (const l of delta.links.removed) out.push(`- ${l.source} --${l.kind}--> ${l.target}`);
+  }
+
+  if (delta.issues.added.length + delta.issues.removed.length > 0) {
+    out.push('', '## issues');
+    for (const i of delta.issues.added) out.push(`+ [${i.severity}] ${i.ruleId}: ${i.message}`);
+    for (const i of delta.issues.removed) out.push(`- [${i.severity}] ${i.ruleId}: ${i.message}`);
+  }
+
+  return out.join('\n') + '\n';
 }

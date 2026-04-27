@@ -63,6 +63,32 @@ Probabilistic findings: injection, stale summaries, low confidence.
 
 Render the full graph via the named renderer.
 
+Reads the persisted scan and prints a textual rendering. The built-in `ascii` 
+renderer is the only format available at v0.5.0; `mermaid` and `dot` are 
+deferred to Step 12 and will surface here automatically once they ship as 
+built-ins.
+
+Run `sm scan` first to populate the DB.
+
+**Flags:**
+
+- `--format` `string` — Renderer format. Must match the `format` field of a registered renderer. Default: ascii.
+
+**Examples:**
+
+- Render the graph as ASCII (default)
+  ```
+  sm graph
+  ```
+- Render with an explicit format
+  ```
+  sm graph --format ascii
+  ```
+- Use a non-default DB file
+  ```
+  sm graph --db /path/to/skill-map.db
+  ```
+
 ### `sm list`
 
 Tabular listing of nodes. --json emits an array conforming to node.schema.json.
@@ -499,6 +525,7 @@ reuse unchanged nodes, and only reprocess new / modified files.
 - `--allow-empty` `boolean` — Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
 - `--strict` `boolean` — Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
 - `--watch` `boolean` — Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.
+- `--compare-with` `string` — Run a fresh scan in memory and emit a delta against the saved ScanResult dump at <path>. Does NOT touch the DB. Exit 0 on empty delta, 1 if anything diverges, 2 on dump load / validation errors.
 
 **Examples:**
 

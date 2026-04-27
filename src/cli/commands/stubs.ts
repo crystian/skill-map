@@ -71,18 +71,7 @@ export class FindingsCommand extends Command {
   }
 }
 
-export class GraphCommand extends Command {
-  static override paths = [['graph']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'Render the full graph via the named renderer.',
-  });
-  format = Option.String('--format', { required: false });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'graph', '3');
-  }
-}
+// GraphCommand moved to ./graph.ts at Step 8.1.
 
 export class ExportCommand extends Command {
   static override paths = [['export']];
@@ -94,7 +83,7 @@ export class ExportCommand extends Command {
   format = Option.String('--format', { required: false });
 
   async execute(): Promise<number> {
-    return notImplemented(this, 'export', '3');
+    return notImplemented(this, 'export', '8.3');
   }
 }
 
@@ -327,7 +316,6 @@ export class ServeCommand extends Command {
 export const STUB_COMMANDS = [
   DoctorCommand,
   FindingsCommand,
-  GraphCommand,
   ExportCommand,
   ActionsListCommand,
   ActionsShowCommand,

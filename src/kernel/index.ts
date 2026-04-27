@@ -21,6 +21,8 @@ export { runScan, runScanWithRenames, detectRenamesAndOrphans } from './orchestr
 export type { RunScanOptions, RenameOp } from './orchestrator.js';
 export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 export { createChokidarWatcher } from './scan/watcher.js';
+export { computeScanDelta, isEmptyDelta } from './scan/delta.js';
+export type { IScanDelta, INodeChange, TNodeChangeReason } from './scan/delta.js';
 export type {
   IFsWatcher,
   IWatchBatch,
