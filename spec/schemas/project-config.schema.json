@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/project-config.schema.json",
   "title": "ProjectConfig",
-  "description": "Shape of `.skill-map.json` at the project root. All fields optional; defaults apply when absent. camelCase keys throughout — consistent with the rest of the spec.",
+  "description": "Shape of `.skill-map/settings.json` (and its `.skill-map/settings.local.json` partner) inside a scope. Loaded by the layered config hierarchy (library defaults → user → user-local → project → project-local → env/flags) and deep-merged per key. All fields optional; defaults apply when absent. camelCase keys throughout — consistent with the rest of the spec.",
   "type": "object",
   "additionalProperties": false,
   "properties": {

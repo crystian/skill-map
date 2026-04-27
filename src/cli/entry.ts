@@ -13,6 +13,7 @@
 import { Builtins, Cli } from 'clipanion';
 
 import { CheckCommand } from './commands/check.js';
+import { CONFIG_COMMANDS } from './commands/config.js';
 import { DB_COMMANDS } from './commands/db.js';
 import { HelpCommand } from './commands/help.js';
 import { HistoryCommand, HistoryStatsCommand } from './commands/history.js';
@@ -42,6 +43,7 @@ cli.register(ShowCommand);
 cli.register(CheckCommand);
 cli.register(HistoryCommand);
 cli.register(HistoryStatsCommand);
+for (const cmd of CONFIG_COMMANDS) cli.register(cmd);
 for (const cmd of DB_COMMANDS) cli.register(cmd);
 for (const cmd of PLUGIN_COMMANDS) cli.register(cmd);
 for (const cmd of ORPHANS_COMMANDS) cli.register(cmd);

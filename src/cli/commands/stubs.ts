@@ -62,72 +62,8 @@ export class DoctorCommand extends Command {
 }
 
 // ---------------------------------------------------------------------------
-// Config
+// Config — moved to ./config.ts at Step 6.3
 // ---------------------------------------------------------------------------
-
-export class ConfigListCommand extends Command {
-  static override paths = [['config', 'list']];
-  static override usage = Command.Usage({
-    category: 'Config',
-    description: 'Effective config after layered merge.',
-  });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'config list', '5');
-  }
-}
-
-export class ConfigGetCommand extends Command {
-  static override paths = [['config', 'get']];
-  static override usage = Command.Usage({ category: 'Config', description: 'Read a single config value.' });
-  key = Option.String({ required: true });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'config get', '5');
-  }
-}
-
-export class ConfigSetCommand extends Command {
-  static override paths = [['config', 'set']];
-  static override usage = Command.Usage({
-    category: 'Config',
-    description: 'Write to user config. Scope-aware: -g writes to the global layer.',
-  });
-  key = Option.String({ required: true });
-  value = Option.String({ required: true });
-  global = Option.Boolean('-g,--global', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'config set', '5');
-  }
-}
-
-export class ConfigResetCommand extends Command {
-  static override paths = [['config', 'reset']];
-  static override usage = Command.Usage({
-    category: 'Config',
-    description: 'Remove user override; revert to default or higher-scope value.',
-  });
-  key = Option.String({ required: true });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'config reset', '5');
-  }
-}
-
-export class ConfigShowCommand extends Command {
-  static override paths = [['config', 'show']];
-  static override usage = Command.Usage({
-    category: 'Config',
-    description: 'Reveal config source: default / project / global / env / flag.',
-  });
-  key = Option.String({ required: true });
-  source = Option.Boolean('--source', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'config show', '5');
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Browse
@@ -448,11 +384,6 @@ export class ServeCommand extends Command {
 export const STUB_COMMANDS = [
   InitCommand,
   DoctorCommand,
-  ConfigListCommand,
-  ConfigGetCommand,
-  ConfigSetCommand,
-  ConfigResetCommand,
-  ConfigShowCommand,
   FindingsCommand,
   GraphCommand,
   ExportCommand,

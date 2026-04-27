@@ -2,8 +2,8 @@
 
 Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface.
 
-- CLI version: `0.3.1`
-- Spec version: `0.5.1`
+- CLI version: `0.3.2`
+- Spec version: `0.6.0`
 
 ## Global flags
 
@@ -187,23 +187,44 @@ Run `sm scan` first to populate the DB.
 
 ### `sm config get`
 
-Read a single config value.
+Read a single config value by dot-path key.
+
+Loads the layered config and prints the final value. Unknown key → exit 5. 
+Exempt from "done in <…>".
 
 ### `sm config list`
 
-Effective config after layered merge.
+Print the effective config after layered merge.
+
+Walks defaults → user → user-local → project → project-local and prints the 
+merged result. With --json emits the JSON object; otherwise prints flat dot-path 
+= value lines (sorted). Exempt from "done in <…>" per spec/cli-contract.md 
+§Elapsed time.
 
 ### `sm config reset`
 
-Remove user override; revert to default or higher-scope value.
+Remove a config key from the target file (project default; -g for user).
+
+Strips the key from the target settings.json (lower layers still apply). 
+Idempotent — running twice is safe; absent key prints an info note and exits 0.
 
 ### `sm config set`
 
-Write to user config. Scope-aware: -g writes to the global layer.
+Write a config key. Project file by default; -g writes to user.
+
+Reads the target file (creating it if absent), sets the key at the dot-path, 
+validates the result against project-config.schema.json, and writes back. Value 
+coercion: JSON-parses the raw string first ("true" → true, "42" → 42, "null" → 
+null, arrays / objects natural); unparseable falls through as string. Schema 
+violation → exit 2, no write performed.
 
 ### `sm config show`
 
-Reveal config source: default / project / global / env / flag.
+Show a config value with the layer that set it (--source).
+
+Identical to "sm config get" plus optional --source which prefixes the layer 
+(defaults / user / user-local / project / project-local / override). With --json 
+emits { value, source } when --source is set. Exempt from "done in <…>".
 
 ## Database
 

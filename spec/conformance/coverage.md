@@ -13,7 +13,7 @@ This file is hand-maintained. A CI check before spec release compares the schema
 | 3 | `issue.schema.json` | — | 🔴 missing | Needs fixture triggering `trigger-collision` + `broken-ref` + `superseded`. |
 | 4 | `scan-result.schema.json` | `basic-scan`, `kernel-empty-boot` | 🟢 covered | Zero-filled (empty-boot) + populated (minimal-claude) both asserted. |
 | 5 | `execution-record.schema.json` | — | 🔴 missing | Blocked by Step 5 (history). Needs a case that runs a `local` action and inspects `state_executions` via `sm history --json`. |
-| 6 | `project-config.schema.json` | — | 🔴 missing | Case: init a scope, write a partial `.skill-map.json`, assert effective config after merge. |
+| 6 | `project-config.schema.json` | — | 🔴 missing | Case: init a scope, write a partial `.skill-map/settings.json` (optionally with a `.skill-map/settings.local.json` overlay), assert effective config after the layered merge. |
 | 7 | `plugins-registry.schema.json` | — | 🔴 missing | Two sub-cases required: (a) `PluginManifest` validation via `sm plugins show --json`; (b) aggregate `PluginsRegistry` via `sm plugins list --json`. |
 | 8 | `job.schema.json` | — | 🔴 missing | Blocked by Step 10 (job system). Needs a case that submits a local action (no LLM), inspects `sm job show --json`. |
 | 9 | `report-base.schema.json` | — | 🔴 missing | Indirect coverage once any summarizer case lands. Direct contract case: validate a handcrafted minimal report ({confidence, safety}) against the base schema. |

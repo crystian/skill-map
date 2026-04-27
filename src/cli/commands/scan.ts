@@ -11,6 +11,8 @@ import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
+import { loadConfig } from '../../kernel/config/loader.js';
+import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
@@ -141,6 +143,17 @@ export class ScanCommand extends Command {
       );
     }
 
+    // Compose the ignore filter from layered config + .skill-mapignore.
+    // Built-in defaults are always pre-loaded by buildIgnoreFilter so
+    // `.git`, `node_modules`, `dist`, `.tmp`, `.skill-map` are skipped
+    // even on a fresh scope without any user config.
+    const { effective: cfg } = loadConfig({ scope: 'project' });
+    const ignoreFileText = readIgnoreFileText(process.cwd());
+    const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
+    if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
+    if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
+    const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
+
     const runOptions: Parameters<typeof runScan>[1] = {
       roots,
       // `--global` for `sm scan` lands in Step 6 (config + onboarding).
@@ -148,6 +161,7 @@ export class ScanCommand extends Command {
       // surface defaults to `'project'` until the flag is wired.
       scope: 'project',
       tokenize: !this.noTokens,
+      ignoreFilter,
     };
     if (extensions) runOptions.extensions = extensions;
     if (priorSnapshot) {

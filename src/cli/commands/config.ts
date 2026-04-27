@@ -1,0 +1,426 @@
+/**
+ * `sm config list/get/set/reset/show` — read + mutate `.skill-map/settings.json`.
+ *
+ *   sm config list  [--json] [-g] [--strict-config]
+ *   sm config get   <key.dot.path> [--json] [-g] [--strict-config]
+ *   sm config set   <key> <value> [-g]                — writes to project (default) or user (-g)
+ *   sm config reset <key>          [-g]                — removes the key from the same target
+ *   sm config show  <key> [--source] [--json] [-g] [--strict-config]
+ *
+ * Read verbs (`list / get / show`) are exempt from elapsed-time per
+ * `spec/cli-contract.md` §Elapsed time. Write verbs (`set / reset`) emit
+ * `done in <…>` to stderr like every other in-scope verb.
+ *
+ * `-g` semantics:
+ *   - on read verbs:  loads with scope=global (skips project layers).
+ *   - on write verbs: writes to `~/.skill-map/settings.json` instead of
+ *                     `<cwd>/.skill-map/settings.json`.
+ *
+ * Value coercion in `set`: the raw CLI string is JSON-parsed first so the
+ * user can pass `true`, `42`, `null`, arrays, and objects naturally;
+ * unparseable input falls through as a plain string. The merged file is
+ * then re-validated against `project-config.schema.json` — invalid values
+ * are rejected (exit 2) without touching the file.
+ */
+
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import { homedir as osHomedir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+import { Command, Option } from 'clipanion';
+
+import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import {
+  loadConfig,
+  type IEffectiveConfig,
+  type TConfigLayer,
+} from '../../kernel/config/loader.js';
+import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
+
+// -----------------------------------------------------------------------------
+// shared helpers
+// -----------------------------------------------------------------------------
+
+type TWriteTarget = 'project' | 'user';
+
+function targetSettingsPath(target: TWriteTarget, cwd: string, home: string): string {
+  const root = target === 'user' ? home : cwd;
+  return join(root, '.skill-map', 'settings.json');
+}
+
+function getAtPath(obj: unknown, dotPath: string): unknown {
+  const segments = dotPath.split('.').filter(Boolean);
+  let cur: unknown = obj;
+  for (const seg of segments) {
+    if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
+      cur = (cur as Record<string, unknown>)[seg];
+      continue;
+    }
+    return undefined;
+  }
+  return cur;
+}
+
+function setAtPath(
+  obj: Record<string, unknown>,
+  dotPath: string,
+  value: unknown,
+): void {
+  const segments = dotPath.split('.').filter(Boolean);
+  let cur: Record<string, unknown> = obj;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i];
+    const next = cur[seg];
+    if (!next || typeof next !== 'object' || Array.isArray(next)) {
+      cur[seg] = {};
+    }
+    cur = cur[seg] as Record<string, unknown>;
+  }
+  cur[segments[segments.length - 1]] = value;
+}
+
+function deleteAtPath(obj: Record<string, unknown>, dotPath: string): boolean {
+  const segments = dotPath.split('.').filter(Boolean);
+  let cur: Record<string, unknown> = obj;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const next = cur[segments[i]];
+    if (!next || typeof next !== 'object' || Array.isArray(next)) return false;
+    cur = next as Record<string, unknown>;
+  }
+  const last = segments[segments.length - 1];
+  if (!(last in cur)) return false;
+  delete cur[last];
+  // Walk back up and prune now-empty parent objects so the file stays tidy.
+  pruneEmptyAncestors(obj, segments.slice(0, -1));
+  return true;
+}
+
+function pruneEmptyAncestors(root: Record<string, unknown>, parents: string[]): void {
+  while (parents.length > 0) {
+    let cur: Record<string, unknown> = root;
+    for (let i = 0; i < parents.length - 1; i++) {
+      cur = cur[parents[i]] as Record<string, unknown>;
+    }
+    const tail = parents[parents.length - 1];
+    const child = cur[tail];
+    if (
+      child
+      && typeof child === 'object'
+      && !Array.isArray(child)
+      && Object.keys(child).length === 0
+    ) {
+      delete cur[tail];
+      parents.pop();
+    } else {
+      break;
+    }
+  }
+}
+
+function parseCliValue(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+function readJsonObjectOrEmpty(path: string): Record<string, unknown> {
+  if (!existsSync(path)) return {};
+  try {
+    const raw = JSON.parse(readFileSync(path, 'utf8'));
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+      return raw as Record<string, unknown>;
+    }
+  } catch {
+    /* fall through to {} */
+  }
+  return {};
+}
+
+function writeJsonAtomic(path: string, content: Record<string, unknown>): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(content, null, 2) + '\n', 'utf8');
+}
+
+function* iterDotPaths(
+  obj: unknown,
+  prefix = '',
+): Generator<[string, unknown]> {
+  if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) {
+    if (prefix) yield [prefix, obj];
+    return;
+  }
+  const entries = Object.entries(obj as Record<string, unknown>);
+  if (entries.length === 0 && prefix) {
+    yield [prefix, obj];
+    return;
+  }
+  for (const [k, v] of entries) {
+    const next = prefix ? `${prefix}.${k}` : k;
+    yield* iterDotPaths(v, next);
+  }
+}
+
+function formatValueHuman(v: unknown): string {
+  if (v === null) return 'null';
+  if (Array.isArray(v) || (typeof v === 'object' && v !== null)) return JSON.stringify(v);
+  return String(v);
+}
+
+// -----------------------------------------------------------------------------
+// commands
+// -----------------------------------------------------------------------------
+
+export class ConfigListCommand extends Command {
+  static override paths = [['config', 'list']];
+  static override usage = Command.Usage({
+    category: 'Config',
+    description: 'Print the effective config after layered merge.',
+    details: `
+      Walks defaults → user → user-local → project → project-local and prints the merged result.
+      With --json emits the JSON object; otherwise prints flat dot-path = value lines (sorted).
+      Exempt from "done in <…>" per spec/cli-contract.md §Elapsed time.
+    `,
+  });
+
+  json = Option.Boolean('--json', false);
+  global = Option.Boolean('-g,--global', false);
+  strictConfig = Option.Boolean('--strict-config', false);
+
+  async execute(): Promise<number> {
+    const { effective, warnings } = loadConfig({
+      scope: this.global ? 'global' : 'project',
+      strict: this.strictConfig,
+    });
+    for (const w of warnings) this.context.stderr.write(w + '\n');
+    if (this.json) {
+      this.context.stdout.write(JSON.stringify(effective, null, 2) + '\n');
+      return 0;
+    }
+    const lines: string[] = [];
+    for (const [k, v] of iterDotPaths(effective)) {
+      lines.push(`${k} = ${formatValueHuman(v)}`);
+    }
+    lines.sort();
+    for (const line of lines) this.context.stdout.write(line + '\n');
+    return 0;
+  }
+}
+
+export class ConfigGetCommand extends Command {
+  static override paths = [['config', 'get']];
+  static override usage = Command.Usage({
+    category: 'Config',
+    description: 'Read a single config value by dot-path key.',
+    details: `
+      Loads the layered config and prints the final value. Unknown key → exit 5.
+      Exempt from "done in <…>".
+    `,
+  });
+
+  key = Option.String({ required: true });
+  json = Option.Boolean('--json', false);
+  global = Option.Boolean('-g,--global', false);
+  strictConfig = Option.Boolean('--strict-config', false);
+
+  async execute(): Promise<number> {
+    const { effective, warnings } = loadConfig({
+      scope: this.global ? 'global' : 'project',
+      strict: this.strictConfig,
+    });
+    for (const w of warnings) this.context.stderr.write(w + '\n');
+    const value = getAtPath(effective, this.key);
+    if (value === undefined) {
+      this.context.stderr.write(`Unknown config key: ${this.key}\n`);
+      return 5;
+    }
+    if (this.json) {
+      this.context.stdout.write(JSON.stringify(value) + '\n');
+      return 0;
+    }
+    this.context.stdout.write(formatValueHuman(value) + '\n');
+    return 0;
+  }
+}
+
+export class ConfigShowCommand extends Command {
+  static override paths = [['config', 'show']];
+  static override usage = Command.Usage({
+    category: 'Config',
+    description: 'Show a config value with the layer that set it (--source).',
+    details: `
+      Identical to "sm config get" plus optional --source which prefixes the layer
+      (defaults / user / user-local / project / project-local / override).
+      With --json emits { value, source } when --source is set.
+      Exempt from "done in <…>".
+    `,
+  });
+
+  key = Option.String({ required: true });
+  source = Option.Boolean('--source', false);
+  json = Option.Boolean('--json', false);
+  global = Option.Boolean('-g,--global', false);
+  strictConfig = Option.Boolean('--strict-config', false);
+
+  async execute(): Promise<number> {
+    const { effective, sources, warnings } = loadConfig({
+      scope: this.global ? 'global' : 'project',
+      strict: this.strictConfig,
+    });
+    for (const w of warnings) this.context.stderr.write(w + '\n');
+    const value = getAtPath(effective, this.key);
+    if (value === undefined) {
+      this.context.stderr.write(`Unknown config key: ${this.key}\n`);
+      return 5;
+    }
+    const layer = resolveSource(this.key, value, sources);
+    if (this.json) {
+      const payload = this.source ? { value, source: layer } : value;
+      this.context.stdout.write(JSON.stringify(payload) + '\n');
+      return 0;
+    }
+    if (this.source) {
+      this.context.stdout.write(`${formatValueHuman(value)}  (from ${layer})\n`);
+    } else {
+      this.context.stdout.write(formatValueHuman(value) + '\n');
+    }
+    return 0;
+  }
+}
+
+/**
+ * For nested objects (e.g. `scan`), the `sources` map only stores leaf
+ * paths. When the user asks about an intermediate path, surface the most
+ * "recent" layer that touched any descendant (highest precedence wins).
+ */
+function resolveSource(
+  key: string,
+  value: unknown,
+  sources: Map<string, TConfigLayer>,
+): TConfigLayer {
+  const direct = sources.get(key);
+  if (direct) return direct;
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const prefix = key + '.';
+    let best: TConfigLayer = 'defaults';
+    let bestRank = LAYER_RANK.defaults;
+    for (const [k, layer] of sources) {
+      if (!k.startsWith(prefix)) continue;
+      const rank = LAYER_RANK[layer];
+      if (rank > bestRank) {
+        bestRank = rank;
+        best = layer;
+      }
+    }
+    return best;
+  }
+  return 'defaults';
+}
+
+const LAYER_RANK: Record<TConfigLayer, number> = {
+  defaults: 0,
+  user: 1,
+  'user-local': 2,
+  project: 3,
+  'project-local': 4,
+  override: 5,
+};
+
+export class ConfigSetCommand extends Command {
+  static override paths = [['config', 'set']];
+  static override usage = Command.Usage({
+    category: 'Config',
+    description: 'Write a config key. Project file by default; -g writes to user.',
+    details: `
+      Reads the target file (creating it if absent), sets the key at the dot-path,
+      validates the result against project-config.schema.json, and writes back.
+      Value coercion: JSON-parses the raw string first ("true" → true, "42" → 42,
+      "null" → null, arrays / objects natural); unparseable falls through as string.
+      Schema violation → exit 2, no write performed.
+    `,
+  });
+
+  key = Option.String({ required: true });
+  value = Option.String({ required: true });
+  global = Option.Boolean('-g,--global', false);
+
+  async execute(): Promise<number> {
+    const elapsed = startElapsed();
+    const cwd = process.cwd();
+    const home = osHomedir();
+    const target: TWriteTarget = this.global ? 'user' : 'project';
+    const path = targetSettingsPath(target, cwd, home);
+
+    const current = readJsonObjectOrEmpty(path);
+    const value = parseCliValue(this.value);
+    setAtPath(current, this.key, value);
+
+    const validators = loadSchemaValidators();
+    const result = validators.validate('project-config', current);
+    if (!result.ok) {
+      this.context.stderr.write(`Invalid config after set: ${result.errors}\n`);
+      emitDoneStderr(this.context.stderr, elapsed);
+      return 2;
+    }
+
+    writeJsonAtomic(path, current);
+    this.context.stdout.write(`${this.key} = ${formatValueHuman(value)}  (wrote ${path})\n`);
+    emitDoneStderr(this.context.stderr, elapsed);
+    return 0;
+  }
+}
+
+export class ConfigResetCommand extends Command {
+  static override paths = [['config', 'reset']];
+  static override usage = Command.Usage({
+    category: 'Config',
+    description: 'Remove a config key from the target file (project default; -g for user).',
+    details: `
+      Strips the key from the target settings.json (lower layers still apply).
+      Idempotent — running twice is safe; absent key prints an info note and exits 0.
+    `,
+  });
+
+  key = Option.String({ required: true });
+  global = Option.Boolean('-g,--global', false);
+
+  async execute(): Promise<number> {
+    const elapsed = startElapsed();
+    const cwd = process.cwd();
+    const home = osHomedir();
+    const target: TWriteTarget = this.global ? 'user' : 'project';
+    const path = targetSettingsPath(target, cwd, home);
+
+    if (!existsSync(path)) {
+      this.context.stdout.write(`No override at ${path} for ${this.key}\n`);
+      emitDoneStderr(this.context.stderr, elapsed);
+      return 0;
+    }
+    const current = readJsonObjectOrEmpty(path);
+    const removed = deleteAtPath(current, this.key);
+    if (!removed) {
+      this.context.stdout.write(`No override at ${path} for ${this.key}\n`);
+      emitDoneStderr(this.context.stderr, elapsed);
+      return 0;
+    }
+
+    writeJsonAtomic(path, current);
+    this.context.stdout.write(`Removed ${this.key} from ${path}\n`);
+    emitDoneStderr(this.context.stderr, elapsed);
+    return 0;
+  }
+}
+
+export const CONFIG_COMMANDS = [
+  ConfigListCommand,
+  ConfigGetCommand,
+  ConfigShowCommand,
+  ConfigSetCommand,
+  ConfigResetCommand,
+];

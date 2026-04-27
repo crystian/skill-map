@@ -18,16 +18,11 @@ import { join, relative, sep } from 'node:path';
 
 import yaml from 'js-yaml';
 
+import { buildIgnoreFilter, type IIgnoreFilter } from '../../../kernel/scan/ignore.js';
 import type { IAdapter, IRawNode } from '../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../kernel/types.js';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-// `.tmp` is the project-wide convention (per AGENTS.md) for transient
-// artifacts AI agents and tests generate; it is gitignored everywhere
-// and should never appear in a scan. Skipping it here keeps the
-// self-scan acceptance test stable when other tests (e.g. the perf
-// benchmark) materialise large fixtures under the repo's `.tmp/`.
-const DEFAULT_IGNORE = new Set(['.git', 'node_modules', 'dist', '.skill-map', '.tmp']);
 
 export const claudeAdapter: IAdapter = {
   id: 'claude',
@@ -45,9 +40,14 @@ export const claudeAdapter: IAdapter = {
   },
 
   async *walk(roots, options = {}): AsyncIterable<IRawNode> {
-    const extraIgnore = new Set(options.ignore ?? []);
+    // The orchestrator is the canonical source of the filter (it composes
+    // bundled defaults + config.ignore + .skill-mapignore). When the
+    // adapter is invoked directly (tests, kernel-empty-boot), fall back
+    // to bundled defaults only — that's still enough to keep `.git`,
+    // `node_modules`, and friends out of the result.
+    const filter: IIgnoreFilter = options.ignoreFilter ?? buildIgnoreFilter();
     for (const root of roots) {
-      for await (const file of walkMarkdown(root, extraIgnore)) {
+      for await (const file of walkMarkdown(root, root, filter)) {
         const relPath = relative(root, file).split(sep).join('/');
         const raw = await readFile(file, 'utf8');
         const parsed = splitFrontmatter(raw);
@@ -71,19 +71,24 @@ export const claudeAdapter: IAdapter = {
   },
 };
 
-async function* walkMarkdown(root: string, extraIgnore: Set<string>): AsyncIterable<string> {
+async function* walkMarkdown(
+  root: string,
+  current: string,
+  filter: IIgnoreFilter,
+): AsyncIterable<string> {
   let entries;
   try {
-    entries = await readdir(root, { withFileTypes: true, encoding: 'utf8' });
+    entries = await readdir(current, { withFileTypes: true, encoding: 'utf8' });
   } catch {
     return;
   }
   for (const entry of entries) {
     const name = entry.name;
-    if (DEFAULT_IGNORE.has(name) || extraIgnore.has(name)) continue;
-    const full = join(root, name);
+    const full = join(current, name);
+    const rel = relative(root, full).split(sep).join('/');
+    if (filter.ignores(rel)) continue;
     if (entry.isDirectory()) {
-      yield* walkMarkdown(full, extraIgnore);
+      yield* walkMarkdown(root, full, filter);
     } else if (entry.isFile() && name.endsWith('.md')) {
       // stat() guards against symlinks that point to non-files after
       // readdir reported them as a file (rare but possible on some FSes).

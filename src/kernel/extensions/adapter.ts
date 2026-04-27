@@ -9,6 +9,7 @@
  */
 
 import type { IExtensionBase } from './base.js';
+import type { IIgnoreFilter } from '../scan/ignore.js';
 import type { NodeKind } from '../types.js';
 
 export interface IRawNode {
@@ -36,8 +37,17 @@ export interface IAdapter extends IExtensionBase {
    * Walk the given roots and yield every node the adapter recognises.
    * Non-matching files are silently skipped. Unreadable files produce
    * a diagnostic via the emitter (Step 4+) but do not abort the walk.
+   *
+   * `options.ignoreFilter` (Step 6.4) — when supplied, the adapter MUST
+   * skip every directory and file whose path-relative-to-root the
+   * filter reports as ignored. Adapters MAY also keep their own
+   * hard-coded skip list (e.g. `.git`) as a defensive measure, but the
+   * filter is the canonical source of user intent.
    */
-  walk(roots: string[], options?: { ignore?: string[] }): AsyncIterable<IRawNode>;
+  walk(
+    roots: string[],
+    options?: { ignoreFilter?: IIgnoreFilter },
+  ): AsyncIterable<IRawNode>;
 
   /**
    * Given a path and its parsed frontmatter, decide the node kind. The

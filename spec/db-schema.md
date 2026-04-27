@@ -19,7 +19,7 @@ Two scopes. Each has its own database file and its own migration ledger.
 | `project` (default) | `./.skill-map/skill-map.db` | The current repository. |
 | `global` (`-g`) | `~/.skill-map/skill-map.db` | User-level skill directories (e.g. `~/.claude/`). |
 
-The project DB is gitignored by default. Teams MAY opt in to sharing it by setting `history.share: true` in `.skill-map.json` — the file is then committed and the execution log becomes a team artifact. Both zones use the same schema.
+The project DB is gitignored by default. Teams MAY opt in to sharing it by setting `history.share: true` in `.skill-map/settings.json` — the file is then committed and the execution log becomes a team artifact. Both zones use the same schema.
 
 The `--db <path>` CLI flag overrides location for both scopes as an escape hatch.
 

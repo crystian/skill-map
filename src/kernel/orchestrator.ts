@@ -41,6 +41,7 @@ import yaml from 'js-yaml';
 
 import pkg from '../package.json' with { type: 'json' };
 
+import type { IIgnoreFilter } from './scan/ignore.js';
 import type { Kernel } from './index.js';
 import type {
   Confidence,
@@ -155,6 +156,14 @@ export interface RunScanOptions {
    * a null prior is a no-op (every file is "new").
    */
   enableCache?: boolean;
+  /**
+   * Filter that decides which paths the adapters skip. Composed by the
+   * caller (typically the CLI) from bundled defaults + `config.ignore`
+   * + `.skill-mapignore`. Adapters that omit this option fall back to
+   * their own defensive defaults (just enough to keep `.git` /
+   * `node_modules` out).
+   */
+  ignoreFilter?: IIgnoreFilter;
 }
 
 /**
@@ -264,8 +273,11 @@ async function runScanInternal(
   // roots it can diverge.
   let filesWalked = 0;
   let index = 0;
+  const walkOptions = options.ignoreFilter
+    ? { ignoreFilter: options.ignoreFilter }
+    : {};
   for (const adapter of exts.adapters) {
-    for await (const raw of adapter.walk(options.roots)) {
+    for await (const raw of adapter.walk(options.roots, walkOptions)) {
       filesWalked += 1;
       const bodyHash = sha256(raw.body);
       // Step 5.13 — hash a CANONICAL form of the frontmatter so a YAML

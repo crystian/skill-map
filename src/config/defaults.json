@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "autoMigrate": true,
+  "tokenizer": "cl100k_base",
+  "adapters": [],
+  "roots": [],
+  "ignore": [],
+  "scan": {
+    "tokenize": true,
+    "strict": false,
+    "followSymlinks": false,
+    "maxFileSizeBytes": 1048576
+  },
+  "plugins": {},
+  "history": {
+    "share": false
+  },
+  "jobs": {
+    "ttlSeconds": 3600,
+    "graceMultiplier": 3,
+    "minimumTtlSeconds": 60,
+    "perActionTtl": {},
+    "perActionPriority": {},
+    "retention": {
+      "completed": 2592000,
+      "failed": null
+    }
+  },
+  "i18n": {
+    "locale": "en"
+  }
+}

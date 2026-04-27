@@ -38,6 +38,9 @@ export default defineConfig({
     if (existsSync('migrations')) {
       cpSync('migrations', 'dist/migrations', { recursive: true });
     }
+    if (existsSync('config/defaults')) {
+      cpSync('config/defaults', 'dist/config/defaults', { recursive: true });
+    }
     restoreNodeSqliteImports('dist');
   },
 });
