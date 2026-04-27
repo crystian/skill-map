@@ -830,32 +830,6 @@ svg    { display: block; max-width: 100%; }
   display: inline-block;
 }
 
-.hero__graph-zoom {
-  position: absolute;
-  bottom: 18px; right: 18px;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: rgba(14,19,26,.92);
-  border-radius: 8px;
-  border: 1px solid rgba(255,255,255,.08);
-  padding: 4px;
-}
-.hero__graph-zoom button {
-  width: 28px; height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  color: rgba(255,255,255,.7);
-  font-size: 16px;
-  border-radius: 4px;
-  transition: background var(--dur-fast) var(--ease-out);
-}
-.hero__graph-zoom button:hover { background: rgba(255,255,255,.06); color: #fff; }
-.hero__graph-zoom .reset { font-size: 12px; }
-
 .hero__graph-svg {
   position: absolute;
   inset: 0;
@@ -1059,6 +1033,11 @@ svg    { display: block; max-width: 100%; }
   line-height: 1.15;
   color: #fff;
 }
+/* Softer second-line modifier for two-tone titles. */
+.section-title-soft {
+  color: rgba(255, 255, 255, .55);
+  font-weight: 500;
+}
 
 .section-sub {
   font-size: clamp(15px, 1.5vw, 17px);
@@ -1074,6 +1053,113 @@ svg    { display: block; max-width: 100%; }
   padding: 1px 6px;
   border-radius: 4px;
   font-size: .9em;
+}
+
+/* ============================================================
+   SECTION DIVIDER — soft horizontal glow + hairline accent
+   A decorative break between major sections. The glow ellipse
+   carries the brand's violet without imposing a hard rule.
+   ============================================================ */
+.section-divider {
+  position: relative;
+  width: 100%;
+  max-width: 1280px;
+  height: 0;
+  margin: 0 auto;
+  border: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.section-divider::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, -50%);
+  width: min(60%, 560px);
+  height: 120px;
+  background: radial-gradient(ellipse at center,
+    rgba(124, 58, 237, 0.20) 0%,
+    rgba(124, 58, 237, 0.08) 35%,
+    transparent 70%);
+  filter: blur(10px);
+}
+.section-divider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: min(80%, 720px);
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(167, 139, 250, 0) 10%,
+    rgba(167, 139, 250, 0.45) 50%,
+    rgba(167, 139, 250, 0) 90%,
+    transparent 100%);
+}
+
+/* ============================================================
+   SCREENSHOTS — single hero shot, centered (16:9)
+   The <img> uses object-fit: cover so the visible image crops to
+   the cell instead of distorting it.
+   Images are non-interactive on purpose (no click, no drag).
+   ============================================================ */
+.shots__grid {
+  max-width: 1024px;
+  margin-inline: auto;
+}
+
+.shots__main { aspect-ratio: 16 / 9; }
+
+.shots figure {
+  position: relative;
+  margin: 0;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: rgba(255, 255, 255, .03);
+  border: 1px solid rgba(255, 255, 255, .08);
+  transition: transform 240ms cubic-bezier(0.2, 0, 0, 1),
+              border-color 240ms cubic-bezier(0.2, 0, 0, 1),
+              box-shadow 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+.shots figure:hover {
+  transform: scale(1.02);
+  border-color: rgba(167, 139, 250, .35);
+  box-shadow: 0 12px 40px -12px rgba(124, 58, 237, .35);
+  z-index: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .shots figure { transition: none; }
+  .shots figure:hover { transform: none; }
+}
+.shots figure img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+/* Placeholder visual: dashed inset frame with a centered label. The
+   author replaces the entire <span> with an <img> when real shots
+   are ready, so no toggling logic is needed. */
+.shots__placeholder {
+  position: absolute;
+  inset: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(255, 255, 255, .14);
+  border-radius: var(--r-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, .4);
 }
 
 /* ============================================================
@@ -1662,6 +1748,311 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
+   PLUGIN ECOSYSTEM — kernel + 6 satellite plugin types
+   The active plugin id lives on `.peco[data-active]`. Lines and
+   satellites read that to decide their state; the brief panel
+   shows only the matching `<article data-pe-id>`. The accent of
+   the active plugin is exposed as `--pe-accent` so the panel can
+   theme itself. Hover/focus/click all converge on `setActive(id)`.
+   ============================================================ */
+.peco__sub {
+  font-size: 18px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, .65);
+  max-width: 560px;
+  margin: 18px auto 0;
+  text-wrap: pretty;
+}
+
+.peco__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: 48px;
+  align-items: center;
+}
+@media (max-width: 960px) {
+  .peco__grid { grid-template-columns: 1fr; gap: 32px; }
+}
+
+.peco__viz {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+.peco__svg {
+  width: 100%;
+  max-width: 720px;
+  height: auto;
+  overflow: visible;
+}
+
+/* ---------- Connection lines ---------- */
+.peco__line line {
+  stroke: rgba(255, 255, 255, .08);
+  stroke-width: 1;
+  transition: stroke .25s var(--ease-out), stroke-width .25s var(--ease-out);
+}
+.peco__line-traveler { opacity: 0; transition: opacity .2s var(--ease-out); }
+.peco[data-active="adapter"]  .peco__line[data-pe-id="adapter"]  line,
+.peco[data-active="detector"] .peco__line[data-pe-id="detector"] line,
+.peco[data-active="rule"]     .peco__line[data-pe-id="rule"]     line,
+.peco[data-active="action"]   .peco__line[data-pe-id="action"]   line,
+.peco[data-active="audit"]    .peco__line[data-pe-id="audit"]    line,
+.peco[data-active="renderer"] .peco__line[data-pe-id="renderer"] line {
+  stroke: var(--pe-accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 0;
+}
+.peco[data-active="adapter"]  .peco__line[data-pe-id="adapter"]  .peco__line-traveler,
+.peco[data-active="detector"] .peco__line[data-pe-id="detector"] .peco__line-traveler,
+.peco[data-active="rule"]     .peco__line[data-pe-id="rule"]     .peco__line-traveler,
+.peco[data-active="action"]   .peco__line[data-pe-id="action"]   .peco__line-traveler,
+.peco[data-active="audit"]    .peco__line[data-pe-id="audit"]    .peco__line-traveler,
+.peco[data-active="renderer"] .peco__line[data-pe-id="renderer"] .peco__line-traveler {
+  opacity: 1;
+}
+
+/* ---------- "Your plugin" placeholder ---------- */
+.peco__placeholder-plus {
+  font: 400 22px var(--font-mono);
+  fill: rgba(167, 139, 250, .7);
+}
+.peco__placeholder-label {
+  font: 500 11px var(--font-mono);
+  fill: rgba(255, 255, 255, .5);
+}
+
+/* ---------- KERNEL center ---------- */
+.peco__kernel-label {
+  font: 600 13px var(--font-mono);
+  fill: #fff;
+  letter-spacing: .05em;
+}
+.peco__kernel-sub {
+  font: 400 10px var(--font-mono);
+  fill: rgba(255, 255, 255, .5);
+  letter-spacing: .04em;
+}
+
+/* ---------- Satellites ---------- */
+.peco__sat { cursor: pointer; outline: none; }
+.peco__sat-pulse { opacity: 0; }
+.peco__sat-glow  { opacity: 0; transition: opacity .25s var(--ease-out); }
+.peco__sat-body  { transition: stroke-width .25s var(--ease-out), filter .25s var(--ease-out); }
+.peco__sat-fill  { transition: opacity .25s var(--ease-out); }
+.peco__sat-label   { font: 600 13px var(--font-mono); fill: rgba(255, 255, 255, .7); letter-spacing: .02em; transition: fill .2s var(--ease-out); }
+.peco__sat-bundled { font: 400 10px var(--font-mono); fill: rgba(255, 255, 255, .4); letter-spacing: .02em; }
+
+.peco__sat:hover .peco__sat-glow,
+.peco__sat:focus-visible .peco__sat-glow,
+.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-glow,
+.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-glow,
+.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-glow,
+.peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-glow,
+.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-glow,
+.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-glow {
+  opacity: 1;
+}
+.peco__sat:hover .peco__sat-body,
+.peco__sat:focus-visible .peco__sat-body,
+.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-body,
+.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-body,
+.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-body,
+.peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-body,
+.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-body,
+.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-body {
+  stroke-width: 2;
+  filter: drop-shadow(0 0 14px var(--pe-accent));
+}
+.peco__sat:hover .peco__sat-fill,
+.peco__sat:focus-visible .peco__sat-fill,
+.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-fill,
+.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-fill,
+.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-fill,
+.peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-fill,
+.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-fill,
+.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-fill {
+  opacity: .9;
+}
+.peco__sat:hover .peco__sat-label,
+.peco__sat:focus-visible .peco__sat-label,
+.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-label,
+.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-label,
+.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-label,
+.peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-label,
+.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-label,
+.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-label {
+  fill: #fff;
+}
+/* Pulse ring only on the actively selected satellite (not on hover). */
+.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-pulse,
+.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-pulse,
+.peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-pulse,
+.peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-pulse,
+.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-pulse,
+.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-pulse {
+  opacity: 1;
+}
+
+/* ---------- Brief panel ---------- */
+.peco__panel {
+  position: relative;
+  padding: 32px 28px 28px;
+  border-radius: var(--r-xl);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--pe-accent) 12%, transparent),
+    rgba(14, 19, 26, .9));
+  border: 1px solid color-mix(in srgb, var(--pe-accent) 35%, transparent);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pe-accent) 8%, transparent),
+    0 30px 60px rgba(0, 0, 0, .4);
+  overflow: hidden;
+  transition: background .3s var(--ease-out), border-color .3s var(--ease-out);
+}
+.peco__panel::before {
+  content: '';
+  position: absolute;
+  top: -50px; right: -50px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--pe-accent) 25%, transparent), transparent 60%);
+  pointer-events: none;
+}
+
+.peco__brief { display: none; position: relative; }
+.peco[data-active="adapter"]  .peco__brief[data-pe-id="adapter"],
+.peco[data-active="detector"] .peco__brief[data-pe-id="detector"],
+.peco[data-active="rule"]     .peco__brief[data-pe-id="rule"],
+.peco[data-active="action"]   .peco__brief[data-pe-id="action"],
+.peco[data-active="audit"]    .peco__brief[data-pe-id="audit"],
+.peco[data-active="renderer"] .peco__brief[data-pe-id="renderer"] {
+  display: block;
+}
+
+.peco__brief-tag {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255, 255, 255, .55);
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+.peco__brief-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--pe-accent);
+  box-shadow: 0 0 10px var(--pe-accent);
+}
+.peco__brief-bundled {
+  margin-left: auto;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, .08);
+  border-radius: 4px;
+  color: rgba(255, 255, 255, .6);
+  font-size: 9px;
+}
+.peco__brief-title {
+  font-size: 38px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: -.025em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.peco__brief-one {
+  font-size: 14px;
+  color: var(--pe-accent);
+  margin-bottom: 18px;
+  font-family: var(--font-mono);
+}
+.peco__brief-body {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, .78);
+  margin-bottom: 22px;
+  text-wrap: pretty;
+}
+.peco__brief-code {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, .78);
+  background: rgba(0, 0, 0, .3);
+  border: 1px solid rgba(255, 255, 255, .06);
+  padding: 14px 16px;
+  border-radius: 10px;
+  margin: 0;
+  overflow: auto;
+}
+.peco__brief-code code { font: inherit; color: inherit; background: none; padding: 0; }
+
+/* ---------- Nav (prev / next) ---------- */
+.peco__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 18px;
+  position: relative;
+}
+.peco__nav-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, .1);
+  color: rgba(255, 255, 255, .65);
+  padding: 7px 12px;
+  border-radius: 8px;
+  font: inherit;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.peco__nav-btn:hover {
+  background: rgba(255, 255, 255, .06);
+  color: #fff;
+  border-color: rgba(255, 255, 255, .2);
+}
+.peco__nav-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(255, 255, 255, .4);
+}
+
+/* ---------- CTA strip ---------- */
+.peco__cta {
+  margin-top: 56px;
+  padding: 24px 32px;
+  border-radius: 14px;
+  background: linear-gradient(90deg, rgba(124, 58, 237, .10), rgba(124, 58, 237, .02));
+  border: 1px solid rgba(124, 58, 237, .25);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.peco__cta-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: #fff;
+  margin: 0 0 4px;
+  letter-spacing: -.01em;
+}
+.peco__cta-cmd {
+  font-size: 14px;
+  color: rgba(255, 255, 255, .55);
+  font-family: var(--font-mono);
+  background: none;
+  padding: 0;
+}
+.peco__cta-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* ============================================================
    ROADMAP TIMELINE — interactive milestones
    ============================================================ */
 .roadmap {
@@ -1677,11 +2068,11 @@ svg    { display: block; max-width: 100%; }
   align-items: flex-end;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 40px;
-  margin-bottom: 56px;
+  gap: 32px;
+  margin-bottom: 36px;
 }
 
-.roadmap__badge {
+.section-badge {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1695,7 +2086,7 @@ svg    { display: block; max-width: 100%; }
   font-family: var(--font-mono);
   letter-spacing: .04em;
 }
-.roadmap__badge::before {
+.section-badge::before {
   content: '';
   width: 5px; height: 5px;
   border-radius: 50%;
@@ -1703,21 +2094,21 @@ svg    { display: block; max-width: 100%; }
 }
 
 .roadmap__title {
-  font-size: clamp(28px, 4.5vw, 56px);
-  line-height: .98;
-  letter-spacing: -.035em;
+  font-size: clamp(24px, 3.6vw, 40px);
+  line-height: 1.05;
+  letter-spacing: -.03em;
   font-weight: 600;
   color: #fff;
   max-width: 1040px;
 }
 .roadmap__title-soft {
   display: inline-block;
-  margin-top: 14px;
+  margin-top: 10px;
   color: rgba(255,255,255,.5);
   font-style: italic;
   font-weight: 500;
-  font-size: clamp(20px, 2.4vw, 30px);
-  line-height: 1.3;
+  font-size: clamp(17px, 2vw, 22px);
+  line-height: 1.4;
   letter-spacing: -.005em;
 }
 
@@ -1739,12 +2130,12 @@ svg    { display: block; max-width: 100%; }
 .roadmap__seg {
   background: linear-gradient(180deg, rgba(14,19,26,.4), rgba(14,19,26,.6));
   border: none;
-  padding: 28px 22px 22px;
+  padding: 20px 18px 16px;
   cursor: pointer;
   text-align: left;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   font: inherit;
   color: inherit;
   transition: background var(--dur-fast) var(--ease-out);
@@ -1770,7 +2161,7 @@ svg    { display: block; max-width: 100%; }
 
 .roadmap__seg-id {
   font-family: var(--font-mono);
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 600;
   letter-spacing: -.02em;
   line-height: 1;
@@ -1781,12 +2172,12 @@ svg    { display: block; max-width: 100%; }
 .roadmap__seg[data-status="open"]    .roadmap__seg-id { font-style: italic; }
 
 .roadmap__seg-title {
-  font-size: 14px;
+  font-size: 13px;
   color: #fff;
   font-weight: 500;
   letter-spacing: -.005em;
   line-height: 1.3;
-  min-height: 36px;
+  min-height: 30px;
 }
 
 .roadmap__seg-bar {
@@ -1850,16 +2241,27 @@ svg    { display: block; max-width: 100%; }
 
 /* ---------- Detail panel below the strip ---------- */
 .roadmap__detail {
-  margin-top: 28px;
-  padding: 32px 36px;
-  border-radius: 16px;
+  margin-top: 20px;
+  padding: 22px 26px;
+  border-radius: 14px;
   border: 1px solid rgba(255,255,255,.08);
   background: rgba(14,19,26,.5);
   display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 36px;
+  grid-template-columns: 200px 1fr;
+  gap: 28px;
   align-items: flex-start;
-  min-height: 220px;
+  min-height: 160px;
+  animation: rm-detail-in 240ms cubic-bezier(0.2, 0, 0, 1);
+}
+.roadmap__detail--hidden {
+  display: none;
+}
+@keyframes rm-detail-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .roadmap__detail { animation: none; }
 }
 .roadmap__detail[data-status="done"] {
   background: linear-gradient(135deg, rgba(0,200,83,.08), rgba(0,200,83,.01));
@@ -1909,26 +2311,26 @@ svg    { display: block; max-width: 100%; }
 .roadmap__detail[data-status="current"] .roadmap__detail-status { color: var(--violet-400); }
 
 .roadmap__detail-title {
-  font-size: 28px;
-  line-height: 1.15;
+  font-size: 22px;
+  line-height: 1.2;
   font-weight: 600;
   color: #fff;
   letter-spacing: -.02em;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .roadmap__detail-sub {
-  font-size: 15px;
+  font-size: 13px;
   color: rgba(255,255,255,.55);
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   font-family: var(--font-mono);
 }
 .roadmap__detail-brief {
-  font-size: 16px;
-  line-height: 1.6;
+  font-size: 14px;
+  line-height: 1.55;
   color: rgba(255,255,255,.78);
   max-width: 760px;
   text-wrap: pretty;
-  margin-bottom: 24px;
+  margin-bottom: 18px;
 }
 .roadmap__detail-list-h {
   font-family: var(--font-mono);

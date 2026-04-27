@@ -248,21 +248,40 @@
             </g>
             </g><!-- /hg-viewport -->
           </svg>
-
-          <div class="hero__graph-zoom">
-            <button type="button" data-i18n-title="graph.zoom.reset" title="Reset" disabled class="reset">⟳</button>
-          </div>
         </div>
       </div>
     </section>
+
+    <hr class="section-divider" aria-hidden="true">
+
+    <!-- ============== SCREENSHOTS ============== -->
+    <!-- Single hero screenshot, centered. Replace the <img> in the figure
+         when delivering a new shot; the placeholder fallback stays in CSS. -->
+    <section class="section shots" id="shots">
+      <header class="section-header section-header--center">
+        <div>
+          <h2 class="section-title">
+            <span data-i18n="shots.title.1">Your whole agent ecosystem,</span><br>
+            <span class="section-title-soft" data-i18n="shots.title.2">on a single screen!</span>
+          </h2>
+        </div>
+      </header>
+
+      <div class="shots__grid">
+        <figure class="shots__main">
+          <img src="/img/screenshot-1.png" alt="skill-map main screen" data-i18n-alt="shots.alt.1" loading="lazy">
+        </figure>
+      </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== ROADMAP ============== -->
     <section class="roadmap" id="roadmap">
       <div class="roadmap__head">
         <div>
-          <div class="roadmap__badge" data-i18n="rm.eyebrow">Roadmap</div>
           <h2 class="roadmap__title">
-            <span data-i18n="rm.title">The plan.</span><br>
+            <span data-i18n="rm.title">Roadmap.</span><br>
             <span class="roadmap__title-soft" data-i18n="rm.sub">A definition, three phases to 1.0, and what comes after.</span>
           </h2>
         </div>
@@ -274,6 +293,8 @@
         </p>
       </noscript>
     </section>
+
+    <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== FEATURES ============== -->
     <section class="section" id="features">
@@ -369,6 +390,308 @@
       </div>
     </section>
 
+    <hr class="section-divider" aria-hidden="true">
+
+    <!-- ============== PLUGIN ECOSYSTEM ============== -->
+    <!-- Six plugin types orbiting the kernel. Hover/click a satellite to
+         pin it; the brief panel on the right swaps in the matching content.
+         Layout falls back to a single column on small viewports. The active
+         id lives on `.peco[data-active]`; CSS routes visibility from there. -->
+    <section class="section peco" id="ecosystem" data-active="adapter" style="--pe-accent: #7C3AED;">
+      <header class="section-header section-header--center">
+        <div>
+          <div class="section-badge" data-i18n="pe.eyebrow">Ecosystem</div>
+          <h2 class="section-title">
+            <span data-i18n="pe.title.1">Six hooks.</span><br>
+            <span class="section-title-soft" data-i18n="pe.title.2">Infinite extensions.</span>
+          </h2>
+          <p class="peco__sub" data-i18n="pe.sub">The kernel understands six plugin types. Compose what you need, publish your own, install everyone else's. The graph stays the same; the ecosystem makes it yours.</p>
+        </div>
+      </header>
+
+      <div class="peco__grid">
+        <div class="peco__viz">
+          <svg viewBox="0 0 720 720" class="peco__svg" role="img" aria-label="Six plugin types orbiting the skill-map kernel">
+            <defs>
+              <radialGradient id="peco-core" cx=".5" cy=".5">
+                <stop offset="0%"   stop-color="rgba(124,58,237,.95)"/>
+                <stop offset="60%"  stop-color="rgba(124,58,237,.55)"/>
+                <stop offset="100%" stop-color="rgba(124,58,237,.05)"/>
+              </radialGradient>
+              <radialGradient id="peco-core-inner" cx=".5" cy=".5">
+                <stop offset="0%"   stop-color="#fff"/>
+                <stop offset="55%"  stop-color="#A78BFA"/>
+                <stop offset="100%" stop-color="#7C3AED"/>
+              </radialGradient>
+              <radialGradient id="peco-fill-adapter"  cx=".5" cy=".5"><stop offset="0%" stop-color="#7C3AED" stop-opacity="1"/><stop offset="100%" stop-color="#7C3AED" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-detector" cx=".5" cy=".5"><stop offset="0%" stop-color="#A78BFA" stop-opacity="1"/><stop offset="100%" stop-color="#A78BFA" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-rule"     cx=".5" cy=".5"><stop offset="0%" stop-color="#5FD17C" stop-opacity="1"/><stop offset="100%" stop-color="#5FD17C" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-action"   cx=".5" cy=".5"><stop offset="0%" stop-color="#00C853" stop-opacity="1"/><stop offset="100%" stop-color="#00C853" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-audit"    cx=".5" cy=".5"><stop offset="0%" stop-color="#FFB627" stop-opacity="1"/><stop offset="100%" stop-color="#FFB627" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-renderer" cx=".5" cy=".5"><stop offset="0%" stop-color="#5BC0EB" stop-opacity="1"/><stop offset="100%" stop-color="#5BC0EB" stop-opacity=".5"/></radialGradient>
+            </defs>
+
+            <!-- Orbit ring -->
+            <circle cx="360" cy="360" r="250" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="1" stroke-dasharray="2 6"/>
+            <circle cx="360" cy="360" r="249" fill="none" stroke="rgba(124,58,237,.05)" stroke-width="40"/>
+
+            <!-- Connection lines from kernel to each satellite (one group per id). -->
+            <g class="peco__line" data-pe-id="adapter">
+              <line x1="360" y1="360" x2="360" y2="110" stroke-dasharray="3 5"/>
+              <circle r="3" class="peco__line-traveler" fill="#7C3AED"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L360,110"/></circle>
+            </g>
+            <g class="peco__line" data-pe-id="detector">
+              <line x1="360" y1="360" x2="576.5" y2="235" stroke-dasharray="3 5"/>
+              <circle r="3" class="peco__line-traveler" fill="#A78BFA"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L576.5,235"/></circle>
+            </g>
+            <g class="peco__line" data-pe-id="rule">
+              <line x1="360" y1="360" x2="576.5" y2="485" stroke-dasharray="3 5"/>
+              <circle r="3" class="peco__line-traveler" fill="#5FD17C"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L576.5,485"/></circle>
+            </g>
+            <g class="peco__line" data-pe-id="action">
+              <line x1="360" y1="360" x2="360" y2="610" stroke-dasharray="3 5"/>
+              <circle r="3" class="peco__line-traveler" fill="#00C853"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L360,610"/></circle>
+            </g>
+            <g class="peco__line" data-pe-id="audit">
+              <line x1="360" y1="360" x2="143.5" y2="485" stroke-dasharray="3 5"/>
+              <circle r="3" class="peco__line-traveler" fill="#FFB627"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,485"/></circle>
+            </g>
+            <g class="peco__line" data-pe-id="renderer">
+              <line x1="360" y1="360" x2="143.5" y2="235" stroke-dasharray="3 5"/>
+              <circle r="3" class="peco__line-traveler" fill="#5BC0EB"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,235"/></circle>
+            </g>
+
+            <!-- "Your plugin" placeholder slot. -->
+            <g class="peco__placeholder">
+              <line x1="360" y1="360" x2="274.5" y2="125" stroke="rgba(255,255,255,.08)" stroke-width="1" stroke-dasharray="2 4"/>
+              <circle cx="274.5" cy="125" r="32" fill="rgba(124,58,237,.04)" stroke="rgba(124,58,237,.4)" stroke-width="1.5" stroke-dasharray="4 4"/>
+              <text x="274.5" y="131" text-anchor="middle" class="peco__placeholder-plus">+</text>
+              <text x="274.5" y="183" text-anchor="middle" class="peco__placeholder-label" data-i18n="pe.your.label">your plugin</text>
+            </g>
+
+            <!-- KERNEL center -->
+            <g class="peco__kernel">
+              <circle cx="360" cy="360" r="80" fill="url(#peco-core)" opacity=".4">
+                <animate attributeName="r" values="76;86;76" dur="3s" repeatCount="indefinite"/>
+                <animate attributeName="opacity" values=".25;.5;.25" dur="3s" repeatCount="indefinite"/>
+              </circle>
+              <circle cx="360" cy="360" r="56" fill="rgba(14,19,26,.85)" stroke="rgba(124,58,237,.6)" stroke-width="1"/>
+              <circle cx="360" cy="360" r="44" fill="url(#peco-core-inner)" opacity=".95"/>
+              <g transform="translate(342 342)" opacity=".95">
+                <circle cx="6"  cy="8"  r="4" fill="#fff"/>
+                <circle cx="30" cy="8"  r="4" fill="#fff"/>
+                <circle cx="18" cy="28" r="5" fill="#0E131A"/>
+                <line x1="6"  y1="8" x2="30" y2="8"  stroke="#fff" stroke-width="1.5"/>
+                <line x1="6"  y1="8" x2="18" y2="28" stroke="#fff" stroke-width="1.5"/>
+                <line x1="30" y1="8" x2="18" y2="28" stroke="#fff" stroke-width="1.5"/>
+              </g>
+              <text x="360" y="434" text-anchor="middle" class="peco__kernel-label" data-i18n="pe.kernel.label">KERNEL</text>
+              <text x="360" y="450" text-anchor="middle" class="peco__kernel-sub"   data-i18n="pe.kernel.sub">graph engine</text>
+            </g>
+
+            <!-- Six satellites. -->
+            <g class="peco__sat" data-pe-id="adapter" data-pe-accent="#7C3AED" data-pe-bundled="true" tabindex="0" role="button" aria-label="Adapter plugin type">
+              <circle cx="360" cy="110" r="44" class="peco__sat-pulse" fill="none" stroke="#7C3AED" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="360" cy="110" r="42" class="peco__sat-glow" fill="#7C3AED" opacity=".15"/>
+              <circle cx="360" cy="110" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#7C3AED" stroke-width="1.2"/>
+              <circle cx="360" cy="110" r="20" class="peco__sat-fill" fill="url(#peco-fill-adapter)" opacity=".6"/>
+              <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
+                <rect x="351" y="103" width="8" height="14" rx="1"/>
+                <rect x="361" y="103" width="8" height="14" rx="1"/>
+                <line x1="359" y1="110" x2="361" y2="110"/>
+              </g>
+              <text x="360" y="168" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.adapter.title">Adapter</text>
+              <text x="360" y="184" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+            </g>
+
+            <g class="peco__sat" data-pe-id="detector" data-pe-accent="#A78BFA" data-pe-bundled="true" tabindex="0" role="button" aria-label="Detector plugin type">
+              <circle cx="576.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#A78BFA" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="576.5" cy="235" r="42" class="peco__sat-glow" fill="#A78BFA" opacity=".15"/>
+              <circle cx="576.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#A78BFA" stroke-width="1.2"/>
+              <circle cx="576.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-detector)" opacity=".6"/>
+              <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
+                <circle cx="574.5" cy="233" r="6"/>
+                <line x1="579.5" y1="238" x2="584.5" y2="243"/>
+              </g>
+              <text x="576.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.detector.title">Detector</text>
+              <text x="576.5" y="309" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+            </g>
+
+            <g class="peco__sat" data-pe-id="rule" data-pe-accent="#5FD17C" data-pe-bundled="true" tabindex="0" role="button" aria-label="Rule plugin type">
+              <circle cx="576.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#5FD17C" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="576.5" cy="485" r="42" class="peco__sat-glow" fill="#5FD17C" opacity=".15"/>
+              <circle cx="576.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5FD17C" stroke-width="1.2"/>
+              <circle cx="576.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-rule)" opacity=".6"/>
+              <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
+                <path d="M569.5,488 L573.5,492 L583.5,480"/>
+              </g>
+              <text x="576.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.rule.title">Rule</text>
+              <text x="576.5" y="559" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+            </g>
+
+            <g class="peco__sat" data-pe-id="action" data-pe-accent="#00C853" tabindex="0" role="button" aria-label="Action plugin type">
+              <circle cx="360" cy="610" r="44" class="peco__sat-pulse" fill="none" stroke="#00C853" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="360" cy="610" r="42" class="peco__sat-glow" fill="#00C853" opacity=".15"/>
+              <circle cx="360" cy="610" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#00C853" stroke-width="1.2"/>
+              <circle cx="360" cy="610" r="20" class="peco__sat-fill" fill="url(#peco-fill-action)" opacity=".6"/>
+              <g class="peco__sat-glyph">
+                <path d="M357,603 L357,611 L353,611 L363,617 L363,609 L367,609 Z" fill="#fff"/>
+              </g>
+              <text x="360" y="668" text-anchor="middle" class="peco__sat-label" data-i18n="pe.action.title">Action</text>
+            </g>
+
+            <g class="peco__sat" data-pe-id="audit" data-pe-accent="#FFB627" data-pe-bundled="true" tabindex="0" role="button" aria-label="Audit plugin type">
+              <circle cx="143.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#FFB627" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="143.5" cy="485" r="42" class="peco__sat-glow" fill="#FFB627" opacity=".15"/>
+              <circle cx="143.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#FFB627" stroke-width="1.2"/>
+              <circle cx="143.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-audit)" opacity=".6"/>
+              <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
+                <rect x="136.5" y="478" width="14" height="14" rx="1.5"/>
+                <line x1="139.5" y1="482" x2="147.5" y2="482"/>
+                <line x1="139.5" y1="485" x2="147.5" y2="485"/>
+                <line x1="139.5" y1="488" x2="144.5" y2="488"/>
+              </g>
+              <text x="143.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.audit.title">Audit</text>
+              <text x="143.5" y="559" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+            </g>
+
+            <g class="peco__sat" data-pe-id="renderer" data-pe-accent="#5BC0EB" data-pe-bundled="true" tabindex="0" role="button" aria-label="Renderer plugin type">
+              <circle cx="143.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#5BC0EB" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
+              <circle cx="143.5" cy="235" r="42" class="peco__sat-glow" fill="#5BC0EB" opacity=".15"/>
+              <circle cx="143.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5BC0EB" stroke-width="1.2"/>
+              <circle cx="143.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-renderer)" opacity=".6"/>
+              <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
+                <line x1="136.5" y1="230" x2="150.5" y2="230"/>
+                <line x1="136.5" y1="235" x2="148.5" y2="235"/>
+                <line x1="136.5" y1="240" x2="146.5" y2="240"/>
+              </g>
+              <text x="143.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.renderer.title">Renderer</text>
+              <text x="143.5" y="309" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+            </g>
+          </svg>
+        </div>
+
+        <div class="peco__panel">
+          <article class="peco__brief" data-pe-id="adapter">
+            <div class="peco__brief-tag">
+              <span class="peco__brief-dot"></span>
+              <span data-i18n="pe.tag">plugin type</span>
+              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+            </div>
+            <h3 class="peco__brief-title" data-i18n="pe.adapter.title">Adapter</h3>
+            <p class="peco__brief-one"   data-i18n="pe.adapter.one">Recognize a platform</p>
+            <p class="peco__brief-body"  data-i18n="pe.adapter.brief">Decides which files in a project are nodes and what kind (skill / agent / hook / command / note). The Claude adapter ships built-in; write one for Cursor, Cline, your own runner.</p>
+            <pre class="peco__brief-code"><code>export const claude: IAdapter = {
+  id: 'claude', kind: 'adapter',
+  globs: ['~/.claude/**/*.md'],
+  classify: (p) =&gt; /* skill | agent | hook | … */,
+};</code></pre>
+          </article>
+
+          <article class="peco__brief" data-pe-id="detector">
+            <div class="peco__brief-tag">
+              <span class="peco__brief-dot"></span>
+              <span data-i18n="pe.tag">plugin type</span>
+              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+            </div>
+            <h3 class="peco__brief-title" data-i18n="pe.detector.title">Detector</h3>
+            <p class="peco__brief-one"   data-i18n="pe.detector.one">Extract signals from a node</p>
+            <p class="peco__brief-body"  data-i18n="pe.detector.brief">Reads the body of a single node and returns Link[] — slash invocations, @-mentions, imports, URLs, anything you can grep. Detectors are how the graph stops being a directory and starts being a graph.</p>
+            <pre class="peco__brief-code"><code>export const slash: IDetector = {
+  id: 'slash', kind: 'detector',
+  detect: (ctx) =&gt; [...ctx.body.matchAll(SLASH_RE)]
+    .map(m =&gt; ({ kind: 'invokes', target: m[1] })),
+};</code></pre>
+          </article>
+
+          <article class="peco__brief" data-pe-id="rule">
+            <div class="peco__brief-tag">
+              <span class="peco__brief-dot"></span>
+              <span data-i18n="pe.tag">plugin type</span>
+              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+            </div>
+            <h3 class="peco__brief-title" data-i18n="pe.rule.title">Rule</h3>
+            <p class="peco__brief-one"   data-i18n="pe.rule.one">Lint the whole graph</p>
+            <p class="peco__brief-body"  data-i18n="pe.rule.brief">Receives the assembled graph and returns Issue[]. Trigger collisions, orphans, external deps that died, dangling references — write one rule, run it on every project, ship it as a package.</p>
+            <pre class="peco__brief-code"><code>export const triggerCollisions: IRule = {
+  id: 'trigger-collisions', kind: 'rule',
+  evaluate: (graph) =&gt; byTrigger(graph)
+    .filter(([, ns]) =&gt; ns.length &gt; 1)
+    .map(toCollisionIssue),
+};</code></pre>
+          </article>
+
+          <article class="peco__brief" data-pe-id="action">
+            <div class="peco__brief-tag">
+              <span class="peco__brief-dot"></span>
+              <span data-i18n="pe.tag">plugin type</span>
+            </div>
+            <h3 class="peco__brief-title" data-i18n="pe.action.title">Action</h3>
+            <p class="peco__brief-one"   data-i18n="pe.action.one">Operate on nodes</p>
+            <p class="peco__brief-body"  data-i18n="pe.action.brief">Two flavors. Local: deterministic code that mutates files. Invocation-template: a prompt the agent runner executes against an LLM. Either way, actions are how Issues become fixes.</p>
+            <pre class="peco__brief-code"><code>export const renameTrigger: IAction = {
+  id: 'rename-trigger', kind: 'action', mode: 'local',
+  run: async (node, { newTrigger }) =&gt; {
+    node.frontmatter.trigger = newTrigger;
+    await node.save();
+  },
+};</code></pre>
+          </article>
+
+          <article class="peco__brief" data-pe-id="audit">
+            <div class="peco__brief-tag">
+              <span class="peco__brief-dot"></span>
+              <span data-i18n="pe.tag">plugin type</span>
+              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+            </div>
+            <h3 class="peco__brief-title" data-i18n="pe.audit.title">Audit</h3>
+            <p class="peco__brief-one"   data-i18n="pe.audit.one">Compose rules + actions</p>
+            <p class="peco__brief-body"  data-i18n="pe.audit.brief">A deterministic workflow that runs rules, runs actions, and emits a structured report. CI-friendly. Ship one as a package, the team runs `sm audit @org/security` and gets the same answer every time.</p>
+            <pre class="peco__brief-code"><code>export const securityBaseline: IAudit = {
+  id: 'security-baseline', kind: 'audit',
+  rules: ['external-deps', 'dangling-refs'],
+  run: (graph) =&gt; composeRules(graph),
+};</code></pre>
+          </article>
+
+          <article class="peco__brief" data-pe-id="renderer">
+            <div class="peco__brief-tag">
+              <span class="peco__brief-dot"></span>
+              <span data-i18n="pe.tag">plugin type</span>
+              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+            </div>
+            <h3 class="peco__brief-title" data-i18n="pe.renderer.title">Renderer</h3>
+            <p class="peco__brief-one"   data-i18n="pe.renderer.one">Serialize the graph</p>
+            <p class="peco__brief-body"  data-i18n="pe.renderer.brief">Take the in-memory graph and emit it as something else: ASCII, Mermaid, DOT, JSON, your custom format. Bundled renderers cover the basics; the interesting ones are the ones you write.</p>
+            <pre class="peco__brief-code"><code>export const mermaid: IRenderer = {
+  id: 'mermaid', kind: 'renderer',
+  render: (graph) =&gt; 'graph LR\n' +
+    graph.edges.map(e =&gt; `  ${e.src} --&gt; ${e.dst}`).join('\n'),
+};</code></pre>
+          </article>
+
+          <nav class="peco__nav" aria-label="Cycle through plugin types">
+            <button type="button" class="peco__nav-btn" data-pe-nav="prev" data-i18n="pe.prev">← prev</button>
+            <span class="peco__nav-count"><span class="peco__nav-i">1</span> / 6</span>
+            <button type="button" class="peco__nav-btn" data-pe-nav="next" data-i18n="pe.next">next →</button>
+          </nav>
+        </div>
+      </div>
+
+      <div class="peco__cta">
+        <div>
+          <p class="peco__cta-title" data-i18n="pe.cta.title">A plugin is ~30 lines of code.</p>
+          <code class="peco__cta-cmd">sm plugins list</code>
+        </div>
+        <div class="peco__cta-actions">
+          <a class="btn btn--ghost" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener" data-i18n="pe.cta.docs">Read the docs →</a>
+          <a class="btn btn--accent" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener" data-i18n="pe.cta.template">Plugin template</a>
+        </div>
+      </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
+
     <!-- ============== HOW IT WORKS ============== -->
     <section class="section" id="how">
       <header class="section-header section-header--center">
@@ -399,6 +722,8 @@
         </li>
       </ol>
     </section>
+
+    <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== USE CASES ============== -->
     <section class="section" id="cases">
@@ -440,6 +765,8 @@
         </article>
       </div>
     </section>
+
+    <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== CLI ============== -->
     <section class="section" id="cli">
@@ -500,6 +827,8 @@
         </div>
       </div>
     </section>
+
+    <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== QUOTES ============== -->
     <section class="section" id="quotes">
@@ -564,6 +893,8 @@
         </article>
       </div>
     </section>
+
+    <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== CTA BAR ============== -->
     <section class="cta-bar" id="cta">

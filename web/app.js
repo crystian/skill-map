@@ -280,31 +280,10 @@
   }
 
   // ---------- Zoom + pan ----------
-  const view = { x: 0, y: 0, k: 1 };
-  const Z_MIN = 0.5, Z_MAX = 3;
+  const view = { x: 0, y: 0 };
   function applyView() {
-    viewport.setAttribute('transform', `translate(${view.x} ${view.y}) scale(${view.k})`);
+    viewport.setAttribute('transform', `translate(${view.x} ${view.y})`);
   }
-  function zoomAt(svgX, svgY, factor) {
-    const k = Math.max(Z_MIN, Math.min(Z_MAX, view.k * factor));
-    view.x = svgX - (svgX - view.x) * (k / view.k);
-    view.y = svgY - (svgY - view.y) * (k / view.k);
-    view.k = k;
-    applyView();
-  }
-  function clientToSvgRaw(clientX, clientY) {
-    const rect = svg.getBoundingClientRect();
-    return {
-      x: ((clientX - rect.left) / rect.width)  * 900,
-      y: ((clientY - rect.top)  / rect.height) * 560,
-    };
-  }
-
-  svg.addEventListener('wheel', (e) => {
-    e.preventDefault();
-    const p = clientToSvgRaw(e.clientX, e.clientY);
-    zoomAt(p.x, p.y, Math.exp(-e.deltaY * 0.0015));
-  }, { passive: false });
 
   let panning = null;
 
@@ -371,13 +350,6 @@
   }
   svg.addEventListener('pointerup', endDrag);
   svg.addEventListener('pointercancel', endDrag);
-
-  // Wire the zoom reset button (started disabled in the static HTML).
-  const resetBtn = graphCard.querySelector('.hero__graph-zoom button.reset');
-  if (resetBtn) {
-    resetBtn.disabled = false;
-    resetBtn.addEventListener('click', () => { view.x = 0; view.y = 0; view.k = 1; applyView(); });
-  }
 
   // Initial paint.
   updateInspector();
@@ -855,7 +827,7 @@
   ];
 
   const STATUS_LABEL = {
-    done:    { en: 'Shipped',     es: 'Lanzado' },
+    done:    { en: 'Released',    es: 'Released' },
     current: { en: 'In progress', es: 'En curso' },
     planned: { en: 'Planned',     es: 'Planeado' },
     open:    { en: 'Open',        es: 'Abierto' },
@@ -871,8 +843,10 @@
   const ofWord = lang === 'es' ? 'de' : 'of';
   const phaseWord = lang === 'es' ? 'Fase' : 'Phase';
 
-  const currentIdx = PHASES.findIndex((p) => p.status === 'current');
-  let selected = currentIdx >= 0 ? currentIdx : 0;
+  // Detail panel is collapsed by default — `selected = -1` means no phase
+  // is open. Clicking a segment opens the panel; clicking the same segment
+  // again collapses it back.
+  let selected = -1;
 
   // For phases with a `steps` list, count how many steps are done so the
   // segment can show a `done of total` progress bar. Highlights / sketches
@@ -925,9 +899,9 @@
 
   mount.appendChild(strip);
 
-  // --- Build the detail panel ---
+  // --- Build the detail panel (hidden until a segment is clicked) ---
   const detail = document.createElement('div');
-  detail.className = 'roadmap__detail';
+  detail.className = 'roadmap__detail roadmap__detail--hidden';
   detail.innerHTML = `
     <aside class="roadmap__detail-meta">
       <div class="roadmap__detail-id"></div>
@@ -953,10 +927,20 @@
 
   function setSelected(i) {
     if (i < 0 || i >= PHASES.length) return;
+    // Clicking the currently-open segment collapses the detail panel.
+    if (i === selected) {
+      selected = -1;
+      detail.classList.add('roadmap__detail--hidden');
+      for (const btn of segments.children) {
+        btn.setAttribute('aria-current', 'false');
+      }
+      return;
+    }
     selected = i;
     for (const btn of segments.children) {
       btn.setAttribute('aria-current', String(+btn.dataset.idx === i));
     }
+    detail.classList.remove('roadmap__detail--hidden');
     renderDetail();
   }
 
@@ -1010,8 +994,6 @@
     setSelected(next);
     e.preventDefault();
   });
-
-  renderDetail();
 })();
 
 // ============================================================
@@ -1295,4 +1277,56 @@
   // 0% fill before any media event fires. updateProgress() is safe to
   // call before metadata is loaded — it falls back to FALLBACK_DURATION.
   updateProgress();
+})();
+
+// ============================================================
+// Plugin ecosystem — interactive satellites + brief panel
+// ------------------------------------------------------------
+// Six plugin types orbit the kernel. Hover or focus highlights a
+// satellite; clicking pins it. The active id lives on
+// `.peco[data-active]` so CSS routes visibility from there. The
+// accent color of the active plugin is exposed as `--pe-accent`
+// on the section root so the panel themes itself. Hover updates
+// the visual highlight but does not change the active id.
+// ============================================================
+(() => {
+  const root = document.querySelector('.peco');
+  if (!root) return;
+
+  const sats = [...root.querySelectorAll('.peco__sat')];
+  if (!sats.length) return;
+  const ids = sats.map((s) => s.dataset.peId);
+  const accentOf = Object.fromEntries(sats.map((s) => [s.dataset.peId, s.dataset.peAccent]));
+
+  function setActive(id) {
+    if (!ids.includes(id)) return;
+    root.dataset.active = id;
+    root.style.setProperty('--pe-accent', accentOf[id]);
+    const i = ids.indexOf(id);
+    const counter = root.querySelector('.peco__nav-i');
+    if (counter) counter.textContent = String(i + 1);
+  }
+
+  for (const sat of sats) {
+    sat.addEventListener('click', () => setActive(sat.dataset.peId));
+    sat.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      setActive(sat.dataset.peId);
+    });
+    sat.addEventListener('focus', () => setActive(sat.dataset.peId));
+  }
+
+  root.querySelector('[data-pe-nav="prev"]')?.addEventListener('click', () => {
+    const i = ids.indexOf(root.dataset.active);
+    setActive(ids[(i - 1 + ids.length) % ids.length]);
+  });
+  root.querySelector('[data-pe-nav="next"]')?.addEventListener('click', () => {
+    const i = ids.indexOf(root.dataset.active);
+    setActive(ids[(i + 1) % ids.length]);
+  });
+
+  // Initial paint — keeps the count and accent in sync with the
+  // `data-active` already declared in the HTML.
+  setActive(root.dataset.active || ids[0]);
 })();
