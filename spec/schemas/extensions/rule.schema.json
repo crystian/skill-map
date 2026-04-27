@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/rule.schema.json",
   "title": "ExtensionRule",
-  "description": "Manifest shape for a `Rule` extension. A rule consumes the full graph (nodes + links) after all detectors have run and emits `Issue[]`. Rules MUST be deterministic: same graph in → same issues out, byte-for-byte. Any source of non-determinism (time, random, network) is forbidden and is a conformance violation.",
+  "description": "Manifest shape for a `Rule` extension. A rule consumes the full graph (nodes + links) after all detectors have run and emits `Issue[]`. Rules are dual-mode: `deterministic` rules MUST be byte-for-byte reproducible (same graph in → same issues out; time, random, and network are forbidden) and run synchronously inside `sm check` / `sm scan`. `probabilistic` rules invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (`sm job submit rule:<id>`); their output MAY vary across runs and they NEVER participate in `sm scan`. See `architecture.md` §Execution modes for the full contract.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],
@@ -11,6 +11,12 @@
   "unevaluatedProperties": false,
   "properties": {
     "kind": { "const": "rule" },
+    "mode": {
+      "type": "string",
+      "enum": ["deterministic", "probabilistic"],
+      "default": "deterministic",
+      "description": "`deterministic` (default): pure code, byte-for-byte reproducible, runs during `sm check` and `sm scan`. `probabilistic`: invokes an LLM via `ctx.runner` and runs only as a queued job; never participates in scan-time pipelines. The kernel rejects probabilistic rules that try to register scan-time hooks at load time. Omitting the field is equivalent to declaring `deterministic`."
+    },
     "emitsRuleIds": {
       "type": "array",
       "description": "List of `rule_id` values this rule may emit on issues. Typically a singleton (`trigger-collision` → emits `trigger-collision`). A rule emitting a `rule_id` not in this list → kernel logs `rule-id-violation` but keeps the issue (forward compatibility).",

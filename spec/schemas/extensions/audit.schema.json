@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/audit.schema.json",
   "title": "ExtensionAudit",
-  "description": "Manifest shape for an `Audit` extension. An audit is a hardcoded, deterministic workflow that composes rules and/or local actions into a single report. Audits MUST NOT submit LLM-backed actions — their defining property is reproducibility. An audit that needs probabilistic signal is the wrong shape; emit a `Findings` surface via LLM verbs instead.",
+  "description": "Manifest shape for an `Audit` extension. An audit is a hardcoded workflow that composes rules and actions into a single report. The audit's execution mode is NOT declared in the manifest — it is **derived** from the modes of the primitives it composes: if every composed primitive is `deterministic`, the audit's effective mode is `deterministic` and runs synchronously inside `sm audit <id>`; if any composed primitive is `probabilistic`, the audit's effective mode is `probabilistic` and dispatches as a queued job (`sm job submit audit:<id>`). Declaring `mode` in the manifest is a load-time error. See `architecture.md` §Execution modes for the full derivation contract.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],
@@ -13,7 +13,7 @@
     "kind": { "const": "audit" },
     "composes": {
       "type": "array",
-      "description": "Ordered list of rule ids and/or local action ids the audit executes in sequence. The kernel resolves each id in the registry at load time; a dangling reference disables the audit with status `invalid-manifest`.",
+      "description": "Ordered list of rule and action references the audit executes in sequence. The kernel resolves each reference in the registry at load time; a dangling reference (id not found, kind mismatch, or primitive disabled) disables the audit with status `invalid-manifest`. Each composed primitive's `mode` participates in the audit's mode derivation.",
       "minItems": 1,
       "items": {
         "type": "object",
@@ -32,7 +32,7 @@
     },
     "reportSchemaRef": {
       "type": "string",
-      "description": "Reference to the JSON Schema of the audit's report shape. Audits do NOT extend `report-base.schema.json` — they are deterministic and therefore carry no `safety` / `confidence`. Their shape is kind-specific."
+      "description": "Reference to the JSON Schema of the audit's report shape. Probabilistic audits MUST extend `report-base.schema.json` (carries `safety` / `confidence` per the report-base contract). Deterministic audits MAY extend it but are not required to."
     },
     "exitCodeMap": {
       "type": "object",

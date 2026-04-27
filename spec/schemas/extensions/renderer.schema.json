@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/renderer.schema.json",
   "title": "ExtensionRenderer",
-  "description": "Manifest shape for a `Renderer` extension. A renderer serializes the graph (or a filtered subgraph) into a string in a declared format. Renderers are invoked by `sm graph --format <format>` and `sm export`. Output MUST be byte-deterministic for the same input graph — the snapshot-test suite relies on this.",
+  "description": "Manifest shape for a `Renderer` extension. A renderer serializes the graph (or a filtered subgraph) into a string in a declared format. Renderers are invoked by `sm graph --format <format>` and `sm export`. Renderers are deterministic-only — they sit at the graph-to-string boundary and their output MUST be byte-deterministic for the same input graph (the snapshot-test suite relies on this). The `mode` field MUST NOT appear in renderer manifests. Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings, not in renderers.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],

@@ -50,6 +50,25 @@ No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. Obsidian of
 4. **Web UI** (prototype in Step 0c with mocked data; full integration at `v1.0`) consumes the same kernel and offers visual navigation, inspector, and execution. The prototype does **not** ship in `v0.5.0`.
 5. **Plugin system** (drop-in, kernel + extensions) lets third parties add detectors, rules, actions, adapters, or renderers without touching the kernel.
 
+## Two execution modes — the meta-architecture
+
+Most plugin systems pick a side: ESLint and Prettier are deterministic-only; LangChain agents are probabilistic-only. **skill-map is both, on the same plugin model.**
+
+Every analytical extension declares one of two modes:
+
+- **`deterministic`** — pure code. Same input → same output, every run. Fast, free, reproducible. Runs synchronously inside `sm scan` / `sm check`. CI-safe.
+- **`probabilistic`** — invokes an LLM through the kernel's `RunnerPort`. Output may vary. Cost and latency are non-trivial. Runs only as a queued job (`sm job submit <kind>:<id>`), never during scan.
+
+Four of the six extension kinds support both modes (Detector, Rule, Action, Audit). The remaining two are deterministic-only (Adapter, Renderer) because they sit at the boundaries — filesystem-to-graph and graph-to-string — where reproducibility is essential.
+
+This is what unlocks the workflow:
+
+- **Pre-commit / CI** runs deterministic extensions only. Milliseconds per check, no network, no LLM cost.
+- **Nightly / on-demand** runs probabilistic extensions through the queue. Same scan snapshot, deeper analysis, costs proportional to demand.
+- **The community** can publish a deterministic detector today and a probabilistic counterpart tomorrow without redesigning anything. Same `ctx`, same registry, same loader.
+
+The full normative contract lives in [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
+
 ## Philosophy
 
 - **CLI-first** — everything the UI does is reachable from the command line.

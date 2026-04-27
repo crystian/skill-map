@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/detector.schema.json",
   "title": "ExtensionDetector",
-  "description": "Manifest shape for a `Detector` extension. A detector consumes a parsed node (frontmatter + body) and emits `Link[]` pointing to other nodes or to external URLs (the latter only if it is the designated URL-counter detector). Detectors run in isolation: they MUST NOT read other nodes, the graph, or the DB. Cross-node reasoning lives in Rules.",
+  "description": "Manifest shape for a `Detector` extension. A detector consumes a parsed node (frontmatter + body) and emits `Link[]` pointing to other nodes or to external URLs (the latter only if it is the designated URL-counter detector). Detectors run in isolation: they MUST NOT read other nodes, the graph, or the DB. Cross-node reasoning lives in Rules. Detectors are dual-mode: `deterministic` detectors run synchronously inside `sm scan`; `probabilistic` detectors invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (never during scan). See `architecture.md` §Execution modes for the full contract.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],
@@ -11,6 +11,12 @@
   "unevaluatedProperties": false,
   "properties": {
     "kind": { "const": "detector" },
+    "mode": {
+      "type": "string",
+      "enum": ["deterministic", "probabilistic"],
+      "default": "deterministic",
+      "description": "`deterministic` (default): pure code, runs synchronously during `sm scan`. Same input → same output, every run. `probabilistic`: invokes an LLM via `ctx.runner` and runs only as a queued job (`sm job submit detector:<id>`); never participates in `sm scan`. The kernel rejects probabilistic detectors that try to register scan-time hooks at load time. Omitting the field is equivalent to declaring `deterministic`."
+    },
     "emitsLinkKinds": {
       "type": "array",
       "description": "Subset of `Link.kind` values this detector is allowed to emit. Emitting an unlisted kind at runtime → kernel rejects the link and logs `detector-kind-violation`.",

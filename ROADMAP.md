@@ -35,16 +35,28 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 
 ### Extensions (6 extension kinds)
 
-"Extension kind" is the category of a plugin piece, distinct from **node kind** in the previous table. The ecosystem exposes six, and they form the stable kernel contract.
+"Extension kind" is the category of a plugin piece, distinct from **node kind** in the previous table. The ecosystem exposes six, and they form the stable kernel contract. Four kinds are dual-mode (deterministic / probabilistic — see §Execution modes below); two are deterministic-only because they sit at the system boundaries.
 
 | Concept | Description |
 |---|---|
-| **Adapter** | Extension kind. Recognizes a platform (claude, codex, gemini, generic) and classifies each file into its node kind. |
-| **Detector** | Extension kind. Extracts links (references) from a node's body during the scan. |
-| **Rule** | Extension kind. Evaluates the graph and emits deterministic issues. |
-| **Action** | Extension kind. Operation executable over one or more nodes. Two modes: local (plugin code) or invocation-template (rendered prompt for an LLM). |
-| **Audit** | Extension kind. Deterministic workflow composing rules and actions. |
-| **Renderer** | Extension kind. Serializes the graph into ascii / mermaid / dot / json. |
+| **Adapter** | Extension kind. Recognizes a platform (claude, codex, gemini, generic) and classifies each file into its node kind. **Deterministic-only**. |
+| **Detector** | Extension kind. Extracts links (references) from a node's body. **Dual-mode**: deterministic detectors run during scan; probabilistic detectors invoke an LLM and run only as queued jobs. |
+| **Rule** | Extension kind. Evaluates the graph and emits issues. **Dual-mode**: deterministic rules run in `sm check`; probabilistic rules run only as queued jobs. |
+| **Action** | Extension kind. Operation executable over one or more nodes. **Dual-mode**: `deterministic` (plugin code, in-process) or `probabilistic` (rendered prompt the runner executes against an LLM). |
+| **Audit** | Extension kind. Workflow composing rules and actions. Effective mode is **derived** from `composes[]` — deterministic if every primitive is deterministic, probabilistic otherwise. |
+| **Renderer** | Extension kind. Serializes the graph into ascii / mermaid / dot / json. **Deterministic-only** (snapshot diffability). |
+
+### Execution modes
+
+The dual-mode capability is the meta-property that lets the same extension model scale from `pre-commit` (deterministic only) to nightly enrichment (deterministic + probabilistic). Mode is a property of the extension as a whole, not of an individual call.
+
+| Concept | Description |
+|---|---|
+| **Deterministic mode** | Pure code. Same input → same output, every run. Runs synchronously inside `sm scan` / `sm check` / `sm audit`. Fast, free, CI-safe. |
+| **Probabilistic mode** | Calls an LLM through the kernel's `RunnerPort` (`ClaudeCliRunner`, `MockRunner`, third-party runners). Output may vary across runs. NEVER participates in `sm scan`; dispatches as a queued job (`sm job submit <kind>:<id>`). The kernel rejects probabilistic extensions that try to register scan-time hooks at load time. |
+| **Mode derivation (Audit)** | An audit doesn't declare `mode`. The kernel derives it from `composes[]` at load time: if every composed primitive is deterministic, the audit is deterministic and runs synchronously; if any is probabilistic, the audit is probabilistic and dispatches as a job. Declaring `mode` directly on an audit manifest is a load-time error. |
+
+The full normative contract lives in [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
 
 ### Architecture
 
@@ -1462,7 +1474,9 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 
 ---
 
-### Step 10 — Job subsystem + first summarizer
+### Step 10 — Job subsystem + first probabilistic extension (wave 2 begins)
+
+This is where **wave 2 — probabilistic extensions** begins. Steps 0–7 shipped the deterministic half of the dual-mode model (Adapter, three Detectors, three Rules, ASCII Renderer, validate-all Audit, all running synchronously inside `sm scan` / `sm check`). Step 10 turns on the second half: queued jobs, LLM runner, and the first probabilistic extension (`skill-summarizer`, an Action of `mode: 'probabilistic'`). The kernel surface (`ctx.runner`, the queue, the preamble, the safety/confidence contract on outputs) is what unlocks every subsequent probabilistic extension across all four dual-mode kinds — Detector, Rule, Action, Audit.
 
 - `state_jobs` table + atomic claim via `UPDATE ... RETURNING id`.
 - Job file rendering with kernel-enforced preamble + `<user-content>` delimiters.
@@ -1471,17 +1485,21 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 - CLI runner loop (`sm job run`) + `ClaudeCliRunner` (`claude -p` subprocess) as the default `RunnerPort` impl. Submission and claim MUST succeed even when `claude` is absent; only `sm job run` requires it, and MUST fail fast with a clear error (exit 2) pointing the user at installation docs when the binary is missing.
 - `sm doctor` learns to probe LLM runner availability here (lands with the first runner, even though verbs that use it arrive progressively through Step 11).
 - Skill agent (`/skill-map:run-queue` + `sm-cli-run-queue` skill package).
-- `skill-summarizer` built-in (first summarizer).
+- `skill-summarizer` built-in — the first probabilistic Action. Its existence proves the full pipeline (manifest declaration of `mode: 'probabilistic'`, kernel routing through `RunnerPort`, prompt rendering, `sm record` callback). Subsequent probabilistic extensions reuse the same infrastructure.
+- `ctx.runner` injection plumbed through the invocation context for probabilistic extensions (per `spec/architecture.md` §Execution modes).
 - Duplicate detection via `contentHash` + `--force`.
 - Per-action TTL + auto-reap.
 - Progress events (pretty / `--stream-output` / `--json`).
 - `github-enrichment` bundled plugin (hash verification).
 - Close conformance case `preamble-bitwise-match` (deferred from Step 0a — needs `sm job preview` to render a job file for byte-exact comparison against `spec/conformance/fixtures/preamble-v1.txt`).
+- New conformance case `extension-mode-derivation`: an audit composing one deterministic primitive + one probabilistic primitive resolves to effective mode `probabilistic`.
 
-### Step 11 — Remaining summarizers + LLM verbs + findings
+### Step 11 — Remaining probabilistic extensions + LLM verbs + findings
 
-- `agent-summarizer`, `command-summarizer`, `hook-summarizer`, `note-summarizer`.
-- `sm what`, `sm dedupe`, `sm cluster-triggers`, `sm impact-of`, `sm recommend-optimization`.
+Continuation of wave 2: the rest of the per-kind summarizers, the high-leverage LLM verbs that consume them, and the `findings` surface that probabilistic Rules / Audits emit into.
+
+- Per-kind probabilistic summarizers (Actions): `agent-summarizer`, `command-summarizer`, `hook-summarizer`, `note-summarizer`.
+- `sm what`, `sm dedupe`, `sm cluster-triggers`, `sm impact-of`, `sm recommend-optimization` — verbs that wrap probabilistic extensions and the queue.
 - `sm findings` CLI verb.
 - `/skill-map:explore` meta-skill.
 - `state_summaries` is exercised by all five per-kind summarizers (the table lands in Step 10 with `skill-summarizer`; Step 11 fills out the remaining four kinds). `state_enrichments` accepts additional providers beyond `github-enrichment` when they ship, against the stable contract.

@@ -50,6 +50,25 @@ Ninguna herramienta oficial (Anthropic, Cursor, GitHub, skills.sh) cubre esto. O
 4. **Web UI** (prototipo en Step 0c con datos mockeados; integración completa en `v1.0`) consume el mismo kernel y ofrece navegación visual, inspector y ejecución. El prototipo **no** se shipea en `v0.5.0`.
 5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen detectores, reglas, actions, adapters o renderers sin tocar el kernel.
 
+## Dos modos de ejecución — la meta-arquitectura
+
+La mayoría de los sistemas de plugins eligen un lado: ESLint y Prettier son deterministas; los agentes de LangChain son probabilísticos. **skill-map es las dos cosas, sobre el mismo modelo de plugins.**
+
+Cada extensión analítica declara uno de dos modos:
+
+- **`deterministic`** — código puro. Mismo input → mismo output, en cada corrida. Rápido, gratis, reproducible. Corre sincrónicamente dentro de `sm scan` / `sm check`. Apto para CI.
+- **`probabilistic`** — invoca un LLM a través del `RunnerPort` del kernel. La salida puede variar entre corridas. Costo y latencia no son triviales. Corre solo como job en cola (`sm job submit <kind>:<id>`), nunca durante el scan.
+
+Cuatro de los seis tipos de extensión soportan ambos modos (Detector, Rule, Action, Audit). Los dos restantes son solo deterministas (Adapter, Renderer) porque están en las **fronteras** del sistema — filesystem-a-grafo y grafo-a-string — donde la reproducibilidad es esencial.
+
+Esto es lo que destraba el flujo:
+
+- **Pre-commit / CI** corre solo extensiones deterministas. Milisegundos por check, sin red, sin costo de LLM.
+- **Nightly / on-demand** corre extensiones probabilísticas a través de la cola. Mismo snapshot del scan, análisis más profundo, costo proporcional a la demanda.
+- **La comunidad** puede publicar un detector determinista hoy y una contraparte probabilística mañana sin rediseñar nada. Mismo `ctx`, mismo registry, mismo loader.
+
+El contrato normativo completo vive en [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
+
 ## Filosofía
 
 - **CLI-first**: todo lo que hace la UI se puede hacer en línea de comandos.

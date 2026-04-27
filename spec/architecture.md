@@ -115,18 +115,66 @@ No extension is privileged. The Claude adapter ships bundled with the reference 
 
 ---
 
+## Execution modes
+
+Every analytical extension in skill-map is one of two **modes**:
+
+- **`deterministic`** — pure code. Same input → same output, every run.
+- **`probabilistic`** — calls an LLM through the kernel's `RunnerPort`. Output may vary across runs; cost and latency are non-trivial.
+
+Mode is a property of the extension as a whole, not of an individual call. **An extension is one mode or the other; it cannot switch at runtime.** If a plugin author needs both flavors of the same idea (regex-based AND LLM-based "find suspicious imports"), they ship two extensions with distinct ids.
+
+### Which kinds support which modes
+
+| Kind | Modes | How mode is set |
+|---|---|---|
+| **Detector** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
+| **Rule** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
+| **Action** | deterministic / probabilistic | declared in manifest (`mode` field, **required** — no default) |
+| **Audit** | deterministic / probabilistic | derived from `composes[]` (see below) |
+| **Adapter** | deterministic-only | implicit; `mode` field MUST NOT appear |
+| **Renderer** | deterministic-only | implicit; `mode` field MUST NOT appear |
+
+Adapter and Renderer are locked to deterministic because they sit at the **boundaries** of the system. An adapter resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. A renderer must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings, not in renderers.
+
+### Audit · derived mode
+
+An audit is a **composer**: it declares which primitives it runs and the kernel handles dispatch. The audit manifest does NOT carry a `mode` field. Instead it declares `composes[]` — the rule and action references the audit executes in sequence. At load time the kernel resolves each entry and computes the audit's **effective mode**:
+
+- If every composed primitive is `deterministic` → the audit's effective mode is `deterministic`. Runs synchronously inside `sm audit <id>`.
+- If any composed primitive is `probabilistic` → the audit's effective mode is `probabilistic`. Dispatches as a job via `sm job submit audit:<id>`.
+
+A dangling reference in `composes[]` (the id doesn't resolve, the kind is wrong, or the primitive is disabled) is a **load-time error**. The audit is rejected with status `invalid-manifest`, not silently skipped. This matches the rule already in place for `defaultRefreshAction`. Declaring `mode` directly on an audit manifest is also a load-time error.
+
+The effective mode is exposed to the UI and to `sm audit show <id>` so consumers can preview cost before invoking.
+
+### When each mode runs
+
+- **Deterministic extensions** run synchronously inside the standard kernel pipelines (`sm scan`, `sm check`, `sm list`). Fast, free, reproducible. CI-safe.
+- **Probabilistic extensions** never run during `sm scan`. They are dispatched as **jobs** via `sm job submit <kind>:<id>`. Jobs are async, queued, persisted under `state_jobs`, and resume on next boot. The same scan snapshot can be re-analyzed by probabilistic extensions on demand without re-walking the filesystem.
+
+This separation is normative: a probabilistic extension cannot register a hook that fires from `sm scan`. The kernel rejects it at load time.
+
+### How probabilistic extensions invoke the LLM
+
+The kernel exposes the LLM through the `RunnerPort` (see §Ports above). Reference impl: `ClaudeCliRunner`. Tests: `MockRunner`. Other adapters (OpenAI, local Ollama, etc.) implement the same port without spec changes.
+
+A probabilistic extension receives the runner in its invocation context alongside `ctx.store`. The extension never imports a specific LLM SDK — the runner contract is what the spec normalizes; wire format and model selection are adapter concerns.
+
+---
+
 ## Extension kinds
 
 Six kinds, all first-class, all loaded through the same registry. Each kind has a JSON Schema describing its manifest shape under [`schemas/extensions/`](./schemas/extensions/). Implementations MUST validate every extension manifest against the schema for its declared kind at load time; validation failure → the extension is skipped with status `invalid-manifest`.
 
 | Kind | Role | Input | Output |
 |---|---|---|---|
-| **Adapter** | Recognizes a platform. Decides which files are nodes and what kind they are. Declares per-kind `defaultRefreshAction` (an action id that drives the probabilistic-refresh surface). | Filesystem walk results, candidate path. | `{ kind, adapter } \| null`. |
-| **Detector** | Extracts signals from a node body. | Parsed node (frontmatter + body). | `Link[]`. |
-| **Rule** | Evaluates the graph. | Full graph (nodes + links). | `Issue[]`. |
-| **Action** | Operates on one or more nodes. Two modes: `local` (code) or `invocation-template` (LLM prompt). | Node(s), optional args. | Local: report JSON. Template: rendered prompt that a runner executes. |
-| **Audit** | Deterministic workflow that composes rules and actions. Produces a structured report. | Graph + optional scope filter. | Audit report (hardcoded shape, kind-specific). |
-| **Renderer** | Serializes the graph. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
+| **Adapter** | Recognizes a platform. Decides which files are nodes and what kind they are. Declares per-kind `defaultRefreshAction` (an action id that drives the probabilistic-refresh surface). Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, adapter } \| null`. |
+| **Detector** | Extracts signals from a node body. Dual-mode: `deterministic` runs in scan, `probabilistic` runs in jobs. | Parsed node (frontmatter + body). | `Link[]`. |
+| **Rule** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
+| **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
+| **Audit** | Workflow that composes rules and actions. Effective mode is derived from `composes[]` — deterministic if all composed primitives are deterministic, probabilistic otherwise. Produces a structured report. | Graph + optional scope filter. | Audit report (hardcoded shape, kind-specific). |
+| **Renderer** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
 
 ### Adapter · `defaultRefreshAction`
 
@@ -266,6 +314,8 @@ This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel funct
 The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bump.
 
 The **extension kind list** (6 kinds) is stable as of spec v1.0.0. Adding a seventh kind is a major bump.
+
+The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode, changing which kinds are dual-mode, or changing the audit's mode-derivation rule is a major bump. Renaming or repurposing the mode enum values is a major bump.
 
 The **dependency rules** above are stable as of spec v1.0.0. Relaxing any is a major bump; tightening (forbidding an allowed import) is a minor bump.
 

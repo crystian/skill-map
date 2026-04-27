@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/adapter.schema.json",
   "title": "ExtensionAdapter",
-  "description": "Manifest shape for an `Adapter` extension. An adapter recognizes a platform (Claude Code, Codex, Gemini, Obsidian vault, generic MD) and classifies each candidate file into a node `kind`. Exactly zero or one adapter MUST match any given file; multiple matches → the kernel emits an issue `adapter-ambiguous` and the file is left unclassified. Stability: stable as of spec v1.0.0 except where noted.",
+  "description": "Manifest shape for an `Adapter` extension. An adapter recognizes a platform (Claude Code, Codex, Gemini, Obsidian vault, generic MD) and classifies each candidate file into a node `kind`. Exactly zero or one adapter MUST match any given file; multiple matches → the kernel emits an issue `adapter-ambiguous` and the file is left unclassified. Adapters are deterministic-only — they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in adapter manifests. If you need LLM-assisted classification, write a probabilistic Detector that emits classification hints as `Link[]`. Stability: stable as of spec v1.0.0 except where noted.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],

@@ -49,7 +49,7 @@ The Action receives a standard invocation: a single node, or (via `--all`) a set
 
 i.e. applies to every node. A scanner MAY narrow to specific kinds if the vendor's check only applies to, for example, shell-hook content.
 
-Scanners are **local-mode** Actions by default: no LLM involvement. The Action runs its own logic (HTTP request to a vendor API, local regex scan, dependency check) and writes a report. Scanners MAY also be `invocation-template` Actions if the scanner relies on model analysis — the same report shape applies.
+Scanners are **deterministic-mode** Actions by default: no LLM involvement. The Action runs its own logic (HTTP request to a vendor API, local regex scan, dependency check) and writes a report. Scanners MAY also be `probabilistic` Actions if the scanner relies on model analysis — the same report shape applies.
 
 ---
 

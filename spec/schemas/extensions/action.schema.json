@@ -2,10 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/action.schema.json",
   "title": "ExtensionAction",
-  "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `local` (code runs in-process, returns a report JSON directly) or `invocation-template` (kernel renders a prompt, a runner executes it, the callback closes the job). The `mode` discriminator drives which additional fields are required.",
-  "allOf": [
-    { "$ref": "base.schema.json" }
-  ],
+  "description": "Manifest shape for an `Action` extension. An action operates on one or more nodes in one of two modes: `deterministic` (code runs in-process, returns a report JSON directly) or `probabilistic` (kernel renders a prompt, a runner executes it against an LLM, the callback closes the job). The `mode` discriminator drives which additional fields are required. See `architecture.md` §Execution modes for the cross-extension contract.",
   "type": "object",
   "required": ["id", "kind", "version", "mode", "reportSchemaRef"],
   "unevaluatedProperties": false,
@@ -13,8 +10,8 @@
     "kind": { "const": "action" },
     "mode": {
       "type": "string",
-      "enum": ["local", "invocation-template"],
-      "description": "`local`: the plugin's code computes the report synchronously, no job file, no runner. `invocation-template`: the kernel renders a prompt + preamble into a job file; a runner executes it; `sm record` closes the job."
+      "enum": ["deterministic", "probabilistic"],
+      "description": "`deterministic`: the plugin's code computes the report synchronously, no job file, no runner. `probabilistic`: the kernel renders a prompt + preamble into a job file; a runner executes it via `RunnerPort`; `sm record` closes the job."
     },
     "reportSchemaRef": {
       "type": "string",
@@ -23,11 +20,11 @@
     "expectedDurationSeconds": {
       "type": "integer",
       "minimum": 1,
-      "description": "Best-effort estimate of wall-clock duration. Drives TTL (`ttl = max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `invocation-template`; advisory for `local`."
+      "description": "Best-effort estimate of wall-clock duration. Drives TTL (`ttl = max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds)`). Required for `probabilistic`; advisory for `deterministic`."
     },
     "promptTemplateRef": {
       "type": "string",
-      "description": "Path (relative to the extension file) to the prompt template the kernel renders at `sm job submit`. REQUIRED when `mode: invocation-template`; FORBIDDEN when `mode: local`. The template MUST NOT interpolate user text outside `<user-content>` blocks (see `prompt-preamble.md`)."
+      "description": "Path (relative to the extension file) to the prompt template the kernel renders at `sm job submit`. REQUIRED when `mode: probabilistic`; FORBIDDEN when `mode: deterministic`. The template MUST NOT interpolate user text outside `<user-content>` blocks (see `prompt-preamble.md`)."
     },
     "precondition": {
       "type": "object",
@@ -69,12 +66,13 @@
     }
   },
   "allOf": [
+    { "$ref": "base.schema.json" },
     {
-      "if": { "properties": { "mode": { "const": "invocation-template" } } },
+      "if": { "properties": { "mode": { "const": "probabilistic" } } },
       "then": { "required": ["promptTemplateRef", "expectedDurationSeconds"] }
     },
     {
-      "if": { "properties": { "mode": { "const": "local" } } },
+      "if": { "properties": { "mode": { "const": "deterministic" } } },
       "then": { "not": { "required": ["promptTemplateRef"] } }
     }
   ]
