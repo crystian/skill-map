@@ -205,6 +205,8 @@ interface IScanOverrides {
   dryRun?: boolean;
   changed?: boolean;
   allowEmpty?: boolean;
+  strict?: boolean;
+  watch?: boolean;
 }
 
 function buildScan(overrides: IScanOverrides = {}): ScanCommand {
@@ -216,6 +218,8 @@ function buildScan(overrides: IScanOverrides = {}): ScanCommand {
   cmd.dryRun = overrides.dryRun ?? false;
   cmd.changed = overrides.changed ?? false;
   cmd.allowEmpty = overrides.allowEmpty ?? false;
+  cmd.strict = overrides.strict ?? false;
+  cmd.watch = overrides.watch ?? false;
   return cmd;
 }
 
@@ -380,8 +384,9 @@ describe('sm show', () => {
     const out = cap.stdout();
     match(out, /\[agent\]/);
     match(out, /Weight: bytes/);
-    match(out, /Links out \(\d+\)/);
-    match(out, /Links in \(\d+\)/);
+    // Step 7.2 — header now reports both raw and unique counts.
+    match(out, /Links out \(\d+, \d+ unique\)/);
+    match(out, /Links in \(\d+, \d+ unique\)/);
     match(out, /Issues \(\d+\)/);
     // architect emits ≥3 outbound links (frontmatter related + slash + at).
     ok(out.includes('.claude/commands/deploy.md'), 'frontmatter related shown');

@@ -27,6 +27,7 @@ import { externalUrlCounterDetector } from './detectors/external-url-counter/ind
 import { triggerCollisionRule } from './rules/trigger-collision/index.js';
 import { brokenRefRule } from './rules/broken-ref/index.js';
 import { supersededRule } from './rules/superseded/index.js';
+import { linkConflictRule } from './rules/link-conflict/index.js';
 import { asciiRenderer } from './renderers/ascii/index.js';
 import { validateAllAudit } from './audits/validate-all/index.js';
 
@@ -42,7 +43,7 @@ export function builtIns(): IBuiltIns {
   return {
     adapters: [claudeAdapter],
     detectors: [frontmatterDetector, slashDetector, atDirectiveDetector, externalUrlCounterDetector],
-    rules: [triggerCollisionRule, brokenRefRule, supersededRule],
+    rules: [triggerCollisionRule, brokenRefRule, supersededRule, linkConflictRule],
     renderers: [asciiRenderer],
     audits: [validateAllAudit],
   };

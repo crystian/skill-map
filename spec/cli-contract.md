@@ -166,11 +166,15 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 | `sm scan` | Full scan. Truncates `scan_*` and repopulates. |
 | `sm scan -n <node.path>` | Partial scan: one node. |
 | `sm scan --changed` | Incremental: only files changed since last scan (mtime heuristic). |
+| `sm scan --watch` | Long-running: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`. |
 | `sm scan --compare-with <path>` | Delta report: compare current state with a saved scan dump. Does not modify the DB. |
+| `sm watch [roots...]` | Long-running watcher. Same semantics as `sm scan --watch`, exposed as a top-level verb because the watcher is a loop, not a one-shot scan. |
 
-`--json` output conforms to `schemas/scan-result.schema.json`.
+`--json` output conforms to `schemas/scan-result.schema.json`. `sm watch` (and `sm scan --watch`) emit one ScanResult per batch — under `--json` this is an `ndjson` stream of ScanResult documents.
 
-Exit: 0 on clean, 1 if error-severity issues exist, 2 on operational error.
+The watcher subscribes to the same roots that `sm scan` walks and respects `.skill-mapignore` plus `config.ignore` exactly as the one-shot scan does. Filesystem events are grouped using `scan.watch.debounceMs` (default 300ms) before the watcher re-runs the incremental scan and persists. `SIGINT` / `SIGTERM` close the watcher cleanly. Exit code on clean shutdown is 0.
+
+Exit: 0 on clean (or clean watcher shutdown), 1 if error-severity issues exist (one-shot scan only — the watcher does not flip exit code based on per-batch issues), 2 on operational error.
 
 ---
 
@@ -179,7 +183,7 @@ Exit: 0 on clean, 1 if error-severity issues exist, 2 on operational error.
 | Command | Purpose |
 |---|---|
 | `sm list [--kind <k>] [--issue] [--sort-by ...] [--limit N]` | Tabular listing. `--json` emits an array conforming to `node.schema.json`. |
-| `sm show <node.path>` | Node detail: weight (bytes/tokens triple-split), frontmatter, links in/out, issues, findings, summary. `--json` emits a detail object. |
+| `sm show <node.path>` | Node detail: weight (bytes/tokens triple-split), frontmatter, links in/out, issues, findings, summary. `--json` emits a detail object with the raw link rows. Pretty output groups identical-shape links (same endpoint, kind, normalized trigger) onto one line and lists the union of detector ids in a `sources:` field; the section header reports both the raw row count and the unique-after-grouping count, e.g. `Links out (12, 9 unique)`. Storage keeps one row per detector (`scan_links` is unchanged) — the grouping is purely a read-time presentation choice. |
 | `sm check` | Print all current issues. Equivalent to `sm scan --json \| jq '.issues'` but faster (reads from DB). |
 | `sm findings [--kind ...] [--since ...] [--threshold <n>]` | Probabilistic findings (injection, stale summaries, low confidence). `--json` emits an array of finding objects. |
 | `sm graph [--format ascii\|mermaid\|dot]` | Render the full graph via the named renderer. |

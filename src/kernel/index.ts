@@ -20,4 +20,12 @@ export type * from './types.js';
 export { runScan, runScanWithRenames, detectRenamesAndOrphans } from './orchestrator.js';
 export type { RunScanOptions, RenameOp } from './orchestrator.js';
 export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
+export { createChokidarWatcher } from './scan/watcher.js';
+export type {
+  IFsWatcher,
+  IWatchBatch,
+  IWatchEvent,
+  ICreateFsWatcherOptions,
+  TWatchEventKind,
+} from './scan/watcher.js';
 export type * from './ports/index.js';

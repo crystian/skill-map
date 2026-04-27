@@ -2,8 +2,8 @@
 
 Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface.
 
-- CLI version: `0.3.2`
-- Spec version: `0.6.0`
+- CLI version: `0.3.3`
+- Spec version: `0.6.1`
 
 ## Global flags
 
@@ -376,7 +376,42 @@ Render the job MD file without executing.
 
 ### `sm job prune`
 
-Retention GC for completed/failed jobs. --orphan-files removes MD files with no DB row.
+Retention GC for completed / failed jobs (per config policy). --orphan-files removes MD files with no DB row.
+
+Reads jobs.retention.completed and jobs.retention.failed from the layered 
+config. For each non-null policy, deletes terminal jobs whose finishedAt is 
+older than the cutoff and unlinks their MD files in .skill-map/jobs/.
+
+With --orphan-files: ALSO scans .skill-map/jobs/ for MD files not referenced by 
+any state_jobs row and deletes them. Both passes run; orphans are scanned AFTER 
+retention so freshly-pruned files don't double-count.
+
+With --dry-run: counts and reports what would happen without touching the DB or 
+the FS.
+
+Exits 0 on success, 2 on operational failure (missing DB, malformed config, IO 
+error).
+
+**Flags:**
+
+- `--orphan-files` `boolean` — Also remove MD files in .skill-map/jobs/ that have no matching state_jobs row.
+- `--dry-run`, `-n` `boolean` — Report what would be pruned without touching the DB or filesystem.
+- `--json` `boolean` — Emit a structured prune-result document on stdout.
+
+**Examples:**
+
+- Apply retention policy
+  ```
+  sm job prune
+  ```
+- Apply retention + clean orphan files
+  ```
+  sm job prune --orphan-files
+  ```
+- Preview without touching the DB
+  ```
+  sm job prune --dry-run --json
+  ```
 
 ### `sm job run`
 
@@ -463,6 +498,7 @@ reuse unchanged nodes, and only reprocess new / modified files.
 - `--changed` `boolean` — Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.
 - `--allow-empty` `boolean` — Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
 - `--strict` `boolean` — Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
+- `--watch` `boolean` — Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.
 
 **Examples:**
 
@@ -489,6 +525,43 @@ reuse unchanged nodes, and only reprocess new / modified files.
 - What would the next incremental scan persist?
   ```
   sm scan --changed -n --json
+  ```
+
+### `sm watch`
+
+Watch roots and run an incremental scan after each debounced batch of filesystem events.
+
+Long-running version of 'sm scan --changed'. Subscribes to the given roots via 
+chokidar, applies the same ignore chain (.skill-mapignore + config.ignore + 
+bundled defaults), and triggers an incremental scan after each debounced batch.
+
+Default debounce is 300ms; configure via 'scan.watch.debounceMs' in 
+.skill-map/settings.json. SIGINT / SIGTERM stop the watcher cleanly and exit 0.
+
+Under --json, every batch emits one ScanResult as ndjson on stdout. Without 
+--json, every batch prints one summary line.
+
+'sm scan --watch' is an alias and shares the same flag surface.
+
+**Flags:**
+
+- `--json` `boolean` — Emit one ScanResult document per batch as ndjson on stdout.
+- `--no-tokens` `boolean` — Skip per-node token counts (cl100k_base BPE).
+- `--strict` `boolean` — Promote frontmatter-validation findings from warn to error inside each batch. Does not change the watcher exit code.
+
+**Examples:**
+
+- Watch the current directory
+  ```
+  sm watch
+  ```
+- Watch multiple roots
+  ```
+  sm watch ./docs ./skills
+  ```
+- Stream ScanResult per batch as ndjson
+  ```
+  sm watch --json
   ```
 
 ## Server

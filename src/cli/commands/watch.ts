@@ -1,0 +1,268 @@
+/**
+ * `sm watch [roots...]` — long-running incremental scan loop.
+ *
+ * Flow:
+ *
+ *   1. Load config + ignore filter once (same composition as `sm scan`).
+ *   2. Run an initial incremental scan + persist, so the DB matches the
+ *      current filesystem before the watcher fires anything.
+ *   3. Subscribe via `createChokidarWatcher` with `scan.watch.debounceMs`
+ *      from config.
+ *   4. On each debounced batch, re-run the same scan+persist pipeline
+ *      and print one summary line (or one ScanResult ndjson record under
+ *      `--json`).
+ *   5. SIGINT / SIGTERM closes the watcher and exits 0. Operational
+ *      errors during initial setup exit 2; per-batch errors are logged
+ *      and the loop keeps running (a transient FS error must not kill
+ *      a long-running watcher).
+ *
+ * `sm scan --watch` is an alias: `ScanCommand` detects the flag and
+ * delegates here so we keep one implementation. The two surfaces share
+ * the exit-code rule too — clean watcher shutdown is always 0,
+ * regardless of per-batch issue severities.
+ */
+
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { Command, Option } from 'clipanion';
+
+import {
+  createChokidarWatcher,
+  createKernel,
+  runScanWithRenames,
+} from '../../kernel/index.js';
+import type { RenameOp, ScanResult } from '../../kernel/index.js';
+import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
+import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
+import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
+import { loadConfig } from '../../kernel/config/loader.js';
+import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+
+const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
+
+export interface IRunWatchOptions {
+  roots: string[];
+  json: boolean;
+  noTokens: boolean;
+  strict: boolean;
+  context: {
+    stdout: NodeJS.WritableStream;
+    stderr: NodeJS.WritableStream;
+  };
+  /** Test hook: when set, the watcher closes after this many batches. */
+  maxBatches?: number;
+}
+
+/**
+ * Shared implementation behind `sm watch` and `sm scan --watch`.
+ * Returns the final process exit code.
+ */
+export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
+  const { context } = opts;
+  const cwd = process.cwd();
+
+  let cfg;
+  try {
+    cfg = loadConfig({ scope: 'project', strict: opts.strict }).effective;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    context.stderr.write(`sm watch: ${message}\n`);
+    return 2;
+  }
+
+  const ignoreFileText = readIgnoreFileText(cwd);
+  const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
+  if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
+  if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
+  const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
+
+  const strict = opts.strict || cfg.scan.strict === true;
+  const debounceMs = cfg.scan.watch.debounceMs;
+  const dbPath = resolve(cwd, DEFAULT_PROJECT_DB);
+
+  const runOnePass = async (): Promise<void> => {
+    const kernel = createKernel();
+    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+
+    let priorSnapshot: ScanResult | null = null;
+    if (existsSync(dbPath)) {
+      const reader = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+      await reader.init();
+      try {
+        const loaded = await loadScanResult(reader.db);
+        if (loaded.nodes.length > 0) priorSnapshot = loaded;
+      } finally {
+        await reader.close();
+      }
+    }
+
+    const runOptions: Parameters<typeof runScanWithRenames>[1] = {
+      roots: opts.roots,
+      scope: 'project',
+      tokenize: !opts.noTokens,
+      ignoreFilter,
+      strict,
+      extensions: builtIns(),
+    };
+    if (priorSnapshot) {
+      runOptions.priorSnapshot = priorSnapshot;
+      // The watcher always wants cache reuse — re-walking unchanged
+      // files on every batch defeats the point of debouncing.
+      runOptions.enableCache = true;
+    }
+
+    let result: ScanResult;
+    let renameOps: RenameOp[];
+    try {
+      const ran = await runScanWithRenames(kernel, runOptions);
+      result = ran.result;
+      renameOps = ran.renameOps;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      context.stderr.write(`sm watch: scan failed — ${message}\n`);
+      return;
+    }
+
+    const writer = new SqliteStorageAdapter({ databasePath: dbPath });
+    await writer.init();
+    try {
+      await persistScanResult(writer.db, result, renameOps);
+    } finally {
+      await writer.close();
+    }
+
+    if (opts.json) {
+      context.stdout.write(JSON.stringify(result) + '\n');
+    } else {
+      context.stdout.write(
+        `scanned ${result.stats.nodesCount} nodes / ${result.stats.linksCount} links / ` +
+          `${result.stats.issuesCount} issues in ${result.stats.durationMs}ms\n`,
+      );
+    }
+  };
+
+  // 1. Initial scan so the DB matches current FS before we subscribe.
+  if (!opts.json) {
+    context.stderr.write(
+      `sm watch: starting on ${opts.roots.length} root(s), debounce ${debounceMs}ms\n`,
+    );
+  }
+  try {
+    await runOnePass();
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    context.stderr.write(`sm watch: initial scan failed — ${message}\n`);
+    return 2;
+  }
+
+  // 2. Subscribe.
+  let batchCount = 0;
+  let stopRequested = false;
+  let stopResolve: (() => void) | null = null;
+  const stopped = new Promise<void>((r) => {
+    stopResolve = r;
+  });
+
+  const watcher = createChokidarWatcher({
+    roots: opts.roots,
+    cwd,
+    debounceMs,
+    ignoreFilter,
+    onBatch: async () => {
+      if (stopRequested) return;
+      batchCount++;
+      try {
+        await runOnePass();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        context.stderr.write(`sm watch: batch failed — ${message}\n`);
+      }
+      if (opts.maxBatches !== undefined && batchCount >= opts.maxBatches) {
+        stopRequested = true;
+        stopResolve?.();
+      }
+    },
+    onError: (err) => {
+      context.stderr.write(`sm watch: watcher error — ${err.message}\n`);
+    },
+  });
+
+  // 3. Wire SIGINT / SIGTERM. Storing the handlers so we can clear them
+  // on close — important for tests that spin a watcher up and down
+  // multiple times in the same process.
+  const onSignal = (): void => {
+    if (stopRequested) return;
+    stopRequested = true;
+    stopResolve?.();
+  };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
+
+  await watcher.ready;
+  if (!opts.json) {
+    context.stderr.write(`sm watch: ready. Press Ctrl+C to stop.\n`);
+  }
+
+  await stopped;
+  process.removeListener('SIGINT', onSignal);
+  process.removeListener('SIGTERM', onSignal);
+  await watcher.close();
+
+  if (!opts.json) {
+    context.stderr.write(`sm watch: stopped after ${batchCount} batch(es).\n`);
+  }
+  return 0;
+}
+
+export class WatchCommand extends Command {
+  static override paths = [['watch']];
+
+  static override usage = Command.Usage({
+    category: 'Scan',
+    description: 'Watch roots and run an incremental scan after each debounced batch of filesystem events.',
+    details: `
+      Long-running version of 'sm scan --changed'. Subscribes to the
+      given roots via chokidar, applies the same ignore chain
+      (.skill-mapignore + config.ignore + bundled defaults), and
+      triggers an incremental scan after each debounced batch.
+
+      Default debounce is 300ms; configure via 'scan.watch.debounceMs'
+      in .skill-map/settings.json. SIGINT / SIGTERM stop the watcher
+      cleanly and exit 0.
+
+      Under --json, every batch emits one ScanResult as ndjson on
+      stdout. Without --json, every batch prints one summary line.
+
+      'sm scan --watch' is an alias and shares the same flag surface.
+    `,
+    examples: [
+      ['Watch the current directory', '$0 watch'],
+      ['Watch multiple roots', '$0 watch ./docs ./skills'],
+      ['Stream ScanResult per batch as ndjson', '$0 watch --json'],
+    ],
+  });
+
+  roots = Option.Rest({ name: 'roots' });
+  json = Option.Boolean('--json', false, {
+    description: 'Emit one ScanResult document per batch as ndjson on stdout.',
+  });
+  noTokens = Option.Boolean('--no-tokens', false, {
+    description: 'Skip per-node token counts (cl100k_base BPE).',
+  });
+  strict = Option.Boolean('--strict', false, {
+    description: 'Promote frontmatter-validation findings from warn to error inside each batch. Does not change the watcher exit code.',
+  });
+
+  async execute(): Promise<number> {
+    const roots = this.roots.length > 0 ? this.roots : ['.'];
+    return runWatchLoop({
+      roots,
+      json: this.json,
+      noTokens: this.noTokens,
+      strict: this.strict,
+      context: this.context,
+    });
+  }
+}

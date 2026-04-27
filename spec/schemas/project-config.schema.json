@@ -45,6 +45,18 @@
           "type": "integer",
           "minimum": 1,
           "description": "Files larger than this are skipped with an `info`-level log entry. Default 1048576 (1 MiB). Protects against scanning accidental binary drops or generated artefacts."
+        },
+        "watch": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "File-watcher knobs for `sm watch` and `sm scan --watch`. The watcher subscribes to the same roots `sm scan` walks, applies the `.skill-mapignore` filter, and triggers an incremental scan after each batch.",
+          "properties": {
+            "debounceMs": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Milliseconds to wait after the last filesystem event before triggering an incremental scan. Groups bursts (editor saves, branch switches, package installs) into a single scan pass. Default 300. Set to 0 to disable debouncing — every filesystem event triggers a scan immediately."
+            }
+          }
         }
       }
     },

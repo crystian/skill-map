@@ -239,18 +239,7 @@ export class JobCancelCommand extends Command {
   }
 }
 
-export class JobPruneCommand extends Command {
-  static override paths = [['job', 'prune']];
-  static override usage = Command.Usage({
-    category: 'Jobs',
-    description: 'Retention GC for completed/failed jobs. --orphan-files removes MD files with no DB row.',
-  });
-  orphanFiles = Option.Boolean('--orphan-files', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'job prune', '9');
-  }
-}
+// JobPruneCommand moved to ./jobs.ts (lands real in Step 7.3).
 
 // ---------------------------------------------------------------------------
 // Record (callback)
@@ -350,7 +339,6 @@ export const STUB_COMMANDS = [
   JobRunCommand,
   JobStatusCommand,
   JobCancelCommand,
-  JobPruneCommand,
   RecordCommand,
   AuditListCommand,
   AuditRunCommand,

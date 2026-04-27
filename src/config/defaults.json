@@ -9,7 +9,10 @@
     "tokenize": true,
     "strict": false,
     "followSymlinks": false,
-    "maxFileSizeBytes": 1048576
+    "maxFileSizeBytes": 1048576,
+    "watch": {
+      "debounceMs": 300
+    }
   },
   "plugins": {},
   "history": {

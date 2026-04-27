@@ -4,7 +4,8 @@ import { strictEqual, ok } from 'node:assert';
 import { triggerCollisionRule } from './trigger-collision/index.js';
 import { brokenRefRule } from './broken-ref/index.js';
 import { supersededRule } from './superseded/index.js';
-import type { Issue, Link, Node, NodeKind } from '../../kernel/types.js';
+import { linkConflictRule } from './link-conflict/index.js';
+import type { Confidence, Issue, Link, LinkKind, Node, NodeKind } from '../../kernel/types.js';
 
 function mockNode(
   path: string,
@@ -207,6 +208,131 @@ describe('superseded rule', () => {
   it('ignores non-string supersededBy values', async () => {
     const nodes = [mockNode('a.md', 'a', { supersededBy: '' }), mockNode('b.md', 'b', { supersededBy: 42 })];
     const issues = await run(supersededRule, { nodes, links: [] });
+    strictEqual(issues.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// link-conflict
+// ---------------------------------------------------------------------------
+
+function rawLink(
+  source: string,
+  target: string,
+  kind: LinkKind,
+  detector: string,
+  confidence: Confidence = 'medium',
+): Link {
+  return {
+    source,
+    target,
+    kind,
+    confidence,
+    sources: [detector],
+  };
+}
+
+describe('link-conflict rule', () => {
+  it('emits nothing for an empty graph', async () => {
+    const issues = await run(linkConflictRule, { nodes: [], links: [] });
+    strictEqual(issues.length, 0);
+  });
+
+  it('stays silent when only one detector emits the pair', async () => {
+    const links = [rawLink('a.md', 'b.md', 'invokes', 'slash')];
+    const issues = await run(linkConflictRule, { nodes: [], links });
+    strictEqual(issues.length, 0);
+  });
+
+  it('stays silent when two detectors agree on kind (happy path)', async () => {
+    const links = [
+      rawLink('audit-flow', 'security-scanner', 'references', 'frontmatter'),
+      rawLink('audit-flow', 'security-scanner', 'references', 'slash'),
+    ];
+    const issues = await run(linkConflictRule, { nodes: [], links });
+    strictEqual(issues.length, 0, 'agreement on kind must not emit findings');
+  });
+
+  it('emits one warn when detectors disagree on kind', async () => {
+    const links = [
+      rawLink('audit-flow', 'security-scanner', 'references', 'frontmatter'),
+      rawLink('audit-flow', 'security-scanner', 'invokes', 'slash'),
+    ];
+    const issues = await run(linkConflictRule, { nodes: [], links });
+    strictEqual(issues.length, 1);
+    const issue = issues[0]!;
+    strictEqual(issue.ruleId, 'link-conflict');
+    strictEqual(issue.severity, 'warn');
+    strictEqual(issue.nodeIds.length, 2);
+    strictEqual(issue.nodeIds[0], 'audit-flow');
+    strictEqual(issue.nodeIds[1], 'security-scanner');
+    ok(issue.message.includes('audit-flow'));
+    ok(issue.message.includes('security-scanner'));
+    ok(issue.message.includes('invokes'));
+    ok(issue.message.includes('references'));
+    const data = issue.data as { variants: Array<{ kind: string; sources: string[] }> };
+    strictEqual(data.variants.length, 2);
+    // Variants are sorted alphabetically by kind for determinism.
+    strictEqual(data.variants[0]!.kind, 'invokes');
+    strictEqual(data.variants[0]!.sources[0], 'slash');
+    strictEqual(data.variants[1]!.kind, 'references');
+    strictEqual(data.variants[1]!.sources[0], 'frontmatter');
+  });
+
+  it('groups multiple sources of the same kind into one variant', async () => {
+    // Three rows, two kinds. References has 2 detectors (frontmatter +
+    // mentions), invokes has 1 (slash). After grouping: 2 variants.
+    const links = [
+      rawLink('a.md', 'b.md', 'references', 'frontmatter'),
+      rawLink('a.md', 'b.md', 'references', 'at-directive'),
+      rawLink('a.md', 'b.md', 'invokes', 'slash'),
+    ];
+    const issues = await run(linkConflictRule, { nodes: [], links });
+    strictEqual(issues.length, 1);
+    const data = issues[0]!.data as { variants: Array<{ kind: string; sources: string[] }> };
+    strictEqual(data.variants.length, 2);
+    const refs = data.variants.find((v) => v.kind === 'references')!;
+    // Sources are deduped, sorted, and unioned across rows of the same kind.
+    strictEqual(refs.sources.length, 2);
+    strictEqual(refs.sources[0], 'at-directive');
+    strictEqual(refs.sources[1], 'frontmatter');
+  });
+
+  it('keeps the highest-confidence value across rows of the same kind', async () => {
+    const links = [
+      rawLink('a.md', 'b.md', 'references', 'frontmatter', 'low'),
+      rawLink('a.md', 'b.md', 'references', 'slash', 'high'),
+      rawLink('a.md', 'b.md', 'invokes', 'at-directive', 'medium'),
+    ];
+    const issues = await run(linkConflictRule, { nodes: [], links });
+    strictEqual(issues.length, 1);
+    const data = issues[0]!.data as { variants: Array<{ kind: string; confidence: string }> };
+    const refs = data.variants.find((v) => v.kind === 'references')!;
+    strictEqual(refs.confidence, 'high', 'highest confidence wins per variant');
+  });
+
+  it('emits one issue per disagreeing pair', async () => {
+    const links = [
+      rawLink('a.md', 'b.md', 'invokes', 'slash'),
+      rawLink('a.md', 'b.md', 'references', 'frontmatter'),
+      rawLink('c.md', 'd.md', 'invokes', 'slash'),
+      rawLink('c.md', 'd.md', 'mentions', 'at-directive'),
+    ];
+    const issues = await run(linkConflictRule, { nodes: [], links });
+    strictEqual(issues.length, 2);
+    const pairs = issues.map((i) => i.nodeIds.join('->')).sort();
+    strictEqual(pairs[0], 'a.md->b.md');
+    strictEqual(pairs[1], 'c.md->d.md');
+  });
+
+  it('does not confuse pairs with shared source or target', async () => {
+    // (a → b, invokes) and (a → c, references) share `a` but are different
+    // pairs. No conflict.
+    const links = [
+      rawLink('a.md', 'b.md', 'invokes', 'slash'),
+      rawLink('a.md', 'c.md', 'references', 'frontmatter'),
+    ];
+    const issues = await run(linkConflictRule, { nodes: [], links });
     strictEqual(issues.length, 0);
   });
 });

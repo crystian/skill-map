@@ -13,6 +13,7 @@ import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import { runWatchLoop } from './watch.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
@@ -93,8 +94,33 @@ export class ScanCommand extends Command {
   strict = Option.Boolean('--strict', false, {
     description: 'Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.',
   });
+  watch = Option.Boolean('--watch', false, {
+    description: 'Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.',
+  });
 
   async execute(): Promise<number> {
+    // --- watch alias -----------------------------------------------------
+    // `--watch` is a thin alias for the `sm watch` verb. We delegate to
+    // the shared loop so there is exactly one watcher implementation.
+    // Combining `--watch` with one-shot-only flags is incoherent — the
+    // watcher always persists incrementally over the prior snapshot.
+    if (this.watch) {
+      if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty) {
+        this.context.stderr.write(
+          '--watch cannot be combined with --no-built-ins, --dry-run, --changed, or --allow-empty.\n',
+        );
+        return 2;
+      }
+      const roots = this.roots.length > 0 ? this.roots : ['.'];
+      return runWatchLoop({
+        roots,
+        json: this.json,
+        noTokens: this.noTokens,
+        strict: this.strict,
+        context: this.context,
+      });
+    }
+
     // --- flag combinatorics -------------------------------------------------
     // `--no-built-ins` zero-fills the pipeline; combining it with
     // `--changed` (which loads a prior to merge against) is incoherent.

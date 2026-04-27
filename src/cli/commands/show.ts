@@ -154,21 +154,30 @@ function renderHuman(doc: IShowDocument): string {
   out.push('', 'Frontmatter:');
   out.push(indent(JSON.stringify(node.frontmatter ?? {}, null, 2), 2));
 
-  out.push('', `Links out (${linksOut.length}):`);
-  if (linksOut.length === 0) {
+  // Per Step 7.2 + Decision #90: storage keeps one row per detector
+  // (no merge), but the human view groups identical-shape links so a
+  // skill detected by both the frontmatter and slash detector renders
+  // as one line with `sources: frontmatter, slash` instead of two
+  // duplicated rows. The total row count is preserved in the header
+  // so authors notice when N detectors emit the same link. `--json`
+  // output stays raw for machines (no behavioural change).
+  const aggregatedOut = aggregateLinks(linksOut, 'target');
+  out.push('', `Links out (${linksOut.length}, ${aggregatedOut.length} unique):`);
+  if (aggregatedOut.length === 0) {
     out.push('  (none)');
   } else {
-    for (const link of linksOut) {
-      out.push(`  - [${link.kind}/${link.confidence}] → ${link.target}`);
+    for (const grp of aggregatedOut) {
+      out.push(formatGroupedLink('→', grp));
     }
   }
 
-  out.push('', `Links in (${linksIn.length}):`);
-  if (linksIn.length === 0) {
+  const aggregatedIn = aggregateLinks(linksIn, 'source');
+  out.push('', `Links in (${linksIn.length}, ${aggregatedIn.length} unique):`);
+  if (aggregatedIn.length === 0) {
     out.push('  (none)');
   } else {
-    for (const link of linksIn) {
-      out.push(`  - [${link.kind}/${link.confidence}] ← ${link.source}`);
+    for (const grp of aggregatedIn) {
+      out.push(formatGroupedLink('←', grp));
     }
   }
 
@@ -194,4 +203,84 @@ function indent(s: string, spaces: number): string {
     .split('\n')
     .map((line) => (line.length > 0 ? pad + line : line))
     .join('\n');
+}
+
+interface IGroupedLink {
+  /** The "other end" path: target for outgoing groups, source for incoming. */
+  endpoint: string;
+  kind: Link['kind'];
+  /** Highest confidence across the group (rank: high > medium > low). */
+  confidence: Link['confidence'];
+  /** Union of all detector ids that emitted any row in the group, sorted. */
+  sources: string[];
+  /** Original row count — informational, mirrors what `linksOut.length` showed before grouping. */
+  rowCount: number;
+  /** Trigger normalized form, when every row in the group agrees on it. `null` when the trigger is absent or differs. */
+  normalizedTrigger: string | null;
+}
+
+/**
+ * Group a flat link array by `(endpoint, kind, normalizedTrigger or null)`.
+ * Used by the human renderer to collapse rows emitted by multiple
+ * detectors for the same conceptual link into a single line. Storage
+ * keeps the raw rows; `--json` emits them unchanged.
+ *
+ * `endpointSide` picks which end of the link is the "other" node:
+ * `'target'` for outgoing links, `'source'` for incoming.
+ */
+function aggregateLinks(links: Link[], endpointSide: 'target' | 'source'): IGroupedLink[] {
+  const groups = new Map<string, IGroupedLink>();
+  for (const link of links) {
+    const endpoint = endpointSide === 'target' ? link.target : link.source;
+    const trigger = link.trigger?.normalizedTrigger ?? null;
+    // NUL separator — collision-free against any path (POSIX paths
+    // cannot contain NUL) or trigger string. The null-trigger case
+    // gets its own bucket key via the empty trailing component.
+    const key = `${endpoint}\x00${link.kind}\x00${trigger ?? ''}`;
+    const existing = groups.get(key);
+    if (existing) {
+      for (const src of link.sources) {
+        if (!existing.sources.includes(src)) existing.sources.push(src);
+      }
+      if (rankConfidenceForGrouping(link.confidence) > rankConfidenceForGrouping(existing.confidence)) {
+        existing.confidence = link.confidence;
+      }
+      existing.rowCount += 1;
+    } else {
+      groups.set(key, {
+        endpoint,
+        kind: link.kind,
+        confidence: link.confidence,
+        sources: [...link.sources],
+        rowCount: 1,
+        normalizedTrigger: trigger,
+      });
+    }
+  }
+  // Deterministic order: by endpoint, then kind. Sources inside each
+  // group are sorted at the moment we render so additions during
+  // grouping don't pay a sort per insert.
+  for (const grp of groups.values()) grp.sources.sort();
+  return [...groups.values()].sort((a, b) => {
+    if (a.endpoint !== b.endpoint) return a.endpoint.localeCompare(b.endpoint);
+    return a.kind.localeCompare(b.kind);
+  });
+}
+
+function formatGroupedLink(arrow: '→' | '←', grp: IGroupedLink): string {
+  const head = `  - [${grp.kind}/${grp.confidence}] ${arrow} ${grp.endpoint}`;
+  const sources = grp.sources.length > 0 ? `  sources: ${grp.sources.join(', ')}` : '';
+  const dup = grp.rowCount > 1 ? ` (×${grp.rowCount})` : '';
+  return `${head}${dup}${sources}`;
+}
+
+function rankConfidenceForGrouping(c: Link['confidence']): number {
+  switch (c) {
+    case 'high':
+      return 2;
+    case 'medium':
+      return 1;
+    case 'low':
+      return 0;
+  }
 }

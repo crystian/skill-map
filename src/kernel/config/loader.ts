@@ -56,11 +56,16 @@ export interface IPluginConfigEntry {
   config?: Record<string, unknown>;
 }
 
+export interface IScanWatchConfig {
+  debounceMs: number;
+}
+
 export interface IScanConfig {
   tokenize: boolean;
   strict: boolean;
   followSymlinks: boolean;
   maxFileSizeBytes: number;
+  watch: IScanWatchConfig;
 }
 
 export interface IEffectiveConfig {
