@@ -17,14 +17,14 @@ never crash on a bad DB.
   - Post-fix: `db-schema —` when no DB; `db-schema 2` after `sm init`
     (= MAX kernel migration version applied).
 
-**`sm config --strict-config` UX**: the loader's strict-mode `throw`
+**`sm config --strict` UX**: the loader's strict-mode `throw`
 was reaching Clipanion's default error handler, producing "Internal
 Error: ..." with a five-line stack trace and exit code 1. Now wrapped
 in a per-command `tryLoadConfig` helper that catches the throw, writes
 a one-line `sm config: <message>` to stderr, and returns exit code 2
 (operational error) per `spec/cli-contract.md` §Exit codes. Applied to
 `sm config list`, `sm config get`, and `sm config show` — every read
-verb that exposes `--strict-config`.
+verb that exposes `--strict`.
 
   - Pre-fix: stack trace + exit 1.
   - Post-fix: clean stderr line + exit 2.
@@ -36,7 +36,7 @@ verb that exposes `--strict-config`.
   user_version`. Three failure paths all collapse to `'—'`. JSDoc
   expanded with the resolution contract.
 - `src/cli/commands/config.ts` — new `tryLoadConfig()` private wrapper
-  catches `loadConfig` throws (only emitted under `--strict-config`).
+  catches `loadConfig` throws (only emitted under `--strict`).
   Three call sites in `ConfigListCommand`, `ConfigGetCommand`, and
   `ConfigShowCommand` updated to early-return with the wrapper's exit
   code.
@@ -49,7 +49,7 @@ verb that exposes `--strict-config`.
   `sm init --no-scan` provisions a DB in a tmpdir. Test asserts the
   number matches `\d+` and is `>= 1` rather than pinning a specific
   value, so it survives future kernel migrations.
-- `src/test/config-cli.test.ts` — new `sm config — --strict-config UX`
+- `src/test/config-cli.test.ts` — new `sm config — --strict UX`
   describe block (5 tests): warning + exit 0 without the flag,
   clean-message + exit 2 with the flag (and explicit assertion that
   no `Internal Error` / stack-trace lines leak through), wrapper

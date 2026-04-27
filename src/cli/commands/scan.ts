@@ -150,15 +150,30 @@ export class ScanCommand extends Command {
     // Built-in defaults are always pre-loaded by buildIgnoreFilter so
     // `.git`, `node_modules`, `dist`, `.tmp`, `.skill-map` are skipped
     // even on a fresh scope without any user config.
-    const { effective: cfg } = loadConfig({ scope: 'project' });
+    //
+    // `--strict` (Step 6.7 + the .strict-config unification) propagates
+    // to BOTH validation surfaces: the layered loader (so a bogus key
+    // in settings.json fails the scan instead of being skipped with a
+    // warning) and the per-node frontmatter validator (so any node
+    // emitting a `frontmatter-invalid` issue trips exit 1).
+    let cfg;
+    try {
+      cfg = loadConfig({ scope: 'project', strict: this.strict }).effective;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.context.stderr.write(`sm scan: ${message}\n`);
+      return 2;
+    }
     const ignoreFileText = readIgnoreFileText(process.cwd());
     const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
     if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
     if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
     const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
 
-    // Strict mode: --strict on the CLI takes precedence; scan.strict
-    // in config provides the team default.
+    // Frontmatter strict: --strict on the CLI takes precedence; scan.strict
+    // in config provides the team default. (Loader strict above is gated
+    // strictly by --strict — config can't promote a loader warning to an
+    // error transparently because the warning lives at config-load time.)
     const strict = this.strict || cfg.scan.strict === true;
 
     const runOptions: Parameters<typeof runScan>[1] = {

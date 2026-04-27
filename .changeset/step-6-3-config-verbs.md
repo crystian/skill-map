@@ -4,7 +4,7 @@
 
 Step 6.3 — `sm config list / get / set / reset / show` go from
 stub-printing-"not implemented" to real implementations. The five verbs
-share the layered loader from 6.2 and gain a `--strict-config` flag on
+share the layered loader from 6.2 and gain a `--strict` flag on
 the read side that escalates merge warnings to fatal errors.
 
 **Runtime change**:
@@ -21,14 +21,14 @@ the read side that escalates merge warnings to fatal errors.
 
 **Verb semantics**:
 
-- `sm config list [--json] [-g] [--strict-config]` — prints the merged
+- `sm config list [--json] [-g] [--strict]` — prints the merged
   effective config. Human mode emits sorted `key.path = value` lines;
   `--json` emits the JSON object. Exempt from `done in <…>` per
   `spec/cli-contract.md` §Elapsed time.
-- `sm config get <key> [--json] [-g] [--strict-config]` — leaf value
+- `sm config get <key> [--json] [-g] [--strict]` — leaf value
   by dot-path. Unknown key → exit 5. `--json` wraps in JSON literals
   so callers can pipe into `jq`. Exempt from elapsed-time.
-- `sm config show <key> [--source] [--json] [-g] [--strict-config]` —
+- `sm config show <key> [--source] [--json] [-g] [--strict]` —
   identical to `get` plus optional `--source` that surfaces the winning
   layer (`defaults / user / user-local / project / project-local /
   override`). For nested objects, the highest-precedence descendant

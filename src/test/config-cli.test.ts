@@ -269,8 +269,8 @@ describe('sm config reset', () => {
   });
 });
 
-describe('sm config — --strict-config UX', () => {
-  it('without --strict-config: warning to stderr, exit 0', () => {
+describe('sm config — --strict UX', () => {
+  it('without --strict: warning to stderr, exit 0', () => {
     const scope = freshScope('strict-warn');
     writeSettings(scope.cwd, { bogus_key: 'nope' });
     const r = sm(['config', 'list'], scope);
@@ -279,10 +279,10 @@ describe('sm config — --strict-config UX', () => {
     assert.match(r.stdout, /^autoMigrate = true$/m);
   });
 
-  it('--strict-config: clean stderr message + exit 2 (no Clipanion stack trace)', () => {
+  it('--strict: clean stderr message + exit 2 (no Clipanion stack trace)', () => {
     const scope = freshScope('strict-error');
     writeSettings(scope.cwd, { bogus_key: 'nope' });
-    const r = sm(['config', 'list', '--strict-config'], scope);
+    const r = sm(['config', 'list', '--strict'], scope);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /^sm config: /);
     assert.match(r.stderr, /unknown key bogus_key/);
@@ -291,29 +291,29 @@ describe('sm config — --strict-config UX', () => {
     assert.ok(!r.stderr.includes('    at '), `stack trace leaked: ${r.stderr}`);
   });
 
-  it('--strict-config also wraps `config get`', () => {
+  it('--strict also wraps `config get`', () => {
     const scope = freshScope('strict-get');
     writeSettings(scope.cwd, { autoMigrate: 'not-a-bool' });
-    const r = sm(['config', 'get', 'autoMigrate', '--strict-config'], scope);
+    const r = sm(['config', 'get', 'autoMigrate', '--strict'], scope);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /^sm config: /);
     assert.ok(!r.stderr.includes('Internal Error'));
   });
 
-  it('--strict-config also wraps `config show`', () => {
+  it('--strict also wraps `config show`', () => {
     const scope = freshScope('strict-show');
     writeSettings(scope.cwd, { autoMigrate: 42 });
-    const r = sm(['config', 'show', 'autoMigrate', '--strict-config'], scope);
+    const r = sm(['config', 'show', 'autoMigrate', '--strict'], scope);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /^sm config: /);
     assert.ok(!r.stderr.includes('Internal Error'));
   });
 
-  it('--strict-config: malformed JSON → clean message + exit 2', () => {
+  it('--strict: malformed JSON → clean message + exit 2', () => {
     const scope = freshScope('strict-bad-json');
     mkdirSync(join(scope.cwd, '.skill-map'), { recursive: true });
     writeFileSync(join(scope.cwd, '.skill-map', 'settings.json'), '{ not json');
-    const r = sm(['config', 'list', '--strict-config'], scope);
+    const r = sm(['config', 'list', '--strict'], scope);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /^sm config: /);
     assert.match(r.stderr, /invalid JSON/);

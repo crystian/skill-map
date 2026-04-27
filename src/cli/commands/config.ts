@@ -1,11 +1,16 @@
 /**
  * `sm config list/get/set/reset/show` — read + mutate `.skill-map/settings.json`.
  *
- *   sm config list  [--json] [-g] [--strict-config]
- *   sm config get   <key.dot.path> [--json] [-g] [--strict-config]
+ *   sm config list  [--json] [-g] [--strict]
+ *   sm config get   <key.dot.path> [--json] [-g] [--strict]
  *   sm config set   <key> <value> [-g]                — writes to project (default) or user (-g)
  *   sm config reset <key>          [-g]                — removes the key from the same target
- *   sm config show  <key> [--source] [--json] [-g] [--strict-config]
+ *   sm config show  <key> [--source] [--json] [-g] [--strict]
+ *
+ * `--strict` (here and on `sm scan` / `sm init`) escalates every layered-
+ * loader warning (malformed JSON, schema violation, unknown key) into a
+ * fatal error — the verb exits 2 with a clean stderr line instead of
+ * skipping the offending value. Same flag, same semantics across verbs.
  *
  * Read verbs (`list / get / show`) are exempt from elapsed-time per
  * `spec/cli-contract.md` §Elapsed time. Write verbs (`set / reset`) emit
@@ -151,8 +156,8 @@ function writeJsonAtomic(path: string, content: Record<string, unknown>): void {
 }
 
 /**
- * Load layered config catching `--strict-config` throws so the user sees
- * a clean stderr line + exit 2 instead of Clipanion's default "Internal
+ * Load layered config catching `--strict` throws so the user sees a
+ * clean stderr line + exit 2 instead of Clipanion's default "Internal
  * Error" stack trace. Used by every `sm config` read verb.
  */
 function tryLoadConfig(
@@ -211,11 +216,11 @@ export class ConfigListCommand extends Command {
 
   json = Option.Boolean('--json', false);
   global = Option.Boolean('-g,--global', false);
-  strictConfig = Option.Boolean('--strict-config', false);
+  strict = Option.Boolean('--strict', false);
 
   async execute(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strictConfig },
+      { scope: this.global ? 'global' : 'project', strict: this.strict },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;
@@ -249,11 +254,11 @@ export class ConfigGetCommand extends Command {
   key = Option.String({ required: true });
   json = Option.Boolean('--json', false);
   global = Option.Boolean('-g,--global', false);
-  strictConfig = Option.Boolean('--strict-config', false);
+  strict = Option.Boolean('--strict', false);
 
   async execute(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strictConfig },
+      { scope: this.global ? 'global' : 'project', strict: this.strict },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;
@@ -290,11 +295,11 @@ export class ConfigShowCommand extends Command {
   source = Option.Boolean('--source', false);
   json = Option.Boolean('--json', false);
   global = Option.Boolean('-g,--global', false);
-  strictConfig = Option.Boolean('--strict-config', false);
+  strict = Option.Boolean('--strict', false);
 
   async execute(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strictConfig },
+      { scope: this.global ? 'global' : 'project', strict: this.strict },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;

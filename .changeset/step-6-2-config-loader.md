@@ -7,7 +7,7 @@ six canonical layers (defaults → user → user-local → project → project-l
 → overrides), deep-merges per key, validates each layer against the
 `project-config` JSON schema, and is resilient per-key: malformed JSON,
 schema violations, and type mismatches emit warnings and skip the offending
-input without invalidating the rest of the layer. Strict mode (`--strict-config`,
+input without invalidating the rest of the layer. Strict mode (`--strict`,
 wired in 6.3+) re-routes every warning to a thrown `Error`.
 
 **Runtime change**:
@@ -29,7 +29,7 @@ wired in 6.3+) re-routes every warning to a thrown `Error`.
   errors strip the unknown key, type/const/etc. errors strip the offending
   leaf. The cleaned object is then merged so a single bad value never
   invalidates the rest of the layer.
-- No CLI surface yet — `sm config` verbs (6.3) and `--strict-config` flag
+- No CLI surface yet — `sm config` verbs (6.3) and `--strict` flag
   (6.3+) consume this loader; the API is internal until then.
 
 **Tests**: `src/test/config-loader.test.ts` covers defaults application,

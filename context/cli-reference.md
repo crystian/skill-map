@@ -524,6 +524,7 @@ where the operator wants to provision before populating roots.
 - `--global`, `-g` `boolean` — Initialise ~/.skill-map/ instead of ./.skill-map/.
 - `--no-scan` `boolean` — Skip the first scan after scaffolding.
 - `--force` `boolean` — Overwrite an existing settings.json / settings.local.json / .skill-mapignore.
+- `--strict` `boolean` — Strict mode: fail on any layered-loader warning AND promote frontmatter warnings to errors during the first scan. Same flag as sm scan / sm config.
 
 **Examples:**
 

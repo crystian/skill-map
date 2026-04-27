@@ -29,7 +29,7 @@
  * key without redeclaring siblings. Missing keys fall through to defaults.
  * This is intentionally lenient — config files are hand-edited, malformed
  * or partial input must never crash the app. The loader emits warnings
- * and falls back; only `--strict-config` turns those into errors.
+ * and falls back; only `--strict` turns those into errors.
  *
  * ## Validation
  *

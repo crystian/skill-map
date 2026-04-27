@@ -75,6 +75,9 @@ export class InitCommand extends Command {
   force = Option.Boolean('--force', false, {
     description: 'Overwrite an existing settings.json / settings.local.json / .skill-mapignore.',
   });
+  strict = Option.Boolean('--strict', false, {
+    description: 'Strict mode: fail on any layered-loader warning AND promote frontmatter warnings to errors during the first scan. Same flag as sm scan / sm config.',
+  });
 
   async execute(): Promise<number> {
     const elapsed = startElapsed();
@@ -132,7 +135,7 @@ export class InitCommand extends Command {
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    const scanCode = await runFirstScan(scopeRoot, dbPath, this.context.stdout, this.context.stderr);
+    const scanCode = await runFirstScan(scopeRoot, dbPath, this.strict, this.context.stdout, this.context.stderr);
     emitDoneStderr(this.context.stderr, elapsed);
     return scanCode;
   }
@@ -141,6 +144,7 @@ export class InitCommand extends Command {
 async function runFirstScan(
   scopeRoot: string,
   dbPath: string,
+  strict: boolean,
   stdout: NodeJS.WritableStream,
   stderr: NodeJS.WritableStream,
 ): Promise<number> {
@@ -149,7 +153,14 @@ async function runFirstScan(
   const kernel = createKernel();
   for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
 
-  const { effective: cfg } = loadConfig({ scope: 'project', cwd: scopeRoot });
+  let cfg;
+  try {
+    cfg = loadConfig({ scope: 'project', cwd: scopeRoot, strict }).effective;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    stderr.write(`sm init: ${message}\n`);
+    return 2;
+  }
   const ignoreFileText = readIgnoreFileText(scopeRoot);
   const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
   if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
@@ -165,6 +176,7 @@ async function runFirstScan(
       tokenize: true,
       extensions: builtIns(),
       ignoreFilter,
+      strict,
     });
     result = ran.result;
     renameOps = ran.renameOps;

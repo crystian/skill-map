@@ -291,3 +291,45 @@ describe('frontmatter strict — CLI', () => {
     assert.equal(r.status, 1);
   });
 });
+
+describe('--strict unification (Step 6 follow-up)', () => {
+  it('sm scan --strict also tightens the layered loader (bogus key kills the scan)', () => {
+    const scope = freshScope('scan-strict-loader');
+    sm(['init', '--no-scan'], scope);
+    // Inject a bogus key into settings.json directly (sm config set
+    // would refuse the schema violation).
+    writeFileSync(
+      join(scope.cwd, '.skill-map', 'settings.json'),
+      JSON.stringify({ schemaVersion: 1, bogus_key: 'nope' }),
+    );
+    const lenient = sm(['scan'], scope);
+    assert.equal(lenient.status, 0, `default scan should tolerate the warning, got: ${lenient.stderr}`);
+    const strict = sm(['scan', '--strict'], scope);
+    assert.equal(strict.status, 2);
+    assert.match(strict.stderr, /^sm scan: /m);
+    assert.match(strict.stderr, /unknown key bogus_key/);
+    assert.ok(!strict.stderr.includes('Internal Error'));
+  });
+
+  it('sm init --strict surfaces a bogus user-layer settings.json before the first scan persists', () => {
+    const scope = freshScope('init-strict-loader');
+    // Pre-seed the user (HOME) settings file with a bogus key, then
+    // run init in the project scope. Without --strict the warning is
+    // skipped silently; with --strict the init fails.
+    mkdirSync(join(scope.home, '.skill-map'), { recursive: true });
+    writeFileSync(
+      join(scope.home, '.skill-map', 'settings.json'),
+      JSON.stringify({ bogus_key: 'nope' }),
+    );
+    const lenient = sm(['init', '--no-scan'], scope);
+    assert.equal(lenient.status, 0, 'init without --strict should tolerate user-layer warning');
+    // Reset for a strict re-init.
+    sm(['init', '--no-scan', '--force'], scope); // ensure scope exists; --strict only kicks in during the first scan path
+    writeNode(scope.cwd, '.claude/agents/inc.md', '---\nname: Inc\n---\nbody\n');
+    const strict = sm(['init', '--force', '--strict'], scope);
+    assert.equal(strict.status, 2);
+    assert.match(strict.stderr, /^sm init: /m);
+    assert.match(strict.stderr, /unknown key bogus_key/);
+    assert.ok(!strict.stderr.includes('Internal Error'));
+  });
+});
