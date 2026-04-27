@@ -1163,7 +1163,13 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* ============================================================
-   FEATURES — 6 cards in a 1px-gap grid (hairlines via bg)
+   FEATURES — Two visual blocks share the section.
+   `.features-grid`: two full cards in a 1px-gap hairline grid.
+   The first is `feature--hero` and spans 2 columns (the dual-mode
+   meta-architecture); the supporter on its right is the token-weight
+   insight.
+   `.features-list`: four compact list items in a 2×2 grid, no card
+   chrome — leaner, supplementary register.
    ============================================================ */
 .features-grid {
   display: grid;
@@ -1185,6 +1191,65 @@ svg    { display: block; max-width: 100%; }
   transition: background var(--dur-base) var(--ease-out);
 }
 .feature:hover { background: var(--ink-800); }
+
+/* Hero card: spans 2 columns at the top of the grid, larger title and
+   icon, slightly more breathable padding. Carries the dual-mode story.
+   At ≤960px the grid drops to 2 columns; the hero stops spanning so the
+   row stays balanced (1 hero + 1 supporter still fits). At ≤560px the
+   grid collapses to a single column and everything stacks naturally. */
+.feature--hero {
+  grid-column: span 2;
+}
+.feature--hero .feature__title { font-size: 26px; line-height: 1.2; }
+.feature--hero .feature__body  { font-size: 15px; max-width: 560px; }
+.feature--hero .feature__icon { width: 56px; height: 56px; border-radius: 12px; margin-bottom: 32px; }
+.feature--hero .feature__icon svg { width: 26px; height: 26px; }
+@media (max-width: 960px) { .feature--hero { grid-column: auto; } }
+
+/* ---------- Compact list (the 4 supplementary checks) ---------- */
+.features-list {
+  list-style: none;
+  padding: 0;
+  margin: 56px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 32px 56px;
+}
+@media (max-width: 768px) {
+  .features-list { grid-template-columns: 1fr; gap: 28px; }
+}
+.features-list__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.features-list__icon {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  border: 1px solid;
+  margin-top: 2px;
+}
+.features-list__icon svg { width: 18px; height: 18px; }
+.features-list__item--green  .features-list__icon { background: rgba(0, 200, 83, .08);  border-color: rgba(0, 200, 83, .18);  color: var(--green-400); }
+.features-list__item--violet .features-list__icon { background: rgba(124, 58, 237, .10); border-color: rgba(124, 58, 237, .22); color: var(--violet-400); }
+.features-list__item--amber  .features-list__icon { background: rgba(232, 138, 0, .08); border-color: rgba(232, 138, 0, .20); color: #F5B850; }
+.features-list__title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: #fff;
+  margin: 0 0 4px;
+}
+.features-list__body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, .6);
+  margin: 0;
+}
 
 .feature__icon {
   width: 44px; height: 44px;
@@ -1841,7 +1906,7 @@ svg    { display: block; max-width: 100%; }
 .peco__sat-body  { transition: stroke-width .25s var(--ease-out), filter .25s var(--ease-out); }
 .peco__sat-fill  { transition: opacity .25s var(--ease-out); }
 .peco__sat-label   { font: 600 13px var(--font-mono); fill: rgba(255, 255, 255, .7); letter-spacing: .02em; transition: fill .2s var(--ease-out); }
-.peco__sat-bundled { font: 400 10px var(--font-mono); fill: rgba(255, 255, 255, .4); letter-spacing: .02em; }
+.peco__sat-builtin { font: 400 10px var(--font-mono); fill: rgba(255, 255, 255, .4); letter-spacing: .02em; }
 
 .peco__sat:hover .peco__sat-glow,
 .peco__sat:focus-visible .peco__sat-glow,
@@ -1945,7 +2010,7 @@ svg    { display: block; max-width: 100%; }
   background: var(--pe-accent);
   box-shadow: 0 0 10px var(--pe-accent);
 }
-.peco__brief-bundled {
+.peco__brief-builtin {
   margin-left: auto;
   padding: 2px 6px;
   background: rgba(255, 255, 255, .08);

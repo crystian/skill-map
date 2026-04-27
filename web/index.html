@@ -297,97 +297,107 @@
     <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== FEATURES ============== -->
+    <!-- Two visual blocks share this section.
+         Top — `.features-grid`: two cards with full-card treatment.
+         The hero (`feature--hero`) spans 2 columns and carries the dual-mode
+         story (the meta-architecture); the supporter on its right is the
+         token-weight insight.
+         Bottom — `.features-list`: four compact list items in a 2×2 grid,
+         no card chrome, no padded background. Less "marketing tile", more
+         "and here's the rest of the surface". -->
     <section class="section" id="features">
-      <header class="section-header">
+      <header class="section-header section-header--center">
         <div>
-          <div class="section-eyebrow section-eyebrow--green" data-i18n="feat.eyebrow">Features</div>
-          <h2 class="section-title" data-i18n="feat.title">Six checks that turn agent-soup into a map you can read.</h2>
+          <div class="section-badge" data-i18n="feat.eyebrow">Features</div>
+          <h2 class="section-title" data-i18n="feat.title">Static. Semantic. Same graph.</h2>
         </div>
-        <p class="section-sub">
-          <span data-i18n="feat.sub">Built for repos with hundreds of skills, dozens of agents, and the kind of cross-file coupling that makes </span><code>grep</code><span data-i18n="feat.sub.tail"> stop being enough.</span>
-        </p>
       </header>
 
       <div class="features-grid">
-        <article class="feature feature--green">
+        <article class="feature feature--hero feature--violet">
           <div class="feature__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <circle cx="9" cy="12" r="6"/>
+              <circle cx="15" cy="12" r="6"/>
             </svg>
           </div>
           <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.scan.t">Recursive scan</h3>
-            <span class="feature__tag">scan</span>
+            <h3 class="feature__title" data-i18n="feat.modes.t">Deterministic &amp; probabilistic, side by side</h3>
+            <span class="feature__tag">modes</span>
           </div>
-          <p class="feature__body" data-i18n="feat.scan.b">Walks any folder of Markdown, JSON, or YAML and indexes every skill, agent, hook, command, and note in one pass.</p>
+          <p class="feature__body" data-i18n="feat.modes.b">Static analysis runs in milliseconds; LLM analysis runs in jobs. Same plugin model, same context, same graph. Choose what runs in pre-commit and what runs nightly.</p>
         </article>
 
         <article class="feature feature--violet">
           <div class="feature__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v18"/>
+              <path d="M5 7h14"/>
+              <path d="M5 7l-3 7c0 1.7 1.3 3 3 3s3-1.3 3-3L5 7z"/>
+              <path d="M19 7l-3 7c0 1.7 1.3 3 3 3s3-1.3 3-3l-3-7z"/>
+            </svg>
+          </div>
+          <div class="feature__head">
+            <h3 class="feature__title" data-i18n="feat.tok.t">Token weight per node</h3>
+            <span class="feature__tag">weight</span>
+          </div>
+          <p class="feature__body" data-i18n="feat.tok.b">Per-node byte and token counts. Find the bloated skill that's eating your context window.</p>
+        </article>
+      </div>
+
+      <ul class="features-list">
+        <li class="features-list__item features-list__item--green">
+          <div class="features-list__icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
               <circle cx="5" cy="6" r="2.2"/><circle cx="19" cy="6" r="2.2"/><circle cx="12" cy="18" r="2.2"/>
               <path stroke-linecap="round" d="M6.6 7.6 11 16M17.4 7.6 13 16M7 6h10"/>
             </svg>
           </div>
-          <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.xref.t">Cross-references</h3>
-            <span class="feature__tag">graph</span>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.xref.t">Cross-references</h3>
+            <p class="features-list__body" data-i18n="feat.xref.b">Every link between files — /slash invocations, @-mentions, imports, fetched URLs. The graph stops being a directory.</p>
           </div>
-          <p class="feature__body" data-i18n="feat.xref.b">Detects every link between files — invocation phrases, file imports, command calls, fetched URLs.</p>
-        </article>
+        </li>
 
-        <article class="feature feature--amber">
-          <div class="feature__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-              <path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>
-            </svg>
-          </div>
-          <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.coll.t">Trigger collisions</h3>
-            <span class="feature__tag">collisions</span>
-          </div>
-          <p class="feature__body" data-i18n="feat.coll.b">Two skills claiming the same invocation? skill-map flags it before your agent picks the wrong one at runtime.</p>
-        </article>
-
-        <article class="feature feature--green">
-          <div class="feature__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-          </div>
-          <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.orph.t">Orphan detection</h3>
-            <span class="feature__tag">orphans</span>
-          </div>
-          <p class="feature__body" data-i18n="feat.orph.b">Surfaces files that are defined but never referenced. Dead code, but for your agent ecosystem.</p>
-        </article>
-
-        <article class="feature feature--violet">
-          <div class="feature__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-              <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.tok.t">Token weight</h3>
-            <span class="feature__tag">weight</span>
-          </div>
-          <p class="feature__body" data-i18n="feat.tok.b">Per-node byte and token counts. Find the bloated skill that's eating your context window.</p>
-        </article>
-
-        <article class="feature feature--amber">
-          <div class="feature__icon">
+        <li class="features-list__item features-list__item--amber">
+          <div class="features-list__icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3z"/>
             </svg>
           </div>
-          <div class="feature__head">
-            <h3 class="feature__title" data-i18n="feat.deps.t">External deps</h3>
-            <span class="feature__tag">deps</span>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.deps.t">External deps</h3>
+            <p class="features-list__body" data-i18n="feat.deps.b">Lists every URL and asset your workspace fetches. Audit your supply chain.</p>
           </div>
-          <p class="feature__body" data-i18n="feat.deps.b">Lists every URL and fetched asset your skills reach for. Audit your supply chain.</p>
-        </article>
-      </div>
+        </li>
+
+        <li class="features-list__item features-list__item--amber">
+          <div class="features-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 17H7A5 5 0 0 1 7 7h2"/>
+              <path d="M15 7h2a5 5 0 0 1 4 8"/>
+              <line x1="8" y1="12" x2="11" y2="12"/>
+              <line x1="3" y1="3" x2="21" y2="21"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.broken.t">Broken refs</h3>
+            <p class="features-list__body" data-i18n="feat.broken.b">References pointing to triggers that don't exist. Caught at scan time, before the runtime drops the ball.</p>
+          </div>
+        </li>
+
+        <li class="features-list__item features-list__item--amber">
+          <div class="features-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+              <path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17h.01"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.coll.t">Trigger collisions</h3>
+            <p class="features-list__body" data-i18n="feat.coll.b">Two skills claiming the same invocation? Flagged before the runtime picks the wrong one.</p>
+          </div>
+        </li>
+      </ul>
     </section>
 
     <hr class="section-divider" aria-hidden="true">
@@ -490,7 +500,7 @@
             </g>
 
             <!-- Six satellites. -->
-            <g class="peco__sat" data-pe-id="adapter" data-pe-accent="#7C3AED" data-pe-bundled="true" tabindex="0" role="button" aria-label="Adapter plugin type">
+            <g class="peco__sat" data-pe-id="adapter" data-pe-accent="#7C3AED" data-pe-builtin="true" tabindex="0" role="button" aria-label="Adapter plugin type">
               <circle cx="360" cy="110" r="44" class="peco__sat-pulse" fill="none" stroke="#7C3AED" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="360" cy="110" r="42" class="peco__sat-glow" fill="#7C3AED" opacity=".15"/>
               <circle cx="360" cy="110" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#7C3AED" stroke-width="1.2"/>
@@ -501,10 +511,10 @@
                 <line x1="359" y1="110" x2="361" y2="110"/>
               </g>
               <text x="360" y="168" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.adapter.title">Adapter</text>
-              <text x="360" y="184" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+              <text x="360" y="184" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="detector" data-pe-accent="#A78BFA" data-pe-bundled="true" tabindex="0" role="button" aria-label="Detector plugin type">
+            <g class="peco__sat" data-pe-id="detector" data-pe-accent="#A78BFA" data-pe-builtin="true" tabindex="0" role="button" aria-label="Detector plugin type">
               <circle cx="576.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#A78BFA" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="576.5" cy="235" r="42" class="peco__sat-glow" fill="#A78BFA" opacity=".15"/>
               <circle cx="576.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#A78BFA" stroke-width="1.2"/>
@@ -514,10 +524,10 @@
                 <line x1="579.5" y1="238" x2="584.5" y2="243"/>
               </g>
               <text x="576.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.detector.title">Detector</text>
-              <text x="576.5" y="309" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+              <text x="576.5" y="309" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="rule" data-pe-accent="#5FD17C" data-pe-bundled="true" tabindex="0" role="button" aria-label="Rule plugin type">
+            <g class="peco__sat" data-pe-id="rule" data-pe-accent="#5FD17C" data-pe-builtin="true" tabindex="0" role="button" aria-label="Rule plugin type">
               <circle cx="576.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#5FD17C" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="576.5" cy="485" r="42" class="peco__sat-glow" fill="#5FD17C" opacity=".15"/>
               <circle cx="576.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5FD17C" stroke-width="1.2"/>
@@ -526,7 +536,7 @@
                 <path d="M569.5,488 L573.5,492 L583.5,480"/>
               </g>
               <text x="576.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.rule.title">Rule</text>
-              <text x="576.5" y="559" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+              <text x="576.5" y="559" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
             <g class="peco__sat" data-pe-id="action" data-pe-accent="#00C853" tabindex="0" role="button" aria-label="Action plugin type">
@@ -540,7 +550,7 @@
               <text x="360" y="668" text-anchor="middle" class="peco__sat-label" data-i18n="pe.action.title">Action</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="audit" data-pe-accent="#FFB627" data-pe-bundled="true" tabindex="0" role="button" aria-label="Audit plugin type">
+            <g class="peco__sat" data-pe-id="audit" data-pe-accent="#FFB627" data-pe-builtin="true" tabindex="0" role="button" aria-label="Audit plugin type">
               <circle cx="143.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#FFB627" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="143.5" cy="485" r="42" class="peco__sat-glow" fill="#FFB627" opacity=".15"/>
               <circle cx="143.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#FFB627" stroke-width="1.2"/>
@@ -552,10 +562,10 @@
                 <line x1="139.5" y1="488" x2="144.5" y2="488"/>
               </g>
               <text x="143.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.audit.title">Audit</text>
-              <text x="143.5" y="559" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+              <text x="143.5" y="559" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="renderer" data-pe-accent="#5BC0EB" data-pe-bundled="true" tabindex="0" role="button" aria-label="Renderer plugin type">
+            <g class="peco__sat" data-pe-id="renderer" data-pe-accent="#5BC0EB" data-pe-builtin="true" tabindex="0" role="button" aria-label="Renderer plugin type">
               <circle cx="143.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#5BC0EB" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="143.5" cy="235" r="42" class="peco__sat-glow" fill="#5BC0EB" opacity=".15"/>
               <circle cx="143.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5BC0EB" stroke-width="1.2"/>
@@ -566,7 +576,7 @@
                 <line x1="136.5" y1="240" x2="146.5" y2="240"/>
               </g>
               <text x="143.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.renderer.title">Renderer</text>
-              <text x="143.5" y="309" text-anchor="middle" class="peco__sat-bundled" data-i18n="pe.bundled">BUNDLED</text>
+              <text x="143.5" y="309" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
           </svg>
         </div>
@@ -576,7 +586,7 @@
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
               <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.adapter.title">Adapter</h3>
             <p class="peco__brief-one"   data-i18n="pe.adapter.one">Recognize a platform</p>
@@ -592,7 +602,7 @@
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
               <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.detector.title">Detector</h3>
             <p class="peco__brief-one"   data-i18n="pe.detector.one">Extract signals from a node</p>
@@ -608,7 +618,7 @@
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
               <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.rule.title">Rule</h3>
             <p class="peco__brief-one"   data-i18n="pe.rule.one">Lint the whole graph</p>
@@ -642,7 +652,7 @@
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
               <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.audit.title">Audit</h3>
             <p class="peco__brief-one"   data-i18n="pe.audit.one">Compose rules + actions</p>
@@ -658,7 +668,7 @@
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
               <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-bundled" data-i18n="pe.bundled">BUNDLED</span>
+              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.renderer.title">Renderer</h3>
             <p class="peco__brief-one"   data-i18n="pe.renderer.one">Serialize the graph</p>

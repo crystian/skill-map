@@ -795,14 +795,15 @@
       title: { en: 'Surface & distribution', es: 'Superficie y distribución' },
       sub: { en: 'Renderers, full web UI, single-binary release.', es: 'Renderers, UI web completa, release de un binario.' },
       brief: {
-        en: 'The product reaches 1.0 here. Mermaid and DOT renderers for ops and CI, the full web UI replaces the prototype with a Hono BFF and WebSocket live events, and @skill-map/cli ships as a single npm package with the UI bundled inside. One process, one port, one command.',
-        es: 'Aquí el producto llega a 1.0. Renderers Mermaid y DOT para ops y CI, la UI web completa reemplaza el prototipo con un BFF Hono y eventos en vivo por WebSocket, y @skill-map/cli se distribuye como un único paquete npm con la UI empaquetada adentro. Un proceso, un puerto, un comando.',
+        en: 'The product reaches 1.0 here. Mermaid and DOT renderers for ops and CI, more adapters so skill-map covers the multi-host ecosystem (Codex, Gemini, Copilot, generic) and not just Claude, the full web UI replaces the prototype with a Hono BFF and WebSocket live events, and @skill-map/cli ships as a single npm package with the UI bundled inside. One process, one port, one command.',
+        es: 'Aquí el producto llega a 1.0. Renderers Mermaid y DOT para ops y CI, más adaptadores para cubrir el ecosistema multi-host (Codex, Gemini, Copilot, genérico) y no sólo Claude, la UI web completa reemplaza el prototipo con un BFF Hono y eventos en vivo por WebSocket, y @skill-map/cli se distribuye como un único paquete npm con la UI empaquetada adentro. Un proceso, un puerto, un comando.',
       },
       list: 'steps',
       items: [
         { id: '12', status: 'planned', title: { en: 'Additional renderers',  es: 'Renderers adicionales' }, body: { en: 'Mermaid · DOT / Graphviz · subgraph export with filters',                                                                                  es: 'Mermaid · DOT / Graphviz · export de subgrafos con filtros' } },
-        { id: '13', status: 'planned', title: { en: 'Full web UI',           es: 'UI web completa' },        body: { en: 'Hono BFF + WebSocket /ws · single-port mandate · Flavor B vertical slice · command submit from UI · live event streaming',              es: 'BFF Hono + WebSocket /ws · mandato de un solo puerto · slice vertical del Sabor B · submit de comandos desde la UI · streaming de eventos en vivo' } },
-        { id: '14', status: 'planned', title: { en: 'Distribution polish',   es: 'Pulido de distribución' }, body: { en: 'Single npm package with UI bundled · sm + skill-map binary aliases · sm ui sub-command · telemetry opt-in',                              es: 'Paquete npm único con UI incluida · alias de binarios sm + skill-map · sub-comando sm ui · telemetría opt-in' } },
+        { id: '13', status: 'planned', title: { en: 'More adapters',         es: 'Más adaptadores' },        body: { en: 'Codex · Gemini · Copilot · generic adapter (frontmatter-driven fallback) · per-host sm-<host>-* skill namespace',                          es: 'Codex · Gemini · Copilot · adaptador genérico (fallback driven por frontmatter) · namespace sm-<host>-* por host' } },
+        { id: '14', status: 'planned', title: { en: 'Full web UI',           es: 'UI web completa' },        body: { en: 'Hono BFF + WebSocket /ws · single-port mandate · Flavor B vertical slice · command submit from UI · live event streaming',              es: 'BFF Hono + WebSocket /ws · mandato de un solo puerto · slice vertical del Sabor B · submit de comandos desde la UI · streaming de eventos en vivo' } },
+        { id: '15', status: 'planned', title: { en: 'Distribution polish',   es: 'Pulido de distribución' }, body: { en: 'Single npm package with UI bundled · sm + skill-map binary aliases · sm ui sub-command · telemetry opt-in',                              es: 'Paquete npm único con UI incluida · alias de binarios sm + skill-map · sub-comando sm ui · telemetría opt-in' } },
       ],
     },
     {
@@ -812,13 +813,12 @@
       title: { en: 'Deferred', es: 'Diferido' },
       sub: { en: 'Post-1.0, on demand only.', es: 'Post-1.0, sólo a demanda.' },
       brief: {
-        en: "Things deliberately out of scope for 1.0. They land if and when there's demand: editing skills from the UI, richer workflow definitions, more adapters, URL-liveness checks, schema v2 with migration. Listed so nobody confuses 'not yet' with 'never'.",
-        es: 'Cosas deliberadamente fuera del scope de 1.0. Aterrizan si y cuando aparece demanda: editar skills desde la UI, definiciones de workflow más ricas, más adaptadores, chequeos de URL viva, schema v2 con migración. Listadas para que nadie confunda "todavía no" con "nunca".',
+        en: "Things deliberately out of scope for 1.0. They land if and when there's demand: editing skills from the UI, richer workflow definitions, URL-liveness checks, schema v2 with migration. Listed so nobody confuses 'not yet' with 'never'.",
+        es: 'Cosas deliberadamente fuera del scope de 1.0. Aterrizan si y cuando aparece demanda: editar skills desde la UI, definiciones de workflow más ricas, chequeos de URL viva, schema v2 con migración. Listadas para que nadie confunda "todavía no" con "nunca".',
       },
       list: 'sketches',
       items: [
         { en: 'Write-back from UI · edit / create / refactor skills',           es: 'Escritura desde la UI · editar / crear / refactorizar skills' },
-        { en: 'More adapters · Codex, Gemini, Copilot, generic',                es: 'Más adaptadores · Codex, Gemini, Copilot, genérico' },
         { en: 'Plugin test harness · dry-run / real / subprocess',              es: 'Test harness para plugins · dry-run / real / subproceso' },
         { en: 'URL liveness · optional plugin for broken-external-ref',         es: 'URL viva · plugin opcional para broken-external-ref' },
         { en: 'Schema v2 + migration',                                          es: 'Schema v2 + migración' },
