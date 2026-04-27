@@ -402,17 +402,27 @@ Close a running job with success or failure. Nonce is the sole credential.
 
 ### `sm plugins disable`
 
-Toggle plugin off. Does not delete the plugin directory.
+Disable a plugin (or --all). Persists in config_plugins; does not delete files.
+
+Writes a row to config_plugins with enabled=0. Discovery still surfaces the 
+plugin in sm plugins list, but with status=disabled — its extensions are not 
+imported and the kernel will not run them.
 
 ### `sm plugins doctor`
 
 Run the full load pass and summarise by failure mode.
 
-Exit code 0 when every plugin loads; 1 when any plugin is not loaded.
+Exit code 0 when every plugin loads or is intentionally disabled; 1 when any 
+plugin is in an error / incompat state.
 
 ### `sm plugins enable`
 
-Toggle plugin on. Persists in config_plugins. --all applies to every discovered plugin.
+Enable a plugin (or --all). Persists in config_plugins.
+
+Writes a row to config_plugins with enabled=1. Takes precedence over the 
+team-shared baseline at settings.json#/plugins/<id>/enabled. Use sm plugins 
+disable to flip; sm config reset plugins.<id>.enabled drops the settings.json 
+baseline.
 
 ### `sm plugins list`
 
@@ -452,6 +462,7 @@ reuse unchanged nodes, and only reprocess new / modified files.
 - `--dry-run`, `-n` `boolean` — Run the scan in memory and skip every DB write. Combined with --changed, still opens the DB read-side to load the prior snapshot.
 - `--changed` `boolean` — Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.
 - `--allow-empty` `boolean` — Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
+- `--strict` `boolean` — Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
 
 **Examples:**
 
@@ -494,11 +505,44 @@ Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status,
 
 ### `sm init`
 
-Bootstrap the current scope — create .skill-map/, provision DB, first scan.
+Bootstrap the current scope: scaffold .skill-map/, provision DB, run first scan.
 
-Creates ./.skill-map/ (project) or ~/.skill-map/ (global, with -g). Provisions 
-the database, runs migrations, runs a first scan. Flags: --no-scan skips the 
-first scan, --force rewrites existing config.
+Project scope (default): creates ./.skill-map/ with settings.json, 
+settings.local.json, and skill-map.db. Drops a starter .skill-mapignore at the 
+scope root and appends the DB + local settings to .gitignore.
+
+Global scope (-g): same scaffolding under ~/.skill-map/. No .gitignore is 
+touched; "$HOME" isn't a repo.
+
+Re-running over an existing scope errors with exit 2 unless --force is passed. 
+--no-scan skips the first scan; useful in CI
+
+where the operator wants to provision before populating roots.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Initialise ~/.skill-map/ instead of ./.skill-map/.
+- `--no-scan` `boolean` — Skip the first scan after scaffolding.
+- `--force` `boolean` — Overwrite an existing settings.json / settings.local.json / .skill-mapignore.
+
+**Examples:**
+
+- Initialise the current project
+  ```
+  sm init
+  ```
+- Provision the global scope
+  ```
+  sm init -g
+  ```
+- Bootstrap without running the first scan
+  ```
+  sm init --no-scan
+  ```
+- Force-overwrite an existing scope
+  ```
+  sm init --force
+  ```
 
 ## Setup & state
 

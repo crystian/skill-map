@@ -49,7 +49,25 @@ export interface IPluginManifest {
  * - `load-error`: manifest passed but an extension module failed to import
  *   or the imported manifest failed its extension-kind schema.
  */
-export type TPluginLoadStatus = 'loaded' | 'incompatible-spec' | 'invalid-manifest' | 'load-error';
+/**
+ * Possible outcomes after the loader sees a plugin.json.
+ *
+ * - `loaded`              — manifest valid, specCompat satisfied, every
+ *                           extension imported and validated.
+ * - `disabled`            — user-toggled off via `sm plugins disable` or
+ *                           `settings.json#/plugins/<id>/enabled`. Manifest
+ *                           is parsed and surfaced (so `sm plugins list`
+ *                           shows it), but extensions are not imported.
+ * - `incompatible-spec`   — manifest parsed but `semver.satisfies` failed.
+ * - `invalid-manifest`    — `plugin.json` missing, unparseable, or AJV-fails.
+ * - `load-error`          — manifest passed, an extension module failed.
+ */
+export type TPluginLoadStatus =
+  | 'loaded'
+  | 'disabled'
+  | 'incompatible-spec'
+  | 'invalid-manifest'
+  | 'load-error';
 
 export interface ILoadedExtension {
   kind: TExtensionKind;

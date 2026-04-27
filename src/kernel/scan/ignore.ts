@@ -86,6 +86,16 @@ export function buildIgnoreFilter(opts: IBuildIgnoreFilterOptions = {}): IIgnore
 }
 
 /**
+ * Return the bundled defaults text. Useful for `sm init` (which writes
+ * the file into the user's scope) and for tests. The same caching
+ * logic backs `buildIgnoreFilter` so this never re-reads from disk on
+ * a hot path.
+ */
+export function loadBundledIgnoreText(): string {
+  return loadDefaultsText();
+}
+
+/**
  * Read `.skill-mapignore` from `<root>/.skill-mapignore` if it exists,
  * else return `undefined`. Caller passes the result as `ignoreFileText`
  * to `buildIgnoreFilter`.

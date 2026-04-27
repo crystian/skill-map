@@ -89,7 +89,15 @@ function plantClaudeFixture(root: string): void {
   writeFixtureFile(
     root,
     '.claude/commands/rollback.md',
-    ['---', 'name: Rollback', '---', 'Rollback body.'].join('\n'),
+    [
+      '---',
+      'name: Rollback',
+      'description: Rollback the last deploy.',
+      'metadata:',
+      '  version: 1.0.0',
+      '---',
+      'Rollback body.',
+    ].join('\n'),
   );
 }
 

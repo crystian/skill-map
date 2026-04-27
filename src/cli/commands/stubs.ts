@@ -27,27 +27,9 @@ function notImplemented(cmd: Command, verb: string, step: string): number {
 // ---------------------------------------------------------------------------
 // Setup & state
 // ---------------------------------------------------------------------------
-
-export class InitCommand extends Command {
-  static override paths = [['init']];
-  static override usage = Command.Usage({
-    category: 'Setup',
-    description: 'Bootstrap the current scope — create .skill-map/, provision DB, first scan.',
-    details: `
-      Creates ./.skill-map/ (project) or ~/.skill-map/ (global, with -g).
-      Provisions the database, runs migrations, runs a first scan.
-      Flags: --no-scan skips the first scan, --force rewrites existing config.
-    `,
-  });
-
-  global = Option.Boolean('-g,--global', false);
-  noScan = Option.Boolean('--no-scan', false);
-  force = Option.Boolean('--force', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'init', '5');
-  }
-}
+//
+// `sm init` left this file at Step 6.5; it lives in src/cli/commands/init.ts
+// now. `sm doctor` remains a stub until Step 3 (or whenever doctor lands).
 
 export class DoctorCommand extends Command {
   static override paths = [['doctor']];
@@ -300,36 +282,8 @@ export class RecordCommand extends Command {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Plugins — toggle verbs (list/show/doctor already live)
+// Plugins — enable/disable moved to ./plugins.ts at Step 6.6
 // ---------------------------------------------------------------------------
-
-export class PluginsEnableCommand extends Command {
-  static override paths = [['plugins', 'enable']];
-  static override usage = Command.Usage({
-    category: 'Plugins',
-    description: 'Toggle plugin on. Persists in config_plugins. --all applies to every discovered plugin.',
-  });
-  id = Option.String({ required: false });
-  all = Option.Boolean('--all', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'plugins enable', '5');
-  }
-}
-
-export class PluginsDisableCommand extends Command {
-  static override paths = [['plugins', 'disable']];
-  static override usage = Command.Usage({
-    category: 'Plugins',
-    description: 'Toggle plugin off. Does not delete the plugin directory.',
-  });
-  id = Option.String({ required: false });
-  all = Option.Boolean('--all', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'plugins disable', '5');
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Audits
@@ -382,7 +336,6 @@ export class ServeCommand extends Command {
 // ---------------------------------------------------------------------------
 
 export const STUB_COMMANDS = [
-  InitCommand,
   DoctorCommand,
   FindingsCommand,
   GraphCommand,
@@ -399,8 +352,6 @@ export const STUB_COMMANDS = [
   JobCancelCommand,
   JobPruneCommand,
   RecordCommand,
-  PluginsEnableCommand,
-  PluginsDisableCommand,
   AuditListCommand,
   AuditRunCommand,
   ServeCommand,

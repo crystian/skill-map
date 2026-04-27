@@ -16,6 +16,7 @@ import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
 import { DB_COMMANDS } from './commands/db.js';
 import { HelpCommand } from './commands/help.js';
+import { InitCommand } from './commands/init.js';
 import { HistoryCommand, HistoryStatsCommand } from './commands/history.js';
 import { ListCommand } from './commands/list.js';
 import { ORPHANS_COMMANDS } from './commands/orphans.js';
@@ -36,6 +37,7 @@ const cli = new Cli({
 cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
 cli.register(HelpCommand);
+cli.register(InitCommand);
 cli.register(ScanCommand);
 cli.register(VersionCommand);
 cli.register(ListCommand);

@@ -49,6 +49,7 @@ import type {
   Link,
   LinkKind,
   Node,
+  NodeKind,
   ScanResult,
   ScanScannedBy,
   Severity,
@@ -60,6 +61,7 @@ import type {
 } from './ports/progress-emitter.js';
 import { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 import { installedSpecVersion } from './adapters/plugin-loader.js';
+import { loadSchemaValidators, type TSchemaName } from './adapters/schema-validators.js';
 import type {
   IAdapter,
   IDetectContext,
@@ -164,6 +166,15 @@ export interface RunScanOptions {
    * `node_modules` out).
    */
   ignoreFilter?: IIgnoreFilter;
+  /**
+   * Promote frontmatter-validation findings from `warn` to `error`.
+   * Defaults to false. The CLI surfaces this via `--strict` on `sm scan`
+   * and the `scan.strict` config key. When false, the orchestrator
+   * still emits a `frontmatter-invalid` issue per malformed file but
+   * leaves the severity at `warn` so a clean scan exits 0; when true,
+   * the same finding becomes `error` and the scan exits 1.
+   */
+  strict?: boolean;
 }
 
 /**
@@ -228,6 +239,7 @@ async function runScanInternal(
   const exts = options.extensions ?? { adapters: [], detectors: [], rules: [] };
   const tokenize = options.tokenize !== false;
   const scope: 'project' | 'global' = options.scope ?? 'project';
+  const strict = options.strict === true;
   // Encoder is heavyweight to construct (loads the cl100k_base BPE table
   // once); reuse a single instance across the whole scan.
   const encoder = tokenize ? new Tiktoken(cl100k_base) : null;
@@ -244,6 +256,10 @@ async function runScanInternal(
   const priorNodesByPath = new Map<string, Node>();
   const priorNodePaths = new Set<string>();
   const priorLinksByOriginating = new Map<string, Link[]>();
+  // Per-node frontmatter-invalid issues from the prior — we reuse them
+  // when the cache is hit, otherwise the incremental scan would silently
+  // drop the warning that landed on the prior pass.
+  const priorFrontmatterIssuesByNode = new Map<string, Issue[]>();
   if (prior) {
     for (const node of prior.nodes) {
       priorNodesByPath.set(node.path, node);
@@ -255,6 +271,14 @@ async function runScanInternal(
       if (list) list.push(link);
       else priorLinksByOriginating.set(key, [link]);
     }
+    for (const issue of prior.issues) {
+      if (issue.ruleId !== 'frontmatter-invalid') continue;
+      if (issue.nodeIds.length !== 1) continue;
+      const path = issue.nodeIds[0]!;
+      const list = priorFrontmatterIssuesByNode.get(path);
+      if (list) list.push(issue);
+      else priorFrontmatterIssuesByNode.set(path, [issue]);
+    }
   }
 
   emitter.emit(makeEvent('scan.started', { roots: options.roots }));
@@ -265,6 +289,10 @@ async function runScanInternal(
   // Set of node paths that came verbatim from the prior snapshot (so
   // their `externalRefsCount` must NOT be zeroed before recomputation).
   const cachedPaths = new Set<string>();
+  // Frontmatter-validation findings collected during the walk; appended
+  // to the rule-emitted `issues` array after the rules pass so the
+  // ScanResult ordering stays "rules first, then derived issues".
+  const frontmatterIssues: Issue[] = [];
 
   // --- adapters + detectors ------------------------------------------------
   // `filesWalked` counts every `IRawNode` an adapter yielded across the
@@ -320,6 +348,18 @@ async function runScanInternal(
         cachedPaths.add(reused.path);
         const reusedLinks = priorLinksByOriginating.get(priorNode.path) ?? [];
         for (const link of reusedLinks) internalLinks.push(link);
+        // Re-emit the prior frontmatter issues. They were validated
+        // against the same frontmatterHash, so the result is identical;
+        // re-validating here would be wasted work. The `strict` flag
+        // can promote `warn → error` retroactively, so honor it before
+        // pushing.
+        const reusedFm = priorFrontmatterIssuesByNode.get(priorNode.path) ?? [];
+        for (const issue of reusedFm) {
+          frontmatterIssues.push({
+            ...issue,
+            severity: strict ? 'error' : 'warn',
+          });
+        }
         emitter.emit(
           makeEvent('scan.progress', {
             index,
@@ -343,6 +383,16 @@ async function runScanInternal(
         encoder,
       });
       nodes.push(node);
+
+      // Step 6.7 — frontmatter strict validation. Only validate when the
+      // file actually declared a frontmatter fence (an absent fence
+      // produces `frontmatterRaw === ''`); empty `{}` from a missing
+      // fence is not a violation. Severity defaults to `warn`; the CLI
+      // promotes it to `error` via `--strict` or `scan.strict: true`.
+      if (raw.frontmatterRaw.length > 0) {
+        const fmIssue = validateFrontmatter(kind, raw.frontmatter, raw.path, strict);
+        if (fmIssue) frontmatterIssues.push(fmIssue);
+      }
       emitter.emit(
         makeEvent('scan.progress', {
           index,
@@ -387,6 +437,10 @@ async function runScanInternal(
       if (validated) issues.push(validated);
     }
   }
+  // Frontmatter-invalid issues from the walk land here so the rename
+  // heuristic (next pass) sees them and the final stats.issuesCount
+  // reflects them.
+  for (const issue of frontmatterIssues) issues.push(issue);
 
   // --- rename heuristic ---------------------------------------------------
   // Runs after rules so the merged graph is final. Adds issues for
@@ -755,6 +809,33 @@ function validateLink(detector: IDetector, link: Link): Link | null {
   }
   const confidence: Confidence = link.confidence ?? detector.defaultConfidence;
   return { ...link, confidence };
+}
+
+/**
+ * Validate a node's frontmatter against the kind-specific schema. Only
+ * called for files that actually declared a fence (caller checks
+ * `frontmatterRaw.length > 0`). Returns a single `frontmatter-invalid`
+ * issue with the AJV error string, or `null` when the frontmatter is
+ * structurally valid. Severity is `warn` by default; `strict` flips it
+ * to `error` so the scan exit code rises to 1.
+ */
+function validateFrontmatter(
+  kind: NodeKind,
+  frontmatter: Record<string, unknown>,
+  path: string,
+  strict: boolean,
+): Issue | null {
+  const validators = loadSchemaValidators();
+  const schemaName: TSchemaName = `frontmatter-${kind}` as const;
+  const result = validators.validate(schemaName, frontmatter);
+  if (result.ok) return null;
+  return {
+    ruleId: 'frontmatter-invalid',
+    severity: strict ? 'error' : 'warn',
+    nodeIds: [path],
+    message: `Frontmatter for ${path} (${kind}) failed schema validation: ${result.errors}`,
+    data: { kind, errors: result.errors },
+  };
 }
 
 function validateIssue(rule: IRule, issue: Issue): Issue | null {

@@ -1,12 +1,19 @@
 /**
- * `sm plugins` — discover and inspect plugins. Does NOT enable/disable;
- * those arrive at Step 6 with the `config_plugins` ledger.
+ * `sm plugins` — discover, inspect, and toggle plugins.
  *
- *   sm plugins list     tabulate discovered plugins with status
- *   sm plugins show X   dump one plugin's manifest + extensions
- *   sm plugins doctor   full load pass + summary by failure mode
+ *   sm plugins list      tabulate discovered plugins with status (and DB / settings overrides)
+ *   sm plugins show X    dump one plugin's manifest + loaded extensions
+ *   sm plugins doctor    full load pass + summary by failure mode
+ *   sm plugins enable  <id> | --all   write `enabled: true` to config_plugins
+ *   sm plugins disable <id> | --all   write `enabled: false` to config_plugins
+ *
+ * Step 6.6 wires the enable/disable verbs and respects the resolution
+ * order spec'd in `kernel/config/plugin-resolver.ts`:
+ *
+ *   DB override (config_plugins) > settings.json (#/plugins/<id>/enabled) > installed default (true)
  */
 
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -15,12 +22,22 @@ import { Command, Option } from 'clipanion';
 import {
   PluginLoader,
   installedSpecVersion,
+  type IPluginLoaderOptions,
 } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
+import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import {
+  deletePluginOverride,
+  loadPluginOverrideMap,
+  setPluginEnabled,
+} from '../../kernel/adapters/sqlite/plugins.js';
+import { loadConfig } from '../../kernel/config/loader.js';
+import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
+import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 
-const PROJECT_PLUGINS = '.skill-map/plugins';
-const GLOBAL_PLUGINS = '.skill-map/plugins';
+const PLUGINS_DIR = '.skill-map/plugins';
+const DB_FILENAME = 'skill-map.db';
 
 interface IScopeOptions {
   global: boolean;
@@ -29,24 +46,54 @@ interface IScopeOptions {
 
 function resolveSearchPaths(opts: IScopeOptions): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
-  const project = resolve(process.cwd(), PROJECT_PLUGINS);
-  const user = join(homedir(), GLOBAL_PLUGINS);
+  const project = resolve(process.cwd(), PLUGINS_DIR);
+  const user = join(homedir(), PLUGINS_DIR);
   return opts.global ? [user] : [project, user];
+}
+
+function resolveDbPath(global: boolean): string {
+  return global
+    ? join(homedir(), '.skill-map', DB_FILENAME)
+    : resolve(process.cwd(), '.skill-map', DB_FILENAME);
+}
+
+/**
+ * Build a resolver from the layered config (settings.json) + the DB
+ * overrides (config_plugins). Either layer may be absent (no
+ * settings.json, no DB) — both fall through gracefully.
+ */
+async function buildResolver(global: boolean): Promise<(id: string) => boolean> {
+  const { effective: cfg } = loadConfig({ scope: global ? 'global' : 'project' });
+  const dbPath = resolveDbPath(global);
+  let dbOverrides = new Map<string, boolean>();
+  if (existsSync(dbPath)) {
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    try {
+      await adapter.init();
+      dbOverrides = await loadPluginOverrideMap(adapter.db);
+    } finally {
+      await adapter.close();
+    }
+  }
+  return makeEnabledResolver(cfg, dbOverrides);
 }
 
 async function loadAll(opts: IScopeOptions): Promise<IDiscoveredPlugin[]> {
   const validators = loadSchemaValidators();
-  const loader = new PluginLoader({
+  const loaderOpts: IPluginLoaderOptions = {
     searchPaths: resolveSearchPaths(opts),
     validators,
     specVersion: installedSpecVersion(),
-  });
+    resolveEnabled: await buildResolver(opts.global),
+  };
+  const loader = new PluginLoader(loaderOpts);
   return loader.discoverAndLoadAll();
 }
 
 function statusIcon(status: IDiscoveredPlugin['status']): string {
   switch (status) {
     case 'loaded': return 'ok';
+    case 'disabled': return 'off';
     case 'incompatible-spec': return 'spec!';
     case 'invalid-manifest': return 'mani!';
     case 'load-error': return 'load!';
@@ -143,7 +190,7 @@ export class PluginsDoctorCommand extends Command {
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'Run the full load pass and summarise by failure mode.',
-    details: 'Exit code 0 when every plugin loads; 1 when any plugin is not loaded.',
+    details: 'Exit code 0 when every plugin loads or is intentionally disabled; 1 when any plugin is in an error / incompat state.',
   });
 
   global = Option.Boolean('-g,--global', false);
@@ -153,6 +200,7 @@ export class PluginsDoctorCommand extends Command {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     const counts: Record<IDiscoveredPlugin['status'], number> = {
       loaded: 0,
+      disabled: 0,
       'incompatible-spec': 0,
       'invalid-manifest': 0,
       'load-error': 0,
@@ -164,7 +212,10 @@ export class PluginsDoctorCommand extends Command {
       this.context.stdout.write(`  ${status.padEnd(18)} ${counts[status]}\n`);
     }
 
-    const bad = plugins.filter((p) => p.status !== 'loaded');
+    // Errors gate the exit code; `disabled` is intentional and never an issue.
+    const bad = plugins.filter(
+      (p) => p.status !== 'loaded' && p.status !== 'disabled',
+    );
     if (bad.length > 0) {
       this.context.stdout.write('\nIssues:\n');
       for (const p of bad) {
@@ -175,6 +226,107 @@ export class PluginsDoctorCommand extends Command {
     return 0;
   }
 }
+
+// --- enable / disable -----------------------------------------------------
+
+class TogglePluginsBase extends Command {
+  global = Option.Boolean('-g,--global', false);
+  all = Option.Boolean('--all', false);
+  id = Option.String({ required: false });
+
+  protected async toggle(enabled: boolean): Promise<number> {
+    const elapsed = startElapsed();
+    if (this.all && this.id) {
+      this.context.stderr.write('Pass either an <id> or --all, not both.\n');
+      emitDoneStderr(this.context.stderr, elapsed);
+      return 2;
+    }
+    if (!this.all && !this.id) {
+      this.context.stderr.write('Pass <id> or --all.\n');
+      emitDoneStderr(this.context.stderr, elapsed);
+      return 2;
+    }
+
+    // Resolve discovery so `<id>` is validated and `--all` knows the set.
+    const plugins = await loadAll({
+      global: this.global,
+      pluginDir: undefined,
+    });
+
+    let targets: string[];
+    if (this.all) {
+      targets = plugins.map((p) => p.id);
+    } else {
+      const found = plugins.find((p) => p.id === this.id);
+      if (!found) {
+        this.context.stderr.write(`Plugin not found: ${this.id}\n`);
+        emitDoneStderr(this.context.stderr, elapsed);
+        return 5;
+      }
+      targets = [found.id];
+    }
+
+    const dbPath = resolveDbPath(this.global);
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    try {
+      await adapter.init();
+      for (const id of targets) {
+        await setPluginEnabled(adapter.db, id, enabled);
+      }
+    } finally {
+      await adapter.close();
+    }
+
+    const verb = enabled ? 'enabled' : 'disabled';
+    if (targets.length === 1) {
+      this.context.stdout.write(`${verb}: ${targets[0]}\n`);
+    } else {
+      this.context.stdout.write(`${verb}: ${targets.length} plugin(s)\n`);
+      for (const id of targets) this.context.stdout.write(`  - ${id}\n`);
+    }
+    emitDoneStderr(this.context.stderr, elapsed);
+    return 0;
+  }
+}
+
+export class PluginsEnableCommand extends TogglePluginsBase {
+  static override paths = [['plugins', 'enable']];
+  static override usage = Command.Usage({
+    category: 'Plugins',
+    description: 'Enable a plugin (or --all). Persists in config_plugins.',
+    details: `
+      Writes a row to config_plugins with enabled=1. Takes precedence
+      over the team-shared baseline at settings.json#/plugins/<id>/enabled.
+      Use sm plugins disable to flip; sm config reset plugins.<id>.enabled
+      drops the settings.json baseline.
+    `,
+  });
+
+  async execute(): Promise<number> {
+    return this.toggle(true);
+  }
+}
+
+export class PluginsDisableCommand extends TogglePluginsBase {
+  static override paths = [['plugins', 'disable']];
+  static override usage = Command.Usage({
+    category: 'Plugins',
+    description: 'Disable a plugin (or --all). Persists in config_plugins; does not delete files.',
+    details: `
+      Writes a row to config_plugins with enabled=0. Discovery still
+      surfaces the plugin in sm plugins list, but with status=disabled
+      — its extensions are not imported and the kernel will not run
+      them.
+    `,
+  });
+
+  async execute(): Promise<number> {
+    return this.toggle(false);
+  }
+}
+
+/* deletePluginOverride is kept available for sm config reset to use later. */
+void deletePluginOverride;
 
 /**
  * JSON-serializer replacer: the ILoadedExtension.module field is a live
@@ -188,4 +340,6 @@ export const PLUGIN_COMMANDS = [
   PluginsListCommand,
   PluginsShowCommand,
   PluginsDoctorCommand,
+  PluginsEnableCommand,
+  PluginsDisableCommand,
 ];

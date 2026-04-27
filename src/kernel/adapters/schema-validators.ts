@@ -49,7 +49,12 @@ export type TSchemaName =
   | 'extension-rule'
   | 'extension-action'
   | 'extension-audit'
-  | 'extension-renderer';
+  | 'extension-renderer'
+  | 'frontmatter-skill'
+  | 'frontmatter-agent'
+  | 'frontmatter-command'
+  | 'frontmatter-hook'
+  | 'frontmatter-note';
 
 export type TExtensionKind = 'adapter' | 'detector' | 'rule' | 'action' | 'audit' | 'renderer';
 
@@ -71,6 +76,11 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'extension-action': 'schemas/extensions/action.schema.json',
   'extension-audit': 'schemas/extensions/audit.schema.json',
   'extension-renderer': 'schemas/extensions/renderer.schema.json',
+  'frontmatter-skill': 'schemas/frontmatter/skill.schema.json',
+  'frontmatter-agent': 'schemas/frontmatter/agent.schema.json',
+  'frontmatter-command': 'schemas/frontmatter/command.schema.json',
+  'frontmatter-hook': 'schemas/frontmatter/hook.schema.json',
+  'frontmatter-note': 'schemas/frontmatter/note.schema.json',
 };
 
 /** Schemas that other schemas reference via $ref but aren't validated directly. */

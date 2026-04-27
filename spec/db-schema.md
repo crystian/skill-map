@@ -272,6 +272,14 @@ Persists user-toggled enable/disable overrides. Discovery is still filesystem-ba
 | `config_json` | TEXT | NULL |
 | `updated_at` | INTEGER | NOT NULL |
 
+**Effective enable/disable resolution.** A plugin is enabled iff the highest-precedence layer that mentions it says so. Order from highest to lowest:
+
+1. `config_plugins.enabled` for the row whose `plugin_id` matches — written by `sm plugins enable/disable`. Local-machine user override; never committed (the DB is gitignored unless `history.share: true`).
+2. `.skill-map/settings.json#/plugins/<id>/enabled` — committed team-shared baseline.
+3. Installed default — every discovered plugin is enabled until told otherwise.
+
+The DB intentionally takes precedence over `settings.json` so a developer can locally disable a misbehaving plugin without committing the toggle to the team's config. Conversely, a team baseline that explicitly enables a plugin is overridable per-machine — no agreement is required to experiment.
+
 ### `config_preferences`
 
 General-purpose key-value for user preferences (`sm config set`).

@@ -40,6 +40,15 @@ export interface IPluginLoaderOptions {
   validators: ISchemaValidators;
   /** Installed @skill-map/spec version, used for specCompat check. */
   specVersion: string;
+  /**
+   * When supplied, the loader calls this with every parsed plugin id
+   * AFTER manifest + specCompat validation succeed. A return value of
+   * `false` short-circuits the load: the plugin is reported with
+   * `status: 'disabled'` and its extensions are NOT imported. Defaults
+   * to "always enabled" when omitted (no DB / config integration —
+   * useful for tests that assert raw discovery behaviour).
+   */
+  resolveEnabled?: (pluginId: string) => boolean;
 }
 
 export class PluginLoader {
@@ -114,6 +123,21 @@ export class PluginLoader {
         status: 'incompatible-spec',
         manifest,
         reason: `@skill-map/spec ${this.#options.specVersion} does not satisfy specCompat ${manifest.specCompat}`,
+      };
+    }
+
+    // --- enabled resolution ----------------------------------------------
+    // Only check after manifest + specCompat pass: a `disabled` status
+    // implies "we know this plugin enough to surface it; we just chose
+    // not to run it". An invalid or incompatible plugin gets its own
+    // status and never reaches this branch.
+    if (this.#options.resolveEnabled && !this.#options.resolveEnabled(manifest.id)) {
+      return {
+        path: pluginPath,
+        id: manifest.id,
+        status: 'disabled',
+        manifest,
+        reason: 'disabled by config_plugins or settings.json',
       };
     }
 

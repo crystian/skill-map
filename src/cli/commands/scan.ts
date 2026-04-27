@@ -90,6 +90,9 @@ export class ScanCommand extends Command {
   allowEmpty = Option.Boolean('--allow-empty', false, {
     description: 'Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.',
   });
+  strict = Option.Boolean('--strict', false, {
+    description: 'Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.',
+  });
 
   async execute(): Promise<number> {
     // --- flag combinatorics -------------------------------------------------
@@ -154,6 +157,10 @@ export class ScanCommand extends Command {
     if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
     const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
 
+    // Strict mode: --strict on the CLI takes precedence; scan.strict
+    // in config provides the team default.
+    const strict = this.strict || cfg.scan.strict === true;
+
     const runOptions: Parameters<typeof runScan>[1] = {
       roots,
       // `--global` for `sm scan` lands in Step 6 (config + onboarding).
@@ -162,6 +169,7 @@ export class ScanCommand extends Command {
       scope: 'project',
       tokenize: !this.noTokens,
       ignoreFilter,
+      strict,
     };
     if (extensions) runOptions.extensions = extensions;
     if (priorSnapshot) {

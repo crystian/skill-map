@@ -215,7 +215,7 @@
       "conformance/fixtures/preamble-v1.txt": "1e0aeef224b64477bdc13a949c3ad402e68249caf499ecdba1302371677c068b",
       "conformance/fixtures/rename-high-after/skills/bar.md": "16f7678829c7702f8ebaeef920a891756da198466a1884badd8d8b4a7d1bab6a",
       "conformance/fixtures/rename-high-before/skills/foo.md": "16f7678829c7702f8ebaeef920a891756da198466a1884badd8d8b4a7d1bab6a",
-      "db-schema.md": "9f7b790374c863bcafc5b3a9a50ecd6e8e98e73ca2b1fe3a6ec0d8c743ab62db",
+      "db-schema.md": "002224f629403a247c0243d4b242c1e35e28bd93073ea53137ec1d30084d9bd7",
       "interfaces/security-scanner.md": "81dc3dc2c439a75f4603b6d52e714f44ac564032c8aa424385ebbf4502adae3e",
       "job-events.md": "08796b7fbeb55e5b03cf3bc394224e70a23438a4d15a46ad1d70121c2c68b967",
       "job-lifecycle.md": "1fe88b1a2ed204e41bb41ac172fbb3e912dccd0dd8a1f8ea8e21a681b336d6ee",
