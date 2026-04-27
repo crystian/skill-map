@@ -229,7 +229,7 @@ export class PluginsDoctorCommand extends Command {
 
 // --- enable / disable -----------------------------------------------------
 
-class TogglePluginsBase extends Command {
+abstract class TogglePluginsBase extends Command {
   global = Option.Boolean('-g,--global', false);
   all = Option.Boolean('--all', false);
   id = Option.String({ required: false });

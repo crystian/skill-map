@@ -139,13 +139,13 @@ export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
     const partial = readJsonSafe(path, layer, warnings, strict);
     if (partial === null) continue;
     const cleaned = validateAndStrip(validators, partial, layer, warnings, strict);
-    effective = deepMerge(effective, cleaned) as IEffectiveConfig;
+    effective = deepMerge(effective as unknown as Record<string, unknown>, cleaned) as unknown as IEffectiveConfig;
     recordSources('', cleaned, sources, layer);
   }
 
   if (opts.overrides && Object.keys(opts.overrides).length > 0) {
     const cleaned = validateAndStrip(validators, opts.overrides, 'override', warnings, strict);
-    effective = deepMerge(effective, cleaned) as IEffectiveConfig;
+    effective = deepMerge(effective as unknown as Record<string, unknown>, cleaned) as unknown as IEffectiveConfig;
     recordSources('', cleaned, sources, 'override');
   }
 

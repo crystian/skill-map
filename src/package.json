@@ -48,8 +48,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-reporter=spec 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
-    "test:ci": "node --import tsx --test 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
+    "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
+    "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
     "clean": "rm -rf dist"
   },
   "dependencies": {

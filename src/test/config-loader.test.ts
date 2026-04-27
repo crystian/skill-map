@@ -168,8 +168,8 @@ describe('config loader — resilience', () => {
     const { effective, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
     strictEqual(effective.tokenizer, 'cl100k_base'); // defaults applied
     strictEqual(warnings.length, 1);
-    match(warnings[0], /invalid JSON/);
-    match(warnings[0], /\[config:user\]/);
+    match(warnings[0]!, /invalid JSON/);
+    match(warnings[0]!, /\[config:user\]/);
   });
 
   it('strips unknown keys (additionalProperties: false)', () => {
@@ -179,8 +179,8 @@ describe('config loader — resilience', () => {
     strictEqual(effective.tokenizer, 'gpt-4'); // valid key preserved
     ok(!('bogus' in (effective as unknown as Record<string, unknown>)));
     strictEqual(warnings.length, 1);
-    match(warnings[0], /unknown key/);
-    match(warnings[0], /bogus/);
+    match(warnings[0]!, /unknown key/);
+    match(warnings[0]!, /bogus/);
   });
 
   it('strips type-mismatched values', () => {
@@ -189,8 +189,8 @@ describe('config loader — resilience', () => {
     const { effective, warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
     strictEqual(effective.autoMigrate, true); // default kept
     strictEqual(warnings.length, 1);
-    match(warnings[0], /invalid value/);
-    match(warnings[0], /autoMigrate/);
+    match(warnings[0]!, /invalid value/);
+    match(warnings[0]!, /autoMigrate/);
   });
 
   it('continues past one bad key to apply the rest of the file', () => {
@@ -208,7 +208,7 @@ describe('config loader — resilience', () => {
     writeFileSync(join(home, '.skill-map', 'settings.json'), '[1, 2, 3]');
     const { warnings } = loadConfig({ scope: 'project', cwd, homedir: home });
     strictEqual(warnings.length, 1);
-    match(warnings[0], /expected a JSON object/);
+    match(warnings[0]!, /expected a JSON object/);
   });
 });
 

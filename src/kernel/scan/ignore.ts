@@ -35,19 +35,20 @@ export interface IIgnoreFilter {
 
 export interface IBuildIgnoreFilterOptions {
   /** Patterns from `config.ignore` in `.skill-map/settings.json`. */
-  configIgnore?: string[];
+  configIgnore?: string[] | undefined;
   /**
    * Raw text of the project's `.skill-mapignore` file. Comments and
    * blank lines are tolerated by `ignore` itself; the caller does not
-   * need to pre-process.
+   * need to pre-process. Accepts `undefined` so callers can forward
+   * `readIgnoreFileText()` directly without a guard.
    */
-  ignoreFileText?: string;
+  ignoreFileText?: string | undefined;
   /**
    * When `false`, the bundled defaults are NOT pre-loaded. Default is
    * `true`. Tests use `false` to assert the precise effect of a single
    * pattern.
    */
-  includeDefaults?: boolean;
+  includeDefaults?: boolean | undefined;
 }
 
 /**

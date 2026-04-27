@@ -35,10 +35,10 @@ import {
 } from '../../kernel/scan/ignore.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 
-const GITIGNORE_ENTRIES = [
+const GITIGNORE_ENTRIES: readonly string[] = [
   '.skill-map/settings.local.json',
   '.skill-map/skill-map.db',
-] as const;
+];
 
 export class InitCommand extends Command {
   static override paths = [['init']];

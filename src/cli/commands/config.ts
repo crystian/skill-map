@@ -79,27 +79,29 @@ function setAtPath(
   value: unknown,
 ): void {
   const segments = dotPath.split('.').filter(Boolean);
+  if (segments.length === 0) return;
   let cur: Record<string, unknown> = obj;
   for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i];
+    const seg = segments[i]!;
     const next = cur[seg];
     if (!next || typeof next !== 'object' || Array.isArray(next)) {
       cur[seg] = {};
     }
     cur = cur[seg] as Record<string, unknown>;
   }
-  cur[segments[segments.length - 1]] = value;
+  cur[segments[segments.length - 1]!] = value;
 }
 
 function deleteAtPath(obj: Record<string, unknown>, dotPath: string): boolean {
   const segments = dotPath.split('.').filter(Boolean);
+  if (segments.length === 0) return false;
   let cur: Record<string, unknown> = obj;
   for (let i = 0; i < segments.length - 1; i++) {
-    const next = cur[segments[i]];
+    const next = cur[segments[i]!];
     if (!next || typeof next !== 'object' || Array.isArray(next)) return false;
     cur = next as Record<string, unknown>;
   }
-  const last = segments[segments.length - 1];
+  const last = segments[segments.length - 1]!;
   if (!(last in cur)) return false;
   delete cur[last];
   // Walk back up and prune now-empty parent objects so the file stays tidy.
@@ -111,9 +113,9 @@ function pruneEmptyAncestors(root: Record<string, unknown>, parents: string[]): 
   while (parents.length > 0) {
     let cur: Record<string, unknown> = root;
     for (let i = 0; i < parents.length - 1; i++) {
-      cur = cur[parents[i]] as Record<string, unknown>;
+      cur = cur[parents[i]!] as Record<string, unknown>;
     }
-    const tail = parents[parents.length - 1];
+    const tail = parents[parents.length - 1]!;
     const child = cur[tail];
     if (
       child
