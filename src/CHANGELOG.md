@@ -1,5 +1,267 @@
 # skill-map
 
+## 0.5.0
+
+### Minor Changes
+
+- 0463a0f: Step 9.1 — plugin runtime wiring. Drop-in plugins discovered under
+  `<scope>/.skill-map/plugins/<id>/` now participate in the read-side
+  pipeline: their detectors / rules emit links + issues during `sm scan`,
+  and their renderers are selectable via `sm graph --format <name>`.
+
+  New surface:
+
+  - `loadPluginRuntime(opts)` helper at `src/cli/util/plugin-runtime.ts`
+    centralises discovery, layered enabled-resolver (settings.json + DB
+    override `config_plugins`), failure-mode-to-warning conversion, and
+    manifest-row collection. Single source of truth for any verb that
+    needs plugin extensions on the wire.
+  - `composeScanExtensions` + `composeRenderers` merge built-in and plugin
+    contributions into the shapes the orchestrator + graph command consume.
+  - `--no-plugins` flag added to `sm scan`, `sm scan --watch`, `sm watch`,
+    and `sm graph`. Pairs with `--no-built-ins` for kernel-empty-boot
+    parity.
+  - Failed plugins (`incompatible-spec` / `invalid-manifest` / `load-error`)
+    emit one stderr line each and are skipped; the kernel keeps booting.
+    Disabled plugins silently drop out of the pipeline (their `sm plugins
+list` row already conveys intent).
+
+  Bug fix collateral: the plugin loader now strips function-typed
+  properties from a plugin's runtime export before AJV-validating it
+  against the extension-kind schema. The kind schemas use
+  `unevaluatedProperties: false` to keep the manifest shape strict;
+  without the strip, real plugins shipping `detect` / `render` /
+  `evaluate` methods always failed validation. Built-ins were unaffected
+  because they never went through the loader.
+
+  Out of scope for 9.1, picked up later in Step 9:
+
+  - `sm export --format` does not consult the renderer registry today;
+    its formats (`json`, `md`, `mermaid`) are hand-rolled. Flipping it
+    to use renderers is a future enhancement, not on the Step 9 critical
+    path.
+  - Plugin migrations + `sm db migrate --kernel-only` / `--plugin <id>`
+    flags + triple protection ship as Step 9.2.
+  - `@skill-map/testkit` package ships as Step 9.3.
+  - Plugin author guide ships as Step 9.4.
+
+  5 new tests at `src/test/plugin-runtime.test.ts` cover plugin detector
+  contribution, `--no-plugins` opt-out on both scan and graph, broken-
+  manifest tolerance, and plugin-renderer selection. Test count
+  389 → 394.
+
+- 0463a0f: Step 9.2 — plugin migrations + triple protection. Plugins declaring
+  `storage.mode === 'dedicated'` can now ship their own SQL migrations
+  under `<plugin-dir>/migrations/NNN_<name>.sql`, and `sm db migrate`
+  applies them after the kernel pass. Two new flags from
+  `spec/cli-contract.md:304` light up:
+
+  - `--kernel-only` — skip plugin migrations entirely.
+  - `--plugin <id>` — run migrations for one plugin (skips the kernel
+    pass; assumes kernel is already up to date). Mutually exclusive
+    with `--kernel-only`.
+
+  Triple-protection rule (every object a plugin migration touches MUST
+  live in the namespace `plugin_<normalizedId>_*`):
+
+  - **Layer 1 — discovery**: every pending file is parsed + validated
+    before any of them run. Failure aborts the whole batch with no DB
+    writes.
+  - **Layer 2 — apply**: same validator runs immediately before
+    `db.exec(sql)`, defending against TOCTOU edits between discovery
+    and apply.
+  - **Layer 3 — post-apply catalog assertion**: after each plugin's
+    batch commits, `sqlite_master` is compared against a pre-batch
+    snapshot. Any new object outside the prefix is reported as an
+    intrusion (exit code 2; ledger row still written for whatever
+    applied cleanly so the breach is loud).
+
+  Implementation: pragmatic regex parser per the Arquitecto's pick.
+  Whitelist of allowed DDL (`CREATE` / `DROP` / `ALTER` over `TABLE` /
+  `INDEX` / `TRIGGER` / `VIEW`) + DML (`INSERT` / `UPDATE` / `DELETE`)
+  on prefixed objects. Forbidden keywords (`BEGIN` / `COMMIT` /
+  `ROLLBACK` / `PRAGMA` / `ATTACH` / `DETACH` / `VACUUM` / `REINDEX` /
+  `ANALYZE`) abort validation. Schema qualifiers other than `main.`
+  are rejected. Comments are stripped first so `-- CREATE TABLE evil;`
+  and `/* … */` blocks can't smuggle hidden DDL past the regex.
+
+  Lights up `storage.mode === 'dedicated'` end-to-end: the existing
+  `config_schema_versions` table records plugin migrations under
+  `(scope='plugin', owner_id=<plugin-id>)`. Plugins with `mode === 'kv'`
+  or no `storage` field are skipped silently — the kernel-owned
+  `state_plugin_kvs` table is already there. Each migration runs in
+  its own transaction with the ledger insert in the same transaction
+  so partial failures roll back cleanly.
+
+  New modules:
+
+  - `src/kernel/adapters/sqlite/plugin-migrations-validator.ts` —
+    `normalizePluginId`, `stripComments`, `splitStatements`,
+    `validatePluginMigrationSql`, `snapshotCatalog`,
+    `detectCatalogIntrusion`, `assertNoNormalizationCollisions`. Pure,
+    no IO.
+  - `src/kernel/adapters/sqlite/plugin-migrations.ts` —
+    `discoverPluginMigrations`, `planPluginMigrations`,
+    `applyPluginMigrations`, `readPluginLedger`. Mirrors the kernel
+    runner shape for consistency.
+
+  CLI surface:
+
+  - `DbMigrateCommand` learns `--kernel-only` and `--plugin <id>`. The
+    `--status` summary now lists kernel + per-plugin ledgers.
+  - Plugin discovery uses the `loadPluginRuntime` helper from 9.1, so
+    the resolver layering (settings.json + DB override) stays in
+    lock-step with `sm plugins list`.
+
+  43 new tests across two files (`plugin-migrations-validator.test.ts`,
+  `plugin-migrations.test.ts`) cover id normalization, comment stripping,
+  statement splitting, prefix enforcement (green path + 9 violation
+  shapes), catalog intrusion detection, runner integration (green path,
+  Layer 1 abort, idempotent re-run, dry-run), and the CLI flag matrix
+  (`--kernel-only`, `--plugin <id>`, missing-id exit 5, mutual exclusion,
+  `--status` formatting). Test count 394 → 437.
+
+### Patch Changes
+
+- 0463a0f: Step 9.3 — `@skill-map/testkit` lands as a separate workspace + npm
+  package (per the Arquitecto's pick of independent versioning over a
+  subpath export). Plugin authors install it alongside `@skill-map/cli`
+  and use it to unit-test detectors, rules, renderers, and audits
+  without spinning up the full skill-map runtime.
+
+  New surface (all stable through v1.0 except the runner stand-in,
+  flagged `experimental` until Step 10 lands the job subsystem
+  contract):
+
+  - **Builders** — `node()`, `link()`, `issue()`, `scanResult()` produce
+    spec-aligned domain objects with sensible defaults. Override only
+    the fields a given test cares about.
+  - **Context factories** — `makeDetectContext`, `makeRuleContext`,
+    `makeRenderContext`, `detectContextFromBody`. Per-kind context shapes
+    the kernel injects into extension methods.
+  - **Fakes** — `makeFakeStorage` (in-memory KV stand-in for `ctx.store`,
+    matches the Storage Mode A surface) and `makeFakeRunner` (queue +
+    history `RunnerPort` stand-in for probabilistic extensions).
+  - **Run helpers** — `runDetectorOnFixture(detector, opts)`,
+    `runRuleOnGraph(rule, opts)`, `runRendererOnGraph(renderer, opts)`.
+    Most plugin tests reduce to one line: build the fixture, call the
+    helper, assert on the result.
+
+  Collateral on `@skill-map/cli`: `src/kernel/index.ts` now re-exports
+  the extension-kind interfaces (`IDetector`, `IRule`, `IRenderer`,
+  `IAdapter`, `IAudit` and their context shapes) so plugin authors can
+  type-check their extensions against the same surface the kernel
+  consumes. Patch-level bump because the change is purely additive.
+
+  The testkit workspace ships its own `tsup` build (5 KB of runtime,
+  10 KB of types) and pins every dep at exact versions per the
+  monorepo policy. `@skill-map/cli` is marked `external` in the bundle
+  so the published testkit stays a thin layer over the user's installed
+  cli version.
+
+  30 new tests under `testkit/test/*.test.ts` cover builder defaults +
+  overrides, context factory shapes, KV stand-in semantics (set / get /
+  list-by-prefix / delete), fake-runner queueing + history + reset, and
+  the three high-level run helpers. Tests run in their own
+  `npm test --workspace=@skill-map/testkit` step (independent from cli's
+  test command).
+
+  Out of scope for 9.3, picked up in 9.4:
+
+  - Plugin author guide (`spec/plugin-author-guide.md`) referencing the
+    testkit by example.
+  - Reference plugin under `examples/hello-world/` (Arquitecto's pick:
+    in the principal repo, not a separate one).
+  - Diagnostics polish on the loader's `reason:` strings.
+
+- 0463a0f: Step 9.4 — plugin author guide + reference plugin + diagnostics polish.
+  **Step 9 fully closed** with this changeset.
+
+  ### Spec — plugin author guide (additive prose)
+
+  New document at `spec/plugin-author-guide.md` covering:
+
+  - Discovery roots (`<project>/.skill-map/plugins/`,
+    `~/.skill-map/plugins/`, `--plugin-dir <path>`).
+  - Manifest fields with the normative schema reference.
+  - `specCompat` strategy — narrow ranges pre-`v1.0.0`, `^1.0.0`
+    recommendation post-`v1.0.0`.
+  - The six extension kinds with one minimal worked example each
+    (detector, rule, renderer in full; adapter / audit / action flagged
+    for later expansion alongside Step 10).
+  - Storage choice (KV vs Dedicated) cross-linking `plugin-kv-api.md`
+    and the Step 9.2 triple-protection rule.
+  - Execution modes (deterministic / probabilistic) cross-linking
+    `architecture.md`.
+  - Testkit usage with `runDetectorOnFixture`, `runRuleOnGraph`,
+    `runRendererOnGraph`, `makeFakeRunner`.
+  - The five plugin statuses (`loaded` / `disabled` / `incompatible-spec`
+    / `invalid-manifest` / `load-error`) and how to read them.
+  - Stability section (document is stable; widening additions are minor
+    bumps; breaking edits are major).
+
+  `spec/package.json#files` updated to ship the new doc; `spec/index.json`
+  regenerated (57 → 58 hashed files). `coverage.md` unchanged because the
+  guide is prose, not a schema.
+
+  ### Reference plugin — `examples/hello-world/`
+
+  Smallest viable plugin in the principal repo (Arquitecto's pick: in
+  the main repo, not separate). One detector (`hello-world-greet`)
+  emitting `references` links per `@greet:<name>` token in node bodies.
+  Includes:
+
+  - `plugin.json` declaring one extension and pinning `specCompat: ^1.0.0`.
+  - `extensions/greet-detector.mjs` — runtime instance with both
+    manifest fields and the `detect` method.
+  - `README.md` — what it does, file layout, three-step "try it
+    locally" recipe, what's intentionally missing (storage,
+    multi-extension, probabilistic mode), pointers for production-grade
+    patterns.
+  - `test/greet-detector.test.mjs` — four-assertion test using
+    `@skill-map/testkit`, runnable via `node --test` with no build step.
+
+  Verified end-to-end: the example plugin loads cleanly under
+  `sm plugins list`, scans contribute its links to the persisted graph,
+  and the testkit-based test passes. The example is **not** registered
+  as a workspace — it's intentionally standalone so users can copy it.
+
+  ### CLI — diagnostics polish on `PluginLoader.reason`
+
+  Each failure-mode reason string now carries an actionable hint:
+
+  - `invalid-manifest` (JSON parse): names the manifest path, suggests
+    validating the JSON.
+  - `invalid-manifest` (AJV): names the manifest path AND points at
+    `spec/schemas/plugins-registry.schema.json#/$defs/PluginManifest`.
+  - `invalid-manifest` (specCompat not a valid range): suggests a range
+    shape (`"^1.0.0"`).
+  - `incompatible-spec`: suggests two remediations (update the plugin's
+    `specCompat`, or pin sm to a compatible spec version).
+  - `load-error` (extension file not found): includes the absolute
+    resolved path, pointer to `plugin.json#/extensions`.
+  - `load-error` (default export missing kind): lists the valid kinds.
+  - `load-error` (unknown kind): lists the valid kinds.
+  - `load-error` (extension manifest schema fails): names the
+    per-kind schema (`spec/schemas/extensions/<kind>.schema.json`).
+
+  6 new tests under `test/plugin-loader.test.ts` (`Step 9.4 diagnostics
+polish` describe block) assert each hint shape is present without
+  pinning the full text. Test count 437 → **443 cli + 30 testkit = 473**.
+
+  ### Step 9 closed
+
+  The four sub-steps — 9.1 (plugin runtime wiring), 9.2 (plugin
+  migrations + triple protection), 9.3 (`@skill-map/testkit` workspace),
+  9.4 (author guide + reference plugin + diagnostics polish) — together
+  turn `skill-map` plugins from "discovered but inert" into a
+  first-class authoring surface with documentation, tests, and a
+  working reference. Next step: **Step 10 — job subsystem + first
+  probabilistic extension** (wave 2 begins).
+
+- Updated dependencies [0463a0f]
+  - @skill-map/spec@0.7.1
+
 ## 0.4.0
 
 ### Minor Changes
@@ -65,34 +327,34 @@ job prune` + retention enforcement.
 
   Two pieces:
 
-  1. **New built-in rule `link-conflict`** (`src/extensions/rules/link-conflict/`).
-     Surfaces detector disagreement. Groups links by `(source, target)` and
-     emits one `warn` Issue per pair where the set of distinct `kind` values
-     has size ≥ 2. Agreement (single kind across multiple detectors) is
-     silent — by design, to avoid massive noise on real graphs.
-     Issue payload (`data`) carries `{ source, target, variants }` where
-     each `variant` is `{ kind, sources: detectorId[], confidence }`. Variant
-     sources are deduped + sorted; confidence is the highest across rows
-     of the same kind (`high` > `medium` > `low`).
+  1.  **New built-in rule `link-conflict`** (`src/extensions/rules/link-conflict/`).
+      Surfaces detector disagreement. Groups links by `(source, target)` and
+      emits one `warn` Issue per pair where the set of distinct `kind` values
+      has size ≥ 2. Agreement (single kind across multiple detectors) is
+      silent — by design, to avoid massive noise on real graphs.
+      Issue payload (`data`) carries `{ source, target, variants }` where
+      each `variant` is `{ kind, sources: detectorId[], confidence }`. Variant
+      sources are deduped + sorted; confidence is the highest across rows
+      of the same kind (`high` > `medium` > `low`).
 
-     This is the kernel piece of Decision #90 read-time "consumers that
-     need uniqueness aggregate at read time" — the rule is one such
-     consumer, on the alarming side. Storage stays untouched (one row
-     per detector, no merge, no dedup). Severity is `warn`, not `error`:
-     the rule cannot pick which kind is correct, so per `cli-contract.md`
-     §Exit codes the verb stays exit 0.
+      This is the kernel piece of Decision #90 read-time "consumers that
+      need uniqueness aggregate at read time" — the rule is one such
+      consumer, on the alarming side. Storage stays untouched (one row
+      per detector, no merge, no dedup). Severity is `warn`, not `error`:
+      the rule cannot pick which kind is correct, so per `cli-contract.md`
+      §Exit codes the verb stays exit 0.
 
-  2. **`sm show` pretty link aggregation** (`src/cli/commands/show.ts`).
-     The human renderer now groups `linksOut` / `linksIn` by `(endpoint,
+  2.  **`sm show` pretty link aggregation** (`src/cli/commands/show.ts`).
+      The human renderer now groups `linksOut` / `linksIn` by `(endpoint,
 kind, normalizedTrigger)` and prints one row per group with the
-     union of detector ids in a `sources:` field. The section header
-     reports both the raw row count and the unique-after-grouping count
-     (`Links out (12, 9 unique)`). When N > 1 detector emits the same
-     logical link, the row also gets a `(×N)` suffix.
+      union of detector ids in a `sources:` field. The section header
+      reports both the raw row count and the unique-after-grouping count
+      (`Links out (12, 9 unique)`). When N > 1 detector emits the same
+      logical link, the row also gets a `(×N)` suffix.
 
-     `--json` output is byte-identical to before — raw rows, no merge.
-     Storage is byte-identical to before. The grouping is purely a
-     read-time presentation choice for human eyes.
+           `--json` output is byte-identical to before — raw rows, no merge.
+           Storage is byte-identical to before. The grouping is purely a
+           read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
