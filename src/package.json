@@ -50,6 +50,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
     "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
+    "test:coverage": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 node --import tsx --test --experimental-test-coverage --test-coverage-include='kernel/**/*.ts' --test-coverage-include='cli/**/*.ts' --test-coverage-include='extensions/**/*.ts' --test-coverage-exclude='**/*.test.ts' 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
     "clean": "rm -rf dist"
   },
   "dependencies": {

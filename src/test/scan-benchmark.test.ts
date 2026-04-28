@@ -58,6 +58,13 @@ after(() => {
   if (tempDir) rmSync(tempDir, { recursive: true, force: true });
 });
 
+// Coverage instrumentation adds ~10-15% overhead, which can push the
+// WSL2 baseline past even the relaxed budget. `npm run test:coverage`
+// sets `SKILL_MAP_SKIP_BENCHMARK=1` so the timing assertion is skipped
+// while still letting the test register (so the `before` fixture runs
+// and contributes to coverage of fixture-generation code paths).
+const SKIP_BUDGET = process.env['SKILL_MAP_SKIP_BENCHMARK'] === '1';
+
 describe('scan benchmark (500 MDs)', () => {
   // Budget: 500 MDs in <= 3500ms.
   // History:
@@ -101,10 +108,16 @@ describe('scan benchmark (500 MDs)', () => {
 
     strictEqual(result.stats.nodesCount, 500, 'expected exactly 500 nodes');
     ok(result.stats.linksCount > 0, 'detectors should produce at least one link');
-    ok(
-      elapsedMs <= BUDGET_MS,
-      `scan took ${elapsedMs}ms, exceeds budget of ${BUDGET_MS}ms`,
-    );
+    if (!SKIP_BUDGET) {
+      ok(
+        elapsedMs <= BUDGET_MS,
+        `scan took ${elapsedMs}ms, exceeds budget of ${BUDGET_MS}ms`,
+      );
+    } else {
+      process.stderr.write(
+        `[bench] timing assertion skipped (SKILL_MAP_SKIP_BENCHMARK=1)\n`,
+      );
+    }
   });
 });
 

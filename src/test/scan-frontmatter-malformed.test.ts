@@ -271,4 +271,121 @@ describe('frontmatter-malformed', () => {
     assert.match(issue.message, /column 0/);
     assert.match(issue.message, /Move the `---` lines/);
   });
+
+  // --- variant: BOM-prefixed frontmatter -----------------------------------
+
+  it('UTF-8 BOM before the open fence → byte-order-mark hint', async () => {
+    const fixture = freshFixture('bom');
+    writeNode(
+      fixture,
+      '.claude/agents/bom.md',
+      // ﻿ is the UTF-8 BOM character. Standard column-0 fence
+      // after, with valid YAML.
+      '﻿---\nname: bom\ndescription: BOM test.\n---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    assert.ok(issue, `expected issue for BOM-prefixed file; got: ${JSON.stringify(result.issues)}`);
+    assert.deepEqual(issue.data, { hint: 'byte-order-mark' });
+    assert.match(issue.message, /byte-order mark|BOM/);
+    assert.match(issue.message, /UTF-8 without BOM/);
+  });
+
+  it('BOM without a fence after is NOT flagged (no malformed frontmatter)', async () => {
+    const fixture = freshFixture('bom-no-fence');
+    writeNode(
+      fixture,
+      '.claude/agents/plain.md',
+      '﻿plain markdown body, no frontmatter\n',
+    );
+    const result = await scan(fixture);
+    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    assert.equal(malformed, undefined);
+  });
+
+  // --- variant: missing closing fence --------------------------------------
+
+  it('open fence at column 0 + YAML keys + NO close fence → missing-close hint', async () => {
+    const fixture = freshFixture('missing-close');
+    writeNode(
+      fixture,
+      '.claude/agents/no-close.md',
+      // Note: no `---` line ever closes the block.
+      '---\nname: no-close\ndescription: missing close.\nbody starts here\nmore body\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    assert.ok(issue, `expected missing-close issue; got: ${JSON.stringify(result.issues)}`);
+    assert.deepEqual(issue.data, { hint: 'missing-close' });
+    assert.match(issue.message, /never closes|missing/i);
+    assert.match(issue.message, /closing `---` line/);
+  });
+
+  it('open fence at column 0 with INDENTED close → still flagged as missing-close', async () => {
+    const fixture = freshFixture('indented-close');
+    writeNode(
+      fixture,
+      '.claude/agents/indent-close.md',
+      // The close `---` is preceded by spaces, so the adapter regex
+      // (which requires `\n---\r?\n?`) doesn't match it.
+      '---\nname: indented-close\n  ---\nbody\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    assert.ok(issue);
+    assert.deepEqual(issue.data, { hint: 'missing-close' });
+  });
+
+  it('--strict promotes missing-close to error', async () => {
+    const fixture = freshFixture('missing-close-strict');
+    writeNode(
+      fixture,
+      '.claude/agents/strict.md',
+      '---\nname: strict\ndescription: x\nbody\n',
+    );
+    const result = await scan(fixture, true);
+    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    assert.ok(issue);
+    assert.equal(issue.severity, 'error');
+  });
+
+  it('false-positive guard: column-0 `---` followed by ONLY prose (no `key:`) is left alone', async () => {
+    const fixture = freshFixture('hr-prose');
+    writeNode(
+      fixture,
+      '.claude/agents/hr.md',
+      '---\nThis is a horizontal rule, then prose. No frontmatter.\n',
+    );
+    const result = await scan(fixture);
+    const malformed = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    assert.equal(malformed, undefined);
+  });
+
+  it('classification precedence: indented opening wins over missing-close (paste-with-indent overrides)', async () => {
+    const fixture = freshFixture('precedence');
+    writeNode(
+      fixture,
+      '.claude/agents/p.md',
+      // Indented open + no close. Both heuristics could in principle
+      // match, but `paste-with-indent` is checked first because it's
+      // the more specific (and more common) failure mode.
+      '  ---\n  name: p\n  description: precedence\n',
+    );
+    const result = await scan(fixture);
+    const issue = result.issues.find((i) => i.ruleId === 'frontmatter-malformed');
+    assert.ok(issue);
+    assert.deepEqual(issue.data, { hint: 'paste-with-indent' });
+  });
+
+  it('only one issue per node — no double-flagging across hints', async () => {
+    const fixture = freshFixture('single');
+    writeNode(
+      fixture,
+      '.claude/agents/x.md',
+      '﻿---\nname: x\n---\n',
+    );
+    const result = await scan(fixture);
+    const malformed = result.issues.filter((i) => i.ruleId === 'frontmatter-malformed');
+    assert.equal(malformed.length, 1, `expected 1 issue, got ${malformed.length}`);
+  });
 });

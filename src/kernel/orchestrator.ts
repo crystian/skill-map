@@ -849,35 +849,115 @@ function validateFrontmatter(
 }
 
 /**
- * Step 9.4 follow-up — detect "user clearly meant frontmatter but the
- * fence isn't on column 0" (the most common terminal-paste accident
- * surfaced during Step 9 manual QA). Pattern: the body opens with
- * leading whitespace then `---\r?\n`. Anything else (including a bare
- * `---` used as a markdown horizontal rule on its own line) is left
- * untouched — false-positive guard.
+ * Step 9.4 follow-up — detect cases where the user clearly meant
+ * frontmatter but the adapter's regex couldn't recognise the fence.
+ * The adapter regex requires `^---\r?\n[\s\S]*?\r?\n---\r?\n?` —
+ * column-0 open fence, column-0 close fence, CRLF or LF line endings.
+ * Three real-world variants that fall through silently and silently
+ * lose every metadata field:
+ *
+ *   - `paste-with-indent`: terminal heredoc auto-indented every line,
+ *     so the open fence is `<spaces>---`. The most common variant
+ *     (surfaced during Step 9 manual QA).
+ *   - `byte-order-mark`: a UTF-8 BOM (﻿) precedes the fence. Some
+ *     editors (notably old VS Code on Windows) inject this; the YAML
+ *     parser handles BOM, but the adapter regex doesn't anchor past it.
+ *   - `missing-close`: the open fence is on column 0 but the closing
+ *     fence is missing or indented. Whole "frontmatter" parses as body.
+ *
+ * Each variant emits a `frontmatter-malformed` warn with a `data.hint`
+ * tag so downstream tooling can disambiguate. `--strict` promotes to
+ * `error` consistent with the strict-fence policy.
+ *
+ * False-positive guards:
+ *
+ *   - Indented `---` with no YAML-looking line after → likely a nested
+ *     horizontal rule, not malformed frontmatter.
+ *   - Column-0 `---` followed by prose (not a YAML key) → likely a
+ *     legitimate horizontal rule with prose underneath. Tested.
  *
  * The schema-strict validator above only fires when `frontmatterRaw`
  * is non-empty; this fills the previously-silent path where the adapter
  * couldn't even recognise the fence.
  */
 function detectMalformedFrontmatter(body: string, path: string, strict: boolean): Issue | null {
-  // Indented `---` followed by a YAML-looking key-value line is a strong
-  // tell. We require a `key: value` pattern after the indented `---` to
-  // avoid flagging legitimate "indented horizontal rule" cases (rare but
-  // possible in nested code blocks). The check uses `re.exec` instead of
-  // `re.test` so we can pin the body-prefix anchor explicitly.
-  const re = /^[ \t]+---\r?\n[ \t]*[A-Za-z0-9_-]+\s*:/;
-  if (!re.test(body)) return null;
+  const hint = classifyMalformedFrontmatter(body);
+  if (!hint) return null;
   return {
     ruleId: 'frontmatter-malformed',
     severity: strict ? 'error' : 'warn',
     nodeIds: [path],
-    message:
-      `Frontmatter fence in ${path} appears indented; YAML frontmatter MUST start with \`---\` ` +
-      `at column 0. The file was scanned as body-only — the metadata block was silently lost. ` +
-      `Move the \`---\` lines to the start of the line.`,
-    data: { hint: 'paste-with-indent' },
+    message: malformedMessage(hint, path),
+    data: { hint },
   };
+}
+
+type TMalformedHint = 'paste-with-indent' | 'byte-order-mark' | 'missing-close';
+
+function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
+  // (a) BOM at the very first byte. Check before everything else
+  // because a BOM offsets the column-0 anchor of the adapter's regex.
+  // Pattern after BOM is the standard column-0 fence + YAML key-value
+  // line, so we still require that shape to avoid false positives on
+  // any BOM-prefixed prose.
+  if (body.startsWith('﻿')) {
+    if (/^﻿---\r?\n[\s\S]*?[A-Za-z0-9_-]+\s*:/.test(body)) {
+      return 'byte-order-mark';
+    }
+  }
+
+  // (b) Indented opening fence followed by a YAML-looking key-value
+  // line. The most common variant (terminal heredoc auto-indent).
+  if (/^[ \t]+---\r?\n[ \t]*[A-Za-z0-9_-]+\s*:/.test(body)) {
+    return 'paste-with-indent';
+  }
+
+  // (c) Column-0 opening fence followed by a YAML-looking key-value
+  // line, but no matching closing fence. The adapter regex needs both
+  // fences; a missing close means the entire intended frontmatter
+  // (plus the body) parses as body.
+  //
+  // Heuristic: open at column 0, then at least one `key: value` line
+  // immediately, then anywhere in the file there is NO column-0 `---`
+  // closing the block. If the body had been parsed as frontmatter the
+  // adapter would have set `frontmatterRaw` non-empty and we wouldn't
+  // be in this branch — so the absence of close means the regex
+  // didn't match.
+  if (/^---\r?\n[ \t]*[A-Za-z0-9_-]+\s*:/.test(body)) {
+    // Search for any line that is exactly `---` (column 0, no indent).
+    // If found, the adapter regex would have matched and this code
+    // path is unreachable; absence here means the close is missing
+    // or indented.
+    const hasCloseFence = /\r?\n---(?:\r?\n|$)/.test(body);
+    if (!hasCloseFence) {
+      return 'missing-close';
+    }
+  }
+
+  return null;
+}
+
+function malformedMessage(hint: TMalformedHint, path: string): string {
+  switch (hint) {
+    case 'paste-with-indent':
+      return (
+        `Frontmatter fence in ${path} appears indented; YAML frontmatter MUST start with \`---\` ` +
+        `at column 0. The file was scanned as body-only — the metadata block was silently lost. ` +
+        `Move the \`---\` lines to the start of the line.`
+      );
+    case 'byte-order-mark':
+      return (
+        `Frontmatter fence in ${path} is preceded by a UTF-8 byte-order mark (BOM); the file ` +
+        `was scanned as body-only. Re-save the file as UTF-8 without BOM. The metadata block ` +
+        `was silently lost.`
+      );
+    case 'missing-close':
+      return (
+        `Frontmatter in ${path} opens with \`---\` but never closes — no matching \`---\` line ` +
+        `at column 0 was found. The file was scanned as body-only and every metadata field was ` +
+        `silently lost. Add a closing \`---\` line below the metadata block.`
+      );
+  }
 }
 
 function validateIssue(rule: IRule, issue: Issue): Issue | null {
