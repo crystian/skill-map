@@ -33,3 +33,17 @@ export type {
   TWatchEventKind,
 } from './scan/watcher.js';
 export type * from './ports/index.js';
+export type {
+  IAdapter,
+  IRawNode,
+  IDetector,
+  IDetectContext,
+  IRule,
+  IRuleContext,
+  IRenderer,
+  IRenderContext,
+  IAudit,
+  IAuditContext,
+  TAuditReport,
+  IExtensionBase,
+} from './extensions/index.js';

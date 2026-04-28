@@ -272,7 +272,7 @@ async function runScanInternal(
       else priorLinksByOriginating.set(key, [link]);
     }
     for (const issue of prior.issues) {
-      if (issue.ruleId !== 'frontmatter-invalid') continue;
+      if (issue.ruleId !== 'frontmatter-invalid' && issue.ruleId !== 'frontmatter-malformed') continue;
       if (issue.nodeIds.length !== 1) continue;
       const path = issue.nodeIds[0]!;
       const list = priorFrontmatterIssuesByNode.get(path);
@@ -392,6 +392,16 @@ async function runScanInternal(
       if (raw.frontmatterRaw.length > 0) {
         const fmIssue = validateFrontmatter(kind, raw.frontmatter, raw.path, strict);
         if (fmIssue) frontmatterIssues.push(fmIssue);
+      } else {
+        // Step 9.4 follow-up — `frontmatter-malformed`: the adapter could
+        // not recognise a frontmatter fence, but the body opens with
+        // an indented `---`. That is almost certainly a paste-with-indent
+        // mistake that would otherwise pass silently (file looks valid,
+        // metadata silently lost). Emit a `warn` so the author sees it;
+        // `--strict` promotes to `error` consistent with the strict-fence
+        // policy above.
+        const malformed = detectMalformedFrontmatter(raw.body, raw.path, strict);
+        if (malformed) frontmatterIssues.push(malformed);
       }
       emitter.emit(
         makeEvent('scan.progress', {
@@ -835,6 +845,38 @@ function validateFrontmatter(
     nodeIds: [path],
     message: `Frontmatter for ${path} (${kind}) failed schema validation: ${result.errors}`,
     data: { kind, errors: result.errors },
+  };
+}
+
+/**
+ * Step 9.4 follow-up — detect "user clearly meant frontmatter but the
+ * fence isn't on column 0" (the most common terminal-paste accident
+ * surfaced during Step 9 manual QA). Pattern: the body opens with
+ * leading whitespace then `---\r?\n`. Anything else (including a bare
+ * `---` used as a markdown horizontal rule on its own line) is left
+ * untouched — false-positive guard.
+ *
+ * The schema-strict validator above only fires when `frontmatterRaw`
+ * is non-empty; this fills the previously-silent path where the adapter
+ * couldn't even recognise the fence.
+ */
+function detectMalformedFrontmatter(body: string, path: string, strict: boolean): Issue | null {
+  // Indented `---` followed by a YAML-looking key-value line is a strong
+  // tell. We require a `key: value` pattern after the indented `---` to
+  // avoid flagging legitimate "indented horizontal rule" cases (rare but
+  // possible in nested code blocks). The check uses `re.exec` instead of
+  // `re.test` so we can pin the body-prefix anchor explicitly.
+  const re = /^[ \t]+---\r?\n[ \t]*[A-Za-z0-9_-]+\s*:/;
+  if (!re.test(body)) return null;
+  return {
+    ruleId: 'frontmatter-malformed',
+    severity: strict ? 'error' : 'warn',
+    nodeIds: [path],
+    message:
+      `Frontmatter fence in ${path} appears indented; YAML frontmatter MUST start with \`---\` ` +
+      `at column 0. The file was scanned as body-only — the metadata block was silently lost. ` +
+      `Move the \`---\` lines to the start of the line.`,
+    data: { hint: 'paste-with-indent' },
   };
 }
 

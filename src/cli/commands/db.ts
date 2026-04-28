@@ -15,7 +15,6 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readdirSync,
   rmSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -30,7 +29,17 @@ import {
   planMigrations,
   writeBackup,
 } from '../../kernel/adapters/sqlite/migrations.js';
+import {
+  applyPluginMigrations,
+  planPluginMigrations,
+  type IPluginApplyResult,
+} from '../../kernel/adapters/sqlite/plugin-migrations.js';
+import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import {
+  emptyPluginRuntime,
+  loadPluginRuntime,
+} from '../util/plugin-runtime.js';
 
 // --- backup ---------------------------------------------------------------
 
@@ -274,12 +283,23 @@ export class DbMigrateCommand extends Command {
   static override paths = [['db', 'migrate']];
   static override usage = Command.Usage({
     category: 'Database',
-    description: 'Apply pending kernel migrations (default) or inspect plan.',
+    description: 'Apply pending kernel + plugin migrations (default) or inspect plan.',
     details: `
-      --dry-run   show pending migrations without applying.
-      --status    print applied vs pending summary and exit.
-      --to <n>    apply up to (and including) version N.
-      --no-backup skip the pre-apply backup.
+      --dry-run       show pending migrations without applying.
+      --status        print applied vs pending summary and exit.
+      --to <n>        apply up to (and including) version N (kernel only).
+      --no-backup     skip the pre-apply backup.
+      --kernel-only   skip plugin migrations entirely.
+      --plugin <id>   run only that plugin's migrations (skips kernel migrations).
+
+      Plugin migrations live under <plugin-dir>/migrations/ and follow
+      the same NNN_snake_case.sql convention as kernel migrations. Each
+      migration is gated by a triple-protection rule: every object it
+      creates / alters / drops MUST live in the namespace
+      \`plugin_<normalizedId>_*\`. Layer 1 validates every pending file
+      before anything runs; Layer 2 re-validates immediately before
+      apply; Layer 3 sweeps sqlite_master after apply and reports any
+      object outside the prefix.
     `,
   });
 
@@ -289,8 +309,15 @@ export class DbMigrateCommand extends Command {
   status = Option.Boolean('--status', false);
   to = Option.String('--to', { required: false });
   noBackup = Option.Boolean('--no-backup', false);
+  kernelOnly = Option.Boolean('--kernel-only', false);
+  pluginId = Option.String('--plugin', { required: false });
 
   async execute(): Promise<number> {
+    if (this.kernelOnly && this.pluginId !== undefined) {
+      this.context.stderr.write('--kernel-only and --plugin are mutually exclusive.\n');
+      return 2;
+    }
+
     const path = resolveDbPath({ global: this.global, db: this.db });
 
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
@@ -300,16 +327,57 @@ export class DbMigrateCommand extends Command {
     try {
       raw.exec('PRAGMA foreign_keys = ON');
 
-      if (this.status) {
-        const plan = planMigrations(raw, files);
-        this.context.stdout.write(
-          `Applied: ${plan.applied.length} · Pending: ${plan.pending.length}\n`,
+      // --- discover plugins for everything but --kernel-only -----------
+      // We always need the plugin set for `--status` and the apply path
+      // when plugin migrations are in play. Skip discovery only when the
+      // user explicitly asked for kernel-only mode.
+      const pluginRuntime = this.kernelOnly
+        ? emptyPluginRuntime()
+        : await loadPluginRuntime({ scope: this.global ? 'global' : 'project' });
+      for (const warn of pluginRuntime.warnings) {
+        this.context.stderr.write(`${warn}\n`);
+      }
+      const dedicated = pluginRuntime.discovered.filter(
+        (p) => p.status === 'loaded' && p.manifest?.storage?.mode === 'dedicated',
+      );
+      const targetedPlugins = this.pluginId !== undefined
+        ? dedicated.filter((p) => p.id === this.pluginId)
+        : dedicated;
+
+      if (this.pluginId !== undefined && targetedPlugins.length === 0) {
+        this.context.stderr.write(
+          `--plugin ${this.pluginId}: no loaded plugin with that id and \`storage.mode = "dedicated"\`.\n`,
         );
-        for (const f of plan.pending) {
-          this.context.stdout.write(`  pending  ${String(f.version).padStart(3, '0')}_${f.description}\n`);
+        return 5;
+      }
+
+      // --- status branch (read-only summary) ---------------------------
+      if (this.status) {
+        if (!this.pluginId) {
+          const plan = planMigrations(raw, files);
+          this.context.stdout.write(
+            `kernel · Applied: ${plan.applied.length} · Pending: ${plan.pending.length}\n`,
+          );
+          for (const f of plan.pending) {
+            this.context.stdout.write(`  pending  ${formatKernelName(f.version, f.description)}\n`);
+          }
+          for (const r of plan.applied) {
+            this.context.stdout.write(`  applied  ${formatKernelName(r.version, r.description)}\n`);
+          }
         }
-        for (const r of plan.applied) {
-          this.context.stdout.write(`  applied  ${String(r.version).padStart(3, '0')}_${r.description}\n`);
+        if (!this.kernelOnly) {
+          for (const plugin of targetedPlugins) {
+            const plan = planPluginMigrations(raw, plugin);
+            this.context.stdout.write(
+              `\nplugin ${plugin.id} · Applied: ${plan.applied.length} · Pending: ${plan.pending.length}\n`,
+            );
+            for (const f of plan.pending) {
+              this.context.stdout.write(`  pending  ${formatKernelName(f.version, f.description)}\n`);
+            }
+            for (const r of plan.applied) {
+              this.context.stdout.write(`  applied  ${formatKernelName(r.version, r.description)}\n`);
+            }
+          }
         }
         return 0;
       }
@@ -320,37 +388,118 @@ export class DbMigrateCommand extends Command {
         return 2;
       }
 
-      const options: { backup: boolean; dryRun: boolean; to?: number } = {
-        backup: !this.noBackup,
-        dryRun: this.dryRun,
-      };
-      if (toValue !== undefined) options.to = toValue;
+      // --- kernel pass --------------------------------------------------
+      // Skipped under `--plugin <id>`: that mode targets a single plugin
+      // and is not meant to advance the kernel ledger.
+      let kernelApplied: number | undefined;
+      let backupPath: string | null = null;
+      if (this.pluginId === undefined) {
+        const options: { backup: boolean; dryRun: boolean; to?: number } = {
+          backup: !this.noBackup,
+          dryRun: this.dryRun,
+        };
+        if (toValue !== undefined) options.to = toValue;
 
-      const result = applyMigrations(raw, path, options, files);
+        const result = applyMigrations(raw, path, options, files);
+        kernelApplied = result.applied.length;
+        backupPath = result.backupPath;
 
-      if (this.dryRun) {
-        this.context.stdout.write(
-          result.applied.length === 0
-            ? 'Nothing to apply.\n'
-            : `Would apply ${result.applied.length} migration(s):\n` +
-                result.applied
-                  .map((m) => `  ${String(m.version).padStart(3, '0')}_${m.description}`)
-                  .join('\n') + '\n',
-        );
-      } else {
-        this.context.stdout.write(
-          result.applied.length === 0
-            ? 'Already up to date.\n'
-            : `Applied ${result.applied.length} migration(s)${
-                result.backupPath ? ` · backup: ${result.backupPath}` : ''
-              }\n`,
-        );
+        if (this.dryRun) {
+          this.context.stdout.write(
+            kernelApplied === 0
+              ? 'kernel · Nothing to apply.\n'
+              : `kernel · Would apply ${kernelApplied} migration(s):\n` +
+                  result.applied
+                    .map((m) => `  ${formatKernelName(m.version, m.description)}`)
+                    .join('\n') + '\n',
+          );
+        } else {
+          this.context.stdout.write(
+            kernelApplied === 0
+              ? 'kernel · Already up to date.\n'
+              : `kernel · Applied ${kernelApplied} migration(s)${
+                  backupPath ? ` · backup: ${backupPath}` : ''
+                }\n`,
+          );
+        }
       }
+
+      // --- plugin pass --------------------------------------------------
+      if (!this.kernelOnly) {
+        const exitCode = await runPluginMigrations({
+          db: raw,
+          plugins: targetedPlugins,
+          dryRun: this.dryRun,
+          stdout: this.context.stdout,
+          stderr: this.context.stderr,
+        });
+        if (exitCode !== 0) return exitCode;
+      }
+
       return 0;
     } finally {
       raw.close();
     }
   }
+}
+
+interface IRunPluginMigrationsOpts {
+  db: DatabaseSync;
+  plugins: IDiscoveredPlugin[];
+  dryRun: boolean;
+  stdout: NodeJS.WritableStream;
+  stderr: NodeJS.WritableStream;
+}
+
+/**
+ * Drive every targeted plugin's migration batch in sequence. Layer-3
+ * intrusions are reported on stderr and flip the exit code to 2 — the
+ * ledger row is still written for whatever applied cleanly, but the
+ * caller knows something deeper is off (a plugin slipped a non-prefixed
+ * object past the regex check). This is the intentional contract: don't
+ * silently revert, surface the breach loud and clear.
+ */
+async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<number> {
+  const { db, plugins, dryRun, stdout, stderr } = opts;
+  let exit = 0;
+  for (const plugin of plugins) {
+    let result: IPluginApplyResult;
+    try {
+      result = applyPluginMigrations(db, plugin, { dryRun });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      stderr.write(`plugin ${plugin.id} · ${reason}\n`);
+      exit = 2;
+      continue;
+    }
+    if (dryRun) {
+      stdout.write(
+        result.applied.length === 0
+          ? `plugin ${plugin.id} · Nothing to apply.\n`
+          : `plugin ${plugin.id} · Would apply ${result.applied.length} migration(s):\n` +
+              result.applied
+                .map((m) => `  ${formatKernelName(m.version, m.description)}`)
+                .join('\n') + '\n',
+      );
+    } else {
+      stdout.write(
+        result.applied.length === 0
+          ? `plugin ${plugin.id} · Already up to date.\n`
+          : `plugin ${plugin.id} · Applied ${result.applied.length} migration(s)\n`,
+      );
+    }
+    if (result.intrusions.length > 0) {
+      stderr.write(
+        `plugin ${plugin.id} · catalog intrusion detected: ${result.intrusions.join(', ')}\n`,
+      );
+      exit = 2;
+    }
+  }
+  return exit;
+}
+
+function formatKernelName(version: number, description: string): string {
+  return `${String(version).padStart(3, '0')}_${description}`;
 }
 
 /** Aggregate export so CLI entry can register every db verb in one line. */
@@ -363,5 +512,3 @@ export const DB_COMMANDS = [
   DbMigrateCommand,
 ];
 
-// Silence the readdirSync import — will be used by plugin migrations later.
-void readdirSync;

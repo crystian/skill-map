@@ -100,19 +100,34 @@ export class PluginLoader {
     try {
       raw = JSON.parse(readFileSync(manifestPath, 'utf8'));
     } catch (err) {
-      return fail(pluginPath, pathId(pluginPath), 'invalid-manifest', describe(err));
+      return fail(
+        pluginPath,
+        pathId(pluginPath),
+        'invalid-manifest',
+        `${manifestPath}: ${describe(err)}. Validate the JSON (e.g. \`npx jsonlint plugin.json\`).`,
+      );
     }
 
     const manifestResult = this.#options.validators.validatePluginManifest<IPluginManifest>(raw);
     if (!manifestResult.ok) {
-      return fail(pluginPath, pathId(pluginPath), 'invalid-manifest', manifestResult.errors);
+      return fail(
+        pluginPath,
+        pathId(pluginPath),
+        'invalid-manifest',
+        `${manifestPath}: ${manifestResult.errors}. See spec/schemas/plugins-registry.schema.json#/$defs/PluginManifest.`,
+      );
     }
     const manifest = manifestResult.data;
 
     // --- spec compat ------------------------------------------------------
     if (!semver.validRange(manifest.specCompat)) {
       return {
-        ...fail(pluginPath, manifest.id, 'invalid-manifest', `specCompat not a valid semver range: ${manifest.specCompat}`),
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          `specCompat "${manifest.specCompat}" is not a valid semver range. Use a range like "^1.0.0".`,
+        ),
         manifest,
       };
     }
@@ -122,7 +137,9 @@ export class PluginLoader {
         id: manifest.id,
         status: 'incompatible-spec',
         manifest,
-        reason: `@skill-map/spec ${this.#options.specVersion} does not satisfy specCompat ${manifest.specCompat}`,
+        reason:
+          `@skill-map/spec ${this.#options.specVersion} does not satisfy specCompat "${manifest.specCompat}". ` +
+          `Either update the plugin's specCompat (and re-test) or pin sm to a compatible spec version.`,
       };
     }
 
@@ -147,7 +164,12 @@ export class PluginLoader {
       const abs = resolve(pluginPath, relEntry);
       if (!existsSync(abs)) {
         return {
-          ...fail(pluginPath, manifest.id, 'load-error', `extension file not found: ${relEntry}`),
+          ...fail(
+            pluginPath,
+            manifest.id,
+            'load-error',
+            `extension file not found: ${relEntry} (resolved to ${abs}). Check plugin.json#/extensions paths.`,
+          ),
           manifest,
         };
       }
@@ -157,7 +179,12 @@ export class PluginLoader {
         mod = await import(pathToFileURL(abs).href);
       } catch (err) {
         return {
-          ...fail(pluginPath, manifest.id, 'load-error', `${relEntry}: ${describe(err)}`),
+          ...fail(
+            pluginPath,
+            manifest.id,
+            'load-error',
+            `${relEntry}: import failed — ${describe(err)}`,
+          ),
           manifest,
         };
       }
@@ -165,7 +192,12 @@ export class PluginLoader {
       const exported = extractDefault(mod);
       if (!isRecord(exported) || typeof exported['kind'] !== 'string') {
         return {
-          ...fail(pluginPath, manifest.id, 'load-error', `${relEntry}: default export missing a string 'kind' field`),
+          ...fail(
+            pluginPath,
+            manifest.id,
+            'load-error',
+            `${relEntry}: default export missing a string \`kind\` field. Expected one of: ${KNOWN_KINDS_LIST}.`,
+          ),
           manifest,
         };
       }
@@ -173,18 +205,39 @@ export class PluginLoader {
       const kind = exported['kind'] as TExtensionKind;
       if (!KNOWN_KINDS.has(kind)) {
         return {
-          ...fail(pluginPath, manifest.id, 'load-error', `${relEntry}: unknown extension kind '${exported['kind']}'`),
+          ...fail(
+            pluginPath,
+            manifest.id,
+            'load-error',
+            `${relEntry}: unknown extension kind "${exported['kind']}". Expected one of: ${KNOWN_KINDS_LIST}.`,
+          ),
           manifest,
         };
       }
 
+      // The runtime export carries both manifest fields (id, kind,
+      // version, kind-specific metadata) AND runtime methods (detect /
+      // evaluate / render / audit / walk / parse / run). The
+      // extension-kind schemas are strict (`unevaluatedProperties: false`)
+      // because they describe the *manifest* shape — functions are not
+      // representable in JSON Schema and would always fail the strict
+      // check. Strip them before validation; the runtime methods are
+      // covered by the TypeScript `IDetector` / `IRenderer` / ... interfaces
+      // at the call site (the orchestrator invokes `.detect()`,
+      // `.render()`, etc. and crashes loudly if absent).
+      const manifestView = stripFunctions(exported);
       const extValidator = this.#options.validators.validatorForExtension(kind);
-      if (!extValidator(exported)) {
+      if (!extValidator(manifestView)) {
         const errors = (extValidator.errors ?? [])
           .map((e) => `${e.instancePath || '(root)'} ${e.message ?? e.keyword}`)
           .join('; ');
         return {
-          ...fail(pluginPath, manifest.id, 'load-error', `${relEntry}: ${errors}`),
+          ...fail(
+            pluginPath,
+            manifest.id,
+            'load-error',
+            `${relEntry}: ${kind} manifest invalid — ${errors}. See spec/schemas/extensions/${kind}.schema.json.`,
+          ),
           manifest,
         };
       }
@@ -211,6 +264,7 @@ export class PluginLoader {
 // --- helpers ---------------------------------------------------------------
 
 const KNOWN_KINDS = new Set<TExtensionKind>(['adapter', 'detector', 'rule', 'action', 'audit', 'renderer']);
+const KNOWN_KINDS_LIST = [...KNOWN_KINDS].join(' / ');
 
 function fail(
   path: string,
@@ -237,6 +291,24 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function extractDefault(mod: unknown): unknown {
   if (!isRecord(mod)) return mod;
   return 'default' in mod ? mod['default'] : mod;
+}
+
+/**
+ * Drop function-typed properties so the resulting object is JSON-Schema-
+ * validatable. Used on the runtime export before AJV gets it: an
+ * extension's `detect` / `render` / etc. method is part of its TypeScript
+ * contract, not its declarative manifest, and JSON Schema's
+ * `unevaluatedProperties: false` posture would otherwise reject the
+ * whole export. Cheap shallow copy — manifests don't nest deep.
+ */
+function stripFunctions(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (typeof v === 'function') continue;
+    out[k] = v;
+  }
+  return out;
 }
 
 /** Fall-back plugin id derived from directory name when the manifest is unreadable. */

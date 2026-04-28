@@ -219,6 +219,7 @@
       "interfaces/security-scanner.md": "e46d33d6e39b15672c8f7350f1cbd4755534510fe57c679c2b1d0be57577d818",
       "job-events.md": "08796b7fbeb55e5b03cf3bc394224e70a23438a4d15a46ad1d70121c2c68b967",
       "job-lifecycle.md": "1fe88b1a2ed204e41bb41ac172fbb3e912dccd0dd8a1f8ea8e21a681b336d6ee",
+      "plugin-author-guide.md": "d8ddba9d47eed4ff973862cb3af5e22b693bb5bede3275df8817bbcebcd7689c",
       "plugin-kv-api.md": "04b2178f46fb88adeae9240df9c9e1761b660396072001dac32cd402e11a2d7d",
       "prompt-preamble.md": "23a8eff0477fbbc46192a27781bc781bda4202bb9c669b7a7a002b0d668146b0",
       "schemas/conformance-case.schema.json": "d69c501bbca079da0ca87685eb4cbdbc2e405334469fc937929ca9134e01a2b3",

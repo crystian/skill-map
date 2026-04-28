@@ -1,0 +1,55 @@
+{
+  "name": "@skill-map/testkit",
+  "version": "0.1.0",
+  "description": "Kernel mocks + builders for plugin authors. Test detectors, rules, renderers, and audits without spinning up the full skill-map runtime.",
+  "license": "MIT",
+  "type": "module",
+  "homepage": "https://skill-map.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/crystian/skill-map.git",
+    "directory": "testkit"
+  },
+  "bugs": {
+    "url": "https://github.com/crystian/skill-map/issues"
+  },
+  "keywords": [
+    "skill-map",
+    "testkit",
+    "plugin",
+    "ai-agents",
+    "claude-code"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts'",
+    "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts'",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@skill-map/cli": "*"
+  },
+  "devDependencies": {
+    "@types/node": "24.12.2",
+    "tsup": "8.5.1",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

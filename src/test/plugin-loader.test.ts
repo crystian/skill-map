@@ -177,6 +177,87 @@ describe('PluginLoader', () => {
     match(result[0]!.reason!, /emitsLinkKinds|defaultConfidence|required/);
   });
 
+  // Step 9.4 — polished diagnostics: every reason string carries an
+  // actionable hint pointing the user at the file, the schema, or a
+  // remediation. The full text is fragile and we don't pin it; we
+  // assert each hint shape is *present*.
+  describe('Step 9.4 diagnostics polish', () => {
+    it('invalid-manifest reason names the manifest path', async () => {
+      const root = makePluginsDir('diag-path');
+      const pluginDir = join(root, 'p');
+      mkdirSync(pluginDir, { recursive: true });
+      writeFileSync(join(pluginDir, 'plugin.json'), '{ not json');
+      const r = await loaderFor(root).discoverAndLoadAll();
+      ok(r[0]!.reason!.includes('plugin.json'), `expected manifest path; got: ${r[0]!.reason}`);
+      match(r[0]!.reason!, /Validate the JSON/);
+    });
+
+    it('invalid-manifest (AJV) hints at the spec schema', async () => {
+      const root = makePluginsDir('diag-schema');
+      writePlugin(root, 'bad', { id: 'bad' });
+      const r = await loaderFor(root).discoverAndLoadAll();
+      match(r[0]!.reason!, /plugins-registry\.schema\.json/);
+    });
+
+    it('incompatible-spec suggests a remediation', async () => {
+      const root = makePluginsDir('diag-spec');
+      writePlugin(root, 'old', {
+        id: 'old',
+        version: '1.0.0',
+        specCompat: '>=999.0.0',
+        extensions: ['x.mjs'],
+      });
+      const r = await loaderFor(root).discoverAndLoadAll();
+      match(r[0]!.reason!, /update the plugin's specCompat|pin sm to a compatible/);
+    });
+
+    it('extension file not found resolves the absolute path', async () => {
+      const root = makePluginsDir('diag-missing');
+      writePlugin(root, 'mia', {
+        id: 'mia',
+        version: '1.0.0',
+        specCompat: '>=0.0.0',
+        extensions: ['./does/not/exist.mjs'],
+      });
+      const r = await loaderFor(root).discoverAndLoadAll();
+      match(r[0]!.reason!, /resolved to .*does\/not\/exist\.mjs/);
+    });
+
+    it('unknown kind lists the valid options', async () => {
+      const root = makePluginsDir('diag-kind');
+      writePlugin(
+        root,
+        'wrong-kind',
+        {
+          id: 'wrong-kind',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['x.mjs'],
+        },
+        { 'x.mjs': `export default { id: 'x', kind: 'wat', version: '1.0.0' };` },
+      );
+      const r = await loaderFor(root).discoverAndLoadAll();
+      match(r[0]!.reason!, /Expected one of: adapter \/ detector \/ rule \/ action \/ audit \/ renderer/);
+    });
+
+    it('extension manifest invalid points at its kind schema', async () => {
+      const root = makePluginsDir('diag-extension-schema');
+      writePlugin(
+        root,
+        'broken-renderer',
+        {
+          id: 'broken-renderer',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['r.mjs'],
+        },
+        { 'r.mjs': `export default { id: 'r', kind: 'renderer', version: '1.0.0' };` },
+      );
+      const r = await loaderFor(root).discoverAndLoadAll();
+      match(r[0]!.reason!, /spec\/schemas\/extensions\/renderer\.schema\.json/);
+    });
+  });
+
   it('continues booting when a later plugin is bad', async () => {
     const root = makePluginsDir('mixed');
     writePlugin(

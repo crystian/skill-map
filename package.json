@@ -12,6 +12,7 @@
   "workspaces": [
     "spec",
     "src",
+    "testkit",
     "ui"
   ],
   "scripts": {

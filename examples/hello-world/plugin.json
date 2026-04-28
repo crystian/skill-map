@@ -1,0 +1,12 @@
+{
+  "id": "hello-world",
+  "version": "1.0.0",
+  "specCompat": "^1.0.0",
+  "description": "Reference skill-map plugin. Detects [[greet:<name>]] tokens in node bodies and emits one references link per match.",
+  "author": "skill-map team",
+  "license": "MIT",
+  "homepage": "https://skill-map.dev",
+  "extensions": [
+    "./extensions/greet-detector.mjs"
+  ]
+}

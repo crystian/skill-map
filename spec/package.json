@@ -38,6 +38,7 @@
     "prompt-preamble.md",
     "db-schema.md",
     "plugin-kv-api.md",
+    "plugin-author-guide.md",
     "interfaces/",
     "schemas/",
     "conformance/",

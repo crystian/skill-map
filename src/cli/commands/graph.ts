@@ -13,19 +13,23 @@
  *   2  bad flag / unhandled error
  *   5  DB missing OR no renderer registered for the requested format
  *
- * Renderer registry: only built-in renderers participate today. Plugin-
- * supplied renderers will plug in via the same loader path that `sm scan`
- * uses for adapters / detectors / rules; that integration lands when the
- * plugin author UX matures (Step 9).
+ * Renderer registry: built-in renderers plus drop-in plugin renderers
+ * discovered under `.skill-map/plugins/` and `~/.skill-map/plugins/`
+ * (Step 9.1). Failed plugins emit one stderr warning each; the verb
+ * keeps running on whatever loaded successfully. Pass `--no-plugins`
+ * to skip plugin discovery entirely.
  */
 
 import { Command, Option } from 'clipanion';
 
-import { builtIns } from '../../extensions/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
-import type { IRenderer } from '../../kernel/extensions/index.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import {
+  composeRenderers,
+  emptyPluginRuntime,
+  loadPluginRuntime,
+} from '../util/plugin-runtime.js';
 
 const DEFAULT_FORMAT = 'ascii';
 
@@ -54,12 +58,20 @@ export class GraphCommand extends Command {
   });
   global = Option.Boolean('-g,--global', false);
   db = Option.String('--db', { required: false });
+  noPlugins = Option.Boolean('--no-plugins', false, {
+    description: 'Skip drop-in plugin discovery. Only built-in renderers participate.',
+  });
 
   async execute(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
     if (!assertDbExists(dbPath, this.context.stderr)) return 5;
 
-    const renderers = collectRenderers();
+    const pluginRuntime = this.noPlugins
+      ? emptyPluginRuntime()
+      : await loadPluginRuntime({ scope: this.global ? 'global' : 'project' });
+    for (const warn of pluginRuntime.warnings) this.context.stderr.write(`${warn}\n`);
+
+    const renderers = composeRenderers({ pluginRuntime });
     const renderer = renderers.find((r) => r.format === this.format);
     if (!renderer) {
       const available = renderers
@@ -92,12 +104,3 @@ export class GraphCommand extends Command {
   }
 }
 
-/**
- * Renderer registry for `sm graph`. Today: built-ins only. When the
- * plugin loader gains a read-side entry point (Step 9 — plugin author
- * UX), this is the single function that flips from `builtIns().renderers`
- * to "built-ins ∪ enabled-plugin renderers".
- */
-function collectRenderers(): IRenderer[] {
-  return [...builtIns().renderers];
-}

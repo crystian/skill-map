@@ -33,12 +33,17 @@ import {
   runScanWithRenames,
 } from '../../kernel/index.js';
 import type { RenameOp, ScanResult } from '../../kernel/index.js';
-import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
+import { listBuiltIns } from '../../extensions/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import {
+  composeScanExtensions,
+  emptyPluginRuntime,
+  loadPluginRuntime,
+} from '../util/plugin-runtime.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
@@ -47,6 +52,8 @@ export interface IRunWatchOptions {
   json: boolean;
   noTokens: boolean;
   strict: boolean;
+  /** Skip plugin discovery entirely. Step 9.1. */
+  noPlugins?: boolean;
   context: {
     stdout: NodeJS.WritableStream;
     stderr: NodeJS.WritableStream;
@@ -82,9 +89,21 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const debounceMs = cfg.scan.watch.debounceMs;
   const dbPath = resolve(cwd, DEFAULT_PROJECT_DB);
 
+  // Plugin discovery once at startup. Per-batch reuse avoids re-scanning
+  // the plugins directory on every FS event; a hot reload of plugin code
+  // requires restarting the watcher (Step 9.1; reload-on-change can be
+  // a future polish if it shows up in real workflows).
+  const pluginRuntime = opts.noPlugins
+    ? emptyPluginRuntime()
+    : await loadPluginRuntime({ scope: 'project' });
+  for (const warn of pluginRuntime.warnings) {
+    context.stderr.write(`${warn}\n`);
+  }
+
   const runOnePass = async (): Promise<void> => {
     const kernel = createKernel();
     for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
     let priorSnapshot: ScanResult | null = null;
     if (existsSync(dbPath)) {
@@ -98,14 +117,15 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       }
     }
 
+    const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
     const runOptions: Parameters<typeof runScanWithRenames>[1] = {
       roots: opts.roots,
       scope: 'project',
       tokenize: !opts.noTokens,
       ignoreFilter,
       strict,
-      extensions: builtIns(),
     };
+    if (composed) runOptions.extensions = composed;
     if (priorSnapshot) {
       runOptions.priorSnapshot = priorSnapshot;
       // The watcher always wants cache reuse — re-walking unchanged
@@ -254,6 +274,9 @@ export class WatchCommand extends Command {
   strict = Option.Boolean('--strict', false, {
     description: 'Promote frontmatter-validation findings from warn to error inside each batch. Does not change the watcher exit code.',
   });
+  noPlugins = Option.Boolean('--no-plugins', false, {
+    description: 'Skip drop-in plugin discovery for the watcher session.',
+  });
 
   async execute(): Promise<number> {
     const roots = this.roots.length > 0 ? this.roots : ['.'];
@@ -262,6 +285,7 @@ export class WatchCommand extends Command {
       json: this.json,
       noTokens: this.noTokens,
       strict: this.strict,
+      noPlugins: this.noPlugins,
       context: this.context,
     });
   }

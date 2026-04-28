@@ -7,30 +7,43 @@ import type { Kysely } from 'kysely';
 import { computeScanDelta, createKernel, isEmptyDelta, runScan, runScanWithRenames } from '../../kernel/index.js';
 import type { IScanDelta, RenameOp, ScanResult } from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
+import { listBuiltIns } from '../../extensions/built-ins.js';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import {
+  composeScanExtensions,
+  emptyPluginRuntime,
+  loadPluginRuntime,
+  type IPluginRuntimeBundle,
+} from '../util/plugin-runtime.js';
 import { runWatchLoop } from './watch.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
 /**
- * `sm scan [roots...] [--json] [--no-built-ins] [-n|--dry-run] [--changed]`
+ * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
  *
  * Scans the given roots using the built-in extension set (claude adapter,
- * 4 detectors, 3 rules). The registry is populated with manifest rows so
- * introspection (`sm help`, future `sm plugins`) sees what's active; the
- * orchestrator consumes the callable instances separately.
+ * 4 detectors, 3 rules) plus any drop-in plugin extensions discovered
+ * under `.skill-map/plugins/` and `~/.skill-map/plugins/` (Step 9.1).
+ * The registry is populated with manifest rows so introspection
+ * (`sm help`, `sm plugins list`) sees what's active; the orchestrator
+ * consumes the callable instances separately.
  *
  * Result is persisted into `<cwd>/.skill-map/skill-map.db` (auto-migrated)
  * with replace-all semantics across `scan_nodes / scan_links / scan_issues`.
  *
  * - `--no-built-ins` skips both the pipeline and the persistence step
  *   (kernel-empty-boot parity); cannot be combined with `--changed`.
+ * - `--no-plugins` skips drop-in plugin discovery entirely. Only the
+ *   built-in set runs. Pairs with `--no-built-ins` for a fully empty
+ *   pipeline (e.g. for the `kernel-empty-boot` conformance contract).
+ *   Failed / incompatible plugins are logged to stderr and skipped;
+ *   the scan never aborts on a bad plugin.
  * - `-n` / `--dry-run` runs the scan in-memory and skips ALL DB writes.
  *   Combined with `--changed` it still opens the DB read-side to load
  *   the prior snapshot, then exits without writing.
@@ -80,6 +93,9 @@ export class ScanCommand extends Command {
   noBuiltIns = Option.Boolean('--no-built-ins', false, {
     description: 'Skip the built-in extension set. Yields a zero-filled ScanResult (kernel-empty-boot parity); skips DB persistence.',
   });
+  noPlugins = Option.Boolean('--no-plugins', false, {
+    description: 'Skip drop-in plugin discovery. Only the built-in set runs. Combine with --no-built-ins for a fully empty pipeline.',
+  });
   noTokens = Option.Boolean('--no-tokens', false, {
     description: 'Skip per-node token counts (cl100k_base BPE). Leaves node.tokens undefined; spec-valid since the field is optional.',
   });
@@ -122,6 +138,7 @@ export class ScanCommand extends Command {
         json: this.json,
         noTokens: this.noTokens,
         strict: this.strict,
+        noPlugins: this.noPlugins,
         context: this.context,
       });
     }
@@ -148,6 +165,7 @@ export class ScanCommand extends Command {
         json: this.json,
         noTokens: this.noTokens,
         strict: this.strict,
+        noPlugins: this.noPlugins,
         context: this.context,
       });
     }
@@ -165,10 +183,31 @@ export class ScanCommand extends Command {
     const kernel = createKernel();
     const roots = this.roots.length > 0 ? this.roots : ['.'];
 
-    const extensions = this.noBuiltIns ? undefined : builtIns();
+    // --- plugin runtime --------------------------------------------------
+    // Step 9.1 wires plugin discovery into the scan pipeline. Failed
+    // plugins (`incompatible-spec` / `invalid-manifest` / `load-error`)
+    // emit one stderr line each but never abort the scan — the kernel
+    // keeps booting on a bad plugin. Disabled plugins are silently
+    // skipped; their `sm plugins list` row already conveys intent.
+    //
+    // `--no-plugins` short-circuits discovery entirely (no DB / config
+    // reads, no FS walk under `.skill-map/plugins/`). Pairs with
+    // `--no-built-ins` for the kernel-empty-boot conformance posture.
+    const pluginRuntime = this.noPlugins
+      ? emptyPluginRuntime()
+      : await loadPluginRuntime({ scope: 'project' });
+    for (const warn of pluginRuntime.warnings) {
+      this.context.stderr.write(`${warn}\n`);
+    }
+
+    const extensions = composeScanExtensions({
+      noBuiltIns: this.noBuiltIns,
+      pluginRuntime,
+    });
     if (!this.noBuiltIns) {
       for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     }
+    for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
     // --- prior snapshot --------------------------------------------------
     // Step 5.8 decoupled "prior for rename detection" from "prior for
@@ -359,11 +398,12 @@ interface IRunCompareWithOptions {
   json: boolean;
   noTokens: boolean;
   strict: boolean;
+  noPlugins: boolean;
   context: BaseContext;
 }
 
 async function runCompareWith(opts: IRunCompareWithOptions): Promise<number> {
-  const { comparedWithPath, roots, json, noTokens, strict, context } = opts;
+  const { comparedWithPath, roots, json, noTokens, strict, noPlugins, context } = opts;
 
   // 1. Load + validate the dump. Errors here are operational (exit 2) —
   //    a missing file, malformed JSON, or a schema-violating dump are
@@ -378,9 +418,16 @@ async function runCompareWith(opts: IRunCompareWithOptions): Promise<number> {
   }
 
   // 2. Run a fresh scan with the same wiring as the normal `sm scan`
-  //    code path. Skip persistence — the verb's contract is read-only.
+  //    code path (Step 9.1: plugin runtime included, gated by
+  //    `--no-plugins`). Skip persistence — the verb's contract is
+  //    read-only.
   const kernel = createKernel();
   for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+  const pluginRuntime = noPlugins
+    ? emptyPluginRuntime()
+    : await loadPluginRuntime({ scope: 'project' });
+  for (const warn of pluginRuntime.warnings) context.stderr.write(`${warn}\n`);
+  for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
   let cfg;
   try {
@@ -397,16 +444,18 @@ async function runCompareWith(opts: IRunCompareWithOptions): Promise<number> {
   const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
   const effectiveStrict = strict || cfg.scan.strict === true;
 
+  const composedExtensions = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
   let current: ScanResult;
   try {
-    current = await runScan(kernel, {
+    const compareRunOpts: Parameters<typeof runScan>[1] = {
       roots,
       scope: 'project',
       tokenize: !noTokens,
       ignoreFilter,
       strict: effectiveStrict,
-      extensions: builtIns(),
-    });
+    };
+    if (composedExtensions) compareRunOpts.extensions = composedExtensions;
+    current = await runScan(kernel, compareRunOpts);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     context.stderr.write(`sm scan --compare-with: ${message}\n`);
