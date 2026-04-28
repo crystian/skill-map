@@ -1,5 +1,475 @@
 # skill-map
 
+## 0.4.0
+
+### Minor Changes
+
+- a73f3f4: Step 7.1 — File watcher (`sm watch` / `sm scan --watch`)
+
+  Long-running watcher that subscribes to the scan roots, debounces
+  filesystem events, and triggers an incremental scan per batch. Reuses
+  the existing `runScanWithRenames` pipeline, the `IIgnoreFilter` chain
+  (`.skill-mapignore` + `config.ignore` + bundled defaults), and the
+  `scan.*` non-job events from `job-events.md` — one ScanResult per
+  batch, emitted as ndjson under `--json`.
+
+  **Spec changes (minor)**:
+
+  - `spec/schemas/project-config.schema.json` — new `scan.watch` object
+    with a single key `debounceMs` (integer ≥ 0, default 300). Groups
+    bursts of filesystem events (editor saves, branch switches, npm
+    installs) into a single scan pass. Set to 0 to disable debouncing.
+  - `spec/cli-contract.md` §Scan — documents `sm watch [roots...]` as
+    the primary verb and `sm scan --watch` as the alias. Watcher
+    respects the same ignore chain as one-shot scans, emits one
+    ScanResult per batch (ndjson under `--json`), closes cleanly on
+    `SIGINT` / `SIGTERM`, exits 0 on clean shutdown. Exit-code rule
+    carved out for the watcher: per-batch error issues do not flip the
+    exit code (the loop keeps running); operational errors still exit 2.
+
+  No new events. No new ports. The watcher is implementation-defined
+  inside the kernel package; a future `WatchPort` can be added when /
+  if a non-Node implementation needs to swap the chokidar wrapper.
+
+  **Runtime changes (minor — new verb + new config key)**:
+
+  - `chokidar@5.0.0` pinned in `src/package.json` (single new runtime
+    dependency, MIT). Chokidar v5 requires Node ≥ 20.19; the project
+    already pins `engines.node: ">=24.0"` so this is a no-op for
+    consumers. Brings in `readdirp@5` as a transitive.
+  - `src/kernel/scan/watcher.ts` — `IFsWatcher` interface + concrete
+    `ChokidarWatcher` wrapping `chokidar.watch()` with the existing
+    `IIgnoreFilter` plumbed through, debouncer, batch coalescing,
+    and explicit `stop()` for clean teardown.
+  - `src/cli/commands/watch.ts` — new `WatchCommand`. `sm scan
+--watch` delegates to the same code path so the two surfaces are
+    byte-aligned (no parallel implementations).
+  - `src/config/defaults.json` — new `scan.watch.debounceMs: 300`
+    default.
+
+  **Why minor (not patch)**: new public verb (`sm watch`), new public
+  config key (`scan.watch.debounceMs`), and a new flag on an existing
+  verb (`sm scan --watch`). All three are surface additions, not bug
+  fixes — minor under both the spec and the runtime semver policies.
+  No breaking changes; existing `sm scan` without `--watch` is
+  byte-identical to before.
+
+  **Roadmap**: Step 7 — Robustness, sub-step 7.1 (chokidar watcher).
+  Trigger normalization is implicit-already-landed (cabled into every
+  detector at Steps 3–4 with full unit tests in
+  `src/kernel/trigger-normalize.test.ts`); we do not write a sub-step
+  for it. Next sub-steps: 7.2 detector conflict resolution, 7.3 `sm
+job prune` + retention enforcement.
+
+- a73f3f4: Step 7.2 — Detector conflict resolution
+
+  Two pieces:
+
+  1. **New built-in rule `link-conflict`** (`src/extensions/rules/link-conflict/`).
+     Surfaces detector disagreement. Groups links by `(source, target)` and
+     emits one `warn` Issue per pair where the set of distinct `kind` values
+     has size ≥ 2. Agreement (single kind across multiple detectors) is
+     silent — by design, to avoid massive noise on real graphs.
+     Issue payload (`data`) carries `{ source, target, variants }` where
+     each `variant` is `{ kind, sources: detectorId[], confidence }`. Variant
+     sources are deduped + sorted; confidence is the highest across rows
+     of the same kind (`high` > `medium` > `low`).
+
+     This is the kernel piece of Decision #90 read-time "consumers that
+     need uniqueness aggregate at read time" — the rule is one such
+     consumer, on the alarming side. Storage stays untouched (one row
+     per detector, no merge, no dedup). Severity is `warn`, not `error`:
+     the rule cannot pick which kind is correct, so per `cli-contract.md`
+     §Exit codes the verb stays exit 0.
+
+  2. **`sm show` pretty link aggregation** (`src/cli/commands/show.ts`).
+     The human renderer now groups `linksOut` / `linksIn` by `(endpoint,
+kind, normalizedTrigger)` and prints one row per group with the
+     union of detector ids in a `sources:` field. The section header
+     reports both the raw row count and the unique-after-grouping count
+     (`Links out (12, 9 unique)`). When N > 1 detector emits the same
+     logical link, the row also gets a `(×N)` suffix.
+
+     `--json` output is byte-identical to before — raw rows, no merge.
+     Storage is byte-identical to before. The grouping is purely a
+     read-time presentation choice for human eyes.
+
+  **Spec changes (patch)**:
+
+  - `spec/cli-contract.md` §Browse — `sm show` row clarifies that pretty
+    output groups identical-shape links and that `--json` emits raw rows.
+    Patch (not minor) because the JSON contract is unchanged; the human
+    output format is non-normative anyway.
+
+  **Runtime changes (minor — new rule + new presentation)**:
+
+  - New rule `link-conflict` registered in `src/extensions/built-ins.ts`.
+  - `sm show` pretty output groups links + reports unique counts.
+
+  **UI inspector aggregation deferred to Step 13**: the current Flavor A
+  inspector renders the `Relations` card from `node.frontmatter.metadata.{
+related, requires, supersedes, provides, conflictsWith}` directly — it
+  does NOT consume `linksOut` / `linksIn` rows from `scan_links`. There
+  is no link table to aggregate today. When Step 13's Flavor B lands (Hono
+  BFF + WS + full link panel from scan), the aggregation logic from
+  `src/cli/commands/show.ts` will need to be ported.
+
+  **Roadmap**: Step 7 — Robustness, sub-step 7.2 (detector conflict
+  resolution). Closes one of the three remaining frentes; 7.3 (`sm job
+prune` + retention) still pending. Decision #90 unchanged: storage
+  keeps raw per-detector rows. The `related` vs LLM-amplification
+  discussion is documented in `.tmp/skill-map-related-test/` (status
+  quo retained — fields stay opt-in under `metadata.*`; revisit if
+  real-world amplification appears).
+
+  **Tests**: 327 → 335 (+8 new for the rule, no regressions).
+
+- a73f3f4: Step 7.3 — `sm job prune` retention GC
+
+  Lands the real implementation behind the existing stub. Closes Step 7.
+
+  **Behaviour**:
+
+  - Default: applies the configured retention policy. For each terminal
+    status (`completed` / `failed`) with a non-null
+    `jobs.retention.<status>` value, deletes `state_jobs` rows whose
+    `finished_at < Date.now() - policySeconds * 1000` and unlinks each
+    row's MD file in `.skill-map/jobs/`. Default `completed` policy is
+    30 days (2592000s); default `failed` is `null` (never auto-prune,
+    preserving failure history for analysis).
+  - `--orphan-files`: ALSO scans `.skill-map/jobs/` for MD files whose
+    absolute path is not referenced by any `state_jobs.file_path` and
+    unlinks them. Runs AFTER retention so freshly-pruned files don't
+    double-count. Useful when the DB was wiped or a runner crashed
+    mid-render.
+  - `--dry-run` / `-n`: reports what would be pruned without touching
+    the DB or the FS. Output shape is identical to live mode (`dryRun:
+true` distinguishes them under `--json`).
+  - `--json`: emits a structured document on stdout — `{ dryRun,
+retention: { completed: { policySeconds, deleted, files }, failed:
+{...} }, orphanFiles: { scanned, deleted } | { scanned: false } }`.
+
+  **Implementation**:
+
+  - New module `src/kernel/adapters/sqlite/jobs.ts`: `pruneTerminalJobs`
+    (DB-only — returns count + filePaths so the CLI does the unlink) and
+    `listOrphanJobFiles` (FS scan + DB cross-reference).
+  - New command file `src/cli/commands/jobs.ts`: `JobPruneCommand`.
+  - `src/cli/commands/stubs.ts` no longer exports `JobPruneCommand`; the
+    stub registration was removed from `STUB_COMMANDS`.
+  - `src/cli/entry.ts` registers `JobPruneCommand` from the new file.
+
+  **Spec invariants honoured**:
+
+  - `state_executions` is NOT touched (per `spec/db-schema.md` §Persistence
+    zones — append-only through v1.0).
+  - Pruning runs only on explicit invocation; no implicit GC during
+    normal verb execution (per `spec/job-lifecycle.md` §Retention and
+    GC).
+  - DB-missing → exit 2 with a clear message ("run `sm init` first").
+  - File-unlink failures (already missing, permission denied) are
+    swallowed silently — a stale file path doesn't fail the verb;
+    the DB row is already gone.
+
+  **Tests**: 327 → 341 (+14 covering helpers + CLI: empty DB, retention
+  cutoff, dry-run, orphan-files mode, json shape, default policies).
+
+  **Roadmap**: closes Step 7. All four frentes listed when 7 opened
+  (trigger normalization, chokidar, conflict resolution, sm job prune)
+  are now landed. Trigger normalization stayed implicit-already-done
+  (cabled at Steps 3–4). Step 8 (Diff + export) is next.
+
+- d3ad73c: Step 8.1 — `sm graph [--format <name>]` real implementation
+
+  Replaces the long-standing stub with a real read-side verb that renders
+  the persisted graph through any registered renderer. First sub-step of
+  Step 8 (Diff + export).
+
+  **Behaviour**:
+
+  - Reads the DB via the existing `loadScanResult` driving adapter
+    (`src/kernel/adapters/sqlite/scan-load.ts`); never persists.
+  - Resolves the renderer by `format` field — default `ascii`. The lookup
+    is over `builtIns().renderers`; plugin-supplied renderers will plug in
+    through the same loader path that `sm scan` uses for adapters /
+    detectors / rules, scheduled for Step 9 (plugin author UX).
+  - Trailing newline normalisation: appends `\n` only if the renderer's
+    output didn't already end in one. Safe to pipe.
+
+  **Flags**:
+
+  - `--format <name>` — must match a registered renderer's `format` field.
+    Default `ascii`. `mermaid` and `dot` ship at Step 12 as drop-in
+    built-ins; the verb requires no further changes when they land.
+  - `--db <path>` and `-g/--global` — standard read-side scope flags
+    (delegate to `resolveDbPath`).
+
+  **Exit codes** (per `spec/cli-contract.md` §Exit codes):
+
+  - `0` — render succeeded.
+  - `2` — bad flag or unhandled error.
+  - `5` — DB missing OR no renderer registered for the requested format.
+
+  The empty-DB case (migrated but never scanned) renders the zero-graph
+  ("0 nodes, 0 links, 0 issues") and exits `0` on purpose: graph is a
+  read-side reporter, not a guard. Pair it with `sm doctor` (Step 10) for
+  state assertions.
+
+  **Wiring**:
+
+  - New command at `src/cli/commands/graph.ts`.
+  - Registered in `src/cli/entry.ts`.
+  - Removed from `STUB_COMMANDS` in `src/cli/commands/stubs.ts`; the
+    remaining `export` stub now points at Step 8.3 (was Step 3, stale).
+  - `context/cli-reference.md` regenerated via `npm run cli:reference`;
+    CI's `cli:check` job stays green.
+
+  **Tests** (`src/test/graph-cli.test.ts`, 5 cases): default format renders
+  two-node fixture; explicit `--format ascii` matches default; unknown
+  `--format mermaid` exits 5 with "Available: ascii"; missing DB exits 5;
+  empty DB renders zero-graph at exit 0. Total: 346 → **351** (+5).
+
+  **No spec change**: the `sm graph [--format ...]` row in
+  `spec/cli-contract.md` was already in place since Step 0a. This is pure
+  runtime catch-up — wiring the verb that the spec already promised.
+
+- d3ad73c: Step 8.2 — `sm scan --compare-with <path>` delta report
+
+  Second sub-step of Step 8 (Diff + export). Adds a flag to `sm scan` that
+  loads a saved `ScanResult` dump, runs a fresh scan in memory, and emits
+  a delta between the two snapshots. Never touches the DB.
+
+  **Flag**:
+
+  - `--compare-with <path>` — string, optional. Points at a JSON file
+    conforming to `scan-result.schema.json` (typically the output of an
+    earlier `sm scan --json > baseline.json` invocation).
+
+  **Behaviour**:
+
+  - Loads the dump, parses it, validates against `scan-result.schema.json`
+    via the existing `loadSchemaValidators()` adapter.
+  - Runs a fresh scan with the same wiring as a normal `sm scan` (built-ins,
+    layered config, ignore filter, strict mode). Skips persistence — the
+    verb's contract is read-only.
+  - Computes a delta via the new `computeScanDelta` kernel helper and
+    emits a report.
+
+  **Identity contract** (recorded in `src/kernel/scan/delta.ts`):
+
+  - **Node** identity = `path`. Two nodes with the same path are the same
+    node; differences become a `changed` entry annotated with the reason
+    (`'body'` / `'frontmatter'` / `'both'`) so a renderer / summariser can
+    decide whether the change is interesting.
+  - **Link** identity = `(source, target, kind, normalizedTrigger ?? '')`.
+    Mirrors the `sm show` aggregation key and Step 7.2's `link-conflict`
+    rule — the `sources[]` union and confidence are presentation facets
+    that don't constitute identity.
+  - **Issue** identity = `(ruleId, sorted nodeIds, message)`. Matches the
+    diff key `spec/job-events.md` §issue.\* defines for future job events,
+    so consumers can reuse the same logic.
+
+  No "changed" bucket for links / issues — identity already captures
+  everything that matters there. Nodes get one because the path stays
+  stable while the body / frontmatter rewrites, and that change matters
+  to downstream consumers (renderers, summarisers, the UI inspector).
+
+  **Output**:
+
+  - Pretty (default): one-line header with totals per bucket, then a
+    `## nodes` / `## links` / `## issues` section per non-empty bucket
+    using `+` (added), `-` (removed), `~` (changed) prefixes. Identical
+    scans get a `(no differences)` hint.
+  - `--json`: emits the `IScanDelta` object — `{ comparedWith, nodes:
+{ added, removed, changed }, links: { added, removed }, issues:
+{ added, removed } }`. Schema is implementation-defined pre-1.0 per
+    `spec/cli-contract.md` and intentionally not pinned to a separate
+    `delta.schema.json` until consumers materialise.
+
+  **Exit codes** (per `spec/cli-contract.md` §Exit codes):
+
+  - `0` — empty delta. Snapshot matches the dump byte-for-identity.
+  - `1` — non-empty delta. Pre-commit / pre-merge wiring trips here.
+  - `2` — operational error: dump file missing, malformed JSON, or
+    schema-violating dump.
+
+  **Combo rules**:
+
+  - `--compare-with` cannot be combined with `--changed`, `--no-built-ins`,
+    `--allow-empty`, or `--watch`. The first three are incoherent (a
+    zero-filled or partial current scan makes the delta meaningless); the
+    last is a different lifecycle.
+  - `--dry-run` is implicit (no DB writes happen anyway), so the combo is
+    silently allowed as a no-op.
+  - `--strict` and `--no-tokens` are honoured — they affect what the
+    fresh scan produces, which then drives the delta.
+
+  **Kernel surface**:
+
+  - New module `src/kernel/scan/delta.ts` exporting `computeScanDelta`,
+    `isEmptyDelta`, `IScanDelta`, `INodeChange`, `TNodeChangeReason`.
+  - Re-exported from `src/kernel/index.ts` for plugin authors and
+    alternative drivers.
+
+  **Tests** (`src/test/scan-compare.test.ts`, 12 cases): identical fixture
+  → empty delta exit 0; body / frontmatter edits surface with the right
+  reason; new file → added node + added link; deleted file → removed node;
+  `--json` shape matches `IScanDelta`; missing / non-JSON / schema-violating
+  dumps exit 2; combo rejections for `--changed`, `--no-built-ins`,
+  `--watch`. Test count: 351 → **363** (+12).
+
+  **No spec change**: the `sm scan --compare-with <path>` row in
+  `spec/cli-contract.md` was already in place since Step 0a. This is pure
+  runtime catch-up — wiring the verb that the spec already promised.
+
+- 13727a3: Step 8.3 — `sm export <query> --format <json|md|mermaid>` real implementation
+
+  Third and final sub-step of Step 8 (Diff + export). Replaces the stub
+  with a real verb that filters the persisted graph through a minimal
+  query language and emits the resulting subset as JSON or Markdown.
+  **Step 8 is now fully closed.**
+
+  **Query syntax** (v0.5.0; spec calls it "implementation-defined pre-1.0"):
+
+  - Whitespace-separated `key=value` tokens; AND across keys.
+  - Values within one token are comma-separated; OR within one key.
+  - Keys: `kind` (skill / agent / command / hook / note), `has` (`issues`
+    today; `findings` / `summary` reserved for Steps 10 / 11), `path`
+    (POSIX glob — `*` matches a single segment, `**` matches across
+    segments).
+  - Empty query (`""`) is valid and exports every node.
+
+  Examples:
+
+  sm export "kind=command" --format json
+  sm export "kind=skill,agent has=issues" --format md
+  sm export "path=.claude/commands/\*\*" --format json
+  sm export "" --format md
+
+  **Subset semantics** (recorded in `src/kernel/scan/query.ts`):
+
+  - A node passes when every specified filter matches (AND across keys,
+    OR within values).
+  - Links survive only when BOTH endpoints are in the filtered set — the
+    exported subgraph is closed. Boundary edges would confuse "I asked
+    for a focused view" with "I asked for the focus and its neighbours".
+  - Issues survive when ANY of their `nodeIds` is in scope. Cross-cutting
+    issues (e.g. `trigger-collision` over two advertisers) stay visible
+    even when the user filtered to one of the parties — that's the
+    scenario where the user actively wants to see the conflict.
+
+  **Format support at v0.5.0**:
+
+  - `json` — emits `{ query, filters, counts: {nodes, links, issues},
+nodes, links, issues }`. Schema is implementation-defined pre-1.0
+    per `spec/cli-contract.md` and intentionally not pinned to a separate
+    `export.schema.json` until consumers materialise.
+  - `md` — Markdown report grouped by node kind (same `KIND_ORDER` as the
+    ASCII renderer for visual consistency); per-node issue counts inline;
+    separate `## links` and `## issues` sections.
+  - `mermaid` — exits 5 with a clear pointer to Step 12 (when the mermaid
+    renderer lands as a built-in). Surfacing it now would require a
+    synthesis layer this verb shouldn't carry.
+
+  **Exit codes** (per `spec/cli-contract.md` §Exit codes):
+
+  - `0` — render succeeded.
+  - `5` — DB missing OR unsupported format OR invalid query.
+
+  **Kernel surface**:
+
+  - New module `src/kernel/scan/query.ts` exporting `parseExportQuery`,
+    `applyExportQuery`, `IExportQuery`, `IExportSubset`, and
+    `ExportQueryError`. Pure (no IO). Re-exported from `src/kernel/index.ts`
+    for plugin authors and alternative drivers.
+  - Micro-glob → RegExp converter rolled in-module (zero-deps; supports
+    `*` and `**` only). The grammar is intentionally minimal so the spec
+    doesn't bind us to a specific glob library before v1.0.
+
+  **Wiring**:
+
+  - New command at `src/cli/commands/export.ts`.
+  - Registered in `src/cli/entry.ts`.
+  - Removed from `STUB_COMMANDS` in `src/cli/commands/stubs.ts`.
+  - `context/cli-reference.md` regenerated via `npm run cli:reference`;
+    `cli:check` stays green.
+
+  **Tests** (`src/test/export-cli.test.ts`, 26 cases across two suites):
+
+  - `parseExportQuery` unit tests (12): empty / whitespace / kind /
+    multi-value / has / path / combined / unknown key / unknown kind /
+    unknown has / malformed token / empty value list / duplicate key.
+  - `applyExportQuery` semantic tests (7): empty query → everything;
+    kind filter + closed subgraph; has=issues; path glob with `*` and
+    `**`; AND across keys; ANY-nodeId rule for issues.
+  - `ExportCommand` handler tests (7): default JSON, kind filter, MD
+    rendering, mermaid → exit 5, unsupported format → exit 5, invalid
+    query → exit 5, missing DB → exit 5.
+
+  Total: 363 → **389** (+26).
+
+  **No spec change**: the `sm export <query> --format json|md|mermaid` row
+  in `spec/cli-contract.md` was already in place since Step 0a. This is
+  pure runtime catch-up — wiring the verb that the spec already promised.
+
+### Patch Changes
+
+- b067f35: Runtime catch-up — thread `mode: 'deterministic'` explicitly through the built-in detectors and rules
+
+  The execution-modes spec lift (separate changeset, `@skill-map/spec` major)
+  defined the per-kind capability matrix and added the optional `mode` field
+  to `Detector` / `Rule` schemas with default `deterministic`. Manifests stayed
+  valid without an update because the field is optional, but the project
+  policy is to thread the mode explicitly so a future probabilistic extension
+  is a visible deviation, not a silent flip of the default.
+
+  **Runtime changes**:
+
+  - `src/kernel/types.ts` — new exported type
+    `TExecutionMode = 'deterministic' | 'probabilistic'` mirroring
+    `spec/architecture.md` §Execution modes. Re-exported from
+    `src/kernel/extensions/index.ts` so plugin authors importing from the
+    kernel barrel get it.
+  - `src/kernel/extensions/detector.ts` — `IDetector` gains optional
+    `mode?: TExecutionMode`. Optional matches the schema (default
+    `deterministic`); existing third-party detectors compile unchanged.
+  - `src/kernel/extensions/rule.ts` — `IRule` gains optional
+    `mode?: TExecutionMode`. Same defaulting story; the prior "rules MUST
+    be deterministic" claim in the doc-comment dropped to match the schema
+    rewrite.
+  - All four built-in detectors (`frontmatter`, `slash`, `at-directive`,
+    `external-url-counter`) and all four built-in rules
+    (`trigger-collision`, `broken-ref`, `superseded`, `link-conflict`) now
+    declare `mode: 'deterministic'` explicitly.
+  - `validate-all` audit, `claude` adapter, and `ascii` renderer are
+    intentionally untouched — audits derive mode from `composes[]` at load
+    time, and adapters / renderers are deterministic-only at the system
+    boundaries (the schemas forbid the field on those three kinds).
+
+  **New test** (`src/test/built-ins-modes.test.ts`, 5 cases) asserts the
+  invariant: every built-in detector and rule declares
+  `mode: 'deterministic'`; the audit / adapter / renderer manifests do NOT
+  declare the field. Locks the project policy as a compile-time + runtime
+  guarantee. Test count: 341 → **346** (+5).
+
+  **No behavioural change**: the orchestrator does not yet consult
+  `mode` — every built-in is already deterministic, and the kernel routing
+  that rejects probabilistic extensions from scan-time hooks lands with
+  the first probabilistic extension at Step 10. Today the field is
+  metadata that consumers (`sm plugins doctor`, future `sm extensions
+list --mode probabilistic`, the UI inspector) can read.
+
+  **Why patch (not minor)**: pure runtime catch-up to a spec change that
+  already shipped. No new public API, no new verb, no new behaviour. The
+  optional `mode?` on `IDetector` / `IRule` is a backwards-compatible
+  additive widen — existing code that constructs these objects keeps
+  compiling without an update.
+
+- Updated dependencies [d730094]
+- Updated dependencies [a73f3f4]
+- Updated dependencies [a73f3f4]
+  - @skill-map/spec@1.0.0
+
 ## 0.3.3
 
 ### Patch Changes
