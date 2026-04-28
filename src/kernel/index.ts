@@ -23,6 +23,8 @@ export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 export { createChokidarWatcher } from './scan/watcher.js';
 export { computeScanDelta, isEmptyDelta } from './scan/delta.js';
 export type { IScanDelta, INodeChange, TNodeChangeReason } from './scan/delta.js';
+export { parseExportQuery, applyExportQuery, ExportQueryError } from './scan/query.js';
+export type { IExportQuery, IExportSubset } from './scan/query.js';
 export type {
   IFsWatcher,
   IWatchBatch,

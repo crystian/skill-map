@@ -72,20 +72,7 @@ export class FindingsCommand extends Command {
 }
 
 // GraphCommand moved to ./graph.ts at Step 8.1.
-
-export class ExportCommand extends Command {
-  static override paths = [['export']];
-  static override usage = Command.Usage({
-    category: 'Browse',
-    description: 'Filtered export. Query syntax is implementation-defined pre-1.0.',
-  });
-  query = Option.String({ required: true });
-  format = Option.String('--format', { required: false });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'export', '8.3');
-  }
-}
+// ExportCommand moved to ./export.ts at Step 8.3.
 
 // orphans / orphans reconcile / orphans undo-rename — moved to ./orphans.ts
 // at Step 5.6
@@ -316,7 +303,6 @@ export class ServeCommand extends Command {
 export const STUB_COMMANDS = [
   DoctorCommand,
   FindingsCommand,
-  ExportCommand,
   ActionsListCommand,
   ActionsShowCommand,
   JobSubmitCommand,

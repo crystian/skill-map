@@ -55,6 +55,37 @@ Run `sm scan` first to populate the DB.
 
 Filtered export. Query syntax is implementation-defined pre-1.0.
 
+Reads the persisted scan, applies the query filter, and emits the selected 
+subset.
+
+Query syntax (v0.5.0): whitespace-separated key=value tokens; AND across keys, 
+OR within comma-separated values. Keys: `kind` (skill / agent / command / hook / 
+note), `has` (issues), `path` (POSIX glob — `*` matches a single segment, `**` 
+matches across segments).
+
+Pass an empty query (`""`) to export every node.
+
+Run `sm scan` first to populate the DB.
+
+**Examples:**
+
+- Every command node
+  ```
+  sm export "kind=command" --format json
+  ```
+- Skills + agents with issues
+  ```
+  sm export "kind=skill,agent has=issues" --format md
+  ```
+- Files under a path glob
+  ```
+  sm export "path=.claude/commands/**" --format json
+  ```
+- Whole graph as Markdown
+  ```
+  sm export "" --format md
+  ```
+
 ### `sm findings`
 
 Probabilistic findings: injection, stale summaries, low confidence.
