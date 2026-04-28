@@ -1,5 +1,229 @@
 # Spec changelog
 
+## 1.0.0
+
+### Major Changes
+
+- d730094: Spec — Execution modes (deterministic / probabilistic) lifted to a first-class architectural property
+
+  Frames a meta-property of skill-map that was previously implicit and scattered:
+  **every analytical extension is one of two modes** — `deterministic` (pure code,
+  runs in scan-time pipelines) or `probabilistic` (invokes an LLM through
+  `RunnerPort`, runs only as queued jobs). The dual-mode capability now spans four
+  of the six extension kinds; Adapter and Renderer remain locked to deterministic
+  because they sit at the system boundaries (filesystem and graph-to-string) where
+  non-determinism would break boot reproducibility and snapshot diffing.
+
+  **Spec changes:**
+
+  - `architecture.md` — new top-level section **§Execution modes** before
+    §Extension kinds. Defines the two modes, the per-kind capability matrix
+    (Detector / Rule / Action dual-mode by manifest declaration; Audit dual-mode
+    with mode **derived** from `composes[]`; Adapter / Renderer deterministic-only),
+    the runtime separation (`deterministic` runs in `sm scan` / `sm check`;
+    `probabilistic` runs only via `sm job submit <kind>:<id>`), and the
+    `RunnerPort` injection contract for probabilistic extensions.
+  - `architecture.md` §Extension kinds — table updated: each row clarifies the
+    mode posture (Adapter / Renderer marked deterministic-only; Detector / Rule /
+    Action marked dual-mode; Audit marked derived-mode).
+  - `architecture.md` §Stability — new clause: execution modes and the per-kind
+    capability matrix are stable as of v1.0.0; adding a third mode, changing
+    which kinds are dual-mode, or changing the audit's derivation rule is a major
+    bump.
+
+  **Schema changes:**
+
+  - `schemas/extensions/detector.schema.json`:
+    - New optional `mode` field (`deterministic` | `probabilistic`, default
+      `deterministic`). Omitting is equivalent to deterministic — keeps existing
+      detectors valid without an update.
+    - Description updated to spell out the dual-mode contract.
+  - `schemas/extensions/rule.schema.json`:
+    - Same shape: new optional `mode` field with default `deterministic`.
+    - Description rewritten — the previous "Rules MUST be deterministic" claim
+      moved into the deterministic-mode contract; probabilistic rules are now
+      explicitly allowed and run only as queued jobs.
+  - `schemas/extensions/action.schema.json`:
+    - **Breaking** — `mode` enum renamed: `local` → `deterministic`,
+      `invocation-template` → `probabilistic`. Pre-1.0; no consumers depend on
+      the old values (no third-party action plugins shipped). Description, the
+      two `if/then` branches, and the `expectedDurationSeconds` /
+      `promptTemplateRef` field descriptions updated accordingly.
+    - **Bug fix** — the schema previously declared `allOf` twice at the root
+      (lines 6–8 and 71–80); the second silently overrode the first, dropping
+      `$ref: base.schema.json`. Both blocks are now merged into a single `allOf`
+      so the action schema actually composes the base shape.
+  - `schemas/extensions/audit.schema.json`:
+    - Description rewritten — the "deterministic workflow" claim is replaced by
+      the **derived-mode** rule: the audit's effective mode is computed from
+      `composes[]` at load time. If every composed primitive is deterministic,
+      the audit is deterministic; if any is probabilistic, the audit is
+      probabilistic and dispatches as a job. Declaring `mode` directly is a
+      load-time error.
+    - `composes[]` description updated to mention that each primitive's mode
+      participates in derivation; dangling references stay a load-time error.
+    - `reportSchemaRef` description updated: probabilistic audits MUST extend
+      `report-base.schema.json` (carries `safety` / `confidence`); deterministic
+      audits MAY extend it but are not required to.
+  - `schemas/extensions/adapter.schema.json`:
+    - Description updated to state explicitly that adapters are deterministic-only
+      and that `mode` MUST NOT appear. Recommendation for users who want
+      LLM-assisted classification: write a probabilistic Detector that emits
+      classification hints as `Link[]`.
+  - `schemas/extensions/renderer.schema.json`:
+    - Description updated to state that renderers are deterministic-only and
+      that `mode` MUST NOT appear. Probabilistic narrators of the graph belong
+      in jobs and emit Findings, not in renderer manifests.
+
+  **Why major (despite pre-1.0 minor norm):**
+
+  Renaming the `Action.mode` enum (`local` → `deterministic`,
+  `invocation-template` → `probabilistic`) is breaking by definition. No
+  third-party Actions exist yet, but the rename touches the canonical surface and
+  deserves the bump. New optional fields on Detector / Rule and the new derived-
+  mode contract on Audit are additive and would have been minor on their own.
+
+  **Implementation work intentionally NOT included here:**
+
+  - `src/extensions/built-ins.ts` and the per-extension TS files keep working
+    unchanged because the new `mode` is optional with `deterministic` default.
+    Explicitly threading `mode: 'deterministic'` through every built-in is a
+    follow-up.
+  - `RunnerPort` injection through `ctx.runner` for probabilistic extensions is
+    spec'd here; the actual context plumbing lands with the first probabilistic
+    extension (Step 10 — first summarizer). `MockRunner` continues to satisfy
+    tests until then.
+  - Conformance case `extension-mode-derivation` (audit composes mixed
+    primitives → derives `probabilistic`) is mentioned in `architecture.md` and
+    pending under `spec/conformance/coverage.md` for the next release.
+  - ROADMAP.md rephrase of Steps 10–11 (from "summarizers" to "wave 2:
+    probabilistic extensions") and a positioning section in `README.md` follow
+    in separate commits to keep this changeset spec-only.
+
+### Minor Changes
+
+- a73f3f4: Step 7.1 — File watcher (`sm watch` / `sm scan --watch`)
+
+  Long-running watcher that subscribes to the scan roots, debounces
+  filesystem events, and triggers an incremental scan per batch. Reuses
+  the existing `runScanWithRenames` pipeline, the `IIgnoreFilter` chain
+  (`.skill-mapignore` + `config.ignore` + bundled defaults), and the
+  `scan.*` non-job events from `job-events.md` — one ScanResult per
+  batch, emitted as ndjson under `--json`.
+
+  **Spec changes (minor)**:
+
+  - `spec/schemas/project-config.schema.json` — new `scan.watch` object
+    with a single key `debounceMs` (integer ≥ 0, default 300). Groups
+    bursts of filesystem events (editor saves, branch switches, npm
+    installs) into a single scan pass. Set to 0 to disable debouncing.
+  - `spec/cli-contract.md` §Scan — documents `sm watch [roots...]` as
+    the primary verb and `sm scan --watch` as the alias. Watcher
+    respects the same ignore chain as one-shot scans, emits one
+    ScanResult per batch (ndjson under `--json`), closes cleanly on
+    `SIGINT` / `SIGTERM`, exits 0 on clean shutdown. Exit-code rule
+    carved out for the watcher: per-batch error issues do not flip the
+    exit code (the loop keeps running); operational errors still exit 2.
+
+  No new events. No new ports. The watcher is implementation-defined
+  inside the kernel package; a future `WatchPort` can be added when /
+  if a non-Node implementation needs to swap the chokidar wrapper.
+
+  **Runtime changes (minor — new verb + new config key)**:
+
+  - `chokidar@5.0.0` pinned in `src/package.json` (single new runtime
+    dependency, MIT). Chokidar v5 requires Node ≥ 20.19; the project
+    already pins `engines.node: ">=24.0"` so this is a no-op for
+    consumers. Brings in `readdirp@5` as a transitive.
+  - `src/kernel/scan/watcher.ts` — `IFsWatcher` interface + concrete
+    `ChokidarWatcher` wrapping `chokidar.watch()` with the existing
+    `IIgnoreFilter` plumbed through, debouncer, batch coalescing,
+    and explicit `stop()` for clean teardown.
+  - `src/cli/commands/watch.ts` — new `WatchCommand`. `sm scan
+--watch` delegates to the same code path so the two surfaces are
+    byte-aligned (no parallel implementations).
+  - `src/config/defaults.json` — new `scan.watch.debounceMs: 300`
+    default.
+
+  **Why minor (not patch)**: new public verb (`sm watch`), new public
+  config key (`scan.watch.debounceMs`), and a new flag on an existing
+  verb (`sm scan --watch`). All three are surface additions, not bug
+  fixes — minor under both the spec and the runtime semver policies.
+  No breaking changes; existing `sm scan` without `--watch` is
+  byte-identical to before.
+
+  **Roadmap**: Step 7 — Robustness, sub-step 7.1 (chokidar watcher).
+  Trigger normalization is implicit-already-landed (cabled into every
+  detector at Steps 3–4 with full unit tests in
+  `src/kernel/trigger-normalize.test.ts`); we do not write a sub-step
+  for it. Next sub-steps: 7.2 detector conflict resolution, 7.3 `sm
+job prune` + retention enforcement.
+
+### Patch Changes
+
+- a73f3f4: Step 7.2 — Detector conflict resolution
+
+  Two pieces:
+
+  1. **New built-in rule `link-conflict`** (`src/extensions/rules/link-conflict/`).
+     Surfaces detector disagreement. Groups links by `(source, target)` and
+     emits one `warn` Issue per pair where the set of distinct `kind` values
+     has size ≥ 2. Agreement (single kind across multiple detectors) is
+     silent — by design, to avoid massive noise on real graphs.
+     Issue payload (`data`) carries `{ source, target, variants }` where
+     each `variant` is `{ kind, sources: detectorId[], confidence }`. Variant
+     sources are deduped + sorted; confidence is the highest across rows
+     of the same kind (`high` > `medium` > `low`).
+
+     This is the kernel piece of Decision #90 read-time "consumers that
+     need uniqueness aggregate at read time" — the rule is one such
+     consumer, on the alarming side. Storage stays untouched (one row
+     per detector, no merge, no dedup). Severity is `warn`, not `error`:
+     the rule cannot pick which kind is correct, so per `cli-contract.md`
+     §Exit codes the verb stays exit 0.
+
+  2. **`sm show` pretty link aggregation** (`src/cli/commands/show.ts`).
+     The human renderer now groups `linksOut` / `linksIn` by `(endpoint,
+kind, normalizedTrigger)` and prints one row per group with the
+     union of detector ids in a `sources:` field. The section header
+     reports both the raw row count and the unique-after-grouping count
+     (`Links out (12, 9 unique)`). When N > 1 detector emits the same
+     logical link, the row also gets a `(×N)` suffix.
+
+     `--json` output is byte-identical to before — raw rows, no merge.
+     Storage is byte-identical to before. The grouping is purely a
+     read-time presentation choice for human eyes.
+
+  **Spec changes (patch)**:
+
+  - `spec/cli-contract.md` §Browse — `sm show` row clarifies that pretty
+    output groups identical-shape links and that `--json` emits raw rows.
+    Patch (not minor) because the JSON contract is unchanged; the human
+    output format is non-normative anyway.
+
+  **Runtime changes (minor — new rule + new presentation)**:
+
+  - New rule `link-conflict` registered in `src/extensions/built-ins.ts`.
+  - `sm show` pretty output groups links + reports unique counts.
+
+  **UI inspector aggregation deferred to Step 13**: the current Flavor A
+  inspector renders the `Relations` card from `node.frontmatter.metadata.{
+related, requires, supersedes, provides, conflictsWith}` directly — it
+  does NOT consume `linksOut` / `linksIn` rows from `scan_links`. There
+  is no link table to aggregate today. When Step 13's Flavor B lands (Hono
+  BFF + WS + full link panel from scan), the aggregation logic from
+  `src/cli/commands/show.ts` will need to be ported.
+
+  **Roadmap**: Step 7 — Robustness, sub-step 7.2 (detector conflict
+  resolution). Closes one of the three remaining frentes; 7.3 (`sm job
+prune` + retention) still pending. Decision #90 unchanged: storage
+  keeps raw per-detector rows. The `related` vs LLM-amplification
+  discussion is documented in `.tmp/skill-map-related-test/` (status
+  quo retained — fields stay opt-in under `metadata.*`; revisit if
+  real-world amplification appears).
+
+  **Tests**: 327 → 335 (+8 new for the rule, no regressions).
+
 ## 0.6.1
 
 ### Patch Changes
