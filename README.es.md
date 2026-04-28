@@ -4,8 +4,8 @@
 # skill-map
 
 [![npm](https://img.shields.io/npm/v/@skill-map/spec?color=cb3837&logo=npm&label=%40skill-map%2Fspec)](https://www.npmjs.com/package/@skill-map/spec)
-[![spec](https://img.shields.io/badge/spec-v0.6.0-8A2BE2)](./spec/)
-[![impl](https://img.shields.io/badge/impl-v0.3.2-5D3FD3)](./src/)
+[![spec](https://img.shields.io/badge/spec-v0.7.0-8A2BE2)](./spec/)
+[![impl](https://img.shields.io/badge/impl-v0.4.0-5D3FD3)](./src/)
 [![JSON Schema](https://img.shields.io/badge/JSON_Schema-2020--12-005571?logo=json)](https://json-schema.org/)
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)

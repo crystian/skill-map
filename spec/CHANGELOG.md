@@ -1,8 +1,8 @@
 # Spec changelog
 
-## 1.0.0
+## 0.7.0
 
-### Major Changes
+### Minor Changes
 
 - d730094: Spec — Execution modes (deterministic / probabilistic) lifted to a first-class architectural property
 
