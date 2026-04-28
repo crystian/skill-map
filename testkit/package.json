@@ -35,7 +35,7 @@
     "typecheck": "tsc --noEmit",
     "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts'",
     "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts'",
-    "test:coverage": "tsc --noEmit && node --import tsx --test --experimental-test-coverage --test-coverage-include='src/**/*.ts' --test-coverage-include='index.ts' 'test/**/*.test.ts'",
+    "test:coverage": "tsc --noEmit && node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts'",
     "clean": "rm -rf dist"
   },
   "dependencies": {

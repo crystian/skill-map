@@ -50,8 +50,9 @@
     "typecheck": "tsc --noEmit",
     "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
     "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
-    "test:coverage": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 node --import tsx --test --experimental-test-coverage --test-coverage-include='kernel/**/*.ts' --test-coverage-include='cli/**/*.ts' --test-coverage-include='extensions/**/*.ts' --test-coverage-exclude='**/*.test.ts' 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
-    "clean": "rm -rf dist"
+    "test:coverage": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
+    "test:coverage:html": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 c8 node --import tsx --test 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
+    "clean": "rm -rf dist coverage"
   },
   "dependencies": {
     "@skill-map/spec": "*",
@@ -70,6 +71,7 @@
     "@types/js-yaml": "4.0.9",
     "@types/node": "24.12.2",
     "@types/semver": "7.7.1",
+    "c8": "11.0.0",
     "tsup": "8.5.1",
     "tsx": "4.21.0",
     "typescript": "5.9.3"

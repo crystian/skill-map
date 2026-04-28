@@ -1,0 +1,26 @@
+{
+  "$comment": "c8 config for `npm run test:coverage:html`. Mirrors node.config.json's include/exclude so the HTML report covers the same surface as the built-in CI gate. Edit both when surface changes.",
+  "$comment-all": "all=false matches Node's native --experimental-test-coverage semantics: only files actually loaded into the test process count. Files that only run as the bin entry (entry.ts, version.ts, config.ts, etc.) and are tested via spawnSync(child) don't propagate coverage back to the c8 parent — so all=true would report them as 0% and skew totals. The two reports stay aligned with all=false.",
+  "all": false,
+  "src": ["kernel", "cli", "extensions"],
+  "extension": [".ts"],
+  "$comment-exclude": "Type-only files (kernel/extensions/*.ts, kernel/ports/*, kernel/types/*) declare `export interface` / `export type` only — erased at compile, never exercised at runtime. c8 with `all: true` counts them as 0%, dragging totals down; Node's native coverage skips them implicitly. Excluded here so the two reports converge.",
+  "exclude": [
+    "**/*.test.ts",
+    "cli/commands/watch.ts",
+    "dist/**",
+    "node_modules/**",
+    "kernel/extensions/adapter.ts",
+    "kernel/extensions/audit.ts",
+    "kernel/extensions/base.ts",
+    "kernel/extensions/detector.ts",
+    "kernel/extensions/index.ts",
+    "kernel/extensions/renderer.ts",
+    "kernel/extensions/rule.ts",
+    "kernel/ports/**",
+    "kernel/types/**"
+  ],
+  "reporter": ["text", "html"],
+  "report-dir": "coverage",
+  "clean": true
+}

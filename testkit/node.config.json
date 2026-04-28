@@ -1,0 +1,13 @@
+{
+  "$schema": "https://nodejs.org/dist/v24.0.0/docs/api/config.json",
+  "$comment": "Auto-loaded by `node --experimental-default-config-file`. Centralises test-coverage thresholds + include/exclude globs that previously lived inline in the `test:coverage` script. Edit here, not in package.json.",
+  "nodeOptions": {
+    "test-coverage-lines": 98,
+    "test-coverage-branches": 85,
+    "test-coverage-functions": 100,
+    "test-coverage-include": [
+      "src/**/*.ts",
+      "index.ts"
+    ]
+  }
+}
