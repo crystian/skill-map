@@ -1,6 +1,6 @@
 {
   "name": "@skill-map/testkit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kernel mocks + builders for plugin authors. Test detectors, rules, renderers, and audits without spinning up the full skill-map runtime.",
   "license": "MIT",
   "type": "module",
