@@ -2,7 +2,7 @@
 
 > Design document and execution plan for `skill-map`. Architecture, decisions, phases, deferred items, and open questions. Target: distributable product (not personal tool). Versioning policy, plugin security, i18n, onboarding docs, and compatibility matrix all apply.
 
-**Last updated**: 2026-04-29 (pre-1.0 audit review pass — `cli-architect` REVIEW mode, 28/28 findings closed across Critical / High / Medium / Low / Nit. Highlights: C1 `runScanInternal` decomposed (290 → 89-line composer + 4 pure functions); C2 `withSqlite` / `tryWithSqlite` helpers consolidate 20 read-side call sites; H1 centralised `ExitCode` enum at `cli/util/exit-codes.ts` (123 sites migrated, fixes `sm job prune` returning `2` instead of `5` on missing DB); H2 plugin loader gains `loadTimeoutMs` (default 5000ms) — hanging top-level `await` no longer wedges the host CLI; H3 `--dry-run` semantics unified across `sm init` / `sm db reset` (default + `--state` + `--hard`) / `sm db restore`, codified in spec as new normative §Dry-run (additive minor); H4 `--strict --json` self-validates `ScanResult` against schema; H5 external-link discrimination via RFC 3986 scheme regex (was string-prefix `http(s)://` only); H6 prior snapshot validated under `--strict` in scan + watch; M1 `sm scan compare-with <dump>` shipped as a sub-verb (was `--compare-with <path>` flag — pre-1.0 breaking shipped as minor per `versioning.md` § Pre-1.0); M2 `kernel/index.ts` enumerated exports (no more `export type *` wildcards); M3 `tsup` `restoreNodeSqliteImports` hack documented after the `external: ['node:sqlite']` spike failed; M5 `CamelCasePlugin` raw-SQL trap documented on `SqliteStorageAdapter`; M6 per-extension error reporting (`extension.error` ProgressEvent) wired through CLI emitter to stderr; M7 type-naming convention documented in `kernel/types.ts` + AGENTS.md (no rename); N4 error / hint strings extracted to `*.texts.ts` modules with `{{name}}` template interpolation via new `kernel/util/tx.ts` helper (drop-in compatible with Transloco / Mustache / Handlebars). Migrations consolidated `001_initial.sql` + `002_scan_meta.sql` → single `001_initial.sql` (pre-1.0, no released DBs to forward-migrate). `spec/index.json` regenerated (58 files hashed); `npm run spec:check` green. Tests 479 → **512 of 512 pass** (+33: 2 plugin-loader timeout, 3 orchestrator extension errors, 4 CLI emitter wiring, 5 init dry-run, 9 db dry-run, 13 `tx` helper). 1 changeset pending: `.changeset/audit-pre-1.0.md` (minor for spec + minor for cli — bundled review-pass unit). **Earlier prose**: Step 7 closed + execution-modes lifted to first-class architectural property + execution-modes runtime catch-up + Step 8 fully closed (8.1 `sm graph` + 8.2 `sm scan --compare-with` + 8.3 `sm export`). Step 7 — robustness — shipped across three sub-steps: 7.1 `sm watch` + `sm scan --watch` alias with `scan.watch.debounceMs` config key, debounced batches re-running incremental scans through `runScanWithRenames`; 7.2 new built-in rule `link-conflict` emitting one `warn` per `(source, target)` pair where detectors disagree on `kind`, `sm show` pretty output groups identical-shape links by `(endpoint, kind, normalizedTrigger)` and lists the union of detector ids in a `sources:` field with `(N, M unique)` header counts (storage unchanged — Decision #90 stands, raw rows per detector); 7.3 `sm job prune` real implementation replacing the stub, applies `jobs.retention.{completed,failed}` policy, deletes terminal jobs older than the cutoff, unlinks their MD files, optional `--orphan-files` mode for FS-only cleanup, `--dry-run` + `--json` supported; `state_executions` left intact (append-only through v1.0). Trigger normalization (originally listed under Step 7) closed implicitly — cabled into every detector at Steps 3–4 with `src/kernel/trigger-normalize.test.ts` covering worked examples; no dedicated sub-step. UI inspector aggregation deferred to Step 14 because Flavor A renders `metadata.{related,requires,...}` chips directly from frontmatter, not from `scan_links` rows. **Execution-modes lift** (post-Step-7 spec edit, **major** bump for `@skill-map/spec`): the dual-mode property (`deterministic` / `probabilistic`) is now framed as a top-level architectural property covering every analytical extension, not Action-only wording scattered through the schemas. `architecture.md` gains a new §Execution modes section before §Extension kinds defining the per-kind capability matrix (Detector / Rule / Action dual-mode by manifest declaration, Audit dual-mode with mode **derived** from `composes[]`, Adapter / Renderer deterministic-only at the system boundaries) and the `RunnerPort` injection contract; the §Extension kinds table now states each row's mode posture explicitly; Detector / Rule schemas gain optional `mode` (default `deterministic`); Action's enum is renamed (`local` → `deterministic`, `invocation-template` → `probabilistic` — the only breaking change, no consumers); Audit forbids declaring `mode` and the kernel derives it from composed primitives at load time; Adapter / Renderer state explicitly that `mode` MUST NOT appear. Conformance case `extension-mode-derivation` filed under `spec/conformance/coverage.md` row C, deferred to Step 10 (needs the job subsystem to verify dispatch routing). Threading `mode: 'deterministic'` explicitly through `src/extensions/built-ins.ts` was the runtime catch-up that followed: `TExecutionMode` exported from `src/kernel/types.ts`, optional `mode?` added to `IDetector` / `IRule` interfaces, all 8 built-in detectors + rules declare it explicitly, invariant test (`src/test/built-ins-modes.test.ts`, 5 cases) locks the policy. Audit / adapter / renderer manifests intentionally untouched — schemas forbid the field on those three kinds. The two READMEs gained a positioning section ("Two execution modes — the meta-architecture" / "Dos modos de ejecución — la meta-arquitectura"); the glossary in this document mirrors the spec table. **8.1 — `sm graph [--format <name>]`** closed: replaces the long-standing stub at `src/cli/commands/stubs.ts:74-85`, reads the persisted graph via `loadScanResult`, looks up the renderer by `format` field (default `ascii`), prints to stdout with trailing-newline normalisation. Exit 5 on unknown format or missing DB; exit 0 on the empty-DB zero-graph case (graph is a read-side reporter). Plugin renderers will surface here automatically once the plugin loader gains a read-side path at Step 9; `mermaid` / `dot` ship as Step 12 built-ins and need no change here. **8.2 — `sm scan --compare-with <path>`** closed: new flag on `sm scan`. Loads + AJV-validates the dump, runs a fresh scan in memory (no persistence), computes a delta via the new `computeScanDelta` kernel helper at `src/kernel/scan/delta.ts`, emits pretty or `--json`. Identity per `path` (nodes), `(source, target, kind, normalizedTrigger)` (links — same key as Step 7.2 `link-conflict`), and `(ruleId, sorted nodeIds, message)` (issues — same key as `spec/job-events.md` §issue.* diff). Nodes get a `changed` bucket with reason `'body'` / `'frontmatter'` / `'both'`; links and issues only `added` / `removed`. Exit 0 / 1 / 2 (clean / drift / dump error). Combo rejections enforce coherent semantics. **389 of 389 tests pass** (303 → 341 = +38 across 7.1 + 7.2 + 7.3; +5 from execution-modes runtime invariant; +5 from graph-cli; +12 from scan-compare; +26 from query parser + applyExportQuery semantics + ExportCommand handler). **8 changesets** pending in `.changeset/`: `step-7-1-chokidar-watcher.md` (minor for spec + cli), `step-7-2-link-conflict.md` (patch for spec, minor for cli), `step-7-3-job-prune.md` (minor for cli), `execution-modes.md` (**major** for spec — Action enum rename is breaking), `execution-modes-runtime.md` (patch for cli — additive type widen), `step-8-1-graph.md` (minor for cli — verb activated from stub), `step-8-2-compare-with.md` (minor for cli — new flag, new kernel helper), and `step-8-3-export.md` (minor for cli — new verb, new kernel module, mini query language). **Phase C reshuffled** (post-8.2 roadmap edit, no code / spec impact): "More adapters" (Codex, Gemini, Copilot, generic) promoted out of Deferred and inserted as **Step 13**, between Additional renderers and Full Web UI. Web UI shifts to Step 14, Distribution polish to Step 15; the Deferred block renumbers 15+→16+ through 18+→19+ (the freed 19+ slot collapses, so 20+/21+/22+ keep their numbers). All cross-references updated in this file plus `web/app.js` (landing-page roadmap timeline). Step 9 fully closed across four sub-steps (9.1 — plugin runtime wiring; 9.2 — plugin migrations + triple protection + `sm db migrate --kernel-only` / `--plugin <id>`; 9.3 — `@skill-map/testkit` separate workspace; 9.4 — plugin author guide + reference plugin + diagnostics polish). Plugins are now a first-class authoring surface with docs, tests, and a working reference at `examples/hello-world/`. Next step: **Step 10 — job subsystem + first probabilistic extension** (wave 2 begins). Changes land via `.changeset/*.md` and `spec/CHANGELOG.md` — this header stops paraphrasing them.
+**Last updated**: 2026-04-29 (pre-1.0 audit review pass — `cli-architect` REVIEW mode, 28/28 findings closed across Critical / High / Medium / Low / Nit. Highlights: C1 `runScanInternal` decomposed (290 → 89-line composer + 4 pure functions); C2 `withSqlite` / `tryWithSqlite` helpers consolidate 20 read-side call sites; H1 centralised `ExitCode` enum at `cli/util/exit-codes.ts` (123 sites migrated, fixes `sm job prune` returning `2` instead of `5` on missing DB); H2 plugin loader gains `loadTimeoutMs` (default 5000ms) — hanging top-level `await` no longer wedges the host CLI; H3 `--dry-run` semantics unified across `sm init` / `sm db reset` (default + `--state` + `--hard`) / `sm db restore`, codified in spec as new normative §Dry-run (additive minor); H4 `--strict --json` self-validates `ScanResult` against schema; H5 external-link discrimination via RFC 3986 scheme regex (was string-prefix `http(s)://` only); H6 prior snapshot validated under `--strict` in scan + watch; M1 `sm scan compare-with <dump>` shipped as a sub-verb (was `--compare-with <path>` flag — pre-1.0 breaking shipped as minor per `versioning.md` § Pre-1.0); M2 `kernel/index.ts` enumerated exports (no more `export type *` wildcards); M3 `tsup` `restoreNodeSqliteImports` hack documented after the `external: ['node:sqlite']` spike failed; M5 `CamelCasePlugin` raw-SQL trap documented on `SqliteStorageAdapter`; M6 per-extension error reporting (`extension.error` ProgressEvent) wired through CLI emitter to stderr; M7 type-naming convention documented in `kernel/types.ts` + AGENTS.md (no rename); N4 error / hint strings extracted to `*.texts.ts` modules with `{{name}}` template interpolation via new `kernel/util/tx.ts` helper (drop-in compatible with Transloco / Mustache / Handlebars). Migrations consolidated `001_initial.sql` + `002_scan_meta.sql` → single `001_initial.sql` (pre-1.0, no released DBs to forward-migrate). `spec/index.json` regenerated (58 files hashed); `npm run spec:check` green. Tests 479 → **512 of 512 pass** (+33: 2 plugin-loader timeout, 3 orchestrator extension errors, 4 CLI emitter wiring, 5 init dry-run, 9 db dry-run, 13 `tx` helper). 1 changeset pending: `.changeset/audit-pre-1.0.md` (minor for spec + minor for cli — bundled review-pass unit). **Earlier prose**: Step 7 closed + execution-modes lifted to first-class architectural property + execution-modes runtime catch-up + Step 8 fully closed (8.1 `sm graph` + 8.2 `sm scan --compare-with` + 8.3 `sm export`). Step 7 — robustness — shipped across three sub-steps: 7.1 `sm watch` + `sm scan --watch` alias with `scan.watch.debounceMs` config key, debounced batches re-running incremental scans through `runScanWithRenames`; 7.2 new built-in rule `link-conflict` emitting one `warn` per `(source, target)` pair where detectors disagree on `kind`, `sm show` pretty output groups identical-shape links by `(endpoint, kind, normalizedTrigger)` and lists the union of detector ids in a `sources:` field with `(N, M unique)` header counts (storage unchanged — Decision #90 stands, raw rows per detector); 7.3 `sm job prune` real implementation replacing the stub, applies `jobs.retention.{completed,failed}` policy, deletes terminal jobs older than the cutoff, unlinks their MD files, optional `--orphan-files` mode for FS-only cleanup, `--dry-run` + `--json` supported; `state_executions` left intact (append-only through v1.0). Trigger normalization (originally listed under Step 7) closed implicitly — cabled into every detector at Steps 3–4 with `src/kernel/trigger-normalize.test.ts` covering worked examples; no dedicated sub-step. UI inspector aggregation deferred to Step 14 because Flavor A renders `metadata.{related,requires,...}` chips directly from frontmatter, not from `scan_links` rows. **Execution-modes lift** (post-Step-7 spec edit, **major** bump for `@skill-map/spec`): the dual-mode property (`deterministic` / `probabilistic`) is now framed as a top-level architectural property covering every analytical extension, not Action-only wording scattered through the schemas. `architecture.md` gains a new §Execution modes section before §Extension kinds defining the per-kind capability matrix (Detector / Rule / Action dual-mode by manifest declaration, Audit dual-mode with mode **derived** from `composes[]`, Adapter / Renderer deterministic-only at the system boundaries) and the `RunnerPort` injection contract; the §Extension kinds table now states each row's mode posture explicitly; Detector / Rule schemas gain optional `mode` (default `deterministic`); Action's enum is renamed (`local` → `deterministic`, `invocation-template` → `probabilistic` — the only breaking change, no consumers); Audit forbids declaring `mode` and the kernel derives it from composed primitives at load time; Adapter / Renderer state explicitly that `mode` MUST NOT appear. Conformance case `extension-mode-derivation` filed under `spec/conformance/coverage.md` row C, deferred to Step 10 (needs the job subsystem to verify dispatch routing). Threading `mode: 'deterministic'` explicitly through `src/extensions/built-ins.ts` was the runtime catch-up that followed: `TExecutionMode` exported from `src/kernel/types.ts`, optional `mode?` added to `IDetector` / `IRule` interfaces, all 8 built-in detectors + rules declare it explicitly, invariant test (`src/test/built-ins-modes.test.ts`, 5 cases) locks the policy. Audit / adapter / renderer manifests intentionally untouched — schemas forbid the field on those three kinds. The two READMEs gained a positioning section ("Two execution modes — the meta-architecture" / "Dos modos de ejecución — la meta-arquitectura"); the glossary in this document mirrors the spec table. **8.1 — `sm graph [--format <name>]`** closed: replaces the long-standing stub at `src/cli/commands/stubs.ts:74-85`, reads the persisted graph via `loadScanResult`, looks up the renderer by `format` field (default `ascii`), prints to stdout with trailing-newline normalisation. Exit 5 on unknown format or missing DB; exit 0 on the empty-DB zero-graph case (graph is a read-side reporter). Plugin renderers will surface here automatically once the plugin loader gains a read-side path at Step 9; `mermaid` / `dot` ship as Step 12 built-ins and need no change here. **8.2 — `sm scan --compare-with <path>`** closed: new flag on `sm scan`. Loads + AJV-validates the dump, runs a fresh scan in memory (no persistence), computes a delta via the new `computeScanDelta` kernel helper at `src/kernel/scan/delta.ts`, emits pretty or `--json`. Identity per `path` (nodes), `(source, target, kind, normalizedTrigger)` (links — same key as Step 7.2 `link-conflict`), and `(ruleId, sorted nodeIds, message)` (issues — same key as `spec/job-events.md` §issue.* diff). Nodes get a `changed` bucket with reason `'body'` / `'frontmatter'` / `'both'`; links and issues only `added` / `removed`. Exit 0 / 1 / 2 (clean / drift / dump error). Combo rejections enforce coherent semantics. **389 of 389 tests pass** (303 → 341 = +38 across 7.1 + 7.2 + 7.3; +5 from execution-modes runtime invariant; +5 from graph-cli; +12 from scan-compare; +26 from query parser + applyExportQuery semantics + ExportCommand handler). **8 changesets** pending in `.changeset/`: `step-7-1-chokidar-watcher.md` (minor for spec + cli), `step-7-2-link-conflict.md` (patch for spec, minor for cli), `step-7-3-job-prune.md` (minor for cli), `execution-modes.md` (**major** for spec — Action enum rename is breaking), `execution-modes-runtime.md` (patch for cli — additive type widen), `step-8-1-graph.md` (minor for cli — verb activated from stub), `step-8-2-compare-with.md` (minor for cli — new flag, new kernel helper), and `step-8-3-export.md` (minor for cli — new verb, new kernel module, mini query language). **Phase C reshuffled** (post-8.2 roadmap edit, no code / spec impact): "More adapters" (Codex, Gemini, Copilot, generic) promoted out of Deferred and inserted as **Step 13**, between Additional renderers and Full Web UI. Web UI shifts to Step 14, Distribution polish to Step 15; the Deferred block renumbers 15+→16+ through 18+→19+ (the freed 19+ slot collapses, so 20+/21+/22+ keep their numbers). All cross-references updated in this file plus `web/app.js` (landing-page roadmap timeline). Step 9 fully closed across four sub-steps (9.1 — plugin runtime wiring; 9.2 — plugin migrations + triple protection + `sm db migrate --kernel-only` / `--plugin <id>`; 9.3 — `@skill-map/testkit` separate workspace; 9.4 — plugin author guide + reference plugin + diagnostics polish). Plugins are now a first-class authoring surface with docs, tests, and a working reference at `examples/hello-world/`. Next step: **Step 10 — job subsystem + first probabilistic extension** (wave 2 begins). Changes land via `.changeset/*.md` and `spec/CHANGELOG.md` — this header stops paraphrasing them. **Plugin model overhaul session (2026-04-28/29)** — out-of-band correction + decision pass. Spec downgraded `1.0.0 → 0.7.0` (deprecate + republish on npm; `latest` now `0.7.0`); AGENTS.md gains the explicit pre-1.0 rule ("never bump to a major while in `0.Y.Z`"). **15 model decisions** locked for the next bump (`0.8.0`), all breaking but allowed in minor per `versioning.md` § Pre-1.0: rename **Adapter → Provider** / **Detector → Extractor** / **Renderer → Formatter**; **remove Audit** (no replacement; `validate-all` becomes a Rule); add **Hook** as the sixth kind, with a curated trigger set of 8 lifecycle events; relocate per-kind frontmatter schemas from `spec/` to the Provider that declares them (spec keeps only `base.schema.json`); plugin id global uniqueness with `directory == id` rule + new status `id-collision`; extension ids qualified `<plugin-id>/<ext-id>`; Extractor gains three persistence channels (`emitLink` / `enrichNode` / `store.write`); enrichment as a universal separate layer (det and prob alike, frontmatter immutable, stale tracking on prob via `body_hash_at_enrichment_time`); fine-grained scan cache via `scan_extractor_runs(node_path, extractor_id, body_hash_at_run)`; optional `applicableKinds` filter; optional `outputSchema` for plugin custom-storage writes; conformance fixture relocation (Claude artifacts move to the Provider's own conformance suite + `sm conformance run` verb); `sm check --include-prob` opt-in flag for probabilistic Rules. Six post-1.0 deferrals also locked: cross-plugin queries / generic table access, Storage as pluggable driven adapter, Runner as pluggable driven adapter, per-extension runner override, `storage.mode: 'external'`, plug-in boundaries review. Spec, src, conformance, plugin author guide, and site copy still describe the v0.7.0 model — implementation pending in the next PR. ROADMAP §Plugin system / §Frontmatter standard / §Enrichment have been reshaped to the **target state** with explicit `Status: target state for v0.8.0 — spec catch-up pending` banners; the rest of the document still inlines pre-overhaul terminology (`adapter`, `detector`, `audit`, `renderer`) and gets a mass rename during the implementation PR. Working artifact: `.tmp/session-2026-04-29-plugin-model-overhaul.md`.
 
 ---
 
@@ -606,19 +606,41 @@ Server re-emits the same events via **WebSocket**. Task UI integration (Claude C
 
 ## Plugin system
 
+> **Status: target state for v0.8.0 — spec catch-up pending.** This section describes the model that lands in the next bump. The current spec (v0.7.0) and code still use the previous shape (Adapter / Detector / Audit / Renderer with Claude-specific schemas in `spec/schemas/frontmatter/`). The implementation PR rewrites spec, src, conformance, and the plugin author guide to match this section, then strips this banner.
+
+### Six plugin kinds
+
+| Kind | Role | Modes | Reads | Writes |
+|---|---|---|---|---|
+| **Provider** | Knows a platform: declares its kinds + their schemas + globs, classifies paths to kinds. | det only | filesystem | none directly |
+| **Extractor** | Extracts data from a parsed node body — emits links, enriches the node, or persists custom data. | det / prob | one node | `links`, enrichment layer, or plugin's own table |
+| **Rule** | Cross-node reasoning over the merged graph; emits issues. | det / prob | full graph | `issues` |
+| **Action** | Operates on one or more nodes; the only kind that mutates source files. | det / prob | one or more nodes | filesystem (det) or rendered prompt to runner (prob) |
+| **Formatter** | Serializes the graph to a string output (ASCII / Mermaid / DOT / JSON / custom). | det only | full graph | stdout (string) |
+| **Hook** | Reacts to a curated set of kernel lifecycle events; declarative subscriber. | det / prob | event payload + node + job result | side effects (notifications, integrations, cascades) |
+
+The Adapter / Detector / Renderer kinds from v0.7.0 are renamed (Adapter → Provider, Detector → Extractor, Renderer → Formatter); Audit is removed — its only built-in `validate-all` becomes a Rule. Hook is new. No Suite or Enricher kinds exist; both are absorbed into other primitives or deferred.
+
 ### Drop-in installation
 
 No `add` / `remove` verbs. User drops files in:
 - `<scope>/.skill-map/plugins/<plugin-id>/` (project)
 - `~/.skill-map/plugins/<plugin-id>/` (global)
 
+**Rule (new in v0.8.0)**: the directory name MUST equal the manifest's `id` field. Mismatch → `invalid-manifest`. This eliminates same-root id collisions by filesystem construction. Cross-root collisions (project vs global, or built-in vs user-installed) produce a new status `id-collision` — both involved plugins are blocked, no precedence magic, the user resolves by renaming.
+
 Layout:
 ```
 <plugin-id>/
 ├── plugin.json              ← manifest
 ├── extensions/
-│   ├── foo.action.mjs
-│   ├── foo.detector.mjs
+│   ├── foo.extractor.mjs
+│   ├── foo.hook.mjs
+│   └── ...
+├── conformance/             ← per-plugin conformance suite (Provider + others optional)
+│   ├── cases/
+│   └── fixtures/
+├── schemas/                 ← Provider-only: per-kind frontmatter schemas
 │   └── ...
 └── migrations/              ← only if storage mode dedicated
     └── 001_initial.sql
@@ -629,10 +651,10 @@ Manifest:
 {
   "id": "my-cluster-plugin",
   "version": "1.0.0",
-  "specCompat": "^0.2.0",
+  "specCompat": "^0.8.0",
   "extensions": [
-    "extensions/foo.action.mjs",
-    "extensions/foo.detector.mjs"
+    "extensions/foo.extractor.mjs",
+    "extensions/foo.hook.mjs"
   ],
   "storage": {
     "mode": "kv"
@@ -640,17 +662,73 @@ Manifest:
 }
 ```
 
-Pre-`v1.0.0`, `specCompat` pins a **minor range** per `versioning.md` §Pre-1.0 (e.g. `"^0.2.0"` resolves to `>=0.2.0 <0.3.0`). Narrow pins are the defensive default because minor bumps MAY carry breaking changes while the spec is `0.y.z` — a plugin that spans minor boundaries can load successfully and crash at first use against a changed schema. A plugin author who has reviewed the spec changelog for the next minor MAY widen to `"^0.2.0 || ^0.3.0"` at their own risk. Once the spec ships `v1.0.0`, manifests move to `"^1.0.0"` (= `>=1.0.0 <2.0.0`).
+Pre-`v1.0.0`, `specCompat` pins a **minor range** per `versioning.md` §Pre-1.0. Narrow pins are the defensive default because minor bumps MAY carry breaking changes while the spec is `0.y.z`. Once the spec ships `v1.0.0`, manifests move to `"^1.0.0"`.
 
 ### Loading
 
 On boot or `sm plugins list`:
 1. Walk `<scope>/.skill-map/plugins/*` and `~/.skill-map/plugins/*`.
-2. Read `plugin.json`.
-3. Run `semver.satisfies(specVersion, plugin.specCompat)`.
-4. If compat fails: `disabled` with reason `incompatible-spec`. Skip.
-5. Dynamic-import each extension. Validate against kind schema. Register in kernel.
-6. If plugin has storage mode dedicated: kernel provisions tables (prefix-enforced) and runs migrations.
+2. For each candidate plugin: read `plugin.json`; verify `directory == manifest.id` (else `invalid-manifest`); check global id uniqueness (else `id-collision` for both involved); run `semver.satisfies(specVersion, plugin.specCompat)` (else `incompatible-spec`).
+3. Dynamic-import each extension. Validate against the kind schema. Register in the kernel under the qualified id `<plugin-id>/<extension-id>` per kind.
+4. If plugin has storage mode dedicated: kernel provisions tables (prefix-enforced) and runs migrations.
+
+The status set is now six: `loaded`, `disabled`, `incompatible-spec`, `invalid-manifest`, `load-error`, `id-collision`.
+
+### Extension ids are qualified
+
+Every extension is registered as `<plugin-id>/<extension-id>` per kind. Cross-extension references (`defaultRefreshAction`, CLI flags, dispatch identifiers) all use the qualified form. ESLint pattern (`plugin-name/rule-name`); two plugins can safely ship extensions with the same short id. Built-ins also qualify — the Claude Provider's walker becomes `claude/walk` (final id during implementation).
+
+### Provider declares its kinds and their schemas
+
+A Provider's manifest now carries a `kinds` map declaring every kind it emits, the schema for that kind's frontmatter, and the default refresh action:
+
+```jsonc
+{
+  "id": "claude",
+  "kind": "provider",
+  "kinds": {
+    "skill":   { "schema": "./schemas/skill.schema.json",   "defaultRefreshAction": "..." },
+    "agent":   { "schema": "./schemas/agent.schema.json",   "defaultRefreshAction": "..." },
+    "hook":    { "schema": "./schemas/hook.schema.json",    "defaultRefreshAction": "..." },
+    "command": { "schema": "./schemas/command.schema.json", "defaultRefreshAction": "..." },
+    "note":    { "schema": "./schemas/note.schema.json",    "defaultRefreshAction": "..." }
+  }
+}
+```
+
+The spec keeps only `frontmatter/base.schema.json` (universal). Per-kind schemas are no longer normative artifacts of the spec; each Provider owns its kind catalog. A future Cursor Provider would declare `mcp-server`, `mode`, etc. and ship its own schemas.
+
+### Extractor's three persistence channels
+
+The Extractor receives in its `ctx`:
+- `ctx.emitLink(link)` → kernel persists in the `links` table.
+- `ctx.enrichNode(partial)` → kernel persists in a separate enrichment layer (see §Enrichment for staleness rules).
+- `ctx.store.write(table, row)` → plugin's own table `plugin_<id>_*`.
+
+The plugin chooses which channels it uses, possibly multiple in one `extract()` call. There is no `type` field; the plugin id is the natural namespace. Dual-mode (`mode: 'deterministic'` default, `mode: 'probabilistic'` opt-in). Det runs in `sm scan` Phase 1.3; prob dispatches as a job (`sm job submit extractor:<plugin-id>/<ext-id>` or via `sm refresh`).
+
+Optional `applicableKinds: ['skill', 'agent']` filter in the manifest lets the kernel skip invocation for non-applicable nodes (saves CPU for det, LLM cost for prob). Default absent = applies to all kinds. Optional `outputSchema` per `store.write` table (or per KV namespace) declares a JSON Schema; the kernel runs AJV validation on every write and throws on shape violations. Default absent = permissive.
+
+### Incremental scan cache, per Extractor
+
+A new table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)` lets the orchestrator skip re-running an Extractor on a node when both (a) `node.body_hash` is unchanged and (b) that specific Extractor already ran against the same hash. When a new Extractor is registered between scans, only the new one runs against cached nodes; when an Extractor is unregistered, its links / enrichments are cleaned without invalidating the rest. Critical for prob — re-running LLM Extractors against unchanged bodies is the difference between a free and a paid scan.
+
+### Hook trigger set
+
+The Hook manifest declares one or more `triggers` from the curated hookable set:
+
+1. `scan.started` — pre-scan setup.
+2. `scan.completed` — post-scan reaction.
+3. `extractor.completed` — aggregated per-Extractor outputs and duration.
+4. `rule.completed` — aggregated per-Rule outputs and severities.
+5. `action.completed` — Action executed on a node.
+6. `job.spawning` — pre-spawn of a runner subprocess (gating).
+7. `job.completed` — most common trigger; notifications, integrations, future cascades.
+8. `job.failed` — alerts, retry triggers.
+
+Other lifecycle events (`scan.progress` per node, `run.reap.*`, `job.claimed`, `model.delta`, `job.callback.received`, `run.started`, `run.summary`) are intentionally not hookable — too verbose, too internal, or already covered by another trigger. Declaring an unsupported trigger in a manifest is `invalid-manifest` at load time.
+
+Hooks support declarative `filter` blocks per trigger; the kernel validates that the fields used in the filter are valid for the declared triggers (cross-field validation). Dual-mode (`mode: 'deterministic'` default).
 
 ### Storage modes
 
@@ -660,6 +738,8 @@ Plugin declares in manifest:
 |---|---|---|---|
 | **A — KV** | `"storage": { "mode": "kv" }` | `ctx.store.{get,set,list,delete}` scoped by `plugin_id` | Kernel table `state_plugin_kvs(plugin_id, node_id, key, value_json, updated_at)`. Per spec `db-schema.md`, plugin-owned serialized values use the standard `_json` suffix. |
 | **B — Dedicated** | `"storage": { "mode": "dedicated", "tables": [...], "migrations": [...] }` | Scoped `Database` wrapper | Kernel-provisioned tables `plugin_<normalized_id>_<table>` |
+
+Each table (Mode B) or the KV namespace (Mode A) MAY declare an `outputSchema` for write-side validation (see Extractor section above).
 
 ### Triple protection (mode B)
 
@@ -673,15 +753,19 @@ Honest note: drop-in plugins are user-placed code; protection guards accidents, 
 
 | Command | Purpose |
 |---|---|
-| `sm plugins list` | Auto-discovered from folders. |
+| `sm plugins list` | Auto-discovered from folders. Status column shows one of six values. |
 | `sm plugins show <id>` | Manifest + compat status. |
 | `sm plugins enable <id> \| --all` | Toggle one or every discovered plugin on (persisted in `config_plugins`). |
 | `sm plugins disable <id> \| --all` | Toggle one or every discovered plugin off without deleting. |
-| `sm plugins doctor` | Revalidate specCompat. |
+| `sm plugins doctor` | Revalidate specCompat, exit 1 on any non-loaded / non-disabled plugin. |
+| `sm conformance run [--scope spec\|provider:<id>\|all]` | Run conformance suites — spec only, a specific provider, or everything. |
+| `sm check --include-prob` | Opt-in flag: `sm check` also runs probabilistic Rules, dispatched as jobs and awaited synchronously. Combines with `--rules <ids>` and `-n <node>`. |
 
 ### Default plugin pack
 
-Pattern confirmed. Contents TBD during implementation. Only firm commitment: **`github-enrichment`** bundled (needed for hash verify property). Other candidates: `minimal-security-rules`, more detectors. Third-party plugins (Snyk, Socket) install post-`v1.0` against `spec/interfaces/security-scanner.md`.
+The reference impl bundles built-ins for each kind: one Provider (`claude`), several Extractors (`slash`, `at-directive`, `import`), several Rules (`trigger-collisions`, `dangling-refs`, `link-conflict`, `validate-all`), at least one Action, one Formatter (`ascii`). Hooks ship as needed for first-party integrations.
+
+`github-enrichment` remains the firm commitment for the Action lineup (needed for hash verify property). Third-party plugins (Snyk, Socket) install post-`v1.0` against `spec/interfaces/security-scanner.md`.
 
 ---
 
@@ -762,9 +846,11 @@ All probabilistic reports (summarizers, LLM verbs) extend `report-base.schema.js
 
 ## Frontmatter standard
 
-All fields optional except `name`, `description`, `metadata`, and `metadata.version`. Spec artifacts: `spec/schemas/frontmatter/base.schema.json` + `frontmatter/<kind>.schema.json` (5 kinds).
+> **Status: target state for v0.8.0 — spec catch-up pending.** The per-kind schemas described in this section ship inside the Provider that declares them, not in `spec/`. The current spec at v0.7.0 still hosts `frontmatter/skill.schema.json` and the four siblings; the implementation PR moves them to `src/extensions/providers/claude/schemas/` and shrinks the spec to only `frontmatter/base.schema.json`.
 
-### Base (all kinds)
+All fields optional except `name`, `description`, `metadata`, and `metadata.version`. Spec artifact: `spec/schemas/frontmatter/base.schema.json` (universal). Per-kind shapes ship with the Provider that declares each kind — the Claude Provider declares `skill` / `agent` / `command` / `hook` / `note`, ships the corresponding `*.schema.json` files under its own `schemas/` folder, and references them via the `kinds` map in its manifest. A different Provider (Cursor, Cline, custom runner) brings its own kind catalog and its own schemas; the kernel does not opine on the kind list.
+
+### Base (universal — lives in spec)
 
 **Identity**: `name`, `description`, `type`.
 
@@ -788,7 +874,9 @@ All fields optional except `name`, `description`, `metadata`, and `metadata.vers
 
 **Documentation**: `metadata.docsUrl`, `metadata.readme`, `metadata.examplesUrl`.
 
-### Kind-specific
+### Kind-specific (lives in the Provider that declares the kind)
+
+The Claude Provider's catalog:
 
 | Kind | Extra fields |
 |---|---|
@@ -800,25 +888,39 @@ All fields optional except `name`, `description`, `metadata`, and `metadata.vers
 
 `tools[]` and `allowedTools[]` live on `base` (see §Tooling above) and therefore apply to every kind. They are not repeated in the kind-specific list.
 
-### Validation
+A future Cursor / Cline / custom Provider declares its own kinds and ships the matching schemas. The kernel calls `provider.kinds[<kind>].schema` during Phase 1.2 (Parse) of the scan after validating universal fields against `base`.
 
-Default: **warn** on unknown or missing recommended fields. Emits issues `invalid-frontmatter`, `missing-recommended-field`, `unknown-field`. `--strict` flag promotes to error (for CI).
+### Validation — three-tier model
+
+The kernel validates frontmatter on a graduated dial; tighter is opt-in.
+
+| Tier | Mechanism | Behavior on unknown / non-conforming fields |
+|---|---|---|
+| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and per-kind schemas | Field passes silently, persists in `node.frontmatter`, available to Extractors / Rules / Actions / Formatters. |
+| **1 — Built-in `unknown-field` rule** | Deterministic Rule shipped with the kernel | Emits issue severity `warning` for every key outside the documented catalog (base + the matched kind's schema). Always active. |
+| **2 — Strict mode** | `project-config.json` with `"strict": true` (already in `project-config.schema.json`); also via `--strict` flag on `sm scan` / `sm check` | Promotes **all** frontmatter warnings to `error`. CI fails with exit code 1. |
+
+The model is documented explicitly in `spec/plugin-author-guide.md` after the relocation. No "schema-extender" plugin kind exists; users who want custom validation write a deterministic Rule, and `--strict` makes it CI-blocking automatically.
 
 ### DB denormalization
 
-High-query fields stored as columns on `scan_nodes`: `stability`, `version`, `author`. Everything else lives in `frontmatter_json`.
+High-query fields stored as columns on `scan_nodes`: `stability`, `version`, `author`. Everything else lives in `frontmatter_json`. Provider-declared kinds map to whatever columns the Provider migrates into the kernel-owned schema; today the Claude Provider's kinds are baked into the kernel's `nodes` table — when other Providers join, the column set is reviewed for either widening or moving kind-specific fields out of denormalized columns.
 
 ---
 
 ## Enrichment
 
-### Scope
+> **Status: target state for v0.8.0 — spec catch-up pending.** Two enrichment models coexist after the next bump: (a) the legacy GitHub provenance enrichment (still a remote-fetch Action with `state_enrichments`), and (b) the unified Extractor enrichment layer for any plugin that wants to add data to a node. The spec at v0.7.0 only describes (a); the implementation PR adds (b). Both ride together post-bump.
 
-- **GitHub** only through `v1.0`. Nodes with `metadata.source` pointing to a GitHub URL.
-- **Dropped from the bundle**: skills.sh (no public API after investigation), npm, other registries.
-- Post-`v1.0`: other providers via new plugins against stable contract.
+### Two enrichment models
 
-### Hash verification (idempotency)
+**Model A — Provenance enrichment (GitHub today, more registries post-v1.0)**: a remote fetch that reconciles the local `body_hash` against the canonical source. Lives in its own table `state_enrichments` keyed by `(node_id, provider_id)`. Invoked via `sm job submit github-enrichment [-n <id>] [--all]`. Concerned with verification and idempotency, not with adding interpretation.
+
+**Model B — Plugin-driven node enrichment via Extractors (new in v0.8.0)**: any Extractor that wants to add structured data to a node calls `ctx.enrichNode(partial)` from its `extract()`. The kernel persists the partial in a separate enrichment layer (table or column set with provenance — final shape decided in PR). The author's `frontmatter` is **never overwritten** — it is immutable from any Extractor's perspective, det or prob. Every consumer (Rule, Formatter, UI) receives a merged view: `node.merged.<field>` combines author + enrichment; `node.frontmatter.<field>` is author-only.
+
+If an Extractor wants to persist data that does NOT fit canonical Node shape (embeddings, version strings, owner mappings, anything else), it uses `ctx.store.write(table, row)` instead — that lives in the plugin's own table `plugin_<id>_*`, outside this enrichment model. The boundary between `enrichNode` (canonical, kernel-aware) and `store.write` (custom, plugin-owned) is a soft rule revisited post-v1.0 (see Decision log).
+
+### Hash verification (idempotency, Model A)
 
 Three layers:
 
@@ -826,7 +928,24 @@ Three layers:
 2. **Tag / branch resolution**: if `sourceVersion` is a tag, branch, or absent, the plugin queries GitHub API for the current commit SHA. Stores `resolvedSha` in `state_enrichments.data_json`. Next refresh compares SHA; only re-fetches if changed.
 3. **ETag / `If-None-Match`** (post-`v1.0`): saves bandwidth within rate limit.
 
+### Stale tracking (Model B, prob only)
+
+Probabilistic Extractors that emit via `enrichNode` store `body_hash_at_enrichment_time` alongside each enrichment record. When `sm scan` detects `node.body_hash` differs from the recorded hash, the enrichment is **flagged `stale: true` — not deleted**. The data stays recoverable; the consumer decides what to show.
+
+- **Rules / `sm check` / CI decisions**: exclude stale by default. Automation never makes decisions on outdated LLM outputs.
+- **UI / `sm show <node>`**: shows stale records with a marker so humans see what to refresh.
+
+Deterministic Extractor enrichments do not need stale flags — they regenerate via the per-Extractor scan cache (see §Plugin system, "Incremental scan cache").
+
+### Refresh commands
+
+- `sm refresh --stale` → batch re-runs every prob Extractor whose enrichments are stale. CI cron, nightly maintenance.
+- `sm refresh <node>` → granular; runs all `applicableKinds`-matching prob Extractors against one node.
+- **No** `sm scan --refresh-stale`. Mixing det scan with prob refresh in one command violates the "prob never runs in scan" rule.
+
 ### State storage
+
+Model A keeps the legacy table:
 
 ```sql
 CREATE TABLE state_enrichments (
@@ -840,11 +959,14 @@ CREATE TABLE state_enrichments (
 );
 ```
 
-`verified: true` if local `body_hash` matches hash computed over remote raw content. `false` with implicit `locallyModified: true` on mismatch.
+`verified: true` if local `body_hash` matches the hash computed over remote raw content. `false` with implicit `locallyModified: true` on mismatch.
+
+Model B adds a parallel layer (final table / column shape decided in PR — candidate: a `node_enrichments(node_path, extractor_id, body_hash_at_enrichment, value_json, stale, fetched_at)` table that mirrors A's pattern but keys on the qualified Extractor id). The kernel materializes the `node.merged` view by joining `nodes` + `node_enrichments`.
 
 ### Invocation
 
-No dedicated verb. Uses `sm job submit github-enrichment [-n <id>] [--all]`. Here `--all` is the targeted fan-out flag of `sm job submit`: it applies the action to every eligible node matching the action preconditions.
+- Model A: `sm job submit github-enrichment [-n <id>] [--all]`. Targeted fan-out via `--all`.
+- Model B: an Extractor manifest with `mode: 'probabilistic'` is dispatched via `sm job submit extractor:<plugin-id>/<ext-id>` or via `sm refresh`. Det Extractors run automatically inside `sm scan`.
 
 ---
 
@@ -1854,6 +1976,31 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 - **Per-surface frontmatter visibility** — resolves during Step 0c prototype.
 - **Remaining tech stack picks** (YAML parser, MD parsing, templating, pretty CLI libs, globbing, diff) — each lands with the step that first requires it (see §Tech picks deferred).
 - **`## Stability` sections on prose docs — closed.** Every contract prose doc (`architecture.md`, `cli-contract.md`, `db-schema.md`, `job-events.md`, `job-lifecycle.md`, `plugin-kv-api.md`, `prompt-preamble.md`, `interfaces/security-scanner.md`) now ends with a `## Stability` section per the AGENTS.md rule. The three meta docs (`README.md`, `CHANGELOG.md`, `versioning.md`) are foundation/meta, not contracts — the rule explicitly does not apply. Reviewing every `Stability: experimental` tag remains on the pre-`spec-v1.0.0` freeze pass, but that is a separate audit and not a gap.
+
+### Plugin model overhaul (v0.7.0 working session, 2026-04-28/29)
+
+Out-of-band session that reopened the pre-1.0 window and reshaped the plugin model end-to-end. Implementation pending in the next bump (`0.8.0`); spec, src, conformance, plugin author guide, and site copy still describe the previous shape until the bump lands. Narrative for §Plugin system, §Frontmatter standard, and §Enrichment in this document already reflects the target state with `Status: target state for v0.8.0` banners. Working artifact: `.tmp/session-2026-04-29-plugin-model-overhaul.md`.
+
+| # | Item | Resolution |
+|---|---|---|
+| 100 | Pre-1.0 rule explicit in AGENTS.md | While `0.Y.Z`, breaking changes ship in minor bumps; `1.0.0` is a deliberate stabilization moment, not a side-effect of a normal PR. If a changeset proposes major while pre-1, downgrade to minor. Codified after a premature `1.0.0` was detected and rolled back. Mirrors `spec/versioning.md` § Pre-1.0. |
+| 101 | Spec downgrade `1.0.0` → `0.7.0` | Out-of-band correction. The Version Packages PR shipped `1.0.0` while the plugin model was under review. Deprecated `1.0.0` on npm + republished `0.7.0` (older `@skill-map/cli` versions blocked self-service unpublish; deprecate is functionally equivalent for the case). Reopens the pre-1 window for the plugin model overhaul. |
+| 102 | Plugin kind: Adapter → **Provider** | Rename. Reasons: Terraform / Pulumi / Backstage precedent (a "provider" plugin owns a platform's resource types); collision with the hexagonal "adapter" used internally for `RunnerPort.adapter` / `StoragePort.adapter`; Provider's actual job is to declare its kind catalog, not just classify paths. |
+| 103 | Per-kind frontmatter schemas relocate from spec to the Provider that declares them | Spec keeps only `frontmatter/base.schema.json` (universal). The five Claude-specific schemas (`skill` / `agent` / `command` / `hook` / `note`) move to the Claude Provider's own `schemas/` directory and are declared via the Provider's `kinds` map. Future Providers bring their own kind catalogs. Conformance fixtures move with them (Decision #115). |
+| 104 | Plugin kind: **Audit removed**, no replacement | The kind had dual personality (composer + reporter); the only built-in `validate-all` was a standalone reporter, not a composer. `validate-all` becomes a Rule. No "Suite" or composer concept introduced; users compose Rules + Actions explicitly via CLI flags or simple scripts. |
+| 105 | Custom field UX is three-tier; no schema-extender kind | Tier 0: `additionalProperties: true` (already in base). Tier 1: built-in `unknown-field` Rule emits warnings. Tier 2: `project-config.json` `"strict": true` promotes warnings to errors (CI-blocking). The model already exists implicitly; A.4 only adds an explicit consolidated section in `plugin-author-guide.md`. No seventh "schema-extender" kind. |
+| 106 | Plugin id is globally unique; directory name MUST equal id | The plugin's directory name MUST match its manifest `id` (else `invalid-manifest`). Cross-root collisions (project vs global, or built-in vs user-installed) yield a new status `id-collision` for both involved plugins (no precedence magic — user resolves by renaming). The id is the namespace for tables, registry, dispatch. The plugin status set grows from five to six (`loaded`, `disabled`, `incompatible-spec`, `invalid-manifest`, `load-error`, `id-collision`). |
+| 107 | Extension ids qualified `<plugin-id>/<ext-id>` | Registry keys all extensions by the qualified id per kind. Cross-extension references (`defaultRefreshAction`, CLI flags, dispatch identifiers) use the qualified form. ESLint pattern. Built-ins also qualify. |
+| 108 | Plugin kind: Detector → **Extractor**, with three persistence channels | Rename + capability widening. Three persistence APIs exposed in `ctx`: `emitLink` (kernel `links` table), `enrichNode` (kernel enrichment layer, see #109), `store.write` (plugin's own `plugin_<id>_*` table). Plugin chooses which channels to use; no `type` field; plugin id is the natural namespace for custom-storage data. Dual-mode (det / prob). Absorbs what would have been a separate "Enricher" kind. |
+| 109 | Enrichment is a universal separate layer; frontmatter is immutable | All `enrichNode` outputs — det and prob alike — live in a layer separate from the author's `frontmatter`. The author's content is **never overwritten** from any Extractor. Stale tracking via `body_hash_at_enrichment_time` applies to prob enrichments only (det regenerates via the cache, #110). Stale records are excluded from automation by default and shown to humans with a marker. Refresh via `sm refresh --stale` (batch) or `sm refresh <node>` (granular). |
+| 110 | Fine-grained Extractor scan cache: `scan_extractor_runs` | New table `scan_extractor_runs(node_path, extractor_id, body_hash_at_run, ran_at)`. Cache hit only when, for every currently-registered Extractor, a matching row exists. Adding an Extractor runs only the new one on cached nodes; removing one cleans only its outputs. Critical for prob (LLM cost) and for stable behavior across plugin changes. |
+| 111 | Optional `applicableKinds` filter on Extractor manifest | `applicableKinds: ['skill', 'agent']` declares which kinds the Extractor applies to. Default absent = applies to all kinds (forgetting the field doesn't break the plugin). Kernel filters fail-fast before invoking `extract()`. Unknown kind in the list emits a warning in `sm plugins doctor` (not blocking — kind may appear when its Provider is installed). |
+| 112 | Optional `outputSchema` for plugin custom storage writes | Plugin manifest declares a JSON Schema per `dedicated` table or per KV namespace. Kernel AJV-validates every `store.write` (or `store.set`) against the schema; throws on violation. Default absent = permissive. `emitLink` and `enrichNode` keep their kernel-managed universal validation regardless. |
+| 113 | Plugin kind: Renderer → **Formatter** | Rename to align with industry tooling (ESLint formatter, Mocha reporter, Pandoc writer; "renderer" carries templating / UI connotations). Same contract: `format(ctx) → string`. Det-only. |
+| 114 | Plugin kind: **Hook** added (sixth kind) | Hook reacts to a curated set of 8 lifecycle events: `scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`. Other lifecycle events (`scan.progress` per-node, `model.delta`, `run.reap.*`, `job.claimed`, `job.callback.received`, `run.started`, `run.summary`) are deliberately not hookable — too verbose, too internal, or already covered. Manifest declares `triggers[]` (validated against the hookable set) and optional `filter` (cross-field validated against trigger payloads). Dual-mode. The kind enables Slack / notification / integration plugins and future cascades. The UI's WebSocket update path remains kernel-internal (`ProgressEmitterPort` → Server → `/ws`); no Hook required for that path. |
+| 115 | Conformance fixture relocation | Spec `/conformance/` keeps only kernel-agnostic cases (boot invariant, link / issue / scan-result shape, preamble verbatim, atomic-claim race, etc.). Claude-specific fixtures (`minimal-claude`, `orphan-*`, `rename-high-*`) and the cases that depend on them (`basic-scan`, `orphan-detection`, `rename-high`) move to `src/extensions/providers/claude/conformance/`. Each Provider gains responsibility for its own conformance suite. New verb `sm conformance run [--scope spec\|provider:<id>\|all]`. CI runs spec + every built-in Provider's suite. |
+| 116 | `sm check --include-prob` opt-in flag | Default `sm check` runs only det Rules (CI-safe, status quo unchanged). The flag dispatches prob Rules as jobs and awaits synchronously by default; `--async` returns job ids without waiting. Combines with `--rules <ids>` and `-n <node>` for granularity. Output marker (`(prob)` or icon) on prob issues. Does not extend to `sm scan` (prob never runs in scan) or `sm list` (no use case yet). |
+| 117 | Six post-1.0 deferrals locked | (a) Cross-plugin queries / generic table access — single mechanism covers CLI, UI, and cross-plugin reads; (b) Storage as pluggable driven adapter (Postgres alongside SQLite, etc.); (c) Runner as pluggable driven adapter (Claude CLI / OpenAI / Anthropic API direct / mock); (d) Per-extension runner override; (e) `storage.mode: 'external'` for plugins managing their own infra (Pinecone, Redis, vector DBs); (f) Plug-in boundaries review for the soft `enrichNode` vs `store.write` rule. All deferred to keep bump 0.8.0 focused and let real ecosystem usage inform the design. |
 
 ---
 
