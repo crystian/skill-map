@@ -4,9 +4,24 @@
  * mandatory PRAGMAs (WAL, foreign keys), and exposes the typed Kysely
  * instance for downstream repositories.
  *
- * Migration application happens in a separate runner (next commit). This
- * adapter is purely the connection layer; `init()` opens and PRAGMAs,
- * `close()` flushes and disconnects.
+ * Migration application happens in a separate runner. This adapter is
+ * purely the connection layer; `init()` opens and PRAGMAs, `close()`
+ * flushes and disconnects.
+ *
+ * **camelCase ↔ snake_case bridging.** This adapter installs Kysely's
+ * `CamelCasePlugin`, so the typed schema (`schema.ts`) speaks camelCase
+ * (`linksOutCount`, `bodyHash`) while the on-disk SQL is snake_case
+ * (`links_out_count`, `body_hash`). The plugin rewrites identifiers
+ * automatically for every fluent query — `db.selectFrom('scan_nodes')
+ * .where('linksOutCount', '>', 0)` resolves to `WHERE links_out_count
+ * > 0` at execution time.
+ *
+ * **Trap to avoid:** `sql.raw` / `sql\`...\`` template literals are NOT
+ * processed by the plugin. If a future caller writes
+ * `sql\`SELECT linksOutCount FROM scan_nodes\``, the query will fail at
+ * runtime against a snake_case-only database. Always use snake_case
+ * inside raw SQL fragments (matching the migrations in
+ * `src/migrations/`), or stick to the typed fluent API.
  */
 
 import { mkdirSync } from 'node:fs';

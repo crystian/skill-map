@@ -22,7 +22,6 @@
  * regardless of per-batch issue severities.
  */
 
-import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -34,16 +33,21 @@ import {
 } from '../../kernel/index.js';
 import type { RenameOp, ScanResult } from '../../kernel/index.js';
 import { listBuiltIns } from '../../extensions/built-ins.js';
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import { tx } from '../../kernel/util/tx.js';
+import { WATCH_TEXTS } from '../i18n/watch.texts.js';
+import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
@@ -75,8 +79,8 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     cfg = loadConfig({ scope: 'project', strict: opts.strict }).effective;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    context.stderr.write(`sm watch: ${message}\n`);
-    return 2;
+    context.stderr.write(tx(WATCH_TEXTS.configLoadFailure, { message }));
+    return ExitCode.Error;
   }
 
   const ignoreFileText = readIgnoreFileText(cwd);
@@ -105,17 +109,26 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
-    let priorSnapshot: ScanResult | null = null;
-    if (existsSync(dbPath)) {
-      const reader = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-      await reader.init();
-      try {
+    const priorSnapshot = await tryWithSqlite(
+      { databasePath: dbPath, autoBackup: false },
+      async (reader) => {
         const loaded = await loadScanResult(reader.db);
-        if (loaded.nodes.length > 0) priorSnapshot = loaded;
-      } finally {
-        await reader.close();
-      }
-    }
+        if (loaded.nodes.length === 0) return null;
+        // H6 — under `--strict`, validate the prior against
+        // `scan-result.schema.json` before handing it to the
+        // orchestrator. The watcher's outer try/catch (initial scan)
+        // and per-batch try/catch surface the throw with their usual
+        // `sm watch: ... failed — ...` framing.
+        if (strict) {
+          const validators = loadSchemaValidators();
+          const result = validators.validate('scan-result', loaded);
+          if (!result.ok) {
+            throw new Error(tx(WATCH_TEXTS.priorSchemaValidationFailed, { errors: result.errors }));
+          }
+        }
+        return loaded;
+      },
+    );
 
     const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
     const runOptions: Parameters<typeof runScanWithRenames>[1] = {
@@ -124,6 +137,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       tokenize: !opts.noTokens,
       ignoreFilter,
       strict,
+      emitter: createCliProgressEmitter(context.stderr),
     };
     if (composed) runOptions.extensions = composed;
     if (priorSnapshot) {
@@ -141,17 +155,13 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       renameOps = ran.renameOps;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      context.stderr.write(`sm watch: scan failed — ${message}\n`);
+      context.stderr.write(tx(WATCH_TEXTS.scanFailed, { message }));
       return;
     }
 
-    const writer = new SqliteStorageAdapter({ databasePath: dbPath });
-    await writer.init();
-    try {
-      await persistScanResult(writer.db, result, renameOps);
-    } finally {
-      await writer.close();
-    }
+    await withSqlite({ databasePath: dbPath }, (writer) =>
+      persistScanResult(writer.db, result, renameOps),
+    );
 
     if (opts.json) {
       context.stdout.write(JSON.stringify(result) + '\n');
@@ -165,16 +175,14 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
 
   // 1. Initial scan so the DB matches current FS before we subscribe.
   if (!opts.json) {
-    context.stderr.write(
-      `sm watch: starting on ${opts.roots.length} root(s), debounce ${debounceMs}ms\n`,
-    );
+    context.stderr.write(tx(WATCH_TEXTS.starting, { rootsCount: opts.roots.length, debounceMs }));
   }
   try {
     await runOnePass();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    context.stderr.write(`sm watch: initial scan failed — ${message}\n`);
-    return 2;
+    context.stderr.write(tx(WATCH_TEXTS.initialScanFailed, { message }));
+    return ExitCode.Error;
   }
 
   // 2. Subscribe.
@@ -197,7 +205,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
         await runOnePass();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        context.stderr.write(`sm watch: batch failed — ${message}\n`);
+        context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message }));
       }
       if (opts.maxBatches !== undefined && batchCount >= opts.maxBatches) {
         stopRequested = true;
@@ -205,7 +213,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       }
     },
     onError: (err) => {
-      context.stderr.write(`sm watch: watcher error — ${err.message}\n`);
+      context.stderr.write(tx(WATCH_TEXTS.watcherError, { message: err.message }));
     },
   });
 
@@ -222,7 +230,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
 
   await watcher.ready;
   if (!opts.json) {
-    context.stderr.write(`sm watch: ready. Press Ctrl+C to stop.\n`);
+    context.stderr.write(WATCH_TEXTS.ready);
   }
 
   await stopped;
@@ -231,9 +239,9 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   await watcher.close();
 
   if (!opts.json) {
-    context.stderr.write(`sm watch: stopped after ${batchCount} batch(es).\n`);
+    context.stderr.write(tx(WATCH_TEXTS.stopped, { batchCount }));
   }
-  return 0;
+  return ExitCode.Ok;
 }
 
 export class WatchCommand extends Command {

@@ -2,6 +2,30 @@ import { cpSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'no
 import { join } from 'node:path';
 import { defineConfig } from 'tsup';
 
+/**
+ * Post-build pass: restore `from "node:sqlite"` specifiers that esbuild
+ * strips down to bare `"sqlite"`. Esbuild rewrites the canonical form
+ * of every Node built-in import (`node:fs` → `fs`, `node:path` → `path`,
+ * etc.) which is harmless for the resolvable-without-prefix built-ins
+ * but BREAKS `node:sqlite` — Node only exposes the SQLite module under
+ * the prefixed specifier, so the bundle would try to resolve a bare
+ * `"sqlite"` against node_modules and fail at startup.
+ *
+ * Verified workarounds that did NOT solve this:
+ *
+ *   - `external: ['node:sqlite']` in tsup config: esbuild marks the
+ *     specifier as external but still strips the prefix.
+ *   - `external: [/^node:/]` regex: same outcome.
+ *   - `esbuildOptions(o) { o.packages = 'external' }`: would also mark
+ *     real npm deps as external, defeating the bundle.
+ *
+ * The `replaceAll('from "sqlite"', 'from "node:sqlite"')` below is
+ * narrow — it only runs on `.js` outputs in `dist/`, and the only
+ * place in the source tree that imports `sqlite` is the storage
+ * adapter (always with the `node:` prefix). False positives would
+ * require a string literal or comment containing exactly
+ * `from "sqlite"` which the source intentionally never has.
+ */
 function restoreNodeSqliteImports(dir: string): void {
   for (const name of readdirSync(dir, { recursive: true })) {
     const file = join(dir, String(name));

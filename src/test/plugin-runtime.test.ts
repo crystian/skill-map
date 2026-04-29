@@ -99,7 +99,6 @@ function buildScan(opts: IBuildScanOpts = {}): ScanCommand {
   cmd.allowEmpty = false;
   cmd.strict = false;
   cmd.watch = false;
-  cmd.compareWith = undefined;
   return cmd;
 }
 

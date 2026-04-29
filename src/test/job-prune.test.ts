@@ -254,11 +254,11 @@ async function runPrune(opts: IRunCmdOpts): Promise<{ code: number; stdout: stri
 }
 
 describe('JobPruneCommand', () => {
-  it('exits 2 with a clear message when the DB is missing', async () => {
+  it('exits 5 (NotFound) with a clear message when the DB is missing', async () => {
     const scope = freshScope('cmd-no-db');
     // Don't initDb — leave the DB absent.
     const result = await runPrune({ cwd: scope });
-    strictEqual(result.code, 2);
+    strictEqual(result.code, 5);
     ok(result.stderr.includes('not found'));
   });
 

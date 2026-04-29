@@ -15,7 +15,6 @@
 import { Command, Option } from 'clipanion';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import {
   aggregateHistoryStats,
   listExecutions,
@@ -29,6 +28,8 @@ import type {
 } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { emitDoneStderr, formatElapsed, startElapsed } from '../util/elapsed.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 const STATUSES: readonly ExecutionStatus[] = ['completed', 'failed', 'cancelled'];
 const PERIODS: readonly THistoryStatsPeriod[] = ['day', 'week', 'month'];
@@ -120,17 +121,17 @@ export class HistoryCommand extends Command {
     if (this.action !== undefined) filter.actionId = this.action;
     if (this.status !== undefined) {
       const parsed = parseStatuses(this.status, this.context.stderr);
-      if (parsed === null) return 2;
+      if (parsed === null) return ExitCode.Error;
       filter.statuses = parsed;
     }
     if (this.since !== undefined) {
       const ms = parseIsoMs(this.since, '--since', this.context.stderr);
-      if (ms === null) return 2;
+      if (ms === null) return ExitCode.Error;
       filter.sinceMs = ms;
     }
     if (this.until !== undefined) {
       const ms = parseIsoMs(this.until, '--until', this.context.stderr);
-      if (ms === null) return 2;
+      if (ms === null) return ExitCode.Error;
       filter.untilMs = ms;
     }
     if (this.limit !== undefined) {
@@ -139,18 +140,16 @@ export class HistoryCommand extends Command {
         this.context.stderr.write(
           `--limit: expected a positive integer, got "${this.limit}".\n`,
         );
-        return 2;
+        return ExitCode.Error;
       }
       filter.limit = parsed;
     }
 
     // --- DB --------------------------------------------------------------
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const rows = await listExecutions(adapter.db, filter);
 
       if (this.json) {
@@ -164,10 +163,8 @@ export class HistoryCommand extends Command {
       }
 
       emitDoneStderr(this.context.stderr, elapsed, this.quiet);
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 
@@ -212,12 +209,12 @@ export class HistoryStatsCommand extends Command {
     let untilMs: number = Date.now();
     if (this.since !== undefined) {
       const parsed = parseIsoMs(this.since, '--since', this.context.stderr);
-      if (parsed === null) return 2;
+      if (parsed === null) return ExitCode.Error;
       sinceMs = parsed;
     }
     if (this.until !== undefined) {
       const parsed = parseIsoMs(this.until, '--until', this.context.stderr);
-      if (parsed === null) return 2;
+      if (parsed === null) return ExitCode.Error;
       untilMs = parsed;
     }
     let period: THistoryStatsPeriod = 'month';
@@ -226,7 +223,7 @@ export class HistoryStatsCommand extends Command {
         this.context.stderr.write(
           `--period: invalid value "${this.period}". Allowed: ${PERIODS.join(', ')}.\n`,
         );
-        return 2;
+        return ExitCode.Error;
       }
       period = this.period as THistoryStatsPeriod;
     }
@@ -237,18 +234,16 @@ export class HistoryStatsCommand extends Command {
         this.context.stderr.write(
           `--top: expected a positive integer, got "${this.top}".\n`,
         );
-        return 2;
+        return ExitCode.Error;
       }
       topN = parsed;
     }
 
     // --- DB --------------------------------------------------------------
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const aggregated = await aggregateHistoryStats(
         adapter.db,
         { sinceMs, untilMs },
@@ -287,7 +282,7 @@ export class HistoryStatsCommand extends Command {
           this.context.stderr.write(
             `internal: history-stats output failed schema validation — ${result.errors}\n`,
           );
-          return 2;
+          return ExitCode.Error;
         }
         this.context.stdout.write(JSON.stringify(stats) + '\n');
       } else {
@@ -295,10 +290,8 @@ export class HistoryStatsCommand extends Command {
       }
 
       emitDoneStderr(this.context.stderr, elapsed, this.quiet);
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 

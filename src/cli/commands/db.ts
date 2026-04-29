@@ -16,10 +16,13 @@ import {
   existsSync,
   mkdirSync,
   rmSync,
+  statSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { confirm } from '../util/confirm.js';
+import { tx } from '../../kernel/util/tx.js';
+import { DB_TEXTS } from '../i18n/db.texts.js';
 
 import { Command, Option } from 'clipanion';
 
@@ -36,6 +39,7 @@ import {
 } from '../../kernel/adapters/sqlite/plugin-migrations.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
 import {
   emptyPluginRuntime,
   loadPluginRuntime,
@@ -62,7 +66,7 @@ export class DbBackupCommand extends Command {
 
   async execute(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const outPath = this.out ? resolve(this.out) : join(dirname(path), 'backups', `${ts}.db`);
@@ -78,7 +82,7 @@ export class DbBackupCommand extends Command {
     copyFileSync(path, outPath);
 
     this.context.stdout.write(`Backup written: ${outPath}\n`);
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -92,6 +96,9 @@ export class DbRestoreCommand extends Command {
     details: `
       Destructive. Requires interactive confirmation unless --yes / --force
       is passed. scan_* will be re-populated by the next sm scan.
+      With --dry-run: previews the swap (source size, target overwrite
+      status, sidecars to drop) without copying or deleting anything.
+      Dry-run bypasses the confirmation prompt.
     `,
   });
 
@@ -99,21 +106,41 @@ export class DbRestoreCommand extends Command {
   global = Option.Boolean('-g,--global', false);
   db = Option.String('--db', { required: false });
   yes = Option.Boolean('--yes,--force', false);
+  dryRun = Option.Boolean('-n,--dry-run', false, {
+    description: 'Preview the restore without overwriting the live DB.',
+  });
 
   async execute(): Promise<number> {
     const target = resolveDbPath({ global: this.global, db: this.db });
     const sourcePath = resolve(this.source);
 
     if (!existsSync(sourcePath)) {
-      this.context.stderr.write(`Backup not found: ${sourcePath}\n`);
-      return 5;
+      this.context.stderr.write(tx(DB_TEXTS.restoreSourceNotFound, { sourcePath }));
+      return ExitCode.NotFound;
+    }
+
+    if (this.dryRun) {
+      this.context.stdout.write(DB_TEXTS.dryRunHeader);
+      const sourceBytes = statSync(sourcePath).size;
+      const targetClause = existsSync(target)
+        ? DB_TEXTS.dryRunRestoreTargetExistsClause
+        : DB_TEXTS.dryRunRestoreTargetMissingClause;
+      this.context.stdout.write(
+        tx(DB_TEXTS.dryRunRestoreWouldOverwrite, {
+          sourcePath,
+          sourceBytes,
+          target,
+          targetClause,
+        }),
+      );
+      return ExitCode.Ok;
     }
 
     if (!this.yes) {
-      const ok = await confirm(`Restore ${sourcePath} over ${target}? This overwrites the current DB.`);
+      const ok = await confirm(tx(DB_TEXTS.restoreConfirm, { sourcePath, target }));
       if (!ok) {
-        this.context.stderr.write('Aborted.\n');
-        return 2;
+        this.context.stderr.write(DB_TEXTS.aborted);
+        return ExitCode.Error;
       }
     }
 
@@ -125,8 +152,8 @@ export class DbRestoreCommand extends Command {
       if (existsSync(sidecar)) rmSync(sidecar);
     }
 
-    this.context.stdout.write(`Restored ${sourcePath} → ${target}\n`);
-    return 0;
+    this.context.stdout.write(tx(DB_TEXTS.restoreDone, { sourcePath, target }));
+    return ExitCode.Ok;
   }
 }
 
@@ -143,6 +170,9 @@ export class DbResetCommand extends Command {
       confirmation unless --yes / --force.
       With --hard: deletes the DB file entirely. Destructive — requires
       confirmation unless --yes / --force.
+      With --dry-run: previews what would be cleared / deleted without
+      touching the DB. Bypasses the confirmation prompt entirely (the
+      preview itself is non-destructive).
     `,
   });
 
@@ -151,38 +181,51 @@ export class DbResetCommand extends Command {
   state = Option.Boolean('--state', false);
   hard = Option.Boolean('--hard', false);
   yes = Option.Boolean('--yes,--force', false);
+  dryRun = Option.Boolean('-n,--dry-run', false, {
+    description: 'Preview the reset without dropping any tables or unlinking any files.',
+  });
 
   async execute(): Promise<number> {
     if (this.state && this.hard) {
-      this.context.stderr.write('--state and --hard are mutually exclusive.\n');
-      return 2;
+      this.context.stderr.write(DB_TEXTS.resetStateAndHardMutex);
+      return ExitCode.Error;
     }
 
     const path = resolveDbPath({ global: this.global, db: this.db });
 
     if (this.hard) {
+      if (this.dryRun) {
+        this.context.stdout.write(DB_TEXTS.dryRunHeader);
+        const sizeBytes = existsSync(path) ? statSync(path).size : null;
+        this.context.stdout.write(
+          sizeBytes === null
+            ? tx(DB_TEXTS.dryRunResetHardWouldDeleteMissing, { path })
+            : tx(DB_TEXTS.dryRunResetHardWouldDelete, { path, sizeBytes }),
+        );
+        return ExitCode.Ok;
+      }
       if (!this.yes) {
-        const ok = await confirm(`Delete DB file ${path}?`);
+        const ok = await confirm(tx(DB_TEXTS.resetHardConfirm, { path }));
         if (!ok) {
-          this.context.stderr.write('Aborted.\n');
-          return 2;
+          this.context.stderr.write(DB_TEXTS.aborted);
+          return ExitCode.Error;
         }
       }
       for (const suffix of ['', '-wal', '-shm']) {
         const p = `${path}${suffix}`;
         if (existsSync(p)) rmSync(p);
       }
-      this.context.stdout.write(`Deleted ${path}\n`);
-      return 0;
+      this.context.stdout.write(tx(DB_TEXTS.resetHardDeleted, { path }));
+      return ExitCode.Ok;
     }
 
-    if (!assertDbExists(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
-    if (this.state && !this.yes) {
-      const ok = await confirm(`Drop scan_* AND state_* in ${path}?`);
+    if (this.state && !this.yes && !this.dryRun) {
+      const ok = await confirm(tx(DB_TEXTS.resetStateConfirm, { path }));
       if (!ok) {
-        this.context.stderr.write('Aborted.\n');
-        return 2;
+        this.context.stderr.write(DB_TEXTS.aborted);
+        return ExitCode.Error;
       }
     }
 
@@ -196,6 +239,30 @@ export class DbResetCommand extends Command {
         )
         .all() as Array<{ name: string }>;
 
+      if (this.dryRun) {
+        this.context.stdout.write(DB_TEXTS.dryRunHeader);
+        if (rows.length === 0) {
+          this.context.stdout.write(DB_TEXTS.dryRunResetWouldClearNone);
+          return ExitCode.Ok;
+        }
+        // Probe row counts so the user sees the destructive scope. Read-
+        // only queries — safe in dry-run.
+        const withCounts = rows.map((r) => {
+          const count = db.prepare(`SELECT COUNT(*) AS c FROM ${r.name}`).get() as { c: number };
+          return { name: r.name, rowCount: Number(count.c) };
+        });
+        const totalRows = withCounts.reduce((acc, r) => acc + r.rowCount, 0);
+        const lines = withCounts.map((r) => `  - ${r.name}: ${r.rowCount} row(s)`).join('\n');
+        this.context.stdout.write(
+          tx(DB_TEXTS.dryRunResetWouldClearWithRowCounts, {
+            tableCount: rows.length,
+            totalRows,
+            lines,
+          }),
+        );
+        return ExitCode.Ok;
+      }
+
       db.exec('BEGIN');
       for (const { name } of rows) {
         db.exec(`DELETE FROM ${name}`);
@@ -203,12 +270,17 @@ export class DbResetCommand extends Command {
       db.exec('COMMIT');
 
       this.context.stdout.write(
-        `Cleared ${rows.length} table(s): ${rows.map((r) => r.name).join(', ') || '(none)'}\n`,
+        rows.length === 0
+          ? DB_TEXTS.resetClearedNone
+          : tx(DB_TEXTS.resetCleared, {
+              tableCount: rows.length,
+              tableNames: rows.map((r) => r.name).join(', '),
+            }),
       );
     } finally {
       db.close();
     }
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -231,14 +303,14 @@ export class DbShellCommand extends Command {
 
   async execute(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
       this.context.stderr.write(
         'sqlite3 binary not found on PATH. Install it (macOS: brew install sqlite; Debian/Ubuntu: apt install sqlite3) or use `sm db dump` for read-only inspection.\n',
       );
-      return 2;
+      return ExitCode.Error;
     }
     return result.status ?? 0;
   }
@@ -260,7 +332,7 @@ export class DbDumpCommand extends Command {
 
   async execute(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(path, this.context.stderr)) return 5;
+    if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     const args = ['-readonly', path, '.dump'];
     if (this.tables && this.tables.length > 0) {
@@ -271,7 +343,7 @@ export class DbDumpCommand extends Command {
       this.context.stderr.write(
         'sqlite3 binary not found on PATH. Install it to use `sm db dump`.\n',
       );
-      return 2;
+      return ExitCode.Error;
     }
     return result.status ?? 0;
   }
@@ -315,7 +387,7 @@ export class DbMigrateCommand extends Command {
   async execute(): Promise<number> {
     if (this.kernelOnly && this.pluginId !== undefined) {
       this.context.stderr.write('--kernel-only and --plugin are mutually exclusive.\n');
-      return 2;
+      return ExitCode.Error;
     }
 
     const path = resolveDbPath({ global: this.global, db: this.db });
@@ -348,7 +420,7 @@ export class DbMigrateCommand extends Command {
         this.context.stderr.write(
           `--plugin ${this.pluginId}: no loaded plugin with that id and \`storage.mode = "dedicated"\`.\n`,
         );
-        return 5;
+        return ExitCode.NotFound;
       }
 
       // --- status branch (read-only summary) ---------------------------
@@ -379,13 +451,13 @@ export class DbMigrateCommand extends Command {
             }
           }
         }
-        return 0;
+        return ExitCode.Ok;
       }
 
       const toValue = this.to !== undefined ? Number.parseInt(this.to, 10) : undefined;
       if (this.to !== undefined && (Number.isNaN(toValue) || toValue === undefined)) {
         this.context.stderr.write(`--to expects an integer, got ${this.to}\n`);
-        return 2;
+        return ExitCode.Error;
       }
 
       // --- kernel pass --------------------------------------------------
@@ -436,7 +508,7 @@ export class DbMigrateCommand extends Command {
         if (exitCode !== 0) return exitCode;
       }
 
-      return 0;
+      return ExitCode.Ok;
     } finally {
       raw.close();
     }

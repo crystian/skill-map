@@ -1,25 +1,30 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { Command, Option, type BaseContext } from 'clipanion';
+import { Command, Option } from 'clipanion';
 import type { Kysely } from 'kysely';
 
-import { computeScanDelta, createKernel, isEmptyDelta, runScan, runScanWithRenames } from '../../kernel/index.js';
-import type { IScanDelta, RenameOp, ScanResult } from '../../kernel/index.js';
+import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
+import type { RenameOp, ScanResult } from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { listBuiltIns } from '../../extensions/built-ins.js';
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import { tx } from '../../kernel/util/tx.js';
+import { SCAN_TEXTS } from '../i18n/scan.texts.js';
+import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
   loadPluginRuntime,
   type IPluginRuntimeBundle,
 } from '../util/plugin-runtime.js';
+import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 import { runWatchLoop } from './watch.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
@@ -114,10 +119,6 @@ export class ScanCommand extends Command {
   watch = Option.Boolean('--watch', false, {
     description: 'Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.',
   });
-  compareWith = Option.String('--compare-with', {
-    required: false,
-    description: 'Run a fresh scan in memory and emit a delta against the saved ScanResult dump at <path>. Does NOT touch the DB. Exit 0 on empty delta, 1 if anything diverges, 2 on dump load / validation errors.',
-  });
 
   async execute(): Promise<number> {
     // --- watch alias -----------------------------------------------------
@@ -126,11 +127,9 @@ export class ScanCommand extends Command {
     // Combining `--watch` with one-shot-only flags is incoherent — the
     // watcher always persists incrementally over the prior snapshot.
     if (this.watch) {
-      if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty || this.compareWith !== undefined) {
-        this.context.stderr.write(
-          '--watch cannot be combined with --no-built-ins, --dry-run, --changed, --allow-empty, or --compare-with.\n',
-        );
-        return 2;
+      if (this.noBuiltIns || this.dryRun || this.changed || this.allowEmpty) {
+        this.context.stderr.write(SCAN_TEXTS.watchCannotCombine);
+        return ExitCode.Error;
       }
       const roots = this.roots.length > 0 ? this.roots : ['.'];
       return runWatchLoop({
@@ -143,41 +142,12 @@ export class ScanCommand extends Command {
       });
     }
 
-    // --- compare-with branch --------------------------------------------
-    // `--compare-with` runs a fresh scan in memory, computes a delta
-    // against the saved dump, and emits a report. Never persists. Combo
-    // with `--watch` is rejected up-front (different lifecycles); combo
-    // with `--changed` is incoherent (the comparison itself is the diff,
-    // there is no prior snapshot to fold in); combo with `--no-built-ins`
-    // would produce a trivially-empty current snapshot, making the
-    // delta meaningless. `--dry-run` is an implicit no-op (we already
-    // skip persistence).
-    if (this.compareWith !== undefined) {
-      if (this.changed || this.noBuiltIns || this.allowEmpty) {
-        this.context.stderr.write(
-          '--compare-with cannot be combined with --changed, --no-built-ins, or --allow-empty.\n',
-        );
-        return 2;
-      }
-      return runCompareWith({
-        comparedWithPath: this.compareWith,
-        roots: this.roots.length > 0 ? this.roots : ['.'],
-        json: this.json,
-        noTokens: this.noTokens,
-        strict: this.strict,
-        noPlugins: this.noPlugins,
-        context: this.context,
-      });
-    }
-
     // --- flag combinatorics -------------------------------------------------
     // `--no-built-ins` zero-fills the pipeline; combining it with
     // `--changed` (which loads a prior to merge against) is incoherent.
     if (this.changed && this.noBuiltIns) {
-      this.context.stderr.write(
-        '--changed and --no-built-ins cannot be combined: --no-built-ins yields a zero-filled ScanResult, leaving nothing to merge against.\n',
-      );
-      return 2;
+      this.context.stderr.write(SCAN_TEXTS.changedWithoutBuiltIns);
+      return ExitCode.Error;
     }
 
     const kernel = createKernel();
@@ -209,43 +179,11 @@ export class ScanCommand extends Command {
     }
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
-    // --- prior snapshot --------------------------------------------------
-    // Step 5.8 decoupled "prior for rename detection" from "prior for
-    // cache reuse". Now: ALWAYS load the prior when the DB exists and
-    // we plan to walk (i.e. not under `--no-built-ins`). The orchestrator
-    // uses `priorSnapshot` to fire the rename heuristic (every scan that
-    // can detect deletes / additions), and uses `enableCache` —
-    // independently — to decide whether to skip detectors on
-    // hash-matching nodes (`--changed` only).
-    //
-    // When `--changed` is set but no prior is found, we still warn so
-    // the user gets feedback that the incremental flag had nothing to
-    // act on. Without `--changed`, an empty / missing prior is silent
-    // (it's the normal first-scan path).
     const dbPath = resolve(process.cwd(), DEFAULT_PROJECT_DB);
-    let priorSnapshot: ScanResult | null = null;
-    if (!this.noBuiltIns && existsSync(dbPath)) {
-      const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-      await adapter.init();
-      try {
-        const loaded = await loadScanResult(adapter.db);
-        if (loaded.nodes.length > 0) {
-          priorSnapshot = loaded;
-        }
-      } finally {
-        await adapter.close();
-      }
-    }
-    if (this.changed && priorSnapshot === null) {
-      this.context.stderr.write(
-        '--changed: no prior snapshot found; running full scan.\n',
-      );
-    }
 
-    // Compose the ignore filter from layered config + .skill-mapignore.
-    // Built-in defaults are always pre-loaded by buildIgnoreFilter so
-    // `.git`, `node_modules`, `dist`, `.tmp`, `.skill-map` are skipped
-    // even on a fresh scope without any user config.
+    // --- config + ignore filter (no DB needed) -----------------------------
+    // Loaded BEFORE we touch SQLite so a malformed config fails fast
+    // without spinning up a connection.
     //
     // `--strict` (Step 6.7 + the .strict-config unification) propagates
     // to BOTH validation surfaces: the layered loader (so a bogus key
@@ -257,8 +195,8 @@ export class ScanCommand extends Command {
       cfg = loadConfig({ scope: 'project', strict: this.strict }).effective;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.context.stderr.write(`sm scan: ${message}\n`);
-      return 2;
+      this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
+      return ExitCode.Error;
     }
     const ignoreFileText = readIgnoreFileText(process.cwd());
     const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
@@ -272,93 +210,214 @@ export class ScanCommand extends Command {
     // error transparently because the warning lives at config-load time.)
     const strict = this.strict || cfg.scan.strict === true;
 
-    const runOptions: Parameters<typeof runScan>[1] = {
-      roots,
-      // `--global` for `sm scan` lands in Step 6 (config + onboarding).
-      // The orchestrator already accepts the scope override; the CLI
-      // surface defaults to `'project'` until the flag is wired.
-      scope: 'project',
-      tokenize: !this.noTokens,
-      ignoreFilter,
-      strict,
+    // --- prior snapshot semantics -----------------------------------------
+    // Step 5.8 decoupled "prior for rename detection" from "prior for
+    // cache reuse". The orchestrator uses `priorSnapshot` to fire the
+    // rename heuristic (every scan that can detect deletes / additions),
+    // and uses `enableCache` — independently — to decide whether to skip
+    // detectors on hash-matching nodes (`--changed` only).
+    //
+    // When `--changed` is set but no prior is found, we warn so the user
+    // gets feedback that the incremental flag had nothing to act on.
+    // Without `--changed`, an empty / missing prior is silent (it's the
+    // normal first-scan path).
+    const loadPrior = async (
+      adapter: SqliteStorageAdapter,
+    ): Promise<ScanResult | null> => {
+      if (this.noBuiltIns) return null;
+      const loaded = await loadScanResult(adapter.db);
+      if (loaded.nodes.length === 0) return null;
+      // H6 — under `--strict`, validate the prior we just hydrated from
+      // SQLite against `scan-result.schema.json` before letting the
+      // orchestrator consume it. A DB that was corrupted manually,
+      // mid-rollback, or by a downstream tool can hand us nodes with
+      // null / wrong-typed `bodyHash` / `frontmatterHash`, which the
+      // rename heuristic dereferences directly. Without `--strict` the
+      // current best-effort behaviour stays — casual scans against a
+      // partially-broken DB still produce something useful.
+      if (strict) {
+        const validators = loadSchemaValidators();
+        const result = validators.validate('scan-result', loaded);
+        if (!result.ok) {
+          throw new Error(tx(SCAN_TEXTS.priorSchemaValidationFailed, { errors: result.errors }));
+        }
+      }
+      return loaded;
     };
-    if (extensions) runOptions.extensions = extensions;
-    if (priorSnapshot) {
-      runOptions.priorSnapshot = priorSnapshot;
-      // Cache reuse is opt-in via `--changed`. With a prior loaded but
-      // no `--changed`, the rename heuristic still fires but every file
-      // re-walks through detectors deterministically.
-      runOptions.enableCache = this.changed;
-    }
+
+    // --- run scan, given a prior --------------------------------------------
+    // Closure so the path that persists (single open) and the path that
+    // doesn't (ephemeral read open + standalone scan) share one runScan
+    // invocation.
+    const runScanWith = async (
+      prior: ScanResult | null,
+    ): Promise<{ result: ScanResult; renameOps: RenameOp[] }> => {
+      if (this.changed && prior === null) {
+        this.context.stderr.write(SCAN_TEXTS.changedNoPriorWarning);
+      }
+      const runOptions: Parameters<typeof runScan>[1] = {
+        roots,
+        // `--global` for `sm scan` lands in Step 6 (config + onboarding).
+        // The orchestrator already accepts the scope override; the CLI
+        // surface defaults to `'project'` until the flag is wired.
+        scope: 'project',
+        tokenize: !this.noTokens,
+        ignoreFilter,
+        strict,
+        emitter: createCliProgressEmitter(this.context.stderr),
+      };
+      if (extensions) runOptions.extensions = extensions;
+      if (prior) {
+        runOptions.priorSnapshot = prior;
+        // Cache reuse is opt-in via `--changed`. With a prior loaded but
+        // no `--changed`, the rename heuristic still fires but every
+        // file re-walks through detectors deterministically.
+        runOptions.enableCache = this.changed;
+      }
+      return await runScanWithRenames(kernel, runOptions);
+    };
+
+    const willPersist = !this.noBuiltIns && !this.dryRun;
+    let result: ScanResult;
+    let renameOps: RenameOp[];
+    let persistedTo: string | null = null;
 
     // Surface root-validation errors from the orchestrator as clean
     // operational failures (exit 2) rather than crash-trace dumps.
     // `runScan` validates each root exists as a directory up front;
-    // those messages start with `runScan: root path ...`.
-    let result: ScanResult;
-    let renameOps: RenameOp[];
-    try {
-      const ran = await runScanWithRenames(kernel, runOptions);
-      result = ran.result;
-      renameOps = ran.renameOps;
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.context.stderr.write(`sm scan: ${message}\n`);
-      return 2;
-    }
+    // those messages start with `runScan: root path ...`. The
+    // persist-guard error path returns its own structured kind so
+    // the caller can render the canonical "refusing to wipe ..."
+    // line outside the DB scope.
+    type IScanOutcome =
+      | { kind: 'ok'; result: ScanResult; renameOps: RenameOp[] }
+      | { kind: 'scan-error'; message: string }
+      | { kind: 'guard'; existing: number };
 
-    // --- persist (skipped under --no-built-ins or --dry-run) ---------------
-    let persistedTo: string | null = null;
-    const willPersist = !this.noBuiltIns && !this.dryRun;
+    let outcome: IScanOutcome;
     if (willPersist) {
-      persistedTo = dbPath;
-      const adapter = new SqliteStorageAdapter({ databasePath: persistedTo });
-      await adapter.init();
+      // SINGLE open: read prior + runScan + guard + persist all happen
+      // inside one withSqlite. Saves one migration discovery + one
+      // WAL setup vs. the old read-prior + persist double-open.
       try {
-        // Defensive guard: refuse to wipe a populated DB with a
-        // zero-result scan unless `--allow-empty` is passed. Belt-and-
-        // braces with the orchestrator-level root validation: even if
-        // a future code path or weird edge case yields a zero-filled
-        // ScanResult, an existing populated snapshot survives. The
-        // natural case of "empty repo on first scan" is not affected
-        // (DB starts empty, scan returns 0 rows, persist proceeds).
-        if (result.stats.nodesCount === 0 && !this.allowEmpty) {
-          const existing = await countExistingScanRows(adapter.db);
-          if (existing > 0) {
-            this.context.stderr.write(
-              `sm scan: refusing to wipe a populated DB (${existing} rows in scan_*) ` +
-                `with a zero-result scan. Pass --allow-empty to override. ` +
-                `If this is unexpected, double-check the root paths.\n`,
-            );
-            return 2;
+        outcome = await withSqlite({ databasePath: dbPath }, async (adapter) => {
+          const prior = await loadPrior(adapter);
+          let scanned: { result: ScanResult; renameOps: RenameOp[] };
+          try {
+            scanned = await runScanWith(prior);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            return { kind: 'scan-error', message };
           }
-        }
-        await persistScanResult(adapter.db, result, renameOps);
-      } finally {
-        await adapter.close();
+          // Defensive guard: refuse to wipe a populated DB with a
+          // zero-result scan unless `--allow-empty` is passed. Belt-and-
+          // braces with the orchestrator-level root validation: even if
+          // a future code path or weird edge case yields a zero-filled
+          // ScanResult, an existing populated snapshot survives. The
+          // natural case of "empty repo on first scan" is not affected
+          // (DB starts empty, scan returns 0 rows, persist proceeds).
+          if (scanned.result.stats.nodesCount === 0 && !this.allowEmpty) {
+            const existing = await countExistingScanRows(adapter.db);
+            if (existing > 0) return { kind: 'guard', existing };
+          }
+          await persistScanResult(adapter.db, scanned.result, scanned.renameOps);
+          return { kind: 'ok', ...scanned };
+        });
+      } catch (err) {
+        // Open / migration / persist failures bubble out of withSqlite.
+        const message = err instanceof Error ? err.message : String(err);
+        this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
+        return ExitCode.Error;
+      }
+      if (outcome.kind === 'scan-error') {
+        this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message: outcome.message }));
+        return ExitCode.Error;
+      }
+      if (outcome.kind === 'guard') {
+        this.context.stderr.write(tx(SCAN_TEXTS.guardWipeRefused, { existing: outcome.existing }));
+        return ExitCode.Error;
+      }
+      result = outcome.result;
+      renameOps = outcome.renameOps;
+      persistedTo = dbPath;
+    } else {
+      // Non-persist path: ephemeral read-only open for the prior, then
+      // runScan with the DB closed. We do NOT auto-create the DB here —
+      // a `--dry-run` over a missing DB should not provision a scope.
+      let prior: ScanResult | null;
+      try {
+        prior = this.noBuiltIns
+          ? null
+          : await tryWithSqlite(
+              { databasePath: dbPath, autoBackup: false },
+              loadPrior,
+            );
+      } catch (err) {
+        // `loadPrior` throws under `--strict` if the DB-resident
+        // scan-result fails schema validation. Surface it the same way
+        // we surface a runScan failure.
+        const message = err instanceof Error ? err.message : String(err);
+        this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
+        return ExitCode.Error;
+      }
+      try {
+        const scanned = await runScanWith(prior);
+        result = scanned.result;
+        renameOps = scanned.renameOps;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
+        return ExitCode.Error;
       }
     }
 
     // Exit code mirrors `sm check` (and spec/cli-contract.md §Exit codes):
     // 1 only when at least one issue is at `error` severity. Warns / infos
     // do not fail the verb. The exit code is independent of `--json`.
-    const exitCode = result.issues.some((i) => i.severity === 'error') ? 1 : 0;
+    const exitCode = result.issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
 
     if (this.json) {
+      // H4 — under `--strict`, self-validate the ScanResult against
+      // `scan-result.schema.json` before emitting it. The
+      // orchestrator's per-link / per-issue guards (`validateLink`,
+      // `validateIssue`) only check shallow shape; a custom detector
+      // could still produce a Link that fails the full schema and
+      // would silently slip into stdout. Without this gate, a
+      // downstream `sm scan compare-with <dump>` that loads the dump
+      // through its schema validator would fail with an error the
+      // original scan never surfaced — the kind of drift `--strict`
+      // exists to prevent.
+      if (strict) {
+        const validators = loadSchemaValidators();
+        const validation = validators.validate('scan-result', result);
+        if (!validation.ok) {
+          this.context.stderr.write(tx(SCAN_TEXTS.jsonSelfValidationFailed, { errors: validation.errors }));
+          return ExitCode.Error;
+        }
+      }
       this.context.stdout.write(JSON.stringify(result) + '\n');
       return exitCode;
     }
 
     this.context.stdout.write(
-      `Scanned ${result.roots.length} root(s) in ${result.stats.durationMs}ms — ` +
-        `${result.stats.nodesCount} nodes, ${result.stats.linksCount} links, ` +
-        `${result.stats.issuesCount} issues.\n`,
+      tx(SCAN_TEXTS.scannedSummary, {
+        rootsCount: result.roots.length,
+        durationMs: result.stats.durationMs,
+        nodes: result.stats.nodesCount,
+        links: result.stats.linksCount,
+        issues: result.stats.issuesCount,
+      }),
     );
     if (persistedTo) {
-      this.context.stdout.write(`Persisted to ${persistedTo}\n`);
+      this.context.stdout.write(tx(SCAN_TEXTS.persistedTo, { dbPath: persistedTo }));
     } else if (this.dryRun && !this.noBuiltIns) {
       this.context.stdout.write(
-        `Would persist ${result.stats.nodesCount} nodes / ${result.stats.linksCount} links / ${result.stats.issuesCount} issues to ${dbPath} (dry-run).\n`,
+        tx(SCAN_TEXTS.wouldPersist, {
+          nodes: result.stats.nodesCount,
+          links: result.stats.linksCount,
+          issues: result.stats.issuesCount,
+          dbPath,
+        }),
       );
     }
     return exitCode;
@@ -381,164 +440,4 @@ async function countExistingScanRows(db: Kysely<IDatabase>): Promise<number> {
   let total = 0;
   for (const r of rows) total += Number(r?.c ?? 0);
   return total;
-}
-
-// ---------------------------------------------------------------------------
-// `--compare-with` (Step 8.2)
-// ---------------------------------------------------------------------------
-//
-// Loads the dump JSON at `comparedWithPath`, validates it against
-// `scan-result.schema.json`, runs a fresh scan in memory using the same
-// pipeline as `sm scan` (built-ins, ignore filter, layered config), and
-// emits the delta between the two snapshots. Never touches the DB.
-
-interface IRunCompareWithOptions {
-  comparedWithPath: string;
-  roots: string[];
-  json: boolean;
-  noTokens: boolean;
-  strict: boolean;
-  noPlugins: boolean;
-  context: BaseContext;
-}
-
-async function runCompareWith(opts: IRunCompareWithOptions): Promise<number> {
-  const { comparedWithPath, roots, json, noTokens, strict, noPlugins, context } = opts;
-
-  // 1. Load + validate the dump. Errors here are operational (exit 2) —
-  //    a missing file, malformed JSON, or a schema-violating dump are
-  //    all problems with the caller's input, not with the project state.
-  let prior: ScanResult;
-  try {
-    prior = loadAndValidateDump(comparedWithPath);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    context.stderr.write(`sm scan --compare-with: ${message}\n`);
-    return 2;
-  }
-
-  // 2. Run a fresh scan with the same wiring as the normal `sm scan`
-  //    code path (Step 9.1: plugin runtime included, gated by
-  //    `--no-plugins`). Skip persistence — the verb's contract is
-  //    read-only.
-  const kernel = createKernel();
-  for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
-  const pluginRuntime = noPlugins
-    ? emptyPluginRuntime()
-    : await loadPluginRuntime({ scope: 'project' });
-  for (const warn of pluginRuntime.warnings) context.stderr.write(`${warn}\n`);
-  for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
-
-  let cfg;
-  try {
-    cfg = loadConfig({ scope: 'project', strict }).effective;
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    context.stderr.write(`sm scan --compare-with: ${message}\n`);
-    return 2;
-  }
-  const ignoreFileText = readIgnoreFileText(process.cwd());
-  const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
-  if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
-  if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
-  const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
-  const effectiveStrict = strict || cfg.scan.strict === true;
-
-  const composedExtensions = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
-  let current: ScanResult;
-  try {
-    const compareRunOpts: Parameters<typeof runScan>[1] = {
-      roots,
-      scope: 'project',
-      tokenize: !noTokens,
-      ignoreFilter,
-      strict: effectiveStrict,
-    };
-    if (composedExtensions) compareRunOpts.extensions = composedExtensions;
-    current = await runScan(kernel, compareRunOpts);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    context.stderr.write(`sm scan --compare-with: ${message}\n`);
-    return 2;
-  }
-
-  // 3. Compute + render the delta. Exit 1 iff something diverged; this
-  //    is the CI-friendly contract — wire `sm scan --compare-with
-  //    .skill-map/baseline.json` into a pre-commit / pre-merge hook
-  //    and any drift trips the build.
-  const delta = computeScanDelta(prior, current, comparedWithPath);
-  const exitCode = isEmptyDelta(delta) ? 0 : 1;
-
-  if (json) {
-    context.stdout.write(JSON.stringify(delta) + '\n');
-    return exitCode;
-  }
-  context.stdout.write(renderDeltaHuman(delta));
-  return exitCode;
-}
-
-function loadAndValidateDump(path: string): ScanResult {
-  if (!existsSync(path)) {
-    throw new Error(`dump file not found: ${path}`);
-  }
-  let raw: string;
-  try {
-    raw = readFileSync(path, 'utf8');
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`could not read dump file ${path}: ${message}`);
-  }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new Error(`dump file is not valid JSON: ${message}`);
-  }
-  const validators = loadSchemaValidators();
-  const result = validators.validate<ScanResult>('scan-result', parsed);
-  if (!result.ok) {
-    throw new Error(`dump does not conform to scan-result.schema.json: ${result.errors}`);
-  }
-  return result.data;
-}
-
-function renderDeltaHuman(delta: IScanDelta): string {
-  const out: string[] = [];
-  const totalAdded = delta.nodes.added.length + delta.links.added.length + delta.issues.added.length;
-  const totalRemoved = delta.nodes.removed.length + delta.links.removed.length + delta.issues.removed.length;
-  const totalChanged = delta.nodes.changed.length;
-
-  out.push(
-    `Delta vs ${delta.comparedWith}: ` +
-      `${delta.nodes.added.length} nodes added, ${delta.nodes.removed.length} removed, ${delta.nodes.changed.length} changed; ` +
-      `${delta.links.added.length} links added, ${delta.links.removed.length} removed; ` +
-      `${delta.issues.added.length} issues added, ${delta.issues.removed.length} removed.`,
-  );
-
-  if (totalAdded === 0 && totalRemoved === 0 && totalChanged === 0) {
-    out.push('', '(no differences)');
-    return out.join('\n') + '\n';
-  }
-
-  if (delta.nodes.added.length + delta.nodes.removed.length + delta.nodes.changed.length > 0) {
-    out.push('', '## nodes');
-    for (const n of delta.nodes.added) out.push(`+ ${n.path} (${n.kind})`);
-    for (const n of delta.nodes.removed) out.push(`- ${n.path} (${n.kind})`);
-    for (const c of delta.nodes.changed) out.push(`~ ${c.after.path} (${c.reason} changed)`);
-  }
-
-  if (delta.links.added.length + delta.links.removed.length > 0) {
-    out.push('', '## links');
-    for (const l of delta.links.added) out.push(`+ ${l.source} --${l.kind}--> ${l.target}`);
-    for (const l of delta.links.removed) out.push(`- ${l.source} --${l.kind}--> ${l.target}`);
-  }
-
-  if (delta.issues.added.length + delta.issues.removed.length > 0) {
-    out.push('', '## issues');
-    for (const i of delta.issues.added) out.push(`+ [${i.severity}] ${i.ruleId}: ${i.message}`);
-    for (const i of delta.issues.removed) out.push(`- [${i.severity}] ${i.ruleId}: ${i.message}`);
-  }
-
-  return out.join('\n') + '\n';
 }

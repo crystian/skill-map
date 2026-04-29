@@ -26,7 +26,6 @@ import { Command, Option } from 'clipanion';
 import { createKernel, runScanWithRenames } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import {
   buildIgnoreFilter,
@@ -34,6 +33,11 @@ import {
   readIgnoreFileText,
 } from '../../kernel/scan/ignore.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
+import { tx } from '../../kernel/util/tx.js';
+import { INIT_TEXTS } from '../i18n/init.texts.js';
+import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 const GITIGNORE_ENTRIES: readonly string[] = [
   '.skill-map/settings.local.json',
@@ -63,6 +67,7 @@ export class InitCommand extends Command {
       ['Provision the global scope', '$0 init -g'],
       ['Bootstrap without running the first scan', '$0 init --no-scan'],
       ['Force-overwrite an existing scope', '$0 init --force'],
+      ['Preview what would be created', '$0 init --dry-run'],
     ],
   });
 
@@ -78,6 +83,9 @@ export class InitCommand extends Command {
   strict = Option.Boolean('--strict', false, {
     description: 'Strict mode: fail on any layered-loader warning AND promote frontmatter warnings to errors during the first scan. Same flag as sm scan / sm config.',
   });
+  dryRun = Option.Boolean('-n,--dry-run', false, {
+    description: 'Preview the scope provisioning without touching the filesystem or the DB. Honours --force for the would-overwrite preview. Skips the first scan unconditionally — dry-run never persists.',
+  });
 
   async execute(): Promise<number> {
     const elapsed = startElapsed();
@@ -91,11 +99,69 @@ export class InitCommand extends Command {
     const dbPath = join(skillMapDir, 'skill-map.db');
 
     if (existsSync(settingsPath) && !this.force) {
-      this.context.stderr.write(
-        `sm init: ${settingsPath} already exists. Pass --force to overwrite.\n`,
+      this.context.stderr.write(tx(INIT_TEXTS.alreadyInitialised, { settingsPath }));
+      emitDoneStderr(this.context.stderr, elapsed);
+      return ExitCode.Error;
+    }
+
+    if (this.dryRun) {
+      this.context.stdout.write(INIT_TEXTS.dryRunHeader);
+      if (!existsSync(skillMapDir)) {
+        this.context.stdout.write(tx(INIT_TEXTS.dryRunWouldCreateDir, { path: skillMapDir }));
+      }
+      // settingsPath: always written. existsSync→overwrite (only here under
+      // --force, since the gate above already short-circuited the without-
+      // force path), otherwise fresh write.
+      this.context.stdout.write(
+        existsSync(settingsPath)
+          ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: settingsPath })
+          : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: settingsPath }),
+      );
+      // Local + ignore: written only when missing OR --force.
+      if (!existsSync(localPath) || this.force) {
+        this.context.stdout.write(
+          existsSync(localPath)
+            ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: localPath })
+            : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: localPath }),
+        );
+      }
+      if (!existsSync(ignorePath) || this.force) {
+        this.context.stdout.write(
+          existsSync(ignorePath)
+            ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: ignorePath })
+            : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: ignorePath }),
+        );
+      }
+      if (!this.global) {
+        const wouldAdd = previewGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
+        const gitignorePath = join(scopeRoot, '.gitignore');
+        if (wouldAdd.length === 0) {
+          this.context.stdout.write(
+            tx(INIT_TEXTS.dryRunWouldLeaveGitignoreUnchanged, { path: gitignorePath }),
+          );
+        } else if (wouldAdd.length === 1) {
+          this.context.stdout.write(
+            tx(INIT_TEXTS.dryRunWouldUpdateGitignoreSingular, {
+              path: gitignorePath,
+              entries: wouldAdd[0]!,
+            }),
+          );
+        } else {
+          this.context.stdout.write(
+            tx(INIT_TEXTS.dryRunWouldUpdateGitignorePlural, {
+              path: gitignorePath,
+              count: wouldAdd.length,
+              entries: wouldAdd.join(', '),
+            }),
+          );
+        }
+      }
+      this.context.stdout.write(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: dbPath }));
+      this.context.stdout.write(
+        this.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
       );
       emitDoneStderr(this.context.stderr, elapsed);
-      return 2;
+      return ExitCode.Ok;
     }
 
     mkdirSync(skillMapDir, { recursive: true });
@@ -110,27 +176,30 @@ export class InitCommand extends Command {
     if (!this.global) {
       const updated = ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
       if (updated) {
+        const gitignorePath = join(scopeRoot, '.gitignore');
         this.context.stdout.write(
-          `Updated ${join(scopeRoot, '.gitignore')} (added ${GITIGNORE_ENTRIES.length} entr${GITIGNORE_ENTRIES.length === 1 ? 'y' : 'ies'})\n`,
+          GITIGNORE_ENTRIES.length === 1
+            ? tx(INIT_TEXTS.gitignoreUpdatedSingular, { path: gitignorePath })
+            : tx(INIT_TEXTS.gitignoreUpdatedPlural, {
+                path: gitignorePath,
+                count: GITIGNORE_ENTRIES.length,
+              }),
         );
       }
     }
 
-    // Provision the DB. SqliteStorageAdapter.init() auto-applies
-    // migrations, so by the time this returns the DB is at the latest
-    // kernel schema.
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    try {
-      await adapter.init();
-    } finally {
-      await adapter.close();
-    }
+    // Provision the DB. `withSqlite` opens the adapter, which auto-
+    // applies migrations on init(); by the time this returns the DB is
+    // at the latest kernel schema.
+    await withSqlite({ databasePath: dbPath, autoBackup: false }, async () => {
+      // No-op: opening (and closing) the adapter is the work here.
+    });
 
-    this.context.stdout.write(`Initialised ${skillMapDir}\n`);
+    this.context.stdout.write(tx(INIT_TEXTS.initialised, { skillMapDir }));
 
     if (this.noScan) {
       emitDoneStderr(this.context.stderr, elapsed);
-      return 0;
+      return ExitCode.Ok;
     }
 
     // First scan. Inline (not subprocess) so the parent process owns
@@ -148,7 +217,7 @@ async function runFirstScan(
   stdout: NodeJS.WritableStream,
   stderr: NodeJS.WritableStream,
 ): Promise<number> {
-  stdout.write('Running first scan...\n');
+  stdout.write(INIT_TEXTS.runningFirstScan);
 
   const kernel = createKernel();
   for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
@@ -158,8 +227,8 @@ async function runFirstScan(
     cfg = loadConfig({ scope: 'project', cwd: scopeRoot, strict }).effective;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    stderr.write(`sm init: ${message}\n`);
-    return 2;
+    stderr.write(tx(INIT_TEXTS.configLoadFailure, { message }));
+    return ExitCode.Error;
   }
   const ignoreFileText = readIgnoreFileText(scopeRoot);
   const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
@@ -177,29 +246,30 @@ async function runFirstScan(
       extensions: builtIns(),
       ignoreFilter,
       strict,
+      emitter: createCliProgressEmitter(stderr),
     });
     result = ran.result;
     renameOps = ran.renameOps;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    stderr.write(`sm init: scan failed: ${message}\n`);
-    return 2;
+    stderr.write(tx(INIT_TEXTS.scanFailed, { message }));
+    return ExitCode.Error;
   }
 
-  const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-  try {
-    await adapter.init();
-    await persistScanResult(adapter.db, result, renameOps);
-  } finally {
-    await adapter.close();
-  }
+  await withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
+    persistScanResult(adapter.db, result, renameOps),
+  );
 
   stdout.write(
-    `First scan: ${result.nodes.length} node(s), ${result.links.length} link(s), ${result.issues.length} issue(s).\n`,
+    tx(INIT_TEXTS.firstScanSummary, {
+      nodes: result.nodes.length,
+      links: result.links.length,
+      issues: result.issues.length,
+    }),
   );
   // Issues with severity=error gate the exit code, mirroring `sm scan`.
   const hasErrors = result.issues.some((i) => i.severity === 'error');
-  return hasErrors ? 1 : 0;
+  return hasErrors ? ExitCode.Issues : ExitCode.Ok;
 }
 
 /**
@@ -207,6 +277,26 @@ async function runFirstScan(
  * present (compared as trimmed line). Creates the file if absent.
  * Returns true if the file was written.
  */
+/**
+ * Compute which `entries` would be appended to `<scopeRoot>/.gitignore`
+ * by the live `ensureGitignoreEntries` call, WITHOUT writing. Used by
+ * `--dry-run` to render an honest preview of what `sm init` would
+ * change. Same parsing rules as the live function so the preview tracks
+ * the real outcome (skip blank lines and comment lines, dedupe by exact
+ * trimmed match).
+ */
+function previewGitignoreEntries(scopeRoot: string, entries: readonly string[]): string[] {
+  const path = join(scopeRoot, '.gitignore');
+  const body = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  const present = new Set(
+    body
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith('#')),
+  );
+  return entries.filter((entry) => !present.has(entry));
+}
+
 function ensureGitignoreEntries(scopeRoot: string, entries: readonly string[]): boolean {
   const path = join(scopeRoot, '.gitignore');
   let body = '';

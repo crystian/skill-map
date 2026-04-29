@@ -63,12 +63,26 @@ All verbs use this shared table. Additional codes MAY be defined per-verb (docum
 |---|---|---|
 | `0` | OK | Command completed, no issues at or above the configured severity threshold. |
 | `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`, `sm audit run`, `sm doctor`. |
-| `2` | Operational error | Bad flags, missing DB, unreadable file, corrupt config, unhandled exception. Accompanied by an error message on stderr. |
+| `2` | Operational error | Bad flags, missing DB, unreadable file, corrupt config, runtime / environment mismatch (e.g. wrong Node version, missing native dependency), unhandled exception. Accompanied by an error message on stderr. |
 | `3` | Duplicate conflict | Job submission refused because an active duplicate exists (same `action + version + node + contentHash`). Returned by `sm job submit`. |
 | `4` | Nonce mismatch | `sm record` called with an `id`/`nonce` pair that does not match. |
 | `5` | Not found | A named resource does not exist (node id, job id, plugin id, config key). |
 
 Codes 6–15 are reserved. Codes ≥ 16 are free for verb-specific use.
+
+---
+
+## Dry-run
+
+A verb that exposes `-n` / `--dry-run` MUST honour the following contract:
+
+- **No observable side effects.** The command MUST NOT mutate the database, the filesystem, the config, the network, or spawn external processes. Read-only operations needed to compute the preview (e.g. loading the prior `ScanResult`, reading existing config files, listing FS entries) ARE permitted.
+- **No auto-provisioning.** A dry-run MUST NOT create directories, schema files, or DBs that would not exist after the command. If the operation would create a `.skill-map/` scope, dry-run only previews the creation; the directory must NOT appear on disk.
+- **Output mirrors the live mode** — same shape, same fields, same `--json` schema — except that human-readable output explicitly indicates the dry-run state ("would persist …", "would create …", "would delete …", or a clear "(dry-run)" suffix) and machine-readable output sets a top-level `dryRun: true` field where applicable.
+- **Exit codes mirror the live mode.** Same exit code table; the dry-run posture does not introduce new codes. A dry-run that surfaces an error severity (e.g. "scan would emit an error-severity issue") still exits `1`; a dry-run that fails to read the input still exits `2`.
+- **Dry-run MUST NOT depend on `--yes` / `--force`.** Verbs that offer interactive confirmation for destructive operations MUST allow `--dry-run` to bypass the prompt entirely (no confirmation needed when nothing is being destroyed).
+
+Dry-run is **per-verb opt-in**. The flag is not global; verbs that do not declare it MUST reject `--dry-run` as an unknown option (exit `2`), the same as any other unknown flag. The verb catalog below names every verb that exposes the flag and what its preview looks like.
 
 ---
 
@@ -85,7 +99,7 @@ Bootstrap the current scope.
 - Runs migrations.
 - Runs a first scan.
 
-Flags: `--no-scan` (skip the first scan), `--force` (rewrite an existing config).
+Flags: `--no-scan` (skip the first scan), `--force` (rewrite an existing config), `-n` / `--dry-run` (preview the scope provisioning — would-create lines for every directory and file the live invocation would write — without touching the filesystem; respects `--force` for the "would-overwrite" preview).
 
 Exit: 0 on success, 2 on failure.
 
@@ -167,7 +181,7 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 | `sm scan -n <node.path>` | Partial scan: one node. |
 | `sm scan --changed` | Incremental: only files changed since last scan (mtime heuristic). |
 | `sm scan --watch` | Long-running: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`. |
-| `sm scan --compare-with <path>` | Delta report: compare current state with a saved scan dump. Does not modify the DB. |
+| `sm scan compare-with <dump> [roots...]` | Delta report: run a fresh scan in memory and compare against the saved `ScanResult` dump at `<dump>`. Read-only — does not modify the DB. Exit `0` on empty delta, `1` on any drift, `2` on operational error (missing or malformed dump, schema violation). |
 | `sm watch [roots...]` | Long-running watcher. Same semantics as `sm scan --watch`, exposed as a top-level verb because the watcher is a loop, not a one-shot scan. |
 
 `--json` output conforms to `schemas/scan-result.schema.json`. `sm watch` (and `sm scan --watch`) emit one ScanResult per batch — under `--json` this is an `ndjson` stream of ScanResult documents.
@@ -294,16 +308,16 @@ See `db-schema.md` for the table catalog.
 
 | Command | Purpose |
 |---|---|
-| `sm db reset` | Drop `scan_*` only. Keep `state_*` and `config_*`. Non-destructive — no confirmation required. |
-| `sm db reset --state` | Drop `scan_*` AND `state_*` (including `state_plugin_kvs` and every `plugin_<id>_*` table). Keep `config_*`. Destructive. |
-| `sm db reset --hard` | Delete the DB file entirely. Keep the plugins folder so the next boot re-discovers them. Destructive. |
+| `sm db reset [-n / --dry-run]` | Drop `scan_*` only. Keep `state_*` and `config_*`. Non-destructive — no confirmation required. `--dry-run` prints the row counts that would be deleted per `scan_*` table without touching the DB. |
+| `sm db reset --state [-n / --dry-run]` | Drop `scan_*` AND `state_*` (including `state_plugin_kvs` and every `plugin_<id>_*` table). Keep `config_*`. Destructive. `--dry-run` previews the deletion without touching the DB. |
+| `sm db reset --hard [-n / --dry-run]` | Delete the DB file entirely. Keep the plugins folder so the next boot re-discovers them. Destructive. `--dry-run` reports the file path and size that would be deleted without unlinking it. |
 | `sm db backup [--out <path>]` | WAL checkpoint + file copy. |
-| `sm db restore <path>` | Swap the DB. |
+| `sm db restore <path> [-n / --dry-run]` | Swap the DB. Destructive. `--dry-run` validates the source file (existence, header, schema version) and reports what would be overwritten without touching the live DB. |
 | `sm db shell` | Interactive SQL shell (implementations backed by SQLite use `sqlite3`; others use equivalent). |
 | `sm db dump [--tables ...]` | SQL dump. |
 | `sm db migrate [--dry-run \| --status \| --to <n> \| --kernel-only \| --plugin <id> \| --no-backup]` | Migration controls. |
 
-Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interactive confirmation unless `--yes` (non-interactive mode for scripts) or `--force` (alias, kept for backward compatibility) is passed. `sm db reset` without a modifier is non-destructive and never prompts.
+Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interactive confirmation unless `--yes` (non-interactive mode for scripts) or `--force` (alias, kept for backward compatibility) is passed. `sm db reset` without a modifier is non-destructive and never prompts. **`--dry-run` short-circuits the confirmation prompt entirely** (per §Dry-run rule: dry-run MUST NOT depend on `--yes` / `--force`).
 
 ---
 

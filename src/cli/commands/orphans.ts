@@ -17,7 +17,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { migrateNodeFks } from '../../kernel/adapters/sqlite/history.js';
 import { rowToIssue } from '../../kernel/adapters/sqlite/scan-load.js';
 import type { IDatabase, IScanIssuesTable } from '../../kernel/adapters/sqlite/schema.js';
@@ -25,6 +24,8 @@ import type { Issue } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { confirm } from '../util/confirm.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 import type { Kysely, Selectable } from 'kysely';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
@@ -97,17 +98,15 @@ export class OrphansCommand extends Command {
         this.context.stderr.write(
           `--kind: invalid value "${this.kind}". Allowed: orphan, medium, ambiguous.\n`,
         );
-        return 2;
+        return ExitCode.Error;
       }
       ruleFilter = resolved;
     }
 
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const found = await findActiveIssues(adapter.db, (issue) => {
         if (ruleFilter !== null) return issue.ruleId === ruleFilter;
         return true;
@@ -124,10 +123,8 @@ export class OrphansCommand extends Command {
       }
 
       emitDoneStderr(this.context.stderr, elapsed, this.quiet);
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 
@@ -163,11 +160,9 @@ export class OrphansReconcileCommand extends Command {
     const elapsed = startElapsed();
 
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // 1. Validate <new.path> is a live node.
       const newNode = await adapter.db
         .selectFrom('scan_nodes')
@@ -178,7 +173,7 @@ export class OrphansReconcileCommand extends Command {
         this.context.stderr.write(
           `sm orphans reconcile: target node "${this.to}" not found in scan_nodes.\n`,
         );
-        return 5;
+        return ExitCode.NotFound;
       }
 
       // 2. Find the active orphan issue for <orphan.path>.
@@ -191,7 +186,7 @@ export class OrphansReconcileCommand extends Command {
         this.context.stderr.write(
           `sm orphans reconcile: no active orphan issue found for "${this.orphanPath}".\n`,
         );
-        return 5;
+        return ExitCode.NotFound;
       }
 
       // 3. Migrate FKs and resolve every matching issue inside one tx.
@@ -218,10 +213,8 @@ export class OrphansReconcileCommand extends Command {
         );
       }
       emitDoneStderr(this.context.stderr, elapsed, this.quiet);
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 
@@ -262,11 +255,9 @@ export class OrphansUndoRenameCommand extends Command {
     const elapsed = startElapsed();
 
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Find the active auto-rename-medium / -ambiguous issue on <new.path>.
       const candidates = await findActiveIssues(adapter.db, (issue) => {
         if (issue.ruleId !== 'auto-rename-medium' && issue.ruleId !== 'auto-rename-ambiguous') {
@@ -279,13 +270,13 @@ export class OrphansUndoRenameCommand extends Command {
         this.context.stderr.write(
           `sm orphans undo-rename: no active auto-rename issue targets "${this.newPath}".\n`,
         );
-        return 5;
+        return ExitCode.NotFound;
       }
       if (candidates.length > 1) {
         this.context.stderr.write(
           `sm orphans undo-rename: ${candidates.length} active auto-rename issues target "${this.newPath}"; the rename heuristic should have produced at most one. Run \`sm scan\` and retry.\n`,
         );
-        return 2;
+        return ExitCode.Error;
       }
 
       const candidate = candidates[0]!;
@@ -298,13 +289,13 @@ export class OrphansUndoRenameCommand extends Command {
           this.context.stderr.write(
             `sm orphans undo-rename: auto-rename-medium issue is missing data.from; cannot revert without --from.\n`,
           );
-          return 2;
+          return ExitCode.Error;
         }
         if (this.from !== undefined && this.from !== dataFrom) {
           this.context.stderr.write(
             `sm orphans undo-rename: --from "${this.from}" does not match auto-rename-medium data.from "${dataFrom}".\n`,
           );
-          return 2;
+          return ExitCode.Error;
         }
         resolvedFrom = dataFrom;
       } else {
@@ -313,14 +304,14 @@ export class OrphansUndoRenameCommand extends Command {
           this.context.stderr.write(
             `sm orphans undo-rename: --from <old.path> is REQUIRED for auto-rename-ambiguous (pick one of data.candidates).\n`,
           );
-          return 5;
+          return ExitCode.NotFound;
         }
         const dataCandidates = issue.data ? issue.data['candidates'] : undefined;
         if (!isStringArray(dataCandidates) || !dataCandidates.includes(this.from)) {
           this.context.stderr.write(
             `sm orphans undo-rename: --from "${this.from}" not in auto-rename-ambiguous candidates.\n`,
           );
-          return 5;
+          return ExitCode.NotFound;
         }
         resolvedFrom = this.from;
       }
@@ -332,7 +323,7 @@ export class OrphansUndoRenameCommand extends Command {
         );
         if (!ok) {
           this.context.stderr.write('Aborted.\n');
-          return 2;
+          return ExitCode.Error;
         }
       }
 
@@ -369,10 +360,8 @@ export class OrphansUndoRenameCommand extends Command {
           `state rows; new orphan issue emitted on ${resolvedFrom}.\n`,
       );
       emitDoneStderr(this.context.stderr, elapsed, this.quiet);
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 

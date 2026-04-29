@@ -433,7 +433,7 @@ describe('persistScanResult', () => {
     }
   });
 
-  it('loadScanResult on a freshly-migrated DB without scan_meta degrades to synthetic envelope', async () => {
+  it('loadScanResult on a freshly-migrated DB with empty scan_meta degrades to synthetic envelope', async () => {
     const adapter = new SqliteStorageAdapter({ databasePath: freshDbPath('persist'), autoBackup: false });
     await adapter.init();
     try {

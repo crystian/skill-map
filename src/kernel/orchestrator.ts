@@ -62,6 +62,8 @@ import type {
 import { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 import { installedSpecVersion } from './adapters/plugin-loader.js';
 import { loadSchemaValidators, type TSchemaName } from './adapters/schema-validators.js';
+import { ORCHESTRATOR_TEXTS } from './i18n/orchestrator.texts.js';
+import { tx } from './util/tx.js';
 import type {
   IAdapter,
   IDetectContext,
@@ -204,35 +206,8 @@ async function runScanInternal(
   _kernel: Kernel,
   options: RunScanOptions,
 ): Promise<{ result: ScanResult; renameOps: RenameOp[] }> {
-  // Spec contract (`scan-result.schema.json#/properties/roots/minItems: 1`):
-  // a ScanResult must report at least one walked root. The CLI already
-  // defaults `roots` to `['.']` when no positional args are supplied, so
-  // hitting this branch from the CLI surface is a programming error.
-  if (options.roots.length === 0) {
-    throw new Error(
-      'runScan: roots must contain at least one path (spec requires minItems: 1)',
-    );
-  }
-  // Validate every root exists as a directory BEFORE any IO, BEFORE the
-  // tokenizer is constructed, BEFORE `scan.started` fires. Throw on the
-  // first failure — single-error feedback is enough; the user fixes it
-  // and re-runs. Without this guard the claude adapter's `walk()`
-  // swallows ENOENT inside `readdir` and returns silently, which lets a
-  // non-existent root produce a valid-looking zero-filled `ScanResult`
-  // — directly enabling the `sm scan -- --dry-run` typo-trap that wipes
-  // a populated DB.
-  for (const root of options.roots) {
-    if (!existsSync(root)) {
-      throw new Error(
-        `runScan: root path '${root}' does not exist or is not a directory`,
-      );
-    }
-    if (!statSync(root).isDirectory()) {
-      throw new Error(
-        `runScan: root path '${root}' does not exist or is not a directory`,
-      );
-    }
-  }
+  validateRoots(options.roots);
+
   const start = Date.now();
   const scannedAt = start;
   const emitter = options.emitter ?? new InMemoryProgressEmitter();
@@ -246,86 +221,216 @@ async function runScanInternal(
   const prior = options.priorSnapshot ?? null;
   const enableCache = options.enableCache === true;
 
-  // Index prior state by path so per-file lookup is O(1). The link
-  // index is keyed by the **originating node** of each link — the node
-  // whose body / frontmatter the detector was processing when it emitted
-  // the link. For most kinds that equals `link.source`, but the
-  // frontmatter detector emits inverted `supersedes` links (from a
-  // node's `metadata.supersededBy`) where the originating node is
-  // `link.target`. See `originatingNodeOf` below.
+  const priorIndex = indexPriorSnapshot(prior);
+
+  emitter.emit(makeEvent('scan.started', { roots: options.roots }));
+
+  const walked = await walkAndDetect({
+    adapters: exts.adapters,
+    detectors: exts.detectors,
+    roots: options.roots,
+    ...(options.ignoreFilter ? { ignoreFilter: options.ignoreFilter } : {}),
+    emitter,
+    encoder,
+    strict,
+    enableCache,
+    prior,
+    priorIndex,
+  });
+
+  // External pseudo-links (target is http(s)://) drive `externalRefsCount`
+  // and are then dropped: never persisted, never seen by rules, never in
+  // result.links. The string-prefix check is the contract — see
+  // external-url-counter/index.ts.
+  recomputeLinkCounts(walked.nodes, walked.internalLinks);
+  recomputeExternalRefsCount(walked.nodes, walked.externalLinks, walked.cachedPaths);
+
+  // Rules ALWAYS re-run over the merged graph (no shortcut for
+  // incremental scans): the issue set for an "unchanged" node can flip
+  // when a sibling node changes.
+  const issues = await runRules(exts.rules, walked.nodes, walked.internalLinks, emitter);
+  // Frontmatter-invalid issues from the walk land here so the rename
+  // heuristic (next pass) sees them and the final stats.issuesCount
+  // reflects them.
+  for (const issue of walked.frontmatterIssues) issues.push(issue);
+
+  // Rename heuristic runs after rules so the merged graph is final. The
+  // returned `RenameOp[]` flows through to `persistScanResult` so FK
+  // migration lands inside the same tx as the scan zone replace-all.
+  const renameOps = prior ? detectRenamesAndOrphans(prior, walked.nodes, issues) : [];
+
+  const stats = {
+    // `filesSkipped` is "files walked but not classified by any adapter".
+    // Today every walked file IS classified by its adapter (the `claude`
+    // adapter's `classify()` always returns a kind, falling back to
+    // `'note'`), so this is always 0. Wired now so the field shape is
+    // spec-conformant; meaningful once multiple adapters compete (Step 9+).
+    filesWalked: walked.filesWalked,
+    filesSkipped: 0,
+    nodesCount: walked.nodes.length,
+    linksCount: walked.internalLinks.length,
+    issuesCount: issues.length,
+    durationMs: Date.now() - start,
+  };
+
+  emitter.emit(makeEvent('scan.completed', { stats }));
+
+  return {
+    result: {
+      schemaVersion: 1,
+      scannedAt,
+      scope,
+      roots: options.roots,
+      adapters: exts.adapters.map((a) => a.id),
+      scannedBy: SCANNED_BY,
+      nodes: walked.nodes,
+      links: walked.internalLinks,
+      issues,
+      stats,
+    },
+    renameOps,
+  };
+}
+
+/**
+ * Validate every root exists as a directory BEFORE any IO, BEFORE the
+ * tokenizer is constructed, BEFORE `scan.started` fires. Throws on the
+ * first failure — single-error feedback is enough; the user fixes it
+ * and re-runs. Without this guard the claude adapter's `walk()` swallows
+ * ENOENT inside `readdir` and returns silently, which lets a non-existent
+ * root produce a valid-looking zero-filled `ScanResult` — directly
+ * enabling the `sm scan -- --dry-run` typo-trap that wipes a populated
+ * DB.
+ *
+ * Spec contract (`scan-result.schema.json#/properties/roots/minItems: 1`):
+ * a ScanResult must report at least one walked root. The CLI defaults
+ * `roots` to `['.']` when no positional args are supplied, so the
+ * empty-array branch is a programming error from the CLI surface.
+ */
+function validateRoots(roots: string[]): void {
+  if (roots.length === 0) {
+    throw new Error(ORCHESTRATOR_TEXTS.runScanRootEmptyArray);
+  }
+  for (const root of roots) {
+    if (!existsSync(root) || !statSync(root).isDirectory()) {
+      throw new Error(tx(ORCHESTRATOR_TEXTS.runScanRootMissing, { root }));
+    }
+  }
+}
+
+interface IPriorIndex {
+  /** Prior nodes keyed by path so per-file lookup is O(1). */
+  priorNodesByPath: Map<string, Node>;
+  /** Set of every prior node path — used to disambiguate inverted
+   *  `supersedes` links (see `originatingNodeOf`). */
+  priorNodePaths: Set<string>;
+  /**
+   * Prior internal links bucketed by **originating node** — the node
+   * whose body / frontmatter the detector was processing when it emitted
+   * the link. For most kinds that equals `link.source`, but the
+   * frontmatter detector emits inverted `supersedes` links where the
+   * originating node is `link.target`.
+   */
+  priorLinksByOriginating: Map<string, Link[]>;
+  /**
+   * Per-node frontmatter-invalid / -malformed issues from the prior — we
+   * reuse them when the cache is hit, otherwise the incremental scan
+   * would silently drop the warning that landed on the prior pass.
+   */
+  priorFrontmatterIssuesByNode: Map<string, Issue[]>;
+}
+
+function indexPriorSnapshot(prior: ScanResult | null): IPriorIndex {
   const priorNodesByPath = new Map<string, Node>();
   const priorNodePaths = new Set<string>();
   const priorLinksByOriginating = new Map<string, Link[]>();
-  // Per-node frontmatter-invalid issues from the prior — we reuse them
-  // when the cache is hit, otherwise the incremental scan would silently
-  // drop the warning that landed on the prior pass.
   const priorFrontmatterIssuesByNode = new Map<string, Issue[]>();
-  if (prior) {
-    for (const node of prior.nodes) {
-      priorNodesByPath.set(node.path, node);
-      priorNodePaths.add(node.path);
-    }
-    for (const link of prior.links) {
-      const key = originatingNodeOf(link, priorNodePaths);
-      const list = priorLinksByOriginating.get(key);
-      if (list) list.push(link);
-      else priorLinksByOriginating.set(key, [link]);
-    }
-    for (const issue of prior.issues) {
-      if (issue.ruleId !== 'frontmatter-invalid' && issue.ruleId !== 'frontmatter-malformed') continue;
-      if (issue.nodeIds.length !== 1) continue;
-      const path = issue.nodeIds[0]!;
-      const list = priorFrontmatterIssuesByNode.get(path);
-      if (list) list.push(issue);
-      else priorFrontmatterIssuesByNode.set(path, [issue]);
-    }
+  if (!prior) {
+    return { priorNodesByPath, priorNodePaths, priorLinksByOriginating, priorFrontmatterIssuesByNode };
   }
+  for (const node of prior.nodes) {
+    priorNodesByPath.set(node.path, node);
+    priorNodePaths.add(node.path);
+  }
+  for (const link of prior.links) {
+    const key = originatingNodeOf(link, priorNodePaths);
+    const list = priorLinksByOriginating.get(key);
+    if (list) list.push(link);
+    else priorLinksByOriginating.set(key, [link]);
+  }
+  for (const issue of prior.issues) {
+    if (issue.ruleId !== 'frontmatter-invalid' && issue.ruleId !== 'frontmatter-malformed') continue;
+    if (issue.nodeIds.length !== 1) continue;
+    const path = issue.nodeIds[0]!;
+    const list = priorFrontmatterIssuesByNode.get(path);
+    if (list) list.push(issue);
+    else priorFrontmatterIssuesByNode.set(path, [issue]);
+  }
+  return { priorNodesByPath, priorNodePaths, priorLinksByOriginating, priorFrontmatterIssuesByNode };
+}
 
-  emitter.emit(makeEvent('scan.started', { roots: options.roots }));
+interface IWalkAndDetectOptions {
+  adapters: IAdapter[];
+  detectors: IDetector[];
+  roots: string[];
+  ignoreFilter?: IIgnoreFilter;
+  emitter: ProgressEmitterPort;
+  encoder: Tiktoken | null;
+  strict: boolean;
+  enableCache: boolean;
+  prior: ScanResult | null;
+  priorIndex: IPriorIndex;
+}
+
+interface IWalkAndDetectResult {
+  nodes: Node[];
+  internalLinks: Link[];
+  externalLinks: Link[];
+  /** Node paths reused verbatim from the prior snapshot. Their
+   *  `externalRefsCount` must NOT be zeroed before recomputation. */
+  cachedPaths: Set<string>;
+  /** Frontmatter-validation findings collected during the walk; the
+   *  composer appends these to the rule-emitted issue list so the
+   *  final ordering stays "rules first, then derived issues". */
+  frontmatterIssues: Issue[];
+  /** Every `IRawNode` an adapter yielded across the whole scan
+   *  (including cached reuse). With one adapter it equals
+   *  `nodesCount`; with future multi-adapter scans walking overlapping
+   *  roots it can diverge. */
+  filesWalked: number;
+}
+
+async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetectResult> {
+  const { adapters, detectors, roots, ignoreFilter, emitter, encoder, strict, enableCache, prior, priorIndex } = opts;
+  const { priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode } = priorIndex;
 
   const nodes: Node[] = [];
   const internalLinks: Link[] = [];
   const externalLinks: Link[] = [];
-  // Set of node paths that came verbatim from the prior snapshot (so
-  // their `externalRefsCount` must NOT be zeroed before recomputation).
   const cachedPaths = new Set<string>();
-  // Frontmatter-validation findings collected during the walk; appended
-  // to the rule-emitted `issues` array after the rules pass so the
-  // ScanResult ordering stays "rules first, then derived issues".
   const frontmatterIssues: Issue[] = [];
-
-  // --- adapters + detectors ------------------------------------------------
-  // `filesWalked` counts every `IRawNode` an adapter yielded across the
-  // whole scan (including cached reuse). With one adapter it equals
-  // `nodesCount`; with future multi-adapter scans walking overlapping
-  // roots it can diverge.
   let filesWalked = 0;
   let index = 0;
-  const walkOptions = options.ignoreFilter
-    ? { ignoreFilter: options.ignoreFilter }
-    : {};
-  for (const adapter of exts.adapters) {
-    for await (const raw of adapter.walk(options.roots, walkOptions)) {
+  const walkOptions = ignoreFilter ? { ignoreFilter } : {};
+
+  for (const adapter of adapters) {
+    for await (const raw of adapter.walk(roots, walkOptions)) {
       filesWalked += 1;
       const bodyHash = sha256(raw.body);
       // Step 5.13 — hash a CANONICAL form of the frontmatter so a YAML
       // formatter pass (re-indent, sort keys, normalise trailing
       // newline, swap single↔double quotes) doesn't break the
-      // medium-confidence rename heuristic. We re-emit the parsed
-      // object via `yaml.dump` with sorted keys + no line-wrap +
-      // no anchors. Loses comment fidelity, but comments aren't
-      // semantic and never affect identity. Fallback to raw text
-      // when canonicalisation produces empty (e.g., parse failed in
-      // the adapter and `raw.frontmatter` is `{}` despite a
-      // non-empty `raw.frontmatterRaw`) so a malformed-YAML file
-      // still hashes deterministically against itself.
+      // medium-confidence rename heuristic. Fallback to raw text when
+      // canonicalisation produces empty (parse failed but raw is
+      // non-empty) so a malformed-YAML file still hashes
+      // deterministically against itself.
       const frontmatterHash = sha256(canonicalFrontmatter(raw.frontmatter, raw.frontmatterRaw));
       const priorNode = priorNodesByPath.get(raw.path);
       // Cache reuse is gated on the explicit `enableCache` option (Step
       // 5.8). The presence of a `prior` alone is no longer enough — a
       // plain `sm scan` always re-walks deterministically; only
       // `sm scan --changed` flips `enableCache` on. The rename heuristic
-      // below uses `prior` independently of `enableCache`.
+      // uses `prior` independently of `enableCache`.
       const cached =
         enableCache &&
         prior !== null &&
@@ -341,7 +446,7 @@ async function runScanInternal(
         // links. Detectors are NOT re-run for this node — the body
         // didn't change, so neither did anything derived from it.
         // Shallow-clone to avoid mutating the caller's prior snapshot
-        // when `recomputeLinkCounts` resets per-node counts below.
+        // when `recomputeLinkCounts` resets per-node counts later.
         const reused: Node = { ...priorNode, bytes: { ...priorNode.bytes } };
         if (priorNode.tokens) reused.tokens = { ...priorNode.tokens };
         nodes.push(reused);
@@ -351,23 +456,12 @@ async function runScanInternal(
         // Re-emit the prior frontmatter issues. They were validated
         // against the same frontmatterHash, so the result is identical;
         // re-validating here would be wasted work. The `strict` flag
-        // can promote `warn → error` retroactively, so honor it before
-        // pushing.
+        // can promote `warn → error` retroactively.
         const reusedFm = priorFrontmatterIssuesByNode.get(priorNode.path) ?? [];
         for (const issue of reusedFm) {
-          frontmatterIssues.push({
-            ...issue,
-            severity: strict ? 'error' : 'warn',
-          });
+          frontmatterIssues.push({ ...issue, severity: strict ? 'error' : 'warn' });
         }
-        emitter.emit(
-          makeEvent('scan.progress', {
-            index,
-            path: raw.path,
-            kind,
-            cached: true,
-          }),
-        );
+        emitter.emit(makeEvent('scan.progress', { index, path: raw.path, kind, cached: true }));
         continue;
       }
 
@@ -393,30 +487,20 @@ async function runScanInternal(
         const fmIssue = validateFrontmatter(kind, raw.frontmatter, raw.path, strict);
         if (fmIssue) frontmatterIssues.push(fmIssue);
       } else {
-        // Step 9.4 follow-up — `frontmatter-malformed`: the adapter could
-        // not recognise a frontmatter fence, but the body opens with
-        // an indented `---`. That is almost certainly a paste-with-indent
-        // mistake that would otherwise pass silently (file looks valid,
-        // metadata silently lost). Emit a `warn` so the author sees it;
-        // `--strict` promotes to `error` consistent with the strict-fence
-        // policy above.
+        // Step 9.4 follow-up — `frontmatter-malformed`: the adapter
+        // could not recognise a frontmatter fence, but the body opens
+        // with an indented `---` (or BOM, or unclosed fence). Emit a
+        // `warn` so the author sees it; `--strict` promotes to `error`.
         const malformed = detectMalformedFrontmatter(raw.body, raw.path, strict);
         if (malformed) frontmatterIssues.push(malformed);
       }
-      emitter.emit(
-        makeEvent('scan.progress', {
-          index,
-          path: raw.path,
-          kind,
-          cached: false,
-        }),
-      );
+      emitter.emit(makeEvent('scan.progress', { index, path: raw.path, kind, cached: false }));
 
-      for (const detector of exts.detectors) {
+      for (const detector of detectors) {
         const ctx = buildDetectContext(detector, node, raw.body, raw.frontmatter);
         const emitted = await detector.detect(ctx);
         for (const link of emitted) {
-          const validated = validateLink(detector, link);
+          const validated = validateLink(detector, link, emitter);
           if (!validated) continue;
           if (isExternalUrlLink(validated)) externalLinks.push(validated);
           else internalLinks.push(validated);
@@ -425,74 +509,29 @@ async function runScanInternal(
     }
   }
 
-  // --- denormalise links-in / links-out and external counts ---------------
-  // External pseudo-links (target is http(s)://) drive `externalRefsCount`
-  // and are then dropped: never persisted, never seen by rules, never in
-  // result.links. The string-prefix check is the contract — see
-  // external-url-counter/index.ts.
-  recomputeLinkCounts(nodes, internalLinks);
-  recomputeExternalRefsCount(nodes, externalLinks, cachedPaths);
+  return { nodes, internalLinks, externalLinks, cachedPaths, frontmatterIssues, filesWalked };
+}
 
-  // --- rules ---------------------------------------------------------------
-  // Rules see internal links only — broken-ref / trigger-collision /
-  // superseded all reason about graph relations, not URLs. Rules ALWAYS
-  // re-run over the merged graph (no shortcut for incremental scans):
-  // the issue set for an "unchanged" node can flip when a sibling node
-  // changes.
+/**
+ * Run every registered rule over the merged graph. Rules see internal
+ * links only — broken-ref / trigger-collision / superseded all reason
+ * about graph relations, not URLs.
+ */
+async function runRules(
+  rules: IRule[],
+  nodes: Node[],
+  internalLinks: Link[],
+  emitter: ProgressEmitterPort,
+): Promise<Issue[]> {
   const issues: Issue[] = [];
-  for (const rule of exts.rules) {
+  for (const rule of rules) {
     const emitted = await rule.evaluate({ nodes, links: internalLinks });
     for (const issue of emitted) {
-      const validated = validateIssue(rule, issue);
+      const validated = validateIssue(rule, issue, emitter);
       if (validated) issues.push(validated);
     }
   }
-  // Frontmatter-invalid issues from the walk land here so the rename
-  // heuristic (next pass) sees them and the final stats.issuesCount
-  // reflects them.
-  for (const issue of frontmatterIssues) issues.push(issue);
-
-  // --- rename heuristic ---------------------------------------------------
-  // Runs after rules so the merged graph is final. Adds issues for
-  // medium / ambiguous / orphan classifications; high-confidence renames
-  // emit no issue (per spec). The returned `RenameOp[]` flows through
-  // to `persistScanResult` so FK migration lands inside the same tx as
-  // the scan zone replace-all.
-  const renameOps = prior
-    ? detectRenamesAndOrphans(prior, nodes, issues)
-    : [];
-
-  const stats = {
-    // `filesSkipped` is "files walked but not classified by any adapter".
-    // Today every walked file IS classified by its adapter (the `claude`
-    // adapter's `classify()` always returns a kind, falling back to
-    // `'note'`), so this is always 0. Wired now so the field shape is
-    // spec-conformant; meaningful once multiple adapters compete (Step 9+).
-    filesWalked,
-    filesSkipped: 0,
-    nodesCount: nodes.length,
-    linksCount: internalLinks.length,
-    issuesCount: issues.length,
-    durationMs: Date.now() - start,
-  };
-
-  emitter.emit(makeEvent('scan.completed', { stats }));
-
-  return {
-    result: {
-      schemaVersion: 1,
-      scannedAt,
-      scope,
-      roots: options.roots,
-      adapters: exts.adapters.map((a) => a.id),
-      scannedBy: SCANNED_BY,
-      nodes,
-      links: internalLinks,
-      issues,
-      stats,
-    },
-    renameOps,
-  };
+  return issues;
 }
 
 /**
@@ -676,9 +715,26 @@ export function detectRenamesAndOrphans(
   return ops;
 }
 
+/**
+ * Any link whose target carries a URL-shaped scheme is external (counted
+ * via `externalRefsCount`, dropped from `result.links`). Internal links
+ * are filesystem paths — relative or absolute, no scheme.
+ *
+ * The regex matches RFC 3986's `scheme = ALPHA *( ALPHA / DIGIT / "+" /
+ * "-" / "." )` followed by `:`, with the extra constraint of ≥ 2 chars
+ * so a Windows-style absolute path (`C:\foo`) is not misclassified as a
+ * URL on the rare cross-platform path that survives normalization.
+ *
+ * Before this regex the implementation only matched `http://` and
+ * `https://`, which silently let `mailto:`, `data:`, `file:///`, `ftp://`
+ * etc. pollute the graph as fake-internal links (their lookup against
+ * `byPath` always missed, so counts stayed at 0, but the rows survived
+ * in `result.links` and the rule pipeline saw them).
+ */
+const EXTERNAL_URL_SCHEME_RE = /^[a-z][a-z0-9+\-.]+:/i;
+
 function isExternalUrlLink(link: Link): boolean {
-  const target = link.target;
-  return target.startsWith('http://') || target.startsWith('https://');
+  return EXTERNAL_URL_SCHEME_RE.test(link.target);
 }
 
 function makeEvent(type: string, data: unknown): ProgressEvent {
@@ -810,11 +866,28 @@ function buildDetectContext(
   };
 }
 
-function validateLink(detector: IDetector, link: Link): Link | null {
+function validateLink(detector: IDetector, link: Link, emitter: ProgressEmitterPort): Link | null {
   if (!detector.emitsLinkKinds.includes(link.kind as LinkKind)) {
-    // Detector emitted a kind outside its declared set — drop the link;
-    // the orchestrator is the last line of defence against a misbehaving
-    // detector. A diagnostic event lands in Step 4+.
+    // Detector emitted a kind outside its declared set — drop the link.
+    // Surface a `extension.error` diagnostic so plugin authors see WHY a
+    // link they expected vanished from the result; silent drops are the
+    // worst possible plugin-author UX. The orchestrator is the last line
+    // of defence against a misbehaving detector, but the author needs to
+    // know the line fired.
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'link-kind-not-declared',
+        extensionId: detector.id,
+        linkKind: link.kind,
+        declaredKinds: detector.emitsLinkKinds,
+        link: { source: link.source, target: link.target, kind: link.kind },
+        message: tx(ORCHESTRATOR_TEXTS.extensionErrorLinkKindNotDeclared, {
+          detectorId: detector.id,
+          linkKind: link.kind,
+          declaredKinds: detector.emitsLinkKinds.join(', '),
+        }),
+      }),
+    );
     return null;
   }
   const confidence: Confidence = link.confidence ?? detector.defaultConfidence;
@@ -843,7 +916,7 @@ function validateFrontmatter(
     ruleId: 'frontmatter-invalid',
     severity: strict ? 'error' : 'warn',
     nodeIds: [path],
-    message: `Frontmatter for ${path} (${kind}) failed schema validation: ${result.errors}`,
+    message: tx(ORCHESTRATOR_TEXTS.frontmatterInvalid, { path, kind, errors: result.errors }),
     data: { kind, errors: result.errors },
   };
 }
@@ -940,29 +1013,34 @@ function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
 function malformedMessage(hint: TMalformedHint, path: string): string {
   switch (hint) {
     case 'paste-with-indent':
-      return (
-        `Frontmatter fence in ${path} appears indented; YAML frontmatter MUST start with \`---\` ` +
-        `at column 0. The file was scanned as body-only — the metadata block was silently lost. ` +
-        `Move the \`---\` lines to the start of the line.`
-      );
+      return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedPasteWithIndent, { path });
     case 'byte-order-mark':
-      return (
-        `Frontmatter fence in ${path} is preceded by a UTF-8 byte-order mark (BOM); the file ` +
-        `was scanned as body-only. Re-save the file as UTF-8 without BOM. The metadata block ` +
-        `was silently lost.`
-      );
+      return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedByteOrderMark, { path });
     case 'missing-close':
-      return (
-        `Frontmatter in ${path} opens with \`---\` but never closes — no matching \`---\` line ` +
-        `at column 0 was found. The file was scanned as body-only and every metadata field was ` +
-        `silently lost. Add a closing \`---\` line below the metadata block.`
-      );
+      return tx(ORCHESTRATOR_TEXTS.frontmatterMalformedMissingClose, { path });
   }
 }
 
-function validateIssue(rule: IRule, issue: Issue): Issue | null {
+function validateIssue(rule: IRule, issue: Issue, emitter: ProgressEmitterPort): Issue | null {
   const severity: Severity | undefined = issue.severity;
-  if (severity !== 'error' && severity !== 'warn' && severity !== 'info') return null;
+  if (severity !== 'error' && severity !== 'warn' && severity !== 'info') {
+    // Rule emitted an out-of-spec severity (or none at all) — drop the
+    // issue. Surface a diagnostic so plugin authors see the issue
+    // disappear FOR A REASON, instead of silently never showing up.
+    emitter.emit(
+      makeEvent('extension.error', {
+        kind: 'issue-invalid-severity',
+        extensionId: rule.id,
+        severity,
+        issue: { ruleId: issue.ruleId || rule.id, message: issue.message, nodeIds: issue.nodeIds },
+        message: tx(ORCHESTRATOR_TEXTS.extensionErrorIssueInvalidSeverity, {
+          ruleId: rule.id,
+          severity: JSON.stringify(severity),
+        }),
+      }),
+    );
+    return null;
+  }
   return { ...issue, ruleId: issue.ruleId || rule.id };
 }
 

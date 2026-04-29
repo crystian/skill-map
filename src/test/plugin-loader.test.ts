@@ -258,6 +258,78 @@ describe('PluginLoader', () => {
     });
   });
 
+  // H2 — Plugin loader timeout. A plugin whose top-level work hangs
+  // (a never-resolving `await`, an infinite loop, a hanging network
+  // call) used to block every host CLI command indefinitely. The
+  // loader now races every dynamic import against a configurable
+  // timer and surfaces the timeout as a `load-error` row.
+  describe('Step H2 — load timeout', () => {
+    it('load-error: extension import that never resolves trips the timeout', async () => {
+      const root = makePluginsDir('timeout-hang');
+      // Top-level `await` on a never-resolving promise. The dynamic
+      // import will sit forever waiting for module evaluation; the
+      // race with the loader's timer should win.
+      const hangSource = `
+        await new Promise(() => {});
+        export default { id: 'never', kind: 'detector', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };
+      `;
+      writePlugin(
+        root,
+        'hangs',
+        {
+          id: 'hangs',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['hang.mjs'],
+        },
+        { 'hang.mjs': hangSource },
+      );
+
+      const loader = new PluginLoader({
+        searchPaths: [root],
+        validators: loadSchemaValidators(),
+        specVersion: installedSpecVersion(),
+        loadTimeoutMs: 75,
+      });
+      const start = Date.now();
+      const r = await loader.discoverAndLoadAll();
+      const elapsed = Date.now() - start;
+
+      strictEqual(r.length, 1);
+      strictEqual(r[0]?.status, 'load-error');
+      match(r[0]!.reason!, /exceeded\s+75ms/);
+      match(r[0]!.reason!, /top-level side effect/);
+      ok(elapsed < 1000, `loader returned in ${elapsed}ms; should be ≪ default 5000ms`);
+    });
+
+    it('non-hanging plugin still loads fine with a tight timeout', async () => {
+      const root = makePluginsDir('timeout-fast');
+      const detector = `
+        export default { id: 'fast', kind: 'detector', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };
+      `;
+      writePlugin(
+        root,
+        'quick',
+        {
+          id: 'quick',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['fast.mjs'],
+        },
+        { 'fast.mjs': detector },
+      );
+
+      const loader = new PluginLoader({
+        searchPaths: [root],
+        validators: loadSchemaValidators(),
+        specVersion: installedSpecVersion(),
+        loadTimeoutMs: 100,
+      });
+      const r = await loader.discoverAndLoadAll();
+      strictEqual(r[0]?.status, 'loaded');
+    });
+  });
+
   it('continues booting when a later plugin is bad', async () => {
     const root = makePluginsDir('mixed');
     writePlugin(

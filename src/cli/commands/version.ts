@@ -4,6 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Command } from 'clipanion';
 
 import { resolveDbPath } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
 import { VERSION } from '../version.js';
 
 /**
@@ -57,7 +58,7 @@ export class VersionCommand extends Command {
     for (const [k, v] of lines) {
       this.context.stdout.write(`${k.padEnd(pad)}${v}\n`);
     }
-    return 0;
+    return ExitCode.Ok;
   }
 }
 

@@ -22,14 +22,15 @@
 
 import { Command, Option } from 'clipanion';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
 import {
   composeRenderers,
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 const DEFAULT_FORMAT = 'ascii';
 
@@ -64,7 +65,7 @@ export class GraphCommand extends Command {
 
   async execute(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
@@ -81,12 +82,10 @@ export class GraphCommand extends Command {
       this.context.stderr.write(
         `No renderer registered for format=${this.format}. Available: ${available || '(none)'}.\n`,
       );
-      return 5;
+      return ExitCode.NotFound;
     }
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const scan = await loadScanResult(adapter.db);
       const text = renderer.render({
         nodes: scan.nodes,
@@ -97,10 +96,8 @@ export class GraphCommand extends Command {
       // verb safe to pipe into anything that splits on lines without
       // double-newlining when the renderer already terminates its output.
       this.context.stdout.write(text.endsWith('\n') ? text : text + '\n');
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 

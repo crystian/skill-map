@@ -207,7 +207,6 @@ interface IScanOverrides {
   allowEmpty?: boolean;
   strict?: boolean;
   watch?: boolean;
-  compareWith?: string | undefined;
 }
 
 function buildScan(overrides: IScanOverrides = {}): ScanCommand {
@@ -221,7 +220,6 @@ function buildScan(overrides: IScanOverrides = {}): ScanCommand {
   cmd.allowEmpty = overrides.allowEmpty ?? false;
   cmd.strict = overrides.strict ?? false;
   cmd.watch = overrides.watch ?? false;
-  cmd.compareWith = overrides.compareWith;
   return cmd;
 }
 

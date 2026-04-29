@@ -1,10 +1,20 @@
 /**
- * Step 8.2 acceptance tests for `sm scan --compare-with`.
+ * Acceptance tests for `sm scan compare-with <dump> [roots...]`.
  *
- * Per-handler pattern (mirrors `scan-readers.test.ts` and `graph-cli.test.ts`):
- * each test plants a fixture under `mkdtempSync`, persists a snapshot via
- * `runScan` + `JSON.stringify`, then runs ScanCommand directly with the
- * `--compare-with` flag pointing at that dump.
+ * Step 8.2 originally shipped this surface as `sm scan --compare-with
+ * <dump>`. M1 (pre-1.0 review) split it out into its own sub-verb
+ * (`ScanCompareCommand`); the flag form no longer exists. The tests
+ * below were migrated wholesale — the underlying delta logic and exit
+ * codes are unchanged, only the harness instantiates
+ * `ScanCompareCommand` directly. The three "rejected combos" tests that
+ * lived at the bottom of the original suite are gone: those flags are
+ * structurally absent on `ScanCompareCommand`, so a flag-clash test is
+ * meaningless. Clipanion would reject the unknown option at parse time.
+ *
+ * Per-handler pattern (mirrors `scan-readers.test.ts` and
+ * `graph-cli.test.ts`): each test plants a fixture under `mkdtempSync`,
+ * persists a snapshot via `runScan` + `JSON.stringify`, then runs
+ * `ScanCompareCommand` directly with `cmd.dump` pointing at that file.
  *
  * Coverage:
  *   - identical fixture vs dump → empty delta, exit 0.
@@ -16,7 +26,6 @@
  *   - dump is not valid JSON → exit 2.
  *   - dump fails schema → exit 2.
  *   - --json shape: `{ comparedWith, nodes, links, issues }`.
- *   - --compare-with rejected combos: --watch, --changed, --no-built-ins.
  */
 
 import { after, before, describe, it } from 'node:test';
@@ -27,7 +36,7 @@ import { join } from 'node:path';
 
 import type { BaseContext } from 'clipanion';
 
-import { ScanCommand } from '../cli/commands/scan.js';
+import { ScanCompareCommand } from '../cli/commands/scan-compare.js';
 import { createKernel, runScan } from '../kernel/index.js';
 import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
 
@@ -105,31 +114,23 @@ function captureContext(): ICapturedContext {
   };
 }
 
-interface IScanOverrides {
+interface IScanCompareOverrides {
+  dump: string;
   roots?: string[];
   json?: boolean;
-  noBuiltIns?: boolean;
   noTokens?: boolean;
-  dryRun?: boolean;
-  changed?: boolean;
-  allowEmpty?: boolean;
   strict?: boolean;
-  watch?: boolean;
-  compareWith?: string | undefined;
+  noPlugins?: boolean;
 }
 
-function buildScan(overrides: IScanOverrides = {}): ScanCommand {
-  const cmd = new ScanCommand();
+function buildScanCompare(overrides: IScanCompareOverrides): ScanCompareCommand {
+  const cmd = new ScanCompareCommand();
+  cmd.dump = overrides.dump;
   cmd.roots = overrides.roots ?? [];
   cmd.json = overrides.json ?? false;
-  cmd.noBuiltIns = overrides.noBuiltIns ?? false;
   cmd.noTokens = overrides.noTokens ?? false;
-  cmd.dryRun = overrides.dryRun ?? false;
-  cmd.changed = overrides.changed ?? false;
-  cmd.allowEmpty = overrides.allowEmpty ?? false;
   cmd.strict = overrides.strict ?? false;
-  cmd.watch = overrides.watch ?? false;
-  cmd.compareWith = overrides.compareWith;
+  cmd.noPlugins = overrides.noPlugins ?? false;
   return cmd;
 }
 
@@ -141,7 +142,7 @@ after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-describe('sm scan --compare-with', () => {
+describe('sm scan compare-with', () => {
   it('identical fixture → empty delta, exit 0, "(no differences)" hint', async () => {
     const fixture = freshFixture('compare-identical');
     plantTinyFixture(fixture);
@@ -149,7 +150,7 @@ describe('sm scan --compare-with', () => {
     await dumpScan(fixture, dump);
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -178,7 +179,7 @@ describe('sm scan --compare-with', () => {
     );
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -207,7 +208,7 @@ describe('sm scan --compare-with', () => {
     );
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -234,7 +235,7 @@ describe('sm scan --compare-with', () => {
     );
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -255,7 +256,7 @@ describe('sm scan --compare-with', () => {
     unlinkSync(join(fixture, '.claude/commands/deploy.md'));
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -271,7 +272,7 @@ describe('sm scan --compare-with', () => {
     await dumpScan(fixture, dump);
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump, json: true });
+    const cmd = buildScanCompare({ dump, roots: [fixture], json: true });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -296,7 +297,7 @@ describe('sm scan --compare-with', () => {
     // Do NOT create the dump file.
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -311,7 +312,7 @@ describe('sm scan --compare-with', () => {
     writeFileSync(dump, 'not-json{');
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
@@ -327,70 +328,11 @@ describe('sm scan --compare-with', () => {
     writeFileSync(dump, JSON.stringify({ hello: 'world' }));
 
     const cap = captureContext();
-    const cmd = buildScan({ roots: [fixture], compareWith: dump });
+    const cmd = buildScanCompare({ dump, roots: [fixture] });
     cmd.context = cap.context;
     const code = await cmd.execute();
 
     strictEqual(code, 2);
     match(cap.stderr(), /does not conform to scan-result\.schema\.json/);
-  });
-
-  // --- combo rejections ----------------------------------------------------
-
-  it('--compare-with + --changed → exit 2', async () => {
-    const fixture = freshFixture('compare-combo-changed');
-    plantTinyFixture(fixture);
-    const dump = freshPath('compare-combo-changed');
-    await dumpScan(fixture, dump);
-
-    const cap = captureContext();
-    const cmd = buildScan({
-      roots: [fixture],
-      compareWith: dump,
-      changed: true,
-    });
-    cmd.context = cap.context;
-    const code = await cmd.execute();
-
-    strictEqual(code, 2);
-    match(cap.stderr(), /--compare-with cannot be combined with/);
-  });
-
-  it('--compare-with + --no-built-ins → exit 2', async () => {
-    const fixture = freshFixture('compare-combo-nb');
-    plantTinyFixture(fixture);
-    const dump = freshPath('compare-combo-nb');
-    await dumpScan(fixture, dump);
-
-    const cap = captureContext();
-    const cmd = buildScan({
-      roots: [fixture],
-      compareWith: dump,
-      noBuiltIns: true,
-    });
-    cmd.context = cap.context;
-    const code = await cmd.execute();
-
-    strictEqual(code, 2);
-    match(cap.stderr(), /--compare-with cannot be combined with/);
-  });
-
-  it('--watch + --compare-with → exit 2 (watch branch enforces it)', async () => {
-    const fixture = freshFixture('compare-combo-watch');
-    plantTinyFixture(fixture);
-    const dump = freshPath('compare-combo-watch');
-    await dumpScan(fixture, dump);
-
-    const cap = captureContext();
-    const cmd = buildScan({
-      roots: [fixture],
-      compareWith: dump,
-      watch: true,
-    });
-    cmd.context = cap.context;
-    const code = await cmd.execute();
-
-    strictEqual(code, 2);
-    match(cap.stderr(), /--watch cannot be combined with/);
   });
 });

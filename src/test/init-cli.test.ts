@@ -161,3 +161,69 @@ describe('sm init — global scope (-g)', () => {
     assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
   });
 });
+
+describe('sm init --dry-run (H3 — spec §Dry-run)', () => {
+  it('previews the scope without touching the filesystem', () => {
+    const scope = freshScope('dryrun-fresh');
+    const r = sm(['init', '--dry-run'], scope);
+
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /\(dry-run/);
+    assert.match(r.stdout, /would create.+\.skill-map/);
+    assert.match(r.stdout, /would write.+settings\.json/);
+    assert.match(r.stdout, /would write.+settings\.local\.json/);
+    assert.match(r.stdout, /would write.+\.skill-mapignore/);
+    assert.match(r.stdout, /would update.+\.gitignore.+\(add 2 entries/);
+    assert.match(r.stdout, /would provision DB/);
+    assert.match(r.stdout, /would run first scan/);
+
+    // Spec §Dry-run: NO observable side effects.
+    assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
+    assert.equal(existsSync(join(scope.cwd, '.skill-mapignore')), false);
+    assert.equal(existsSync(join(scope.cwd, '.gitignore')), false);
+  });
+
+  it('--dry-run --no-scan changes the first-scan preview line', () => {
+    const scope = freshScope('dryrun-no-scan');
+    const r = sm(['init', '--dry-run', '--no-scan'], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /would skip first scan/);
+    assert.doesNotMatch(r.stdout, /would run first scan/);
+  });
+
+  it('--dry-run on existing scope without --force exits 2 (same gate as live)', () => {
+    const scope = freshScope('dryrun-existing');
+    sm(['init', '--no-scan'], scope);
+    const r = sm(['init', '--dry-run'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /already exists/);
+  });
+
+  it('--dry-run --force on existing scope previews overwrites', () => {
+    const scope = freshScope('dryrun-force');
+    sm(['init', '--no-scan'], scope);
+    // Snapshot existing settings to detect any write.
+    const before = readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8');
+
+    const r = sm(['init', '--dry-run', '--force'], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /would overwrite.+settings\.json/);
+
+    // No actual write happened.
+    const after = readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8');
+    assert.equal(after, before);
+  });
+
+  it('--dry-run does NOT duplicate gitignore entries that already exist', () => {
+    const scope = freshScope('dryrun-gitignore-merge');
+    writeFileSync(
+      join(scope.cwd, '.gitignore'),
+      'dist\n.skill-map/skill-map.db\n',
+    );
+    const r = sm(['init', '--dry-run'], scope);
+    assert.equal(r.status, 0);
+    // Only `.skill-map/settings.local.json` would be added; the DB
+    // entry is already present.
+    assert.match(r.stdout, /would update.+\.gitignore.+\(add 1 entry: \.skill-map\/settings\.local\.json\)/);
+  });
+});

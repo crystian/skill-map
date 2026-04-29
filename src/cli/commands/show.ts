@@ -15,7 +15,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import {
   rowToIssue,
   rowToLink,
@@ -23,6 +22,8 @@ import {
 } from '../../kernel/adapters/sqlite/scan-load.js';
 import type { Issue, Link, Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 interface IShowDocument {
   node: Node;
@@ -61,11 +62,9 @@ export class ShowCommand extends Command {
 
   async execute(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const nodeRow = await adapter.db
         .selectFrom('scan_nodes')
         .selectAll()
@@ -73,7 +72,7 @@ export class ShowCommand extends Command {
         .executeTakeFirst();
       if (!nodeRow) {
         this.context.stderr.write(`Node not found: ${this.nodePath}\n`);
-        return 5;
+        return ExitCode.NotFound;
       }
 
       const [outRows, inRows, issueRows] = await Promise.all([
@@ -112,14 +111,12 @@ export class ShowCommand extends Command {
 
       if (this.json) {
         this.context.stdout.write(JSON.stringify(doc) + '\n');
-        return 0;
+        return ExitCode.Ok;
       }
 
       this.context.stdout.write(renderHuman(doc));
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 
@@ -274,13 +271,12 @@ function formatGroupedLink(arrow: '→' | '←', grp: IGroupedLink): string {
   return `${head}${dup}${sources}`;
 }
 
+const CONFIDENCE_RANK: Record<Link['confidence'], number> = {
+  high: 2,
+  medium: 1,
+  low: 0,
+};
+
 function rankConfidenceForGrouping(c: Link['confidence']): number {
-  switch (c) {
-    case 'high':
-      return 2;
-    case 'medium':
-      return 1;
-    case 'low':
-      return 0;
-  }
+  return CONFIDENCE_RANK[c];
 }

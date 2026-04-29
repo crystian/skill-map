@@ -24,7 +24,6 @@
  * introspection without re-reading the manifests.
  */
 
-import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -43,7 +42,6 @@ import {
   type IPluginLoaderOptions,
 } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { loadPluginOverrideMap } from '../../kernel/adapters/sqlite/plugins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
@@ -51,6 +49,7 @@ import type {
   IDiscoveredPlugin,
   ILoadedExtension,
 } from '../../kernel/types/plugin.js';
+import { tryWithSqlite } from './with-sqlite.js';
 
 const PLUGINS_DIR = '.skill-map/plugins';
 const DB_FILENAME = 'skill-map.db';
@@ -165,9 +164,6 @@ export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
   pluginRuntime: IPluginRuntimeBundle;
 }): { adapters: IAdapter[]; detectors: IDetector[]; rules: IRule[] } | undefined {
-  // Local import to avoid a circular dep — built-ins.ts already pulls
-  // from kernel/extensions, and we only need it on the merge path.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const adapters: IAdapter[] = [];
   const detectors: IDetector[] = [];
   const rules: IRule[] = [];
@@ -230,16 +226,11 @@ async function buildEnabledResolver(
 ): Promise<(id: string) => boolean> {
   const { effective: cfg } = loadConfig({ scope });
   const dbPath = dbPathForScope(scope);
-  let dbOverrides = new Map<string, boolean>();
-  if (existsSync(dbPath)) {
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    try {
-      await adapter.init();
-      dbOverrides = await loadPluginOverrideMap(adapter.db);
-    } finally {
-      await adapter.close();
-    }
-  }
+  const dbOverrides =
+    (await tryWithSqlite(
+      { databasePath: dbPath, autoBackup: false },
+      (adapter) => loadPluginOverrideMap(adapter.db),
+    )) ?? new Map<string, boolean>();
   return makeEnabledResolver(cfg, dbOverrides);
 }
 

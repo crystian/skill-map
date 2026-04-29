@@ -17,6 +17,8 @@ import { sql } from 'kysely';
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { rowToNode } from '../../kernel/adapters/sqlite/scan-load.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 // Whitelist of sortable columns. NEVER interpolate user input into SQL —
 // `--sort-by` is rejected with exit 2 if it isn't in this map. Each entry
@@ -78,7 +80,7 @@ export class ListCommand extends Command {
         this.context.stderr.write(
           `--sort-by: invalid sort field "${this.sortBy}". Allowed: ${Object.keys(SORT_BY).join(', ')}.\n`,
         );
-        return 2;
+        return ExitCode.Error;
       }
       sortColumn = resolved.column;
       sortDirection = resolved.direction;
@@ -91,18 +93,16 @@ export class ListCommand extends Command {
         this.context.stderr.write(
           `--limit: expected a positive integer, got "${this.limit}".\n`,
         );
-        return 2;
+        return ExitCode.Error;
       }
       limitValue = parsed;
     }
 
     // --- DB ----------------------------------------------------------------
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       let query = adapter.db.selectFrom('scan_nodes').selectAll();
       if (this.kind !== undefined) {
         // Cast through unknown — the column is the union NodeKind, but we
@@ -136,19 +136,17 @@ export class ListCommand extends Command {
 
       if (this.json) {
         this.context.stdout.write(JSON.stringify(nodes) + '\n');
-        return 0;
+        return ExitCode.Ok;
       }
 
       if (nodes.length === 0) {
         this.context.stdout.write('No nodes found.\n');
-        return 0;
+        return ExitCode.Ok;
       }
 
       this.context.stdout.write(renderTable(nodes, issuesByNode));
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 
   async #countIssuesPerNode(

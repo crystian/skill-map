@@ -194,10 +194,10 @@
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "a6a7a44f05e2344c2a5eb3a3369bc615b86fe0d1825c72309a93bf8fa090f1ce",
+      "CHANGELOG.md": "4ed1c4063e4b9634a604b4cae5a170af2bab2671eabe8ead8177427ad9b64738",
       "README.md": "8bd57e02d9a9d3f0a4efd18c0f0bd1f4bbe13eb206add0317659e48eab435e7e",
       "architecture.md": "0ebaacef9e57206bc0dde27ff44a02e0a7def9ae9ceba2f27053b31ff708708b",
-      "cli-contract.md": "12ca455496d48a61fc83888808433acf1470f09c261cf1161375b01f0f3f85c4",
+      "cli-contract.md": "077dc28aaf8b966f8ee30cf9fafd0faf7a2f55f18c601e162d9c6447c37a4b8f",
       "conformance/README.md": "79c5e63f18a368951dc9f3e31e9bf9574de3f8b97150b2d75365d4febd8eb6dc",
       "conformance/cases/basic-scan.json": "24623da0cad8c8c54b3ff9b09820ea1276fe8b8f0fc680bf6e8abeb4edb8e424",
       "conformance/cases/kernel-empty-boot.json": "175524674b14d993d29f10080d7697074b3a2eee25b359ff903344d73c6acc98",

@@ -874,9 +874,15 @@ Tag convention: `spec-vX.Y.Z` (distinct from CLI tags `cli-vX.Y.Z`).
 
 Initial public spec bootstrap (Step 0a phases 1–3).
 
+### Added
+
+- `cli-contract.md` — new normative section **§Dry-run** between §Exit codes and §Verb catalog. Codifies the contract every verb that exposes `-n` / `--dry-run` MUST honour: no observable side effects (DB / FS / config / network / spawns), no auto-provisioning of scope directories, output mirrors live mode with explicit "would …" framing, exit codes mirror live mode, dry-run MUST short-circuit `--yes` / `--force` confirmation prompts. Per-verb opt-in: the flag is not global and verbs that don't declare it MUST reject it as an unknown option (exit `2`). Verb catalog rows for `sm init`, `sm db reset` (default + `--state` + `--hard`), and `sm db restore` amended to declare and describe their `--dry-run` previews. Pre-1.0 minor (additive normative).
+
 ### Changed
 
 - `cli-contract.md`: `--all` is no longer a global flag. It is valid only on verbs that explicitly document fan-out semantics: `sm job submit`, `sm job run`, `sm job cancel`, and `sm plugins enable/disable`.
+- `cli-contract.md`: `sm scan compare-with <dump> [roots...]` is now a sub-verb instead of a `--compare-with <path>` flag on `sm scan`. Read-only delta report against a saved `ScanResult` JSON dump. Same exit codes (`0` empty delta / `1` drift / `2` operational error). Old flag form removed. Pre-1.0 breaking change shipped as minor per `versioning.md` § Pre-1.0.
+- `cli-contract.md`: exit-code `2` "Operational error" row clarified to mention runtime / environment mismatches (wrong Node version, missing native dependency) explicitly. The "unhandled exception" catch-all already covered the case; this just removes ambiguity for future implementers.
 - `job-events.md`: the common `runId` envelope now explicitly documents the optional mode segment (`r-<mode>-YYYYMMDD-HHMMSS-XXXX`) used by external Skill claims, scan runs, and standalone issue recomputations.
 - `versioning.md` and related prose: replace ambiguous milestone terminology with explicit versioned release language.
 

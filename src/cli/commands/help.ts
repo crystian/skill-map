@@ -19,6 +19,7 @@ import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
+import { ExitCode } from '../util/exit-codes.js';
 import { VERSION } from '../version.js';
 
 type THelpFormat = 'human' | 'md' | 'json';
@@ -84,7 +85,7 @@ export class HelpCommand extends Command {
     const format = normalizeFormat(this.format);
     if (!format) {
       this.context.stderr.write(`--format expects one of: human | md | json. Got: ${this.format}\n`);
-      return 2;
+      return ExitCode.Error;
     }
 
     // Pull definitions from Clipanion and normalise them into our shape.
@@ -98,15 +99,15 @@ export class HelpCommand extends Command {
       const target = verbs.find((v) => v.name === this.verb);
       if (!target) {
         this.context.stderr.write(`Unknown verb: ${this.verb}\n`);
-        return 5;
+        return ExitCode.NotFound;
       }
       this.context.stdout.write(renderSingle(target, format));
-      return 0;
+      return ExitCode.Ok;
     }
 
     if (format === 'human') {
       this.context.stdout.write(this.cli.usage() + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
 
     const doc: IHelpDocument = {
@@ -120,11 +121,11 @@ export class HelpCommand extends Command {
 
     if (format === 'json') {
       this.context.stdout.write(JSON.stringify(doc, null, 2) + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
 
     this.context.stdout.write(renderMarkdown(doc));
-    return 0;
+    return ExitCode.Ok;
   }
 }
 

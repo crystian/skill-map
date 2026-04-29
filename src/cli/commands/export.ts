@@ -20,7 +20,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import {
   applyExportQuery,
@@ -30,6 +29,8 @@ import {
 import type { IExportSubset } from '../../kernel/scan/query.js';
 import type { Issue, Link, Node, NodeKind } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 const KIND_ORDER: NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'];
 const SUPPORTED_FORMATS = ['json', 'md'] as const;
@@ -75,14 +76,14 @@ export class ExportCommand extends Command {
       this.context.stderr.write(
         `format=${format} not yet implemented (${DEFERRED_FORMATS[format]}).\n`,
       );
-      return 5;
+      return ExitCode.NotFound;
     }
     if (!(SUPPORTED_FORMATS as readonly string[]).includes(format)) {
       this.context.stderr.write(
         `Unsupported format: ${format}. Supported: ${SUPPORTED_FORMATS.join(', ')}. ` +
           `Deferred: ${Object.keys(DEFERRED_FORMATS).join(', ')}.\n`,
       );
-      return 5;
+      return ExitCode.NotFound;
     }
 
     let parsedQuery;
@@ -91,17 +92,15 @@ export class ExportCommand extends Command {
     } catch (err) {
       if (err instanceof ExportQueryError) {
         this.context.stderr.write(`sm export: ${err.message}\n`);
-        return 5;
+        return ExitCode.NotFound;
       }
       throw err;
     }
 
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const scan = await loadScanResult(adapter.db);
       const subset = applyExportQuery(
         { nodes: scan.nodes, links: scan.links, issues: scan.issues },
@@ -110,14 +109,12 @@ export class ExportCommand extends Command {
 
       if (format === 'json') {
         this.context.stdout.write(JSON.stringify(serialiseSubset(subset)) + '\n');
-        return 0;
+        return ExitCode.Ok;
       }
       // format === 'md'
       this.context.stdout.write(renderMarkdown(subset));
-      return 0;
-    } finally {
-      await adapter.close();
-    }
+      return ExitCode.Ok;
+    });
   }
 }
 

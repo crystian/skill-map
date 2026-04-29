@@ -48,6 +48,7 @@ import {
   type TConfigLayer,
 } from '../../kernel/config/loader.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
+import { ExitCode } from '../util/exit-codes.js';
 
 // -----------------------------------------------------------------------------
 // shared helpers
@@ -230,7 +231,7 @@ export class ConfigListCommand extends Command {
     for (const w of warnings) this.context.stderr.write(w + '\n');
     if (this.json) {
       this.context.stdout.write(JSON.stringify(effective, null, 2) + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
     const lines: string[] = [];
     for (const [k, v] of iterDotPaths(effective)) {
@@ -238,7 +239,7 @@ export class ConfigListCommand extends Command {
     }
     lines.sort();
     for (const line of lines) this.context.stdout.write(line + '\n');
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -269,14 +270,14 @@ export class ConfigGetCommand extends Command {
     const value = getAtPath(effective, this.key);
     if (value === undefined) {
       this.context.stderr.write(`Unknown config key: ${this.key}\n`);
-      return 5;
+      return ExitCode.NotFound;
     }
     if (this.json) {
       this.context.stdout.write(JSON.stringify(value) + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
     this.context.stdout.write(formatValueHuman(value) + '\n');
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -310,20 +311,20 @@ export class ConfigShowCommand extends Command {
     const value = getAtPath(effective, this.key);
     if (value === undefined) {
       this.context.stderr.write(`Unknown config key: ${this.key}\n`);
-      return 5;
+      return ExitCode.NotFound;
     }
     const layer = resolveSource(this.key, value, sources);
     if (this.json) {
       const payload = this.source ? { value, source: layer } : value;
       this.context.stdout.write(JSON.stringify(payload) + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
     if (this.source) {
       this.context.stdout.write(`${formatValueHuman(value)}  (from ${layer})\n`);
     } else {
       this.context.stdout.write(formatValueHuman(value) + '\n');
     }
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -399,13 +400,13 @@ export class ConfigSetCommand extends Command {
     if (!result.ok) {
       this.context.stderr.write(`Invalid config after set: ${result.errors}\n`);
       emitDoneStderr(this.context.stderr, elapsed);
-      return 2;
+      return ExitCode.Error;
     }
 
     writeJsonAtomic(path, current);
     this.context.stdout.write(`${this.key} = ${formatValueHuman(value)}  (wrote ${path})\n`);
     emitDoneStderr(this.context.stderr, elapsed);
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -433,20 +434,20 @@ export class ConfigResetCommand extends Command {
     if (!existsSync(path)) {
       this.context.stdout.write(`No override at ${path} for ${this.key}\n`);
       emitDoneStderr(this.context.stderr, elapsed);
-      return 0;
+      return ExitCode.Ok;
     }
     const current = readJsonObjectOrEmpty(path);
     const removed = deleteAtPath(current, this.key);
     if (!removed) {
       this.context.stdout.write(`No override at ${path} for ${this.key}\n`);
       emitDoneStderr(this.context.stderr, elapsed);
-      return 0;
+      return ExitCode.Ok;
     }
 
     writeJsonAtomic(path, current);
     this.context.stdout.write(`Removed ${this.key} from ${path}\n`);
     emitDoneStderr(this.context.stderr, elapsed);
-    return 0;
+    return ExitCode.Ok;
   }
 }
 

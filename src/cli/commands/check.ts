@@ -17,10 +17,11 @@
 
 import { Command, Option } from 'clipanion';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import { rowToIssue } from '../../kernel/adapters/sqlite/scan-load.js';
 import type { Issue, Severity } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 const SEVERITY_ORDER: Severity[] = ['error', 'warn', 'info'];
 
@@ -38,6 +39,8 @@ export class CheckCommand extends Command {
     examples: [
       ['Print every current issue', '$0 check'],
       ['Machine-readable issue list', '$0 check --json'],
+      ['Check the global scope', '$0 check --global'],
+      ['Use a non-default DB file', '$0 check --db /path/to/skill-map.db'],
     ],
   });
 
@@ -47,11 +50,9 @@ export class CheckCommand extends Command {
 
   async execute(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
-    if (!assertDbExists(dbPath, this.context.stderr)) return 5;
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
-    try {
+    return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const rows = await adapter.db.selectFrom('scan_issues').selectAll().execute();
       const issues = rows.map(rowToIssue);
 
@@ -63,10 +64,8 @@ export class CheckCommand extends Command {
         this.context.stdout.write(renderHuman(issues));
       }
 
-      return issues.some((i) => i.severity === 'error') ? 1 : 0;
-    } finally {
-      await adapter.close();
-    }
+      return issues.some((i) => i.severity === 'error') ? ExitCode.Issues : ExitCode.Ok;
+    });
   }
 }
 

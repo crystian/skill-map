@@ -13,7 +13,6 @@
  *   DB override (config_plugins) > settings.json (#/plugins/<id>/enabled) > installed default (true)
  */
 
-import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -25,7 +24,6 @@ import {
   type IPluginLoaderOptions,
 } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import {
   deletePluginOverride,
   loadPluginOverrideMap,
@@ -35,6 +33,8 @@ import { loadConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 const PLUGINS_DIR = '.skill-map/plugins';
 const DB_FILENAME = 'skill-map.db';
@@ -65,16 +65,11 @@ function resolveDbPath(global: boolean): string {
 async function buildResolver(global: boolean): Promise<(id: string) => boolean> {
   const { effective: cfg } = loadConfig({ scope: global ? 'global' : 'project' });
   const dbPath = resolveDbPath(global);
-  let dbOverrides = new Map<string, boolean>();
-  if (existsSync(dbPath)) {
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    try {
-      await adapter.init();
-      dbOverrides = await loadPluginOverrideMap(adapter.db);
-    } finally {
-      await adapter.close();
-    }
-  }
+  const dbOverrides =
+    (await tryWithSqlite(
+      { databasePath: dbPath, autoBackup: false },
+      (adapter) => loadPluginOverrideMap(adapter.db),
+    )) ?? new Map<string, boolean>();
   return makeEnabledResolver(cfg, dbOverrides);
 }
 
@@ -118,12 +113,12 @@ export class PluginsListCommand extends Command {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     if (this.json) {
       this.context.stdout.write(JSON.stringify(plugins, omitModule, 2) + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
 
     if (plugins.length === 0) {
       this.context.stdout.write('No plugins discovered.\n');
-      return 0;
+      return ExitCode.Ok;
     }
 
     for (const p of plugins) {
@@ -132,7 +127,7 @@ export class PluginsListCommand extends Command {
       const tail = p.status === 'loaded' ? ` · ${kinds}` : ` · ${p.reason ?? ''}`;
       this.context.stdout.write(head + tail + '\n');
     }
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -155,12 +150,12 @@ export class PluginsShowCommand extends Command {
     const match = plugins.find((p) => p.id === this.id);
     if (!match) {
       this.context.stderr.write(`Plugin not found: ${this.id}\n`);
-      return 5;
+      return ExitCode.NotFound;
     }
 
     if (this.json) {
       this.context.stdout.write(JSON.stringify(match, omitModule, 2) + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
 
     const lines = [
@@ -179,7 +174,7 @@ export class PluginsShowCommand extends Command {
       }
     }
     this.context.stdout.write(lines.join('\n') + '\n');
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -221,9 +216,9 @@ export class PluginsDoctorCommand extends Command {
       for (const p of bad) {
         this.context.stdout.write(`  [${p.status}] ${p.id} — ${p.reason ?? ''}\n`);
       }
-      return 1;
+      return ExitCode.Issues;
     }
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -239,12 +234,12 @@ abstract class TogglePluginsBase extends Command {
     if (this.all && this.id) {
       this.context.stderr.write('Pass either an <id> or --all, not both.\n');
       emitDoneStderr(this.context.stderr, elapsed);
-      return 2;
+      return ExitCode.Error;
     }
     if (!this.all && !this.id) {
       this.context.stderr.write('Pass <id> or --all.\n');
       emitDoneStderr(this.context.stderr, elapsed);
-      return 2;
+      return ExitCode.Error;
     }
 
     // Resolve discovery so `<id>` is validated and `--all` knows the set.
@@ -261,21 +256,17 @@ abstract class TogglePluginsBase extends Command {
       if (!found) {
         this.context.stderr.write(`Plugin not found: ${this.id}\n`);
         emitDoneStderr(this.context.stderr, elapsed);
-        return 5;
+        return ExitCode.NotFound;
       }
       targets = [found.id];
     }
 
     const dbPath = resolveDbPath(this.global);
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    try {
-      await adapter.init();
+    await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       for (const id of targets) {
         await setPluginEnabled(adapter.db, id, enabled);
       }
-    } finally {
-      await adapter.close();
-    }
+    });
 
     const verb = enabled ? 'enabled' : 'disabled';
     if (targets.length === 1) {
@@ -285,7 +276,7 @@ abstract class TogglePluginsBase extends Command {
       for (const id of targets) this.context.stdout.write(`  - ${id}\n`);
     }
     emitDoneStderr(this.context.stderr, elapsed);
-    return 0;
+    return ExitCode.Ok;
   }
 }
 
@@ -331,9 +322,19 @@ void deletePluginOverride;
 /**
  * JSON-serializer replacer: the ILoadedExtension.module field is a live
  * ESM namespace with circular references — omit it from output.
+ *
+ * We identify the namespace by its `[Symbol.toStringTag] === 'Module'`
+ * marker (the standard tag Node sets on ESM module records), so a
+ * plugin manifest that legitimately ships an unrelated `module` key
+ * (e.g. a string property in `metadata`) is preserved. The earlier
+ * implementation dropped EVERY `module` key in the tree, which silently
+ * lost data on first sight.
  */
 function omitModule(key: string, value: unknown): unknown {
-  return key === 'module' ? undefined : value;
+  if (key !== 'module') return value;
+  if (value === null || typeof value !== 'object') return value;
+  const tag = (value as { [Symbol.toStringTag]?: unknown })[Symbol.toStringTag];
+  return tag === 'Module' ? undefined : value;
 }
 
 export const PLUGIN_COMMANDS = [

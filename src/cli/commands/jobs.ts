@@ -37,12 +37,13 @@
  *     orphanFiles: { scanned: true, deleted: 2 } | { scanned: false }
  *   }
  *
- * Exit codes:
+ * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  on success (or no-op).
- *   2  DB missing / config load failure / IO error.
+ *   2  config load failure / IO error.
+ *   5  DB missing — run `sm init` first.
  */
 
-import { existsSync, unlinkSync } from 'node:fs';
+import { unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -54,6 +55,9 @@ import {
   type IPruneResult,
 } from '../../kernel/adapters/sqlite/jobs.js';
 import { loadConfig } from '../../kernel/config/loader.js';
+import { assertDbExists } from '../util/db-path.js';
+import { ExitCode } from '../util/exit-codes.js';
+import { withSqlite } from '../util/with-sqlite.js';
 
 const PROJECT_DB_REL = '.skill-map/skill-map.db';
 const JOBS_DIR_REL = '.skill-map/jobs';
@@ -94,8 +98,9 @@ export class JobPruneCommand extends Command {
       With --dry-run: counts and reports what would happen without
       touching the DB or the FS.
 
-      Exits 0 on success, 2 on operational failure (missing DB,
-      malformed config, IO error).
+      Exits 0 on success, 5 if the DB is missing (run \`sm init\`
+      first), 2 on any other operational failure (malformed config,
+      IO error).
     `,
     examples: [
       ['Apply retention policy', '$0 job prune'],
@@ -119,10 +124,7 @@ export class JobPruneCommand extends Command {
     const dbPath = resolve(cwd, PROJECT_DB_REL);
     const jobsDir = resolve(cwd, JOBS_DIR_REL);
 
-    if (!existsSync(dbPath)) {
-      this.context.stderr.write(`sm job prune: ${PROJECT_DB_REL} not found (run \`sm init\` first).\n`);
-      return 2;
-    }
+    if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     let cfg;
     try {
@@ -130,15 +132,12 @@ export class JobPruneCommand extends Command {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.context.stderr.write(`sm job prune: ${message}\n`);
-      return 2;
+      return ExitCode.Error;
     }
 
     const completedPolicy = cfg.jobs.retention.completed;
     const failedPolicy = cfg.jobs.retention.failed;
     const now = Date.now();
-
-    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
-    await adapter.init();
 
     const out: IPruneOutput = {
       dryRun: this.dryRun,
@@ -150,48 +149,47 @@ export class JobPruneCommand extends Command {
     };
 
     try {
-      // --- retention pass --------------------------------------------------
-      // Two independent passes (one per terminal status). For dry-run we
-      // mirror the same query but stop before DELETE / unlink.
-      if (completedPolicy !== null) {
-        const cutoff = now - completedPolicy * 1000;
-        const result = await this.pruneOrPreview('completed', cutoff, adapter, this.dryRun);
-        out.retention.completed.deleted = result.deletedCount;
-        out.retention.completed.files = await this.unlinkFiles(result.filePaths, this.dryRun);
-      }
-      if (failedPolicy !== null) {
-        const cutoff = now - failedPolicy * 1000;
-        const result = await this.pruneOrPreview('failed', cutoff, adapter, this.dryRun);
-        out.retention.failed.deleted = result.deletedCount;
-        out.retention.failed.files = await this.unlinkFiles(result.filePaths, this.dryRun);
-      }
+      await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
+        // --- retention pass ------------------------------------------------
+        // Two independent passes (one per terminal status). For dry-run we
+        // mirror the same query but stop before DELETE / unlink.
+        if (completedPolicy !== null) {
+          const cutoff = now - completedPolicy * 1000;
+          const result = await this.pruneOrPreview('completed', cutoff, adapter, this.dryRun);
+          out.retention.completed.deleted = result.deletedCount;
+          out.retention.completed.files = await this.unlinkFiles(result.filePaths, this.dryRun);
+        }
+        if (failedPolicy !== null) {
+          const cutoff = now - failedPolicy * 1000;
+          const result = await this.pruneOrPreview('failed', cutoff, adapter, this.dryRun);
+          out.retention.failed.deleted = result.deletedCount;
+          out.retention.failed.files = await this.unlinkFiles(result.filePaths, this.dryRun);
+        }
 
-      // --- orphan-files pass -----------------------------------------------
-      // Runs AFTER retention so freshly-pruned files are seen by
-      // listOrphanJobFiles only if their state_jobs row was already gone
-      // (which it isn't, after we just deleted it — they would qualify).
-      // We don't double-count: retention unlinked them, the FS scan
-      // won't find them anymore.
-      if (this.orphanFiles && out.orphanFiles.scanned) {
-        const orphans = await listOrphanJobFiles(adapter.db, jobsDir);
-        const removed = await this.unlinkFiles(orphans.orphanFilePaths, this.dryRun);
-        out.orphanFiles = { scanned: true, deleted: removed };
-      }
+        // --- orphan-files pass ---------------------------------------------
+        // Runs AFTER retention so freshly-pruned files are seen by
+        // listOrphanJobFiles only if their state_jobs row was already gone
+        // (which it isn't, after we just deleted it — they would qualify).
+        // We don't double-count: retention unlinked them, the FS scan
+        // won't find them anymore.
+        if (this.orphanFiles && out.orphanFiles.scanned) {
+          const orphans = await listOrphanJobFiles(adapter.db, jobsDir);
+          const removed = await this.unlinkFiles(orphans.orphanFilePaths, this.dryRun);
+          out.orphanFiles = { scanned: true, deleted: removed };
+        }
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.context.stderr.write(`sm job prune: ${message}\n`);
-      await adapter.close();
-      return 2;
-    } finally {
-      await adapter.close();
+      return ExitCode.Error;
     }
 
     if (this.json) {
       this.context.stdout.write(JSON.stringify(out) + '\n');
-      return 0;
+      return ExitCode.Ok;
     }
     this.printPretty(out);
-    return 0;
+    return ExitCode.Ok;
   }
 
   private async pruneOrPreview(

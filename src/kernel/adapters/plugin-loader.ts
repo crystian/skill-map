@@ -30,8 +30,19 @@ import type {
   IPluginManifest,
   TPluginLoadStatus,
 } from '../types/plugin.js';
+import { PLUGIN_LOADER_TEXTS } from '../i18n/plugin-loader.texts.js';
+import { tx } from '../util/tx.js';
 import type { TExtensionKind } from './schema-validators.js';
 import type { ISchemaValidators } from './schema-validators.js';
+
+/**
+ * Default per-extension dynamic-import timeout. Generous on purpose —
+ * a plugin that legitimately takes >5s to import is misbehaving (it
+ * should not have heavy work at module top level), but the extra
+ * headroom avoids spurious timeouts on cold disk caches and slow CI
+ * runners.
+ */
+export const DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS = 5000;
 
 export interface IPluginLoaderOptions {
   /** Search paths to scan for plugin directories. Non-existent paths are skipped. */
@@ -49,13 +60,30 @@ export interface IPluginLoaderOptions {
    * useful for tests that assert raw discovery behaviour).
    */
   resolveEnabled?: (pluginId: string) => boolean;
+  /**
+   * Per-extension dynamic-import timeout in milliseconds. A plugin whose
+   * top-level work (imports, side effects) exceeds this is reported as
+   * `load-error` with a message naming the timeout, instead of hanging
+   * the host CLI command (`sm scan`, `sm plugins list`, `sm watch`).
+   * Defaults to `DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS` (5s). Tests pass a
+   * smaller value to exercise the timeout path quickly.
+   *
+   * Note: there is no AbortSignal on `import()` in Node 24 — when the
+   * timer wins, the import is abandoned (the dangling promise resolves
+   * later and is GC'd) but its side effects, if any, still run. The
+   * timeout protects the orchestrator from hanging, not the host
+   * process from a misbehaving plugin's runtime cost.
+   */
+  loadTimeoutMs?: number;
 }
 
 export class PluginLoader {
   readonly #options: IPluginLoaderOptions;
+  readonly #loadTimeoutMs: number;
 
   constructor(options: IPluginLoaderOptions) {
     this.#options = options;
+    this.#loadTimeoutMs = options.loadTimeoutMs ?? DEFAULT_PLUGIN_IMPORT_TIMEOUT_MS;
   }
 
   /**
@@ -104,7 +132,10 @@ export class PluginLoader {
         pluginPath,
         pathId(pluginPath),
         'invalid-manifest',
-        `${manifestPath}: ${describe(err)}. Validate the JSON (e.g. \`npx jsonlint plugin.json\`).`,
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestJsonParse, {
+          manifestPath,
+          errDescription: describe(err),
+        }),
       );
     }
 
@@ -114,7 +145,10 @@ export class PluginLoader {
         pluginPath,
         pathId(pluginPath),
         'invalid-manifest',
-        `${manifestPath}: ${manifestResult.errors}. See spec/schemas/plugins-registry.schema.json#/$defs/PluginManifest.`,
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestAjv, {
+          manifestPath,
+          errors: manifestResult.errors,
+        }),
       );
     }
     const manifest = manifestResult.data;
@@ -126,7 +160,7 @@ export class PluginLoader {
           pluginPath,
           manifest.id,
           'invalid-manifest',
-          `specCompat "${manifest.specCompat}" is not a valid semver range. Use a range like "^1.0.0".`,
+          tx(PLUGIN_LOADER_TEXTS.invalidSpecCompat, { specCompat: manifest.specCompat }),
         ),
         manifest,
       };
@@ -137,9 +171,10 @@ export class PluginLoader {
         id: manifest.id,
         status: 'incompatible-spec',
         manifest,
-        reason:
-          `@skill-map/spec ${this.#options.specVersion} does not satisfy specCompat "${manifest.specCompat}". ` +
-          `Either update the plugin's specCompat (and re-test) or pin sm to a compatible spec version.`,
+        reason: tx(PLUGIN_LOADER_TEXTS.incompatibleSpec, {
+          installedSpecVersion: this.#options.specVersion,
+          specCompat: manifest.specCompat,
+        }),
       };
     }
 
@@ -154,7 +189,7 @@ export class PluginLoader {
         id: manifest.id,
         status: 'disabled',
         manifest,
-        reason: 'disabled by config_plugins or settings.json',
+        reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
       };
     }
 
@@ -168,7 +203,7 @@ export class PluginLoader {
             pluginPath,
             manifest.id,
             'load-error',
-            `extension file not found: ${relEntry} (resolved to ${abs}). Check plugin.json#/extensions paths.`,
+            tx(PLUGIN_LOADER_TEXTS.loadErrorFileNotFound, { relEntry, abs }),
           ),
           manifest,
         };
@@ -176,14 +211,17 @@ export class PluginLoader {
 
       let mod: unknown;
       try {
-        mod = await import(pathToFileURL(abs).href);
+        mod = await importWithTimeout(pathToFileURL(abs).href, this.#loadTimeoutMs);
       } catch (err) {
         return {
           ...fail(
             pluginPath,
             manifest.id,
             'load-error',
-            `${relEntry}: import failed — ${describe(err)}`,
+            tx(PLUGIN_LOADER_TEXTS.loadErrorImportFailed, {
+              relEntry,
+              errDescription: describe(err),
+            }),
           ),
           manifest,
         };
@@ -196,7 +234,10 @@ export class PluginLoader {
             pluginPath,
             manifest.id,
             'load-error',
-            `${relEntry}: default export missing a string \`kind\` field. Expected one of: ${KNOWN_KINDS_LIST}.`,
+            tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
+              relEntry,
+              knownKindsList: KNOWN_KINDS_LIST,
+            }),
           ),
           manifest,
         };
@@ -209,7 +250,11 @@ export class PluginLoader {
             pluginPath,
             manifest.id,
             'load-error',
-            `${relEntry}: unknown extension kind "${exported['kind']}". Expected one of: ${KNOWN_KINDS_LIST}.`,
+            tx(PLUGIN_LOADER_TEXTS.loadErrorUnknownKind, {
+              relEntry,
+              kindReceived: String(exported['kind']),
+              knownKindsList: KNOWN_KINDS_LIST,
+            }),
           ),
           manifest,
         };
@@ -236,7 +281,7 @@ export class PluginLoader {
             pluginPath,
             manifest.id,
             'load-error',
-            `${relEntry}: ${kind} manifest invalid — ${errors}. See spec/schemas/extensions/${kind}.schema.json.`,
+            tx(PLUGIN_LOADER_TEXTS.loadErrorManifestInvalid, { relEntry, kind, errors }),
           ),
           manifest,
         };
@@ -265,6 +310,28 @@ export class PluginLoader {
 
 const KNOWN_KINDS = new Set<TExtensionKind>(['adapter', 'detector', 'rule', 'action', 'audit', 'renderer']);
 const KNOWN_KINDS_LIST = [...KNOWN_KINDS].join(' / ');
+
+/**
+ * Race the dynamic import against a timer. When the timer wins we throw
+ * a clear timeout error — the caller turns it into a `load-error` row
+ * naming the offending entry. The dangling import promise lingers in
+ * Node's loader and resolves later (the result is GC'd unreferenced);
+ * there is no public `import()` cancellation API in Node 24, so this
+ * is the best we can do without spawning a worker thread.
+ */
+async function importWithTimeout(href: string, timeoutMs: number): Promise<unknown> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(tx(PLUGIN_LOADER_TEXTS.importExceededTimeout, { timeoutMs })));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([import(href), timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 function fail(
   path: string,

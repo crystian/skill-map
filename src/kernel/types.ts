@@ -5,6 +5,52 @@
  * derived from the schemas, not invented. When a schema changes, this file
  * follows. Step 2 introduces ajv + automatic derivation; until then the mapping
  * is hand-maintained, and the release gate is the conformance suite.
+ *
+ * --- Naming convention (kernel-wide) -------------------------------------
+ *
+ * Four categories with distinct prefix rules; the rules are deliberate
+ * even though they look mixed at first read:
+ *
+ *   1. **Domain types** — every shape that mirrors a `spec/schemas/*.json`
+ *      file: `Node`, `Link`, `Issue`, `ScanResult`, `ScanStats`,
+ *      `ExecutionRecord`, `HistoryStats`, …. **No prefix.** Names track
+ *      the spec verbatim because the spec is the source of truth.
+ *      Renaming any of these is a spec change.
+ *
+ *   2. **Hexagonal ports** — the abstract boundaries the kernel calls
+ *      out to (`StoragePort`, `RunnerPort`, `ProgressEmitterPort`,
+ *      `FilesystemPort`, `PluginLoaderPort`). **`Port` suffix.** The
+ *      suffix calls out the architectural role and avoids name clashes
+ *      with the concrete adapter classes (`SqliteStorageAdapter`
+ *      implements `StoragePort`).
+ *
+ *   3. **Runtime extension contracts** — what a plugin author
+ *      implements: `IAdapter`, `IDetector`, `IRule`, `IRenderer`,
+ *      `IAudit`, `IExtensionBase`. **`I` prefix.** The prefix flags
+ *      "this is a contract you supply, not a value the kernel hands
+ *      you" — same reading as the rest of TypeScript's plugin
+ *      ecosystems where a shape is implementable.
+ *
+ *   4. **Internal shapes** — option bags, result records, config
+ *      slices, anything passed across function boundaries inside the
+ *      kernel / CLI but not part of the spec: `IRunScanOptions` (well,
+ *      `RunScanOptions` — see below), `IPluginRuntimeBundle`,
+ *      `IPruneResult`, `IMigrationFile`, `IDbLocationOptions`. **`I`
+ *      prefix.** The prefix matches category 3 because both are
+ *      "shapes that live in TypeScript only, never in JSON".
+ *
+ * Edge cases worth knowing:
+ *   - `RunScanOptions` and `RenameOp` (orchestrator) lack the `I`
+ *     prefix despite being category 4. Historical drift; kept as-is
+ *     because they are part of the public surface and renaming is a
+ *     breaking change for plugin authors.
+ *   - `IDatabase` (SQLite schema) is category 4 but lives in
+ *     `adapters/sqlite/schema.ts`, not here. Same rule applies.
+ *
+ * If you find yourself wanting to add a new type and aren't sure which
+ * bucket it falls in: ask "does this shape exist in the spec?". If
+ * yes, no prefix and align the name with the schema. If no, `I`
+ * prefix.
  */
 
 export type NodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
@@ -71,10 +117,17 @@ export interface Node {
 }
 
 export interface Link {
+  /** The originating node — the path of the file the detector was reading
+   *  when it emitted this link. Singular, NOT to be confused with
+   *  `sources` (plural) below. */
   source: string;
   target: string;
   kind: LinkKind;
   confidence: Confidence;
+  /** Identifiers of the detectors / extensions that contributed evidence
+   *  for this link (one link can be confirmed by multiple detectors).
+   *  Plural; NOT the same as `source` (singular) above, which is the
+   *  originating node path. Naming is unfortunate but spec-frozen. */
   sources: string[];
   trigger?: LinkTrigger | null;
   location?: LinkLocation | null;

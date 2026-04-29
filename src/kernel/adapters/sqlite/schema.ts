@@ -18,6 +18,8 @@
 
 import type { Generated } from 'kysely';
 
+import type { Severity } from '../../types.js';
+
 // --- Enum unions mirroring spec CHECK constraints --------------------------
 
 export type TNodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
@@ -26,7 +28,12 @@ export type TStability = 'experimental' | 'stable' | 'deprecated';
 export type TLinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
 export type TConfidence = 'high' | 'medium' | 'low';
 
-export type TIssueSeverity = 'error' | 'warn' | 'info';
+// Alias the domain `Severity` so the DB and runtime stay in lock-step:
+// today the unions are identical, and any future change to the domain
+// type propagates here without manual sync. Distinct names are preserved
+// to keep call-site intent visible (`TIssueSeverity` reads as "the
+// severity stored in `scan_issues.severity`").
+export type TIssueSeverity = Severity;
 
 export type TJobStatus = 'queued' | 'running' | 'completed' | 'failed';
 export type TJobFailureReason =

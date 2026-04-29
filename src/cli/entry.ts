@@ -1,13 +1,14 @@
 /**
  * CLI entry — composed by `bin/sm.mjs`. Registers every command and hands off
- * to Clipanion. Exit codes follow `spec/cli-contract.md`:
+ * to Clipanion. Exit codes are defined once in `src/cli/util/exit-codes.ts`
+ * (the `ExitCode` object) and follow `spec/cli-contract.md`:
  *
- *   0  ok
- *   1  issues / non-clean scan
- *   2  error (unhandled / config)
- *   3  duplicate
- *   4  nonce-mismatch
- *   5  not-found
+ *   0  ok                — `ExitCode.Ok`
+ *   1  issues             — `ExitCode.Issues` (non-clean scan / check)
+ *   2  error              — `ExitCode.Error` (unhandled / config / bad usage)
+ *   3  duplicate          — `ExitCode.Duplicate` (record stub)
+ *   4  nonce-mismatch     — `ExitCode.NonceMismatch` (record stub)
+ *   5  not-found          — `ExitCode.NotFound` (DB / row / dump)
  */
 
 import { Builtins, Cli } from 'clipanion';
@@ -25,6 +26,7 @@ import { ListCommand } from './commands/list.js';
 import { ORPHANS_COMMANDS } from './commands/orphans.js';
 import { PLUGIN_COMMANDS } from './commands/plugins.js';
 import { ScanCommand } from './commands/scan.js';
+import { ScanCompareCommand } from './commands/scan-compare.js';
 import { ShowCommand } from './commands/show.js';
 import { STUB_COMMANDS } from './commands/stubs.js';
 import { VersionCommand } from './commands/version.js';
@@ -43,6 +45,7 @@ cli.register(Builtins.VersionCommand);
 cli.register(HelpCommand);
 cli.register(InitCommand);
 cli.register(ScanCommand);
+cli.register(ScanCompareCommand);
 cli.register(WatchCommand);
 cli.register(VersionCommand);
 cli.register(ListCommand);
