@@ -26,28 +26,69 @@ describe('Registry', () => {
 
   it('registers and retrieves extensions by kind', () => {
     const r = new Registry();
-    r.register({ id: 'claude', kind: 'adapter', version: '1.0.0' });
-    r.register({ id: 'frontmatter', kind: 'detector', version: '1.0.0' });
+    r.register({ id: 'claude', pluginId: 'claude', kind: 'adapter', version: '1.0.0' });
+    r.register({ id: 'frontmatter', pluginId: 'claude', kind: 'detector', version: '1.0.0' });
     assert.equal(r.totalCount(), 2);
     assert.equal(r.count('adapter'), 1);
     assert.equal(r.all('adapter')[0]?.id, 'claude');
+    assert.equal(r.all('adapter')[0]?.pluginId, 'claude');
     assert.equal(r.all('adapter')[0]?.version, '1.0.0');
   });
 
-  it('rejects duplicate registration within a kind', () => {
+  it('rejects duplicate registration within a kind (same qualified id)', () => {
     const r = new Registry();
-    r.register({ id: 'claude', kind: 'adapter', version: '1.0.0' });
+    r.register({ id: 'claude', pluginId: 'claude', kind: 'adapter', version: '1.0.0' });
     assert.throws(
-      () => r.register({ id: 'claude', kind: 'adapter', version: '1.0.1' }),
+      () => r.register({ id: 'claude', pluginId: 'claude', kind: 'adapter', version: '1.0.1' }),
       DuplicateExtensionError,
     );
   });
 
+  it('allows the same short id under different plugin namespaces (qualified id differs)', () => {
+    const r = new Registry();
+    r.register({ id: 'foo', pluginId: 'core', kind: 'detector', version: '1.0.0' });
+    r.register({ id: 'foo', pluginId: 'plugin-a', kind: 'detector', version: '1.0.0' });
+    assert.equal(r.totalCount(), 2);
+    assert.equal(r.count('detector'), 2);
+  });
+
   it('allows the same id across different kinds', () => {
     const r = new Registry();
-    r.register({ id: 'validate-all', kind: 'audit', version: '1.0.0' });
-    r.register({ id: 'validate-all', kind: 'action', version: '1.0.0' });
+    r.register({ id: 'validate-all', pluginId: 'core', kind: 'audit', version: '1.0.0' });
+    r.register({ id: 'validate-all', pluginId: 'core', kind: 'action', version: '1.0.0' });
     assert.equal(r.totalCount(), 2);
+  });
+
+  it('looks up extensions by qualified id via get()', () => {
+    const r = new Registry();
+    r.register({ id: 'broken-ref', pluginId: 'core', kind: 'rule', version: '1.0.0' });
+    const found = r.get('rule', 'core/broken-ref');
+    assert.ok(found, 'expected to resolve qualified id');
+    assert.equal(found?.id, 'broken-ref');
+    assert.equal(found?.pluginId, 'core');
+    assert.equal(r.get('rule', 'unknown/missing'), undefined);
+  });
+
+  it('find() composes the qualified id from pluginId + id', () => {
+    const r = new Registry();
+    r.register({ id: 'slash', pluginId: 'claude', kind: 'detector', version: '1.0.0' });
+    const found = r.find('detector', 'claude', 'slash');
+    assert.ok(found, 'expected to resolve via find()');
+    assert.equal(found?.id, 'slash');
+  });
+
+  it('register throws when pluginId is missing or empty', () => {
+    const r = new Registry();
+    assert.throws(
+      () =>
+        r.register({
+          // intentional cast — runtime guard verifies the contract
+          id: 'oops',
+          kind: 'detector',
+          version: '1.0.0',
+        } as unknown as Parameters<Registry['register']>[0]),
+      /pluginId/,
+    );
   });
 });
 
@@ -175,9 +216,9 @@ describe('runScan', () => {
     // result shape when those extensions don't have runtime methods yet.
     // Kernel-empty-boot still passes even after registration.
     const kernel = createKernel();
-    kernel.registry.register({ id: 'claude', kind: 'adapter', version: '1.0.0' });
-    kernel.registry.register({ id: 'frontmatter', kind: 'detector', version: '1.0.0' });
-    kernel.registry.register({ id: 'trigger-collision', kind: 'rule', version: '1.0.0' });
+    kernel.registry.register({ id: 'claude', pluginId: 'claude', kind: 'adapter', version: '1.0.0' });
+    kernel.registry.register({ id: 'frontmatter', pluginId: 'claude', kind: 'detector', version: '1.0.0' });
+    kernel.registry.register({ id: 'trigger-collision', pluginId: 'core', kind: 'rule', version: '1.0.0' });
 
     const result = await runScan(kernel, { roots: ['.'] });
     assert.equal(result.stats.nodesCount, 0);

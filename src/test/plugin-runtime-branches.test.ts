@@ -24,8 +24,10 @@ import {
   composeRenderers,
   composeScanExtensions,
   emptyPluginRuntime,
+  filterBuiltInManifests,
   loadPluginRuntime,
 } from '../cli/util/plugin-runtime.js';
+import { listBuiltIns } from '../extensions/built-ins.js';
 
 let root: string;
 let counter = 0;
@@ -176,6 +178,93 @@ describe('plugin-runtime — branch coverage', () => {
     assert.ok(withBi.length >= 2, 'expected built-in ascii + plugin csv');
     assert.ok(withBi.some((r) => r.format === 'ascii'));
     assert.ok(withBi.some((r) => r.format === 'csv'));
+  });
+
+  // Spec § A.7 — granularity. The runtime composer is the layer where
+  // per-extension toggles for granularity=extension bundles take effect
+  // (the loader's pre-import resolveEnabled is coarse / bundle-level).
+  // Four cases cover the model:
+  //   (a) disable the whole `claude` bundle → none of its 4 extensions reach scan.
+  //   (b) disable `core/superseded` → only that rule disappears; the other
+  //       core extensions stay live.
+  //   (c) default — every built-in runs.
+  //   (d) `--no-built-ins` overrides everything.
+  describe('granularity — built-in toggle filter', () => {
+    it('(a) disable claude → all 4 claude extensions skip compose', () => {
+      const bundle = emptyPluginRuntime();
+      bundle.resolveEnabled = (id: string) => id !== 'claude';
+      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
+      assert.ok(composed, 'core extensions still keep the pipeline non-empty');
+      // claude adapter is the only adapter built-in; disabling claude
+      // empties the adapter bucket entirely.
+      assert.equal(composed.adapters.length, 0, 'no adapter survives — claude is the only built-in adapter');
+      // claude detectors (frontmatter, slash, at-directive) gone; the
+      // core external-url-counter detector remains.
+      const detectorIds = composed.detectors.map((d) => d.id).sort();
+      assert.deepEqual(detectorIds, ['external-url-counter']);
+      // core/* rules unaffected.
+      assert.ok(composed.rules.length >= 4, 'every core rule should survive');
+    });
+
+    it('(b) disable core/superseded → only that rule skips; other 6 core extensions stay', () => {
+      const bundle = emptyPluginRuntime();
+      bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
+      const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
+      assert.ok(composed);
+      const ruleIds = composed.rules.map((r) => r.id).sort();
+      // The 4 built-in rules are: trigger-collision, broken-ref,
+      // superseded, link-conflict. Disabling `core/superseded` drops
+      // only one.
+      assert.deepEqual(ruleIds, ['broken-ref', 'link-conflict', 'trigger-collision']);
+      // claude bundle untouched.
+      assert.equal(composed.adapters.length, 1);
+      assert.equal(composed.detectors.length, 4, 'all 4 detectors stay');
+      // Renderer composer also respects the filter.
+      const renderers = composeRenderers({ pluginRuntime: bundle });
+      assert.equal(renderers.length, 1, 'ascii renderer still on; superseded toggle is unrelated');
+    });
+
+    it('(c) default — every built-in runs', () => {
+      const composed = composeScanExtensions({
+        noBuiltIns: false,
+        pluginRuntime: emptyPluginRuntime(),
+      });
+      assert.ok(composed);
+      assert.equal(composed.adapters.length, 1, 'claude adapter loaded');
+      assert.equal(composed.detectors.length, 4, 'all 4 detectors loaded');
+      assert.equal(composed.rules.length, 4, 'all 4 rules loaded');
+      const renderers = composeRenderers({ pluginRuntime: emptyPluginRuntime() });
+      assert.equal(renderers.length, 1, 'ascii renderer loaded');
+    });
+
+    it('(d) --no-built-ins overrides per-extension config (everything off)', () => {
+      const bundle = emptyPluginRuntime();
+      // Every id enabled at the resolver level — the macro flag must
+      // still win and produce an empty pipeline.
+      bundle.resolveEnabled = () => true;
+      const composed = composeScanExtensions({ noBuiltIns: true, pluginRuntime: bundle });
+      assert.equal(composed, undefined, '--no-built-ins + empty plugin runtime → undefined (zero-extension)');
+      const renderers = composeRenderers({ noBuiltIns: true, pluginRuntime: bundle });
+      assert.equal(renderers.length, 0);
+    });
+
+    it('filterBuiltInManifests honours bundle vs extension granularity', () => {
+      const all = listBuiltIns();
+      // Disable claude (bundle granularity) AND core/superseded
+      // (extension granularity); everything else stays.
+      const survivors = filterBuiltInManifests(all, (id: string) => {
+        if (id === 'claude') return false;
+        if (id === 'core/superseded') return false;
+        return true;
+      });
+      const surviveIds = survivors.map((m) => `${m.pluginId}/${m.id}`).sort();
+      assert.equal(surviveIds.includes('claude/claude'), false);
+      assert.equal(surviveIds.includes('claude/slash'), false);
+      assert.equal(surviveIds.includes('core/superseded'), false);
+      assert.ok(surviveIds.includes('core/broken-ref'));
+      assert.ok(surviveIds.includes('core/external-url-counter'));
+      assert.ok(surviveIds.includes('core/ascii'));
+    });
   });
 
   it('failed plugins surface in warnings, not extensions', async () => {

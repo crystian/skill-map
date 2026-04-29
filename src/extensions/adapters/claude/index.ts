@@ -26,17 +26,24 @@ const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
 export const claudeAdapter: IAdapter = {
   id: 'claude',
+  pluginId: 'claude',
   kind: 'adapter',
   version: '1.0.0',
   description: 'Walks Claude Code scope conventions (.claude/{agents,commands,hooks,skills} + notes).',
   stability: 'stable',
 
+  // Per spec § A.6, defaultRefreshAction values MUST be qualified action
+  // ids. The summarize-* actions are not yet implemented as registry
+  // entries (they ship later under the Claude bundle), but the qualified
+  // form is the contract: when those actions land, they will register
+  // under `claude/summarize-<kind>` and the adapter resolves them
+  // deterministically.
   defaultRefreshAction: {
-    agent: 'summarize-agent',
-    command: 'summarize-command',
-    skill: 'summarize-skill',
-    hook: 'summarize-hook',
-    note: 'summarize-note',
+    agent: 'claude/summarize-agent',
+    command: 'claude/summarize-command',
+    skill: 'claude/summarize-skill',
+    hook: 'claude/summarize-hook',
+    note: 'claude/summarize-note',
   },
 
   async *walk(roots, options = {}): AsyncIterable<IRawNode> {

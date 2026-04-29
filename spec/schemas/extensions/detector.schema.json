@@ -36,6 +36,13 @@
       "enum": ["frontmatter", "body", "both"],
       "default": "both",
       "description": "Which part of the node this detector consumes. The kernel passes only the declared scope to the detector — a `frontmatter` detector that tries to read `body` receives an empty string."
+    },
+    "applicableKinds": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "uniqueItems": true,
+      "description": "Optional opt-in filter. If declared, the detector runs only on nodes whose kind is in this list. Absent = applies to all kinds (default). No wildcards — the absence of the field already means \"every kind\". Empty array is invalid (`minItems: 1`). Unknown kinds (not declared by any installed Provider/Adapter) load OK but emit a warning in `sm plugins doctor` — the Provider may arrive later. The kernel filters fail-fast: nodes whose kind is excluded never see `detect()`, so a probabilistic detector wastes zero LLM cost on inapplicable nodes."
     }
   }
 }

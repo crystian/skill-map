@@ -67,6 +67,15 @@ Discovers plugin directories, reads `plugin.json`, checks `specCompat`, dynamica
 
 Operations: `discover(scopes)`, `load(pluginPath)`, `validateManifest(json)`.
 
+The loader enforces two id-uniqueness rules during discovery (see [`plugin-author-guide.md` §Plugin id uniqueness](./plugin-author-guide.md#plugin-id-uniqueness) for the author-facing summary):
+
+1. **Directory name == manifest id.** A plugin lives at `<root>/<id>/plugin.json`. A mismatch surfaces as status `invalid-manifest`. This rule eliminates same-root collisions by construction.
+2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (project + global, or any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence rule applies — coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
+
+In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `claude/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts` — `core/` for kernel-internal primitives (rules, the renderer, the audit, the external-url-counter detector) and `claude/` for the Claude provider bundle (the adapter and its kind-aware detectors). If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
+
+Each plugin (and each built-in bundle) declares a **granularity** that controls how its extensions are toggled. `granularity: 'bundle'` (the default) means the plugin id is the only enable/disable key; `granularity: 'extension'` means each extension is independently toggle-able under its qualified id. The loader's pre-import `resolveEnabled(pluginId)` short-circuit is always coarse (bundle level) — when a granularity=`extension` bundle is partially enabled, the import work proceeds and the runtime composer (the CLI's `composeScanExtensions` / `composeRenderers` in `src/cli/util/plugin-runtime.ts`) drops the disabled extensions before they reach the orchestrator. The two built-in bundles split deliberately: `claude` is granularity=`bundle` (provider-level toggle), `core` is granularity=`extension` (every kernel built-in is removable, satisfying §Boot invariant: "no extension is privileged"). See [`plugin-author-guide.md` §Granularity — bundle vs extension](./plugin-author-guide.md#granularity--bundle-vs-extension) for the author-facing summary.
+
 ### `RunnerPort`
 
 Executes an action against a job file. Returns a report reference (or an error) plus runner-side metrics (duration, tokens, exit code).
@@ -179,6 +188,10 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 ### Adapter · `defaultRefreshAction`
 
 Every `Adapter` extension MUST declare a map `defaultRefreshAction: { <kind>: <actionId> }` covering every `kind` it emits. The referenced action MUST exist in the registry by the time the graph is queried; a dangling reference is a load-time error for the adapter. Consumers (CLI `🧠 prob` buttons in `sm show`, Web UI inspector) dispatch `sm job submit <defaultRefreshAction[kind]> -n <nodePath>` when the user asks for a probabilistic refresh on a node. Implementations MAY allow plugins to override the default per-node via `metadata.refreshAction`, but the adapter default is normative.
+
+### Detector · `applicableKinds` filter
+
+Detectors MAY declare an optional `applicableKinds: string[]` on their manifest. When declared, the kernel filters fail-fast: `detect()` is invoked **only** for nodes whose `kind` appears in the list. The skip happens BEFORE the detect context is built so a probabilistic detector wastes zero LLM cost — and a deterministic detector zero CPU — on inapplicable nodes. Absent (`undefined`) is the default and means "applies to every kind"; there is no wildcard syntax. An empty array (`[]`) is invalid (`minItems: 1` in the schema). Unknown kinds (no installed Adapter declares them via `defaultRefreshAction`) are non-blocking: the detector keeps `loaded` status and `sm plugins doctor` surfaces an informational warning so the author sees typos and missing-Provider cases, but the doctor's exit code is NOT promoted by this warning. See [`plugin-author-guide.md` §Detector `applicableKinds`](./plugin-author-guide.md#detector-applicablekinds--narrow-the-pipeline) for the full author-side contract.
 
 ### Detector · trigger normalization
 

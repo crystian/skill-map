@@ -1,20 +1,31 @@
 /**
  * `PluginLoader` — default `PluginLoaderPort` implementation.
  *
- * Responsibilities (per spec §Plugin discovery + Step 1b acceptance):
+ * Responsibilities (per spec §Plugin discovery + Step 1b acceptance +
+ * spec v0.8.0 § A.5 — id uniqueness):
  *
  * 1. Discover plugin directories under one or more search paths, each
  *    containing a `plugin.json` at its root.
  * 2. Parse + AJV-validate the manifest against
  *    `plugins-registry.schema.json#/$defs/PluginManifest`.
- * 3. Semver-check `manifest.specCompat` against the installed
+ * 3. Enforce the structural rule **directory name == manifest id**. A
+ *    mismatch surfaces as `invalid-manifest` with a directed reason.
+ *    This rule alone rules out same-root collisions by construction
+ *    (a filesystem cannot host two siblings with the same name).
+ * 4. Semver-check `manifest.specCompat` against the installed
  *    `@skill-map/spec` version.
- * 4. Dynamic-import every path listed in `manifest.extensions[]`, expect a
+ * 5. Dynamic-import every path listed in `manifest.extensions[]`, expect a
  *    default export matching the extension-kind schema, validate it, and
  *    collect the loaded extensions.
- * 5. Surface one of three failure modes when anything fails:
- *    `invalid-manifest` / `incompatible-spec` / `load-error`. The kernel
- *    keeps booting regardless — a bad plugin cannot take the process down.
+ * 6. After every plugin has been loaded individually, scan the result set
+ *    for cross-root id collisions. Two plugins claiming the same id (any
+ *    combination of project + global + `--plugin-dir`) BOTH receive
+ *    status `id-collision`; no precedence rule applies. The user resolves
+ *    by renaming one and rerunning.
+ * 7. Surface one of the documented failure modes when anything fails:
+ *    `invalid-manifest` / `incompatible-spec` / `load-error` /
+ *    `id-collision`. The kernel keeps booting regardless — a bad plugin
+ *    cannot take the process down.
  */
 
 import { createRequire } from 'node:module';
@@ -106,14 +117,25 @@ export class PluginLoader {
     return out;
   }
 
-  /** Full pass — discover every plugin and attempt to load it. */
+  /**
+   * Full pass — discover every plugin, attempt to load each, then apply
+   * the cross-root id-collision pass over the results. Two plugins that
+   * survived their individual load with the same `manifest.id` both get
+   * downgraded to status `id-collision` (no precedence — the spec is
+   * explicit that "no extension is privileged"). Plugins that already
+   * failed their individual load (`invalid-manifest` /
+   * `incompatible-spec` / `load-error`) keep their original status:
+   * their `id` field is untrusted (it may be a fall-back path hint when
+   * the manifest could not be parsed) and they would muddy the
+   * collision report.
+   */
   async discoverAndLoadAll(): Promise<IDiscoveredPlugin[]> {
     const paths = this.discoverPaths();
     const out: IDiscoveredPlugin[] = [];
     for (const path of paths) {
       out.push(await this.loadOne(path));
     }
-    return out;
+    return applyIdCollisions(out);
   }
 
   /**
@@ -153,6 +175,28 @@ export class PluginLoader {
     }
     const manifest = manifestResult.data;
 
+    // --- directory name == manifest id ------------------------------------
+    // Cheap structural rule (spec § A.5 — plugin id global uniqueness).
+    // Two siblings on the same filesystem cannot share a name, so making
+    // the directory match the id eliminates same-root collisions by
+    // construction. Cross-root collisions are caught afterwards by
+    // `applyIdCollisions` over the full discovery result.
+    const dirName = pathId(pluginPath);
+    if (dirName !== manifest.id) {
+      return {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestDirMismatch, {
+            dirName,
+            manifestId: manifest.id,
+          }),
+        ),
+        manifest,
+      };
+    }
+
     // --- spec compat ------------------------------------------------------
     if (!semver.validRange(manifest.specCompat)) {
       return {
@@ -171,6 +215,7 @@ export class PluginLoader {
         id: manifest.id,
         status: 'incompatible-spec',
         manifest,
+        granularity: manifest.granularity ?? 'bundle',
         reason: tx(PLUGIN_LOADER_TEXTS.incompatibleSpec, {
           installedSpecVersion: this.#options.specVersion,
           specCompat: manifest.specCompat,
@@ -183,12 +228,22 @@ export class PluginLoader {
     // implies "we know this plugin enough to surface it; we just chose
     // not to run it". An invalid or incompatible plugin gets its own
     // status and never reaches this branch.
+    //
+    // Spec § A.7 — granularity. User plugins always opt into one of two
+    // toggle modes. The loader's pre-import resolveEnabled() check uses
+    // the plugin id (the bundle-level key). Plugins with
+    // granularity='extension' that want to gate individual extensions
+    // need a richer policy at the runtime composer (see
+    // `cli/util/plugin-runtime.ts`); the loader stage is intentionally
+    // coarse — disabling the bundle id always wins, so the import work
+    // is skipped wholesale.
     if (this.#options.resolveEnabled && !this.#options.resolveEnabled(manifest.id)) {
       return {
         path: pluginPath,
         id: manifest.id,
         status: 'disabled',
         manifest,
+        granularity: manifest.granularity ?? 'bundle',
         reason: PLUGIN_LOADER_TEXTS.disabledByConfig,
       };
     }
@@ -260,6 +315,31 @@ export class PluginLoader {
         };
       }
 
+      // Spec § A.6 — qualified ids. The loader injects `pluginId =
+      // manifest.id` so the registry can key extensions by
+      // `<pluginId>/<id>`. If the author hand-declared `pluginId` AND it
+      // disagrees with `plugin.json#/id`, that is a hard load error: there
+      // can only be one source of truth for the namespace, and it lives in
+      // the manifest. A matching declaration is tolerated (no-op);
+      // we strip it before AJV validation since the spec deliberately
+      // doesn't model `pluginId` (it's a runtime concern).
+      const declaredPluginId = exported['pluginId'];
+      if (typeof declaredPluginId === 'string' && declaredPluginId !== manifest.id) {
+        return {
+          ...fail(
+            pluginPath,
+            manifest.id,
+            'invalid-manifest',
+            tx(PLUGIN_LOADER_TEXTS.loadErrorPluginIdMismatch, {
+              relEntry,
+              declared: declaredPluginId,
+              manifestId: manifest.id,
+            }),
+          ),
+          manifest,
+        };
+      }
+
       // The runtime export carries both manifest fields (id, kind,
       // version, kind-specific metadata) AND runtime methods (detect /
       // evaluate / render / audit / walk / parse / run). The
@@ -270,7 +350,14 @@ export class PluginLoader {
       // covered by the TypeScript `IDetector` / `IRenderer` / ... interfaces
       // at the call site (the orchestrator invokes `.detect()`,
       // `.render()`, etc. and crashes loudly if absent).
-      const manifestView = stripFunctions(exported);
+      //
+      // Also strip `pluginId`: per spec § A.6 it's a runtime concern that
+      // the loader injects from `plugin.json#/id`; the schemas
+      // deliberately do not model it. A user export that includes a
+      // matching `pluginId` (the mismatching case was rejected above) is
+      // tolerated; stripping prevents `unevaluatedProperties: false` from
+      // raising on an authored-but-equal field.
+      const manifestView = stripFunctionsAndPluginId(exported);
       const extValidator = this.#options.validators.validatorForExtension(kind);
       if (!extValidator(manifestView)) {
         const errors = (extValidator.errors ?? [])
@@ -290,6 +377,7 @@ export class PluginLoader {
       loaded.push({
         kind,
         id: exported['id'] as string,
+        pluginId: manifest.id,
         version: exported['version'] as string,
         entryPath: abs,
         module: mod,
@@ -301,6 +389,7 @@ export class PluginLoader {
       id: manifest.id,
       status: 'loaded',
       manifest,
+      granularity: manifest.granularity ?? 'bundle',
       extensions: loaded,
     };
   }
@@ -361,18 +450,21 @@ function extractDefault(mod: unknown): unknown {
 }
 
 /**
- * Drop function-typed properties so the resulting object is JSON-Schema-
- * validatable. Used on the runtime export before AJV gets it: an
- * extension's `detect` / `render` / etc. method is part of its TypeScript
- * contract, not its declarative manifest, and JSON Schema's
- * `unevaluatedProperties: false` posture would otherwise reject the
- * whole export. Cheap shallow copy — manifests don't nest deep.
+ * Drop function-typed properties AND the runtime-only `pluginId` so the
+ * resulting object is JSON-Schema-validatable. Used on the runtime export
+ * before AJV gets it: an extension's `detect` / `render` / etc. method is
+ * part of its TypeScript contract, not its declarative manifest, and JSON
+ * Schema's `unevaluatedProperties: false` posture would otherwise reject
+ * the whole export. Same posture for `pluginId` — per spec § A.6 it's a
+ * runtime concern injected by the loader, not a manifest field.
+ * Cheap shallow copy — manifests don't nest deep.
  */
-function stripFunctions(input: unknown): unknown {
+function stripFunctionsAndPluginId(input: unknown): unknown {
   if (!isRecord(input)) return input;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(input)) {
     if (typeof v === 'function') continue;
+    if (k === 'pluginId') continue;
     out[k] = v;
   }
   return out;
@@ -382,6 +474,74 @@ function stripFunctions(input: unknown): unknown {
 function pathId(p: string): string {
   const parts = p.split(/[/\\]/);
   return parts[parts.length - 1] ?? p;
+}
+
+/**
+ * Cross-root id-collision pass. Group survivors (plugins whose individual
+ * load reached a status that exposes a *trusted* `manifest.id`) by id, and
+ * for any group of size ≥ 2 rewrite every member's status to
+ * `id-collision` with a reason naming the other path(s).
+ *
+ * "Trusted id" means the manifest parsed and validated. The eligible
+ * statuses are therefore `loaded`, `disabled`, and `incompatible-spec`
+ * (each of those keeps `manifest` populated). The remaining failure
+ * modes — `invalid-manifest` and `load-error` — either never reached the
+ * id-trust point (`invalid-manifest`) or carry a manifest that's still
+ * structurally fine; we treat them inclusively. Pragmatically, the only
+ * status whose `id` is a path fall-back is `invalid-manifest` from a
+ * manifest that failed to parse — and those are excluded because the
+ * fall-back id is the directory name, which by the same-root pigeonhole
+ * cannot collide with another fall-back id (and a collision against a
+ * real id would be misleading noise: "rename your plugin to fix your
+ * neighbour's broken JSON" is bad guidance).
+ *
+ * Concretely we only consider plugins that have a `manifest` populated.
+ */
+function applyIdCollisions(plugins: IDiscoveredPlugin[]): IDiscoveredPlugin[] {
+  const buckets = new Map<string, IDiscoveredPlugin[]>();
+  for (const p of plugins) {
+    if (!p.manifest) continue; // skip path-fall-back ids (untrusted)
+    const id = p.manifest.id;
+    const bucket = buckets.get(id);
+    if (bucket) bucket.push(p);
+    else buckets.set(id, [p]);
+  }
+
+  const collidingPaths = new Set<string>();
+  const collisionReason = new Map<string, string>();
+  for (const [id, bucket] of buckets) {
+    if (bucket.length < 2) continue;
+    // Stable order so the rendered "collides with" list is deterministic
+    // across runs — essential for snapshot tests and CI output diffs.
+    const sorted = [...bucket].sort((a, b) => a.path.localeCompare(b.path));
+    for (const member of sorted) {
+      collidingPaths.add(member.path);
+      const others = sorted.filter((p) => p.path !== member.path).map((p) => p.path);
+      // Reason names the FIRST other path explicitly (matches the spec
+      // suggestion) and lists the rest (if any) for the rare 3-way case.
+      const pathB = others.length === 1 ? others[0]! : others.join(', ');
+      collisionReason.set(
+        member.path,
+        tx(PLUGIN_LOADER_TEXTS.idCollision, { id, pathA: member.path, pathB }),
+      );
+    }
+  }
+
+  if (collidingPaths.size === 0) return plugins;
+
+  return plugins.map((p) => {
+    if (!collidingPaths.has(p.path)) return p;
+    const next: IDiscoveredPlugin = {
+      ...p,
+      status: 'id-collision',
+      reason: collisionReason.get(p.path) ?? p.reason ?? '',
+    };
+    // A colliding plugin's extensions are inert — strip them so a
+    // careless caller cannot register them anyway. Manifest is kept
+    // for diagnostics (`sm plugins list/show` shows version, author).
+    delete next.extensions;
+    return next;
+  });
 }
 
 /**

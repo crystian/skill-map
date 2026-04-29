@@ -20,6 +20,7 @@ const ID = 'frontmatter';
 
 export const frontmatterDetector: IDetector = {
   id: ID,
+  pluginId: 'claude',
   kind: 'detector',
   version: '1.0.0',
   description: 'Reads structured references from the frontmatter (supersedes, supersededBy, requires, related).',

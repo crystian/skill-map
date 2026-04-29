@@ -23,7 +23,7 @@ export function createKernel(): Kernel {
 // types, orchestrator, watcher / delta / query, ports, extension
 // kinds.
 
-export { Registry, EXTENSION_KINDS, DuplicateExtensionError } from './registry.js';
+export { Registry, EXTENSION_KINDS, DuplicateExtensionError, qualifiedExtensionId } from './registry.js';
 export type { Extension, ExtensionKind } from './registry.js';
 
 // --- domain types (./types.ts) -----------------------------------------

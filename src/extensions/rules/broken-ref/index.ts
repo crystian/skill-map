@@ -22,6 +22,7 @@ const ID = 'broken-ref';
 
 export const brokenRefRule: IRule = {
   id: ID,
+  pluginId: 'core',
   kind: 'rule',
   version: '1.0.0',
   description: 'Flags links whose target cannot be resolved to a scanned node.',

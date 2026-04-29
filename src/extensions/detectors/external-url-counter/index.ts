@@ -44,6 +44,7 @@ const TRAILING_PUNCT = /[.,;:!?]+$/;
 
 export const externalUrlCounterDetector: IDetector = {
   id: ID,
+  pluginId: 'core',
   kind: 'detector',
   version: '1.0.0',
   description:

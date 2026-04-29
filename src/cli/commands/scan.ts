@@ -21,6 +21,7 @@ import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
+  filterBuiltInManifests,
   loadPluginRuntime,
   type IPluginRuntimeBundle,
 } from '../util/plugin-runtime.js';
@@ -175,7 +176,12 @@ export class ScanCommand extends Command {
       pluginRuntime,
     });
     if (!this.noBuiltIns) {
-      for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+      // Granularity filter: a user-disabled built-in (whether bundle-
+      // level `claude` or extension-level `core/<id>`) is silenced from
+      // the registry too, so `sm help` / `sm plugins list` introspection
+      // does not advertise it as active.
+      const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);
+      for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
     }
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 

@@ -9,7 +9,7 @@
     "id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "Kebab-case identifier unique within the extension's kind across all loaded plugins. The built-in default set uses bare ids (`claude`, `frontmatter`, `trigger-collision`). Third-party extensions SHOULD namespace with their plugin id (`my-plugin/foo-detector`) to avoid collisions."
+      "description": "Kebab-case identifier unique within the extension's kind across the same plugin. The kernel registers every extension under the **qualified** id `<plugin-id>/<id>` (e.g. `core/frontmatter`, `claude/slash`, `hello-world/greet`) — see `architecture.md` §Extension kinds and `plugin-author-guide.md` §Qualified extension ids. Authors declare only the short id here; the qualifier is composed by the loader from the manifest's `id` (or, for built-ins, from the bundle declaration in `built-ins.ts`). The pattern is intentionally constrained to a single kebab-case segment without the `/` separator: the qualifier always lives in the plugin id, never in the extension id."
     },
     "kind": {
       "type": "string",

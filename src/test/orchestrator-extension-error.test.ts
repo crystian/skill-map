@@ -79,6 +79,7 @@ describe('orchestrator — extension.error events', () => {
     const buggyDetector: IDetector = {
       kind: 'detector',
       id: 'bad-kind-detector',
+      pluginId: 'test',
       version: '1.0.0',
       emitsLinkKinds: ['references'],
       defaultConfidence: 'low',
@@ -120,13 +121,14 @@ describe('orchestrator — extension.error events', () => {
     strictEqual(extErrors.length, 2, 'one extension.error per dropped link');
     const data = extErrors[0]!.data as Record<string, unknown>;
     strictEqual(data['kind'], 'link-kind-not-declared');
-    strictEqual(data['extensionId'], 'bad-kind-detector');
+    // Spec § A.6 — `extensionId` is the qualified id `<pluginId>/<id>`.
+    strictEqual(data['extensionId'], 'test/bad-kind-detector');
     strictEqual(data['linkKind'], 'mentions');
     deepStrictEqual(data['declaredKinds'], ['references']);
     ok(typeof data['message'] === 'string');
     ok(
-      (data['message'] as string).includes('bad-kind-detector'),
-      'message names the detector',
+      (data['message'] as string).includes('test/bad-kind-detector'),
+      'message names the detector with its qualified id',
     );
   });
 
@@ -136,6 +138,7 @@ describe('orchestrator — extension.error events', () => {
     const buggyRule: IRule = {
       kind: 'rule',
       id: 'bad-severity-rule',
+      pluginId: 'test',
       version: '1.0.0',
       evaluate: () =>
         [
@@ -170,11 +173,12 @@ describe('orchestrator — extension.error events', () => {
     strictEqual(extErrors.length, 1, 'one extension.error per dropped issue');
     const data = extErrors[0]!.data as Record<string, unknown>;
     strictEqual(data['kind'], 'issue-invalid-severity');
-    strictEqual(data['extensionId'], 'bad-severity-rule');
+    // Spec § A.6 — `extensionId` is the qualified id `<pluginId>/<id>`.
+    strictEqual(data['extensionId'], 'test/bad-severity-rule');
     strictEqual(data['severity'], 'fatal');
     ok(
-      (data['message'] as string).includes('bad-severity-rule'),
-      'message names the rule',
+      (data['message'] as string).includes('test/bad-severity-rule'),
+      'message names the rule with its qualified id',
     );
   });
 

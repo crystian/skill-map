@@ -30,6 +30,26 @@ export interface IDetector extends IExtensionBase {
   emitsLinkKinds: LinkKind[];
   defaultConfidence: Confidence;
   scope: 'frontmatter' | 'body' | 'both';
+  /**
+   * Optional opt-in filter on `node.kind`. When declared, the orchestrator
+   * skips invocation of `detect()` for any node whose `kind` is NOT in
+   * this list — fail-fast, before context construction, so a
+   * probabilistic detector wastes zero LLM cost on inapplicable nodes
+   * and a deterministic detector wastes zero CPU.
+   *
+   * Absent (`undefined`) is the default: the detector applies to every
+   * kind. There are no wildcards — the absence of the field already
+   * encodes "every kind". An empty array (`[]`) is rejected at load
+   * time by AJV (`minItems: 1` in the schema).
+   *
+   * Unknown kinds (no installed Provider declares them) do NOT block
+   * the load: the detector keeps `loaded` status and `sm plugins doctor`
+   * surfaces a warning. The Provider that declares the kind may arrive
+   * later (e.g. a user installs the corresponding plugin).
+   *
+   * Spec: `spec/schemas/extensions/detector.schema.json#/properties/applicableKinds`.
+   */
+  applicableKinds?: string[];
 
   detect(ctx: IDetectContext): Link[] | Promise<Link[]>;
 }

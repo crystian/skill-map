@@ -497,6 +497,17 @@ async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetec
       emitter.emit(makeEvent('scan.progress', { index, path: raw.path, kind, cached: false }));
 
       for (const detector of detectors) {
+        // Spec § A.10 — `applicableKinds` is an optional opt-in filter on
+        // `node.kind`. When declared, skip invocation entirely BEFORE
+        // building the detect context so a probabilistic detector wastes
+        // zero LLM cost (and a deterministic detector zero CPU) on
+        // inapplicable nodes. Absent → applies to every kind.
+        if (
+          detector.applicableKinds !== undefined &&
+          !detector.applicableKinds.includes(node.kind)
+        ) {
+          continue;
+        }
         const ctx = buildDetectContext(detector, node, raw.body, raw.frontmatter);
         const emitted = await detector.detect(ctx);
         for (const link of emitted) {
@@ -874,15 +885,21 @@ function validateLink(detector: IDetector, link: Link, emitter: ProgressEmitterP
     // worst possible plugin-author UX. The orchestrator is the last line
     // of defence against a misbehaving detector, but the author needs to
     // know the line fired.
+    //
+    // `extensionId` carries the qualified form `<pluginId>/<id>` (spec
+    // § A.6) so the diagnostic matches what `sm plugins list` and
+    // registry lookups use. Older builds emitted just the short id; the
+    // qualified form is unambiguous across plugins.
+    const qualifiedId = `${detector.pluginId}/${detector.id}`;
     emitter.emit(
       makeEvent('extension.error', {
         kind: 'link-kind-not-declared',
-        extensionId: detector.id,
+        extensionId: qualifiedId,
         linkKind: link.kind,
         declaredKinds: detector.emitsLinkKinds,
         link: { source: link.source, target: link.target, kind: link.kind },
         message: tx(ORCHESTRATOR_TEXTS.extensionErrorLinkKindNotDeclared, {
-          detectorId: detector.id,
+          detectorId: qualifiedId,
           linkKind: link.kind,
           declaredKinds: detector.emitsLinkKinds.join(', '),
         }),
@@ -1027,14 +1044,17 @@ function validateIssue(rule: IRule, issue: Issue, emitter: ProgressEmitterPort):
     // Rule emitted an out-of-spec severity (or none at all) — drop the
     // issue. Surface a diagnostic so plugin authors see the issue
     // disappear FOR A REASON, instead of silently never showing up.
+    // Qualified id (spec § A.6) keeps `extension.error` consumers
+    // unambiguous across plugin namespaces.
+    const qualifiedId = `${rule.pluginId}/${rule.id}`;
     emitter.emit(
       makeEvent('extension.error', {
         kind: 'issue-invalid-severity',
-        extensionId: rule.id,
+        extensionId: qualifiedId,
         severity,
         issue: { ruleId: issue.ruleId || rule.id, message: issue.message, nodeIds: issue.nodeIds },
         message: tx(ORCHESTRATOR_TEXTS.extensionErrorIssueInvalidSeverity, {
-          ruleId: rule.id,
+          ruleId: qualifiedId,
           severity: JSON.stringify(severity),
         }),
       }),

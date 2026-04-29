@@ -36,6 +36,12 @@
           "minItems": 1,
           "items": { "type": "string" }
         },
+        "granularity": {
+          "type": "string",
+          "enum": ["bundle", "extension"],
+          "default": "bundle",
+          "description": "Toggle granularity for this plugin. `bundle` (default) — the plugin id is the only enable/disable key; the whole set of extensions follows the toggle. `extension` — each extension is independently toggle-able under its qualified id `<plugin-id>/<extension-id>`. Built-in bundles use the same field: the `claude` bundle is `bundle` (the adapter and its kind-aware detectors form a coherent provider); the `core` bundle is `extension` (every kernel built-in is removable per the spec promise that no extension is privileged). Plugin authors should keep the default unless their plugin ships several orthogonal capabilities a user might reasonably want piecemeal."
+        },
         "storage": {
           "type": "object",
           "description": "Persistence mode for this plugin. Absent = plugin does not persist state.",
@@ -86,8 +92,8 @@
         "manifest": { "$ref": "#/$defs/PluginManifest" },
         "status": {
           "type": "string",
-          "enum": ["enabled", "disabled", "incompatible-spec", "invalid-manifest", "load-error"],
-          "description": "Resolved state after discovery. `disabled` = user-disabled via config; others = automatic."
+          "enum": ["enabled", "disabled", "incompatible-spec", "invalid-manifest", "load-error", "id-collision"],
+          "description": "Resolved state after discovery. `disabled` = user-disabled via config; `id-collision` = two plugins (any combination of project / global / --plugin-dir) declared the same `id`, both blocked, no precedence; others = automatic."
         },
         "statusReason": {
           "type": ["string", "null"],

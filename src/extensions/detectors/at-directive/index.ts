@@ -23,6 +23,7 @@ const AT_RE = /(?:^|[^A-Za-z0-9_@])(@[a-z0-9][a-z0-9_-]*(?:[/:][a-z0-9][a-z0-9_-
 
 export const atDirectiveDetector: IDetector = {
   id: ID,
+  pluginId: 'claude',
   kind: 'detector',
   version: '1.0.0',
   description: 'Detects @agent-name mentions in the node body.',

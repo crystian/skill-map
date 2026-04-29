@@ -45,6 +45,7 @@ import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
+  filterBuiltInManifests,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
@@ -106,7 +107,8 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
 
   const runOnePass = async (): Promise<void> => {
     const kernel = createKernel();
-    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+    const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);
+    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
     const priorSnapshot = await tryWithSqlite(

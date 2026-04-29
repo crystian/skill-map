@@ -1858,22 +1858,22 @@ svg    { display: block; max-width: 100%; }
   transition: stroke .25s var(--ease-out), stroke-width .25s var(--ease-out);
 }
 .peco__line-traveler { opacity: 0; transition: opacity .2s var(--ease-out); }
-.peco[data-active="adapter"]  .peco__line[data-pe-id="adapter"]  line,
-.peco[data-active="detector"] .peco__line[data-pe-id="detector"] line,
+.peco[data-active="provider"]  .peco__line[data-pe-id="provider"]  line,
+.peco[data-active="extractor"] .peco__line[data-pe-id="extractor"] line,
 .peco[data-active="rule"]     .peco__line[data-pe-id="rule"]     line,
 .peco[data-active="action"]   .peco__line[data-pe-id="action"]   line,
-.peco[data-active="audit"]    .peco__line[data-pe-id="audit"]    line,
-.peco[data-active="renderer"] .peco__line[data-pe-id="renderer"] line {
+.peco[data-active="hook"]    .peco__line[data-pe-id="hook"]    line,
+.peco[data-active="formatter"] .peco__line[data-pe-id="formatter"] line {
   stroke: var(--pe-accent);
   stroke-width: 1.5;
   stroke-dasharray: 0;
 }
-.peco[data-active="adapter"]  .peco__line[data-pe-id="adapter"]  .peco__line-traveler,
-.peco[data-active="detector"] .peco__line[data-pe-id="detector"] .peco__line-traveler,
+.peco[data-active="provider"]  .peco__line[data-pe-id="provider"]  .peco__line-traveler,
+.peco[data-active="extractor"] .peco__line[data-pe-id="extractor"] .peco__line-traveler,
 .peco[data-active="rule"]     .peco__line[data-pe-id="rule"]     .peco__line-traveler,
 .peco[data-active="action"]   .peco__line[data-pe-id="action"]   .peco__line-traveler,
-.peco[data-active="audit"]    .peco__line[data-pe-id="audit"]    .peco__line-traveler,
-.peco[data-active="renderer"] .peco__line[data-pe-id="renderer"] .peco__line-traveler {
+.peco[data-active="hook"]    .peco__line[data-pe-id="hook"]    .peco__line-traveler,
+.peco[data-active="formatter"] .peco__line[data-pe-id="formatter"] .peco__line-traveler {
   opacity: 1;
 }
 
@@ -1910,52 +1910,52 @@ svg    { display: block; max-width: 100%; }
 
 .peco__sat:hover .peco__sat-glow,
 .peco__sat:focus-visible .peco__sat-glow,
-.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-glow,
-.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-glow,
+.peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-glow,
+.peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-glow,
 .peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-glow,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-glow,
-.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-glow,
-.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-glow {
+.peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-glow,
+.peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-glow {
   opacity: 1;
 }
 .peco__sat:hover .peco__sat-body,
 .peco__sat:focus-visible .peco__sat-body,
-.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-body,
-.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-body,
+.peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-body,
+.peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-body,
 .peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-body,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-body,
-.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-body,
-.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-body {
+.peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-body,
+.peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-body {
   stroke-width: 2;
   filter: drop-shadow(0 0 14px var(--pe-accent));
 }
 .peco__sat:hover .peco__sat-fill,
 .peco__sat:focus-visible .peco__sat-fill,
-.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-fill,
-.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-fill,
+.peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-fill,
+.peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-fill,
 .peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-fill,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-fill,
-.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-fill,
-.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-fill {
+.peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-fill,
+.peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-fill {
   opacity: .9;
 }
 .peco__sat:hover .peco__sat-label,
 .peco__sat:focus-visible .peco__sat-label,
-.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-label,
-.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-label,
+.peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-label,
+.peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-label,
 .peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-label,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-label,
-.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-label,
-.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-label {
+.peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-label,
+.peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-label {
   fill: #fff;
 }
 /* Pulse ring only on the actively selected satellite (not on hover). */
-.peco[data-active="adapter"]  .peco__sat[data-pe-id="adapter"]  .peco__sat-pulse,
-.peco[data-active="detector"] .peco__sat[data-pe-id="detector"] .peco__sat-pulse,
+.peco[data-active="provider"]  .peco__sat[data-pe-id="provider"]  .peco__sat-pulse,
+.peco[data-active="extractor"] .peco__sat[data-pe-id="extractor"] .peco__sat-pulse,
 .peco[data-active="rule"]     .peco__sat[data-pe-id="rule"]     .peco__sat-pulse,
 .peco[data-active="action"]   .peco__sat[data-pe-id="action"]   .peco__sat-pulse,
-.peco[data-active="audit"]    .peco__sat[data-pe-id="audit"]    .peco__sat-pulse,
-.peco[data-active="renderer"] .peco__sat[data-pe-id="renderer"] .peco__sat-pulse {
+.peco[data-active="hook"]    .peco__sat[data-pe-id="hook"]    .peco__sat-pulse,
+.peco[data-active="formatter"] .peco__sat[data-pe-id="formatter"] .peco__sat-pulse {
   opacity: 1;
 }
 
@@ -1984,12 +1984,12 @@ svg    { display: block; max-width: 100%; }
 }
 
 .peco__brief { display: none; position: relative; }
-.peco[data-active="adapter"]  .peco__brief[data-pe-id="adapter"],
-.peco[data-active="detector"] .peco__brief[data-pe-id="detector"],
+.peco[data-active="provider"]  .peco__brief[data-pe-id="provider"],
+.peco[data-active="extractor"] .peco__brief[data-pe-id="extractor"],
 .peco[data-active="rule"]     .peco__brief[data-pe-id="rule"],
 .peco[data-active="action"]   .peco__brief[data-pe-id="action"],
-.peco[data-active="audit"]    .peco__brief[data-pe-id="audit"],
-.peco[data-active="renderer"] .peco__brief[data-pe-id="renderer"] {
+.peco[data-active="hook"]    .peco__brief[data-pe-id="hook"],
+.peco[data-active="formatter"] .peco__brief[data-pe-id="formatter"] {
   display: block;
 }
 

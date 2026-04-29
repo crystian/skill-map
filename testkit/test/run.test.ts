@@ -23,6 +23,7 @@ describe('runDetectorOnFixture', () => {
   it('runs a deterministic detector and returns its links', async () => {
     const detector: IDetector = {
       id: 'fixture-detector',
+      pluginId: 'testkit',
       kind: 'detector',
       version: '1.0.0',
       emitsLinkKinds: ['references'],
@@ -55,6 +56,7 @@ describe('runDetectorOnFixture', () => {
     };
     const detector: IDetector = {
       id: 'spy',
+      pluginId: 'testkit',
       kind: 'detector',
       version: '1.0.0',
       emitsLinkKinds: ['references'],
@@ -82,6 +84,7 @@ describe('runRuleOnGraph', () => {
   it('runs a rule against a populated graph and returns its issues', async () => {
     const rule: IRule = {
       id: 'fixture-rule',
+      pluginId: 'testkit',
       kind: 'rule',
       version: '1.0.0',
       evaluate(ctx) {
@@ -107,6 +110,7 @@ describe('runRuleOnGraph', () => {
   it('runs against an empty graph by default', async () => {
     const rule: IRule = {
       id: 'noisy',
+      pluginId: 'testkit',
       kind: 'rule',
       version: '1.0.0',
       evaluate(ctx) {
@@ -123,6 +127,7 @@ describe('runRendererOnGraph', () => {
   it('renders a graph and returns the string output', () => {
     const renderer: IRenderer = {
       id: 'fixture-renderer',
+      pluginId: 'testkit',
       kind: 'renderer',
       version: '1.0.0',
       format: 'fixture',

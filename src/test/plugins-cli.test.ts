@@ -135,7 +135,7 @@ describe('sm plugins enable / disable', () => {
     assert.match(list.stdout, /ok\s+mock-b/);
   });
 
-  it('--all disables every discovered plugin', async () => {
+  it('--all disables every bundle-granularity plugin (built-in claude + user plugins)', async () => {
     const scope = freshScope('disable-all');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-c');
@@ -143,7 +143,18 @@ describe('sm plugins enable / disable', () => {
 
     const r = sm(['plugins', 'disable', '--all'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /disabled: 2 plugin\(s\)/);
+    // Spec § A.7 — `--all` operates on bundle-granularity ids only.
+    // Built-in `claude` (granularity=bundle) is included; built-in
+    // `core` (granularity=extension) is NOT — its individual extensions
+    // are the toggle-able units, and `--all` deliberately does not
+    // expand to qualified ids.
+    assert.match(r.stdout, /disabled: 3 plugin\(s\)/);
+    assert.match(r.stdout, /- claude/);
+    assert.match(r.stdout, /- mock-c/);
+    assert.match(r.stdout, /- mock-d/);
+    // `core` must NOT be in the targets — extension granularity rejects
+    // bare bundle ids.
+    assert.equal(r.stdout.includes('- core\n'), false, 'core must not be toggled by --all');
 
     const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
     const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
@@ -151,6 +162,7 @@ describe('sm plugins enable / disable', () => {
     try {
       assert.equal(await getPluginEnabled(adapter.db, 'mock-c'), false);
       assert.equal(await getPluginEnabled(adapter.db, 'mock-d'), false);
+      assert.equal(await getPluginEnabled(adapter.db, 'claude'), false);
     } finally {
       await adapter.close();
     }
@@ -207,6 +219,108 @@ describe('sm plugins enable / disable', () => {
   });
 });
 
+// Spec § A.7 — granularity. The CLI rejects mismatched ids up front so
+// the user learns the model from the error message instead of silently
+// writing a config_plugins row that the runtime would later ignore.
+describe('sm plugins enable / disable — granularity', () => {
+  it('(e) disable claude (bundle granularity) → OK, persists row under "claude"', async () => {
+    const scope = freshScope('granularity-claude-disable');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'claude'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /disabled: claude/);
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      assert.equal(await getPluginEnabled(adapter.db, 'claude'), false);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('(f) disable claude/slash (qualified id under bundle granularity) → ERROR', () => {
+    const scope = freshScope('granularity-claude-qualified');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'claude/slash'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /'claude' has granularity=bundle/);
+    assert.match(r.stderr, /sm plugins disable claude/);
+  });
+
+  it('(g) disable core (bare bundle id under extension granularity) → ERROR', () => {
+    const scope = freshScope('granularity-core-bare');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /'core' has granularity=extension/);
+    assert.match(r.stderr, /sm plugins disable core\/<ext-id>/);
+  });
+
+  it('(h) disable core/superseded (qualified id under extension granularity) → OK', async () => {
+    const scope = freshScope('granularity-core-qualified');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/superseded'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /disabled: core\/superseded/);
+
+    const dbPath = join(scope.cwd, '.skill-map', 'skill-map.db');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      assert.equal(await getPluginEnabled(adapter.db, 'core/superseded'), false);
+      // Other core extensions and the claude bundle untouched.
+      assert.equal(await getPluginEnabled(adapter.db, 'claude'), undefined);
+      assert.equal(await getPluginEnabled(adapter.db, 'core/broken-ref'), undefined);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('(i) sm plugins list shows mixed granularities correctly', () => {
+    const scope = freshScope('granularity-list');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-list');
+
+    const r = sm(['plugins', 'list'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // Claude bundle line carries granularity=bundle and an inline list
+    // of qualified extension ids.
+    assert.match(r.stdout, /claude@built-in \(granularity=bundle\)/);
+    assert.match(r.stdout, /adapter:claude\/claude/);
+    // Core bundle line carries granularity=extension and one indented
+    // line per extension with its own status.
+    assert.match(r.stdout, /core@built-in \(granularity=extension\)/);
+    assert.match(r.stdout, /\bok\b\s+rule:core\/superseded/);
+    // User plugin still has its own row with granularity=bundle (default).
+    assert.match(r.stdout, /mock-list@0\.1\.0 \(granularity=bundle\)/);
+  });
+
+  it('rejects qualified id under unknown bundle with directed message', () => {
+    const scope = freshScope('granularity-unknown-bundle');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'no-such/anything'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Qualified extension id references unknown bundle/);
+  });
+
+  it('rejects qualified id with unknown extension under known bundle', () => {
+    const scope = freshScope('granularity-unknown-ext');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['plugins', 'disable', 'core/no-such-rule'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Qualified extension id not found/);
+    assert.match(r.stderr, /'core' does not declare an extension with id 'no-such-rule'/);
+  });
+});
+
 describe('sm plugins doctor — disabled is not a failure', () => {
   it('exit 0 when the only non-loaded plugin is disabled', () => {
     const scope = freshScope('doctor-disabled');
@@ -217,5 +331,34 @@ describe('sm plugins doctor — disabled is not a failure', () => {
     const r = sm(['plugins', 'doctor'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /disabled\s+1/);
+  });
+});
+
+// Spec § A.6 — qualified extension ids surface through `sm plugins
+// show`. The plugin id (the namespace) stays unqualified — `show`
+// resolves on it — but the listed extensions are rendered with their
+// qualified form `<pluginId>/<id>` so the user pastes the same string
+// used by registry lookups and `defaultRefreshAction`.
+describe('sm plugins show — qualified extension ids', () => {
+  it('renders extensions as <pluginId>/<id>; show resolves on the plugin id', () => {
+    const scope = freshScope('show-qualified');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-q');
+
+    const r = sm(['plugins', 'show', 'mock-q'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /^id:\s+mock-q$/m);
+    // Extensions row uses the qualified form `mock-q/mock-q-detector`.
+    assert.match(r.stdout, /detector:mock-q\/mock-q-detector@/);
+  });
+
+  it('list output renders extensions with qualified ids', () => {
+    const scope = freshScope('list-qualified');
+    sm(['init', '--no-scan'], scope);
+    dropMockPlugin(scope, 'mock-l');
+
+    const r = sm(['plugins', 'list'], scope);
+    assert.equal(r.status, 0);
+    assert.match(r.stdout, /detector:mock-l\/mock-l-detector/);
   });
 });

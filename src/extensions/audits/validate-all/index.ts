@@ -41,6 +41,7 @@ const FRONTMATTER_BY_KIND: Record<NodeKind, TSchemaName | null> = {
 
 export const validateAllAudit: IAudit = {
   id: ID,
+  pluginId: 'core',
   kind: 'audit',
   version: '1.0.0',
   description: 'Validates every scanned node / link / issue against the authoritative @skill-map/spec schemas.',

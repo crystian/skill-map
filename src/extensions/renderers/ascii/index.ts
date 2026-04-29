@@ -31,6 +31,7 @@ const KIND_ORDER: NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'];
 
 export const asciiRenderer: IRenderer = {
   id: ID,
+  pluginId: 'core',
   kind: 'renderer',
   version: '1.0.0',
   description: 'Plain-text graph dump, grouped by node kind then links then issues.',

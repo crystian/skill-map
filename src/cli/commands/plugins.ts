@@ -11,6 +11,24 @@
  * order spec'd in `kernel/config/plugin-resolver.ts`:
  *
  *   DB override (config_plugins) > settings.json (#/plugins/<id>/enabled) > installed default (true)
+ *
+ * Spec § A.7 — granularity. Each plugin / built-in bundle declares a
+ * granularity (`bundle` or `extension`). The CLI surfaces both kinds:
+ *
+ *   - bundle granularity ('claude', and most user plugins by default):
+ *     the bundle id is the only toggle-able key. `sm plugins disable
+ *     claude` works; `sm plugins disable claude/slash` is rejected as a
+ *     misuse.
+ *   - extension granularity ('core', plus user plugins that opt in):
+ *     the bundle id alone is NOT toggle-able. `sm plugins disable core`
+ *     is rejected; `sm plugins disable core/superseded` works.
+ *
+ * `--all` operates only on top-level plugin / bundle ids (never expands
+ * to qualified `<bundle>/<ext>` keys); the user loses no expressivity
+ * because granularity=extension bundles surface every extension in
+ * `--all` only via their bundle id, which is rejected with directed
+ * guidance — the right tool for the "disable every core extension"
+ * intent is `--no-built-ins` on `sm scan`.
  */
 
 import { homedir } from 'node:os';
@@ -18,6 +36,12 @@ import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
+import { builtInBundles } from '../../extensions/built-ins.js';
+import type {
+  IAdapter,
+  IDetector,
+} from '../../kernel/extensions/index.js';
+import type { ILoadedExtension } from '../../kernel/types/plugin.js';
 import {
   PluginLoader,
   installedSpecVersion,
@@ -31,7 +55,13 @@ import {
 } from '../../kernel/adapters/sqlite/plugins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
-import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
+import { qualifiedExtensionId } from '../../kernel/registry.js';
+import type {
+  IDiscoveredPlugin,
+  TGranularity,
+} from '../../kernel/types/plugin.js';
+import { tx } from '../../kernel/util/tx.js';
+import { PLUGINS_TEXTS } from '../i18n/plugins.texts.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
@@ -92,7 +122,58 @@ function statusIcon(status: IDiscoveredPlugin['status']): string {
     case 'incompatible-spec': return 'spec!';
     case 'invalid-manifest': return 'mani!';
     case 'load-error': return 'load!';
+    case 'id-collision': return 'dup!';
   }
+}
+
+// --- built-in bundle synthesis -------------------------------------------
+
+interface IBuiltInBundleRow {
+  id: string;
+  granularity: TGranularity;
+  enabled: boolean;
+  extensions: ReadonlyArray<{
+    id: string;
+    kind: string;
+    version: string;
+    enabled: boolean;
+  }>;
+  /** Per-extension version+kind catalogue, used by `sm plugins show`. */
+  manifestSummary: string;
+}
+
+/**
+ * Build a synthesised view over the two built-in bundles, with the
+ * resolved enabled-state for the bundle (granularity=bundle) or each
+ * extension (granularity=extension). This lets the CLI list / show /
+ * doctor / enable / disable verbs treat built-ins as first-class
+ * citizens of the plugin surface — the spec promise that "no extension
+ * is privileged, removable" only holds if the user can see and toggle
+ * them through the same commands as their own plugins.
+ */
+function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBundleRow[] {
+  return builtInBundles.map((bundle) => {
+    const bundleEnabled = resolveEnabled(bundle.id);
+    const extensions = bundle.extensions.map((ext) => ({
+      id: ext.id,
+      kind: ext.kind,
+      version: ext.version,
+      enabled:
+        bundle.granularity === 'bundle'
+          ? bundleEnabled
+          : resolveEnabled(qualifiedExtensionId(bundle.id, ext.id)),
+    }));
+    const manifestSummary = bundle.extensions
+      .map((ext) => `${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`)
+      .join(', ');
+    return {
+      id: bundle.id,
+      granularity: bundle.granularity,
+      enabled: bundleEnabled,
+      extensions,
+      manifestSummary,
+    };
+  });
 }
 
 // --- list -----------------------------------------------------------------
@@ -102,7 +183,7 @@ export class PluginsListCommand extends Command {
   static override usage = Command.Usage({
     category: 'Plugins',
     description: 'List discovered plugins and their load status.',
-    details: 'Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir <path>).',
+    details: 'Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir <path>). Built-in bundles (claude, core) are listed alongside user plugins.',
   });
 
   global = Option.Boolean('-g,--global', false);
@@ -111,19 +192,52 @@ export class PluginsListCommand extends Command {
 
   async execute(): Promise<number> {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
+    const resolveEnabled = await buildResolver(this.global);
+    const builtIns = builtInRows(resolveEnabled);
+
     if (this.json) {
-      this.context.stdout.write(JSON.stringify(plugins, omitModule, 2) + '\n');
+      this.context.stdout.write(
+        JSON.stringify({ builtIns, plugins }, omitModule, 2) + '\n',
+      );
       return ExitCode.Ok;
     }
 
-    if (plugins.length === 0) {
+    if (plugins.length === 0 && builtIns.length === 0) {
       this.context.stdout.write('No plugins discovered.\n');
       return ExitCode.Ok;
     }
 
+    // Built-ins first — they are always present. The renderer mirrors a
+    // user-facing tree: bundle line, then one indented line per extension
+    // when the bundle is granularity=extension (the per-extension toggle
+    // status matters); a single inline list when the bundle is
+    // granularity=bundle (everything follows the bundle).
+    for (const bundle of builtIns) {
+      const head = `${bundle.enabled ? 'ok' : 'off'}     ${bundle.id}@built-in (granularity=${bundle.granularity})`;
+      this.context.stdout.write(head + '\n');
+      if (bundle.granularity === 'bundle') {
+        const kinds = bundle.extensions
+          .map((e) => `${e.kind}:${qualifiedExtensionId(bundle.id, e.id)}`)
+          .join(', ');
+        this.context.stdout.write(`        ${kinds}\n`);
+      } else {
+        for (const ext of bundle.extensions) {
+          const stat = ext.enabled ? 'ok' : 'off';
+          this.context.stdout.write(
+            `  ${stat.padEnd(4)} ${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}\n`,
+          );
+        }
+      }
+    }
+
     for (const p of plugins) {
-      const kinds = p.extensions?.map((e) => `${e.kind}:${e.id}`).join(', ') ?? '';
-      const head = `${statusIcon(p.status).padEnd(6)} ${p.id}@${p.manifest?.version ?? '?'}`;
+      // Show extensions with their qualified id (`<pluginId>/<id>`) so
+      // the listing matches the registry key. Authors / users referencing
+      // an extension cross-extension always see the same form here.
+      const kinds = p.extensions?.map((e) => `${e.kind}:${e.pluginId}/${e.id}`).join(', ') ?? '';
+      const granularitySuffix =
+        p.granularity ? ` (granularity=${p.granularity})` : '';
+      const head = `${statusIcon(p.status).padEnd(6)} ${p.id}@${p.manifest?.version ?? '?'}${granularitySuffix}`;
       const tail = p.status === 'loaded' ? ` · ${kinds}` : ` · ${p.reason ?? ''}`;
       this.context.stdout.write(head + tail + '\n');
     }
@@ -147,35 +261,175 @@ export class PluginsShowCommand extends Command {
 
   async execute(): Promise<number> {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
+    const resolveEnabled = await buildResolver(this.global);
+    const builtIns = builtInRows(resolveEnabled);
+    const builtIn = builtIns.find((b) => b.id === this.id);
     const match = plugins.find((p) => p.id === this.id);
-    if (!match) {
-      this.context.stderr.write(`Plugin not found: ${this.id}\n`);
+
+    if (!builtIn && !match) {
+      this.context.stderr.write(tx(PLUGINS_TEXTS.pluginNotFound, { id: this.id }) + '\n');
       return ExitCode.NotFound;
     }
 
     if (this.json) {
-      this.context.stdout.write(JSON.stringify(match, omitModule, 2) + '\n');
+      const payload = builtIn ?? match;
+      this.context.stdout.write(JSON.stringify(payload, omitModule, 2) + '\n');
+      return ExitCode.Ok;
+    }
+
+    if (builtIn) {
+      const lines = [
+        `id:           ${builtIn.id}`,
+        `path:         (built-in)`,
+        `status:       ${builtIn.enabled ? 'loaded' : 'disabled'}`,
+        `granularity:  ${builtIn.granularity}`,
+        'extensions:',
+      ];
+      for (const ext of builtIn.extensions) {
+        const tag = builtIn.granularity === 'extension'
+          ? ` [${ext.enabled ? 'on' : 'off'}]`
+          : '';
+        lines.push(`  - ${ext.kind}:${qualifiedExtensionId(builtIn.id, ext.id)}@${ext.version}${tag}`);
+      }
+      this.context.stdout.write(lines.join('\n') + '\n');
       return ExitCode.Ok;
     }
 
     const lines = [
-      `id:       ${match.id}`,
-      `path:     ${match.path}`,
-      `status:   ${match.status}`,
-      `version:  ${match.manifest?.version ?? '?'}`,
-      `compat:   ${match.manifest?.specCompat ?? '?'}`,
+      `id:           ${match!.id}`,
+      `path:         ${match!.path}`,
+      `status:       ${match!.status}`,
+      `version:      ${match!.manifest?.version ?? '?'}`,
+      `compat:       ${match!.manifest?.specCompat ?? '?'}`,
+      `granularity:  ${match!.granularity ?? '(unknown — manifest invalid)'}`,
     ];
-    if (match.manifest?.description) lines.push(`summary:  ${match.manifest.description}`);
-    if (match.reason) lines.push(`reason:   ${match.reason}`);
-    if (match.extensions && match.extensions.length > 0) {
+    if (match!.manifest?.description) lines.push(`summary:      ${match!.manifest.description}`);
+    if (match!.reason) lines.push(`reason:       ${match!.reason}`);
+    if (match!.extensions && match!.extensions.length > 0) {
       lines.push('extensions:');
-      for (const ext of match.extensions) {
-        lines.push(`  - ${ext.kind}:${ext.id}@${ext.version}`);
+      for (const ext of match!.extensions) {
+        // Show the qualified id (`<pluginId>/<id>`) so the rendered
+        // identifier matches the registry key — what the user pastes
+        // into `defaultRefreshAction` or future `composes[]`.
+        lines.push(`  - ${ext.kind}:${ext.pluginId}/${ext.id}@${ext.version}`);
       }
     }
     this.context.stdout.write(lines.join('\n') + '\n');
     return ExitCode.Ok;
   }
+}
+
+// --- applicableKinds doctor warnings (Spec § A.10) -----------------------
+
+/**
+ * One unknown-kind warning. Produced when a Detector declares
+ * `applicableKinds` including a kind that no installed Adapter (built-in
+ * or user plugin) emits. The detector itself stays `loaded` — the
+ * Provider may arrive later — but `sm plugins doctor` surfaces the
+ * mismatch so authors catch typos and missing-dependency cases early.
+ */
+interface IApplicableKindWarning {
+  detectorQualifiedId: string;
+  unknownKind: string;
+}
+
+/**
+ * Pull the runtime instance an `ILoadedExtension` points at. The loader
+ * stores the imported ESM namespace verbatim in `.module`; the
+ * extension's runtime export lives at `module.default` (or, for a CJS
+ * fallback, on the namespace itself). Returns `null` when the shape is
+ * not recognisable — the caller treats that as "no applicableKinds to
+ * inspect" and moves on.
+ */
+function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | null {
+  const mod = ext.module;
+  if (mod === null || typeof mod !== 'object') return null;
+  const candidate = (mod as { default?: unknown }).default ?? mod;
+  if (candidate === null || typeof candidate !== 'object') return null;
+  return candidate as Record<string, unknown>;
+}
+
+/**
+ * Collect the set of `node.kind` values every installed Adapter
+ * (built-in + user plugin) declares it can emit. The truth source is
+ * `IAdapter.defaultRefreshAction` — every kind the adapter emits MUST
+ * appear there per `architecture.md` §`Adapter`. The union of those
+ * keys is the kernel's "known kinds" surface for unknown-kind detection.
+ */
+function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
+  const known = new Set<string>();
+  // Built-in adapters first.
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (ext.kind !== 'adapter') continue;
+      const adapter = ext as IAdapter;
+      for (const k of Object.keys(adapter.defaultRefreshAction)) known.add(k);
+    }
+  }
+  // User-plugin adapters.
+  for (const p of plugins) {
+    if (p.status !== 'loaded' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      if (ext.kind !== 'adapter') continue;
+      const inst = extensionInstance(ext);
+      if (!inst) continue;
+      const map = inst['defaultRefreshAction'];
+      if (map === null || typeof map !== 'object') continue;
+      for (const k of Object.keys(map)) known.add(k);
+    }
+  }
+  return known;
+}
+
+/**
+ * Walk every loaded Detector (built-in + user plugin) and produce one
+ * warning per unknown kind referenced via `applicableKinds`. A detector
+ * with no `applicableKinds` field is silent (default = applies to all
+ * kinds). Iteration order is deterministic so the rendered doctor output
+ * stays stable across runs.
+ */
+function collectApplicableKindWarnings(
+  plugins: IDiscoveredPlugin[],
+  knownKinds: Set<string>,
+): IApplicableKindWarning[] {
+  const out: IApplicableKindWarning[] = [];
+  // Built-in detectors.
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (ext.kind !== 'detector') continue;
+      const detector = ext as IDetector;
+      if (!detector.applicableKinds) continue;
+      for (const k of detector.applicableKinds) {
+        if (!knownKinds.has(k)) {
+          out.push({
+            detectorQualifiedId: qualifiedExtensionId(bundle.id, detector.id),
+            unknownKind: k,
+          });
+        }
+      }
+    }
+  }
+  // User-plugin detectors.
+  for (const p of plugins) {
+    if (p.status !== 'loaded' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      if (ext.kind !== 'detector') continue;
+      const inst = extensionInstance(ext);
+      if (!inst) continue;
+      const ak = inst['applicableKinds'];
+      if (!Array.isArray(ak)) continue;
+      for (const k of ak) {
+        if (typeof k !== 'string') continue;
+        if (!knownKinds.has(k)) {
+          out.push({
+            detectorQualifiedId: qualifiedExtensionId(ext.pluginId, ext.id),
+            unknownKind: k,
+          });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 // --- doctor ---------------------------------------------------------------
@@ -193,18 +447,55 @@ export class PluginsDoctorCommand extends Command {
 
   async execute(): Promise<number> {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
+    const resolveEnabled = await buildResolver(this.global);
+    const builtIns = builtInRows(resolveEnabled);
     const counts: Record<IDiscoveredPlugin['status'], number> = {
       loaded: 0,
       disabled: 0,
       'incompatible-spec': 0,
       'invalid-manifest': 0,
       'load-error': 0,
+      'id-collision': 0,
     };
+    // Built-ins contribute to loaded / disabled counts so the doctor
+    // summary reflects the full surface, not just user plugins.
+    for (const b of builtIns) {
+      if (b.granularity === 'bundle') {
+        counts[b.enabled ? 'loaded' : 'disabled']++;
+      } else {
+        for (const ext of b.extensions) {
+          counts[ext.enabled ? 'loaded' : 'disabled']++;
+        }
+      }
+    }
     for (const p of plugins) counts[p.status]++;
 
-    this.context.stdout.write(`Discovered ${plugins.length} plugin(s):\n`);
+    const total = plugins.length + builtIns.reduce(
+      (n, b) => n + (b.granularity === 'bundle' ? 1 : b.extensions.length),
+      0,
+    );
+    this.context.stdout.write(`Discovered ${total} plugin(s) (${builtIns.length} built-in bundles, ${plugins.length} user):\n`);
     for (const status of Object.keys(counts) as Array<IDiscoveredPlugin['status']>) {
       this.context.stdout.write(`  ${status.padEnd(18)} ${counts[status]}\n`);
+    }
+
+    // Spec § A.10 — applicableKinds: surface unknown-kind warnings as
+    // informational diagnostics. They do NOT promote the exit code (the
+    // Provider that declares the kind may legitimately arrive later);
+    // they only tell the author "your detector will never fire on the
+    // kind you typed".
+    const knownKinds = collectKnownKinds(plugins);
+    const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
+    if (applicableKindWarnings.length > 0) {
+      this.context.stdout.write('\nWarnings:\n');
+      for (const w of applicableKindWarnings) {
+        this.context.stdout.write(
+          `  [warn] ${tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
+            detectorId: w.detectorQualifiedId,
+            unknownKind: w.unknownKind,
+          })}\n`,
+        );
+      }
     }
 
     // Errors gate the exit code; `disabled` is intentional and never an issue.
@@ -224,6 +515,108 @@ export class PluginsDoctorCommand extends Command {
 
 // --- enable / disable -----------------------------------------------------
 
+interface IBundleSlim {
+  id: string;
+  granularity: TGranularity;
+  extensionIds: string[];
+}
+
+/**
+ * Build the canonical bundle catalogue: built-ins first, then any
+ * loaded user plugins. Used by the toggle verbs to validate `<id>`
+ * against the granularity declared on the owning bundle.
+ *
+ * Plugins whose manifest never validated (`invalid-manifest` /
+ * `load-error` without a manifest) are still listed so the user can
+ * disable a buggy plugin to silence its load error — but their
+ * `granularity` falls back to `'bundle'` (the safe default that the
+ * loader would inject if the manifest were repaired).
+ */
+function bundleCatalogue(plugins: IDiscoveredPlugin[]): IBundleSlim[] {
+  const out: IBundleSlim[] = [];
+  for (const bundle of builtInBundles) {
+    out.push({
+      id: bundle.id,
+      granularity: bundle.granularity,
+      extensionIds: bundle.extensions.map((e) => e.id),
+    });
+  }
+  for (const p of plugins) {
+    out.push({
+      id: p.id,
+      granularity: p.granularity ?? 'bundle',
+      extensionIds: p.extensions?.map((e) => e.id) ?? [],
+    });
+  }
+  return out;
+}
+
+interface IResolvedTarget {
+  /**
+   * The key written to `config_plugins.plugin_id`. For bundle granularity
+   * this is the bundle id; for extension granularity it's the qualified
+   * id `<bundle>/<ext>`.
+   */
+  key: string;
+}
+
+/**
+ * Resolve a user-supplied `<id>` (either a plugin id or a qualified
+ * extension id) against the catalogue. Returns either a usable
+ * `key` to persist, or a directed error message that explains why the
+ * id was rejected (granularity mismatch, unknown bundle, unknown
+ * extension under a known bundle).
+ */
+function resolveToggleTarget(
+  id: string,
+  catalogue: IBundleSlim[],
+  verb: 'enable' | 'disable',
+): IResolvedTarget | { error: string } {
+  if (id.includes('/')) {
+    const [bundleId, extId, ...rest] = id.split('/');
+    if (!bundleId || !extId || rest.length > 0) {
+      return { error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, { bundleId: id }) };
+    }
+    const bundle = catalogue.find((b) => b.id === bundleId);
+    if (!bundle) {
+      return { error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, { bundleId }) };
+    }
+    if (bundle.granularity === 'bundle') {
+      return {
+        error: tx(PLUGINS_TEXTS.granularityBundleRejectsQualified, {
+          bundleId,
+          extId,
+          verb,
+        }),
+      };
+    }
+    if (!bundle.extensionIds.includes(extId)) {
+      return {
+        error: tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
+          id,
+          bundleId,
+          extId,
+        }),
+      };
+    }
+    return { key: qualifiedExtensionId(bundleId, extId) };
+  }
+
+  const bundle = catalogue.find((b) => b.id === id);
+  if (!bundle) {
+    return { error: tx(PLUGINS_TEXTS.pluginNotFound, { id }) };
+  }
+  if (bundle.granularity === 'extension') {
+    return {
+      error: tx(PLUGINS_TEXTS.granularityExtensionRejectsBundleId, {
+        bundleId: id,
+        verb,
+      }),
+    };
+  }
+  return { key: bundle.id };
+}
+
 abstract class TogglePluginsBase extends Command {
   global = Option.Boolean('-g,--global', false);
   all = Option.Boolean('--all', false);
@@ -231,6 +624,7 @@ abstract class TogglePluginsBase extends Command {
 
   protected async toggle(enabled: boolean): Promise<number> {
     const elapsed = startElapsed();
+    const verb = enabled ? 'enable' : 'disable';
     if (this.all && this.id) {
       this.context.stderr.write('Pass either an <id> or --all, not both.\n');
       emitDoneStderr(this.context.stderr, elapsed);
@@ -247,18 +641,32 @@ abstract class TogglePluginsBase extends Command {
       global: this.global,
       pluginDir: undefined,
     });
+    const catalogue = bundleCatalogue(plugins);
 
     let targets: string[];
     if (this.all) {
-      targets = plugins.map((p) => p.id);
+      // `--all` is a macro on bundle ids: every plugin / bundle the user
+      // can see. We deliberately do NOT expand to qualified
+      // <bundle>/<ext> keys — that would silently flip a granularity
+      // policy. For granularity=extension bundles the user already
+      // hits the directed error message ("use bundle/<ext>") if they
+      // try the bundle id directly, so `--all` skips them here too
+      // and the real "disable every core extension" intent is served
+      // by `--no-built-ins` on `sm scan`.
+      targets = catalogue
+        .filter((b) => b.granularity === 'bundle')
+        .map((b) => b.id);
     } else {
-      const found = plugins.find((p) => p.id === this.id);
-      if (!found) {
-        this.context.stderr.write(`Plugin not found: ${this.id}\n`);
+      const resolved = resolveToggleTarget(this.id!, catalogue, verb);
+      if ('error' in resolved) {
+        this.context.stderr.write(resolved.error + '\n');
         emitDoneStderr(this.context.stderr, elapsed);
+        // Granularity errors and unknown ids are both user input
+        // problems — exit 5 (NotFound) keeps the existing contract
+        // for "you asked me to act on something I cannot resolve".
         return ExitCode.NotFound;
       }
-      targets = [found.id];
+      targets = [resolved.key];
     }
 
     const dbPath = resolveDbPath(this.global);
@@ -268,11 +676,11 @@ abstract class TogglePluginsBase extends Command {
       }
     });
 
-    const verb = enabled ? 'enabled' : 'disabled';
+    const verbPast = enabled ? 'enabled' : 'disabled';
     if (targets.length === 1) {
-      this.context.stdout.write(`${verb}: ${targets[0]}\n`);
+      this.context.stdout.write(`${verbPast}: ${targets[0]}\n`);
     } else {
-      this.context.stdout.write(`${verb}: ${targets.length} plugin(s)\n`);
+      this.context.stdout.write(`${verbPast}: ${targets.length} plugin(s)\n`);
       for (const id of targets) this.context.stdout.write(`  - ${id}\n`);
     }
     emitDoneStderr(this.context.stderr, elapsed);
@@ -290,6 +698,12 @@ export class PluginsEnableCommand extends TogglePluginsBase {
       over the team-shared baseline at settings.json#/plugins/<id>/enabled.
       Use sm plugins disable to flip; sm config reset plugins.<id>.enabled
       drops the settings.json baseline.
+
+      Granularity: a bundle-granularity plugin (default for user plugins,
+      and the built-in 'claude' bundle) accepts only the bundle id. An
+      extension-granularity plugin (the built-in 'core' bundle) accepts
+      only qualified ids '<bundle>/<ext-id>'. Mismatches are rejected
+      with directed guidance.
     `,
   });
 
@@ -308,6 +722,12 @@ export class PluginsDisableCommand extends TogglePluginsBase {
       surfaces the plugin in sm plugins list, but with status=disabled
       — its extensions are not imported and the kernel will not run
       them.
+
+      Granularity: a bundle-granularity plugin (default for user plugins,
+      and the built-in 'claude' bundle) accepts only the bundle id. An
+      extension-granularity plugin (the built-in 'core' bundle) accepts
+      only qualified ids '<bundle>/<ext-id>'. Mismatches are rejected
+      with directed guidance.
     `,
   });
 

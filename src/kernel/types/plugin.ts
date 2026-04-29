@@ -25,6 +25,25 @@ export type TPluginStorage =
   | { mode: 'kv' }
   | { mode: 'dedicated'; tables: string[]; migrations: string[] };
 
+/**
+ * Toggle granularity for a plugin / built-in bundle.
+ *
+ * - `'bundle'`  — the plugin id is the only enable/disable key. The whole
+ *                 bundle of extensions follows the toggle; the user cannot
+ *                 enable some extensions of the bundle and disable others.
+ *                 Default for plugins (and for the built-in `claude`
+ *                 bundle, where the adapter and its kind-aware detectors
+ *                 form a coherent provider).
+ * - `'extension'` — each extension is independently toggle-able under its
+ *                   qualified id `<plugin-id>/<extension-id>`. Used for
+ *                   the built-in `core` bundle (every kernel built-in
+ *                   rule / renderer / audit is removable per spec
+ *                   "no extension is privileged"). Plugin authors opt in
+ *                   only when the plugin ships several orthogonal
+ *                   capabilities a user might reasonably want piecemeal.
+ */
+export type TGranularity = 'bundle' | 'extension';
+
 /** Raw `plugin.json` shape after successful AJV validation. */
 export interface IPluginManifest {
   id: string;
@@ -33,6 +52,12 @@ export interface IPluginManifest {
   extensions: string[];
   description?: string;
   storage?: TPluginStorage;
+  /**
+   * Toggle granularity for this plugin. Default `'bundle'`. See
+   * `TGranularity` for the trade-off; in practice 95% of plugins want
+   * the default.
+   */
+  granularity?: TGranularity;
   author?: string;
   license?: string;
   homepage?: string;
@@ -59,19 +84,39 @@ export interface IPluginManifest {
  *                           is parsed and surfaced (so `sm plugins list`
  *                           shows it), but extensions are not imported.
  * - `incompatible-spec`   — manifest parsed but `semver.satisfies` failed.
- * - `invalid-manifest`    — `plugin.json` missing, unparseable, or AJV-fails.
+ * - `invalid-manifest`    — `plugin.json` missing, unparseable, AJV-fails,
+ *                           OR the directory name does not equal the
+ *                           manifest id (a cheap structural rule that
+ *                           rules out same-root collisions by construction:
+ *                           a filesystem cannot contain two siblings with
+ *                           the same name).
  * - `load-error`          — manifest passed, an extension module failed.
+ * - `id-collision`        — two plugins reachable from different roots
+ *                           (project + global, or any `--plugin-dir`
+ *                           combination) declared the same `id`. Both
+ *                           collided plugins receive this status; no
+ *                           precedence rule applies. The user resolves
+ *                           by renaming one of them and rerunning.
  */
 export type TPluginLoadStatus =
   | 'loaded'
   | 'disabled'
   | 'incompatible-spec'
   | 'invalid-manifest'
-  | 'load-error';
+  | 'load-error'
+  | 'id-collision';
 
 export interface ILoadedExtension {
   kind: TExtensionKind;
   id: string;
+  /**
+   * Owning plugin namespace — `manifest.id` of the `plugin.json` that
+   * declared this extension. Composed with `id` to form the qualified
+   * registry key `<pluginId>/<id>`. Per spec § A.6 the loader injects
+   * this from the manifest; an extension that hand-declares a
+   * mismatching `pluginId` is rejected as `invalid-manifest`.
+   */
+  pluginId: string;
   version: string;
   entryPath: string;
   module: unknown;
@@ -87,6 +132,12 @@ export interface IDiscoveredPlugin {
   manifest?: IPluginManifest;
   /** Only present when status === 'loaded'. */
   extensions?: ILoadedExtension[];
+  /**
+   * Resolved granularity for this plugin. Always populated from
+   * `manifest.granularity` (default `'bundle'`) when the manifest parsed;
+   * absent for `invalid-manifest` paths where the manifest never validated.
+   */
+  granularity?: TGranularity;
   /** Human-readable diagnostic shown by `sm plugins list/show`. */
   reason?: string;
 }

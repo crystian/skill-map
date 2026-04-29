@@ -56,7 +56,143 @@ The kernel scans two roots, in this order:
 
 A plugin is any direct child directory containing a `plugin.json`. Nested directories are not searched recursively. Pass `--plugin-dir <path>` to override both roots (mostly for testing).
 
-After every change to the `plugins/` folder, run `sm plugins list` to see the load status of each. The five statuses are documented under [Diagnostics](#diagnostics) below.
+After every change to the `plugins/` folder, run `sm plugins list` to see the load status of each. The six statuses are documented under [Diagnostics](#diagnostics) below.
+
+### Plugin id uniqueness
+
+The `id` declared in `plugin.json` is **globally unique** across every active discovery root. The kernel enforces this in two places:
+
+1. **Directory name MUST equal manifest id.** A plugin lives at `<root>/<id>/plugin.json`. If `basename(<plugin-dir>) !== manifest.id`, discovery surfaces the plugin with status `invalid-manifest` and a reason naming both names. This rule eliminates same-root collisions by construction (a filesystem cannot host two siblings with the same name).
+2. **Cross-root id collisions are blocked, both sides.** If two plugins from different roots (project + global, or any combination of `--plugin-dir`) declare the same `id`, **both** receive status `id-collision`. There is no precedence rule — neither plugin loads its extensions; the user resolves the conflict by renaming one and rerunning. Coherent with the spec rule that no extension is privileged.
+
+`sm plugins list` shows the conflict; `sm plugins doctor` exits `1` whenever any `id-collision` is present.
+
+### Qualified extension ids
+
+Every extension is identified in the registry — and in any cross-extension reference — by its **qualified id** `<plugin-id>/<extension-id>`. The plugin's manifest `id` is therefore not just a discovery key: it doubles as the **namespace** for every extension the plugin ships.
+
+Concrete examples for the reference impl's bundled extensions:
+
+| Extension | Short id (in the file) | Qualified id (in the registry) |
+|---|---|---|
+| Claude adapter | `claude` | `claude/claude` |
+| Frontmatter detector | `frontmatter` | `claude/frontmatter` |
+| Slash detector | `slash` | `claude/slash` |
+| At-directive detector | `at-directive` | `claude/at-directive` |
+| External-URL counter | `external-url-counter` | `core/external-url-counter` |
+| Broken-ref rule | `broken-ref` | `core/broken-ref` |
+| Trigger-collision rule | `trigger-collision` | `core/trigger-collision` |
+| ASCII renderer | `ascii` | `core/ascii` |
+| Validate-all audit | `validate-all` | `core/validate-all` |
+
+Two namespaces are convention for built-ins:
+
+- **`core/`** — kernel-internal primitives (every built-in rule, the ASCII renderer, the audit, the external-URL counter detector). Platform-agnostic.
+- **`claude/`** — the Claude Code provider bundle (the adapter plus the three detectors that decode Claude-specific syntax: frontmatter, slash, `@`-directive).
+
+For your own plugin, the `id` you declare in `plugin.json` is the namespace for every extension the plugin contains. If your manifest declares `id: "my-plugin"` and your extension file declares `id: "foo-detector"`, the kernel registers it as `my-plugin/foo-detector`. You do **not** write the qualifier yourself — the loader injects it.
+
+What this means in practice:
+
+- **In the extension file**, declare only the short id (`id: "greet"`). Do **not** prefix it with the plugin id (`id: "my-plugin/greet"` is rejected as a kebab-case violation).
+- **In the manifest's `extensions[]`**, list relative paths to extension files as before — nothing changes.
+- **In `defaultRefreshAction` (adapter)** and any other cross-extension reference (e.g. an audit's `composes[]` once that surface lands), use the qualified id of the target. A built-in adapter that wants the `core/summarize-agent` action references it by the qualified form; a third-party adapter that wants its own bundled action references `<my-plugin>/<my-action>`.
+- **`sm plugins list` and `sm plugins show`** print qualified ids for every extension. The plugin id itself stays unqualified (it IS the namespace; nothing wraps it).
+- **`sm plugins enable/disable <id>`** still operates on the **plugin id** (the namespace), not on individual extensions. Toggle the namespace and every extension under it follows.
+
+The kernel guards against two foot-guns:
+
+- If the extension file injects a `pluginId` field that doesn't match `plugin.json#/id`, the loader emits `invalid-manifest` with a directed reason. The composed qualifier MUST come from `plugin.json` — there is no second source of truth.
+- The kebab-case pattern on the extension `id` deliberately forbids `/`. This keeps the rule "the qualifier always lives in the plugin id, never in the extension id" enforced by AJV.
+
+For built-ins, the reference impl's `src/extensions/built-ins.ts` declares each extension's `pluginId` (`core` or `claude`) explicitly — built-ins do not have a `plugin.json`, so the bundle declaration IS the source of truth for their namespace.
+
+### Granularity — bundle vs extension
+
+Every plugin and every built-in bundle declares a **granularity** that controls how its extensions are toggled by `sm plugins enable / disable` and by `config_plugins` / `settings.json`. Two modes:
+
+| Granularity | Toggle key | When to use |
+|---|---|---|
+| `bundle` (default) | the bundle id alone (e.g. `my-plugin`, `claude`) | The plugin's extensions form a coherent product (e.g. an adapter and the detectors that decode its native syntax). The user wants one switch. **95% of plugins.** |
+| `extension` | the qualified extension id (`<bundle>/<ext-id>`, e.g. `core/superseded`, `my-plugin/orphan-skill`) | The plugin ships several orthogonal capabilities a user might reasonably want piecemeal. **Built-in `core` is the canonical example** — the spec promises every kernel built-in is removable, so each one toggles independently. |
+
+Built-in mapping:
+
+- **`claude`** — `granularity: 'bundle'`. `sm plugins disable claude` flips the adapter and the three Claude-specific detectors at once.
+- **`core`** — `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession rule; the other six core extensions stay live.
+
+Per-verb behaviour:
+
+| Command | Bundle granularity | Extension granularity |
+|---|---|---|
+| `sm plugins enable claude` | OK — flips the bundle. | Rejected: `'core' has granularity=extension; use sm plugins enable core/<ext-id>`. |
+| `sm plugins enable claude/slash` | Rejected: `'claude' has granularity=bundle; use sm plugins enable claude`. | n/a (no bundle of granularity=bundle accepts qualified ids) |
+| `sm plugins disable core` | n/a | Rejected: same directed message as the bundle row above. |
+| `sm plugins disable core/superseded` | n/a | OK — persists `config_plugins['core/superseded'].enabled = 0`. |
+
+Resolution order is the same as for plugin enabled-state: DB override (`config_plugins`) > settings.json (`#/plugins/<id>/enabled`) > installed default (`true`). For granularity=extension bundles the row key is the qualified id; for granularity=bundle bundles the row key is the bundle id. `settings.json#/plugins` keys are arbitrary strings (no AJV pattern), so both forms are accepted there too.
+
+`sm plugins enable/disable --all` operates only on top-level bundle ids (the default-enabled set every user can see); it never expands to qualified `<bundle>/<ext>` keys. The "disable every kernel built-in at once" intent is served by `--no-built-ins` on `sm scan` and friends; `--all` is the macro on user-toggle-able units, not on every individual extension.
+
+In your own plugin's `plugin.json`, set `granularity` only when you opt into the per-extension form:
+
+```jsonc
+{
+  "id": "my-multi-tool",
+  "version": "1.0.0",
+  "specCompat": "^1.0.0",
+  "granularity": "extension",
+  "extensions": [
+    "./extensions/orphan-skill-rule.mjs",
+    "./extensions/csv-renderer.mjs"
+  ]
+}
+```
+
+The default (`'bundle'`) is the right answer for almost every plugin — keep the manifest minimal until the plugin actually ships several independent capabilities.
+
+### Detector `applicableKinds` — narrow the pipeline
+
+A `Detector` extension MAY declare an `applicableKinds` array on its manifest. When declared, the kernel runs the detector **only** against nodes whose `kind` is in the list — the filter is fail-fast (no detect context, no method call) so a probabilistic detector wastes zero LLM cost (and a deterministic detector zero CPU) on nodes it cannot meaningfully process.
+
+| `applicableKinds` | Behaviour |
+|---|---|
+| Absent (`undefined`) | **Default.** The detector runs on every kind the loaded adapters emit. |
+| `['skill']` | Runs only on skill nodes. |
+| `['skill', 'agent']` | Runs on skills + agents. Hooks, commands, notes are skipped. |
+| `[]` | **Invalid.** AJV rejects the manifest at load time (`minItems: 1`). The absence of the field already means "every kind"; an empty array is reserved for "this is a typo". |
+
+There is no wildcard syntax (no `'*'`) — omitting the field IS the wildcard. The pattern is intentional: a literal absence is unambiguous, a string sentinel would invite typos that silently disable the detector.
+
+Use case — a probabilistic tag-inferrer that only makes sense for skills:
+
+```javascript
+export default {
+  id: 'tag-inferrer',
+  kind: 'detector',
+  mode: 'probabilistic',
+  version: '1.0.0',
+  description: 'LLM-derived tag links for skill nodes.',
+  emitsLinkKinds: ['references'],
+  defaultConfidence: 'medium',
+  scope: 'body',
+  applicableKinds: ['skill'],
+  async detect(ctx) {
+    // Never invoked for agents, commands, hooks, or notes — the kernel
+    // skipped this node before reaching us.
+    const tags = await ctx.runner.invoke({ /* prompt … */ });
+    return tags.map((t) => ({
+      source: ctx.node.path,
+      target: t.path,
+      kind: 'references',
+      confidence: 'medium',
+      sources: ['tag-inferrer'],
+    }));
+  },
+};
+```
+
+**Unknown kinds are non-blocking.** A detector that lists a kind no installed Adapter declares (typo, missing Provider plugin) still loads with status `loaded`; `sm plugins doctor` surfaces an informational warning so the author sees the mismatch. The exit code of `doctor` is NOT promoted to 1 by this warning — the corresponding Provider may legitimately arrive later (e.g. when the user installs the matching plugin), and the load contract favours forward compatibility over rigid checks. The full set of "known kinds" is the union of every installed Adapter's `defaultRefreshAction` keys.
 
 ---
 
@@ -76,6 +212,7 @@ Optional fields:
 | Field | Type | Notes |
 |---|---|---|
 | `description` | string | One-line summary shown in `sm plugins list`. |
+| `granularity` | `'bundle' \| 'extension'` | Controls how `sm plugins enable / disable` operates on this plugin. Default `'bundle'`. See [Granularity — bundle vs extension](#granularity--bundle-vs-extension). |
 | `storage` | object | `{ "mode": "kv" }` or `{ "mode": "dedicated", "tables": [...], "migrations": [...] }`. Absent means the plugin does not persist state. |
 | `author` | string | Free-form. |
 | `license` | string | SPDX identifier. |
@@ -197,6 +334,73 @@ These ship later in the v1.x line as bundled built-ins; the spec already pins th
 
 ---
 
+## Frontmatter validation — three-tier model
+
+The kernel validates frontmatter on a graduated dial; tighter is opt-in. The model is normative — every conforming implementation MUST honour the three tiers — but the policy lives in **rules**, not the JSON Schemas. The schemas stay shape-only ([`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) declares `additionalProperties: true` deliberately) so that authors can extend their own nodes without forking the spec.
+
+| Tier | Mechanism | Behavior on unknown / non-conforming fields |
+|---|---|---|
+| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and on every per-kind frontmatter schema. | Field passes silently, persists in `node.frontmatter`, and is available to every extension (detectors, rules, actions, renderers, audits). |
+| **1 — Built-in `unknown-field` rule** | Deterministic Rule shipped with the kernel. Always active. | Emits an Issue with `severity: 'warn'` for every key outside the documented catalog (base + the matched kind's schema). |
+| **2 — Strict mode** | [`schemas/project-config.schema.json`](./schemas/project-config.schema.json) `scan.strict: true` (team default in `settings.json`); also via `--strict` on `sm scan`. | Promotes **all** frontmatter warnings to `severity: 'error'`. They persist in the DB; `sm check` then exits `1` on the next read. CI fails. |
+
+> Tier 1 is normative behavior — the kernel ships the rule out-of-the-box. Disabling it is not a supported configuration; an unknown key that you want to keep is either (a) moved under `metadata.*` (the spec permits free-form keys there), or (b) carried as-is at the cost of a persistent `warn`-severity issue (informational unless you run Tier 2).
+
+### Worked example — same node, three tiers
+
+Starting frontmatter on a skill node:
+
+```yaml
+---
+name: code-reviewer
+description: Reviews diffs against repo conventions.
+metadata:
+  version: 1.0.0
+priority: high          # ← author-defined, not in any schema
+---
+```
+
+**Tier 0 (default permissive — no project config, default scan).** The field validates fine. `node.frontmatter.priority === 'high'` for any detector / rule / action that reads the node. No issues raised by the schema itself.
+
+**Tier 1 (always-active `unknown-field` rule).** After `sm scan`, the rule emits:
+
+```jsonc
+{
+  "ruleId": "unknown-field",
+  "severity": "warn",
+  "message": "Unknown frontmatter field 'priority' on skill node 'code-reviewer'. Add it to a custom rule or move it under metadata.* if intentional.",
+  "nodeIds": ["code-reviewer.md"]
+}
+```
+
+`sm scan` exits `0` (warnings do not fail the verb). The author can either move the key under `metadata.*` — where [`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) already permits free-form keys, so the `unknown-field` rule does not match — or accept the persistent warning and add a Rule that consumes `priority` for whatever cross-node logic motivated the field.
+
+**Tier 2 (strict mode).** Either `scan.strict: true` in `.skill-map/settings.json`, or `sm scan --strict` on the CLI. The same `unknown-field` warning is now persisted at `severity: 'error'`. `sm scan --strict` exits `1` when the issue is created; `sm check` (which reads from the DB) also exits `1` thereafter. CI breaks until the field is reconciled.
+
+```jsonc
+// .skill-map/settings.json
+{
+  "schemaVersion": 1,
+  "scan": { "strict": true }
+}
+```
+
+The CLI flag wins when both are set (see the `--strict` description on `sm scan`); the flag is the per-invocation override, the config field is the team default.
+
+### Why no "schema-extender" plugin kind
+
+A reasonable next thought is: "I want my plugin to widen the frontmatter schema so my custom keys are first-class." The spec deliberately rejects that route. The accepted path is to write a deterministic **Rule** that:
+
+1. Reads the candidate keys from `node.frontmatter` (which Tier 0 already exposes).
+2. Validates them against whatever shape your domain expects (regex, enum, cross-node consistency).
+3. Emits Issues for violations.
+
+The trade-off is intentional: a "schema-extender" kind would force every consumer (the kernel, the storage adapter, every other plugin, the UI) to re-resolve the active schema set per scan. A Rule-driven approach keeps the kernel's parser one-pass and the validation surface composable — the union of every author's rules is the project's policy.
+
+If the rule needs to be CI-blocking, the rule itself emits the Issue at `severity: 'error'`. `--strict` / `scan.strict` apply only to the kernel's own frontmatter-shape and `unknown-field` warnings; plugin-authored rules pick their own severity directly.
+
+---
+
 ## Storage
 
 A plugin that needs to persist state declares `storage` in its manifest. Two modes; each is documented in full at [`plugin-kv-api.md`](./plugin-kv-api.md).
@@ -303,17 +507,18 @@ Full surface in `@skill-map/testkit/index.ts`.
 
 ## Diagnostics
 
-`sm plugins list` shows every discovered plugin with one of five statuses. When a plugin doesn't behave the way you expect, this is the first thing to check.
+`sm plugins list` shows every discovered plugin with one of six statuses. When a plugin doesn't behave the way you expect, this is the first thing to check.
 
 | Status | Meaning | Common cause |
 |---|---|---|
 | `loaded` | manifest valid, specCompat satisfied, every extension imported and validated. | — |
 | `disabled` | user toggled it off via `sm plugins disable` or `settings.json#/plugins/<id>/enabled`. Manifest parsed; extensions not imported. | Intentional. |
 | `incompatible-spec` | manifest parsed but `semver.satisfies` failed against the installed spec. | Plugin built against an older / newer spec. |
-| `invalid-manifest` | `plugin.json` missing, unparseable, or AJV-fails. | Typo, missing required field, wrong shape. |
+| `invalid-manifest` | `plugin.json` missing, unparseable, AJV-fails, OR the directory name does not equal the manifest id. | Typo, missing required field, wrong shape, mismatched directory name. |
 | `load-error` | manifest passed but an extension module failed to import or its default export failed schema validation. | Missing `kind` field, wrong `kind` for the file, runtime import error. |
+| `id-collision` | two plugins reachable from different roots declared the same `id`. Both collided plugins receive this status; no precedence rule applies. | Project-local plugin and a user-global plugin (or two `--plugin-dir` plugins) sharing an id. Rename one and rerun. |
 
-`sm plugins doctor` runs the full load pass and exits 1 if any plugin is in a non-`loaded` / non-`disabled` state. Wire it into CI to catch breakage early.
+`sm plugins doctor` runs the full load pass and exits 1 if any plugin is in a non-`loaded` / non-`disabled` state (so any of `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision` trips it). Wire it into CI to catch breakage early.
 
 ---
 
@@ -330,6 +535,10 @@ Full surface in `@skill-map/testkit/index.ts`.
 ## Stability
 
 - Document status: **stable** as of spec v1.0.0. Future minor revisions add new sections (e.g. richer testkit coverage when actions / audits gain helpers); breaking edits to the documented surface require a major bump per [`versioning.md`](./versioning.md).
-- The five plugin statuses (`loaded` / `disabled` / `incompatible-spec` / `invalid-manifest` / `load-error`) are stable; adding a sixth status is a minor bump.
+- The six plugin statuses (`loaded` / `disabled` / `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision`) are stable; adding a seventh status is a minor bump.
+- The structural rule **directory name MUST equal manifest id** is stable; relaxing it (allowing mismatch) is a major bump.
+- The cross-root id-collision rule (both sides blocked, no precedence) is stable; introducing precedence (e.g. project root wins over global) is a major bump.
+- The `granularity` field on `PluginManifest` is stable as introduced. The two values (`bundle` / `extension`) are stable. Adding a third value is a minor bump; changing the default away from `bundle` is a major bump (every existing plugin manifest would silently flip toggle semantics).
+- The optional `applicableKinds` field on the Detector manifest is stable as introduced. Adding a wildcard syntax (`'*'`) is a minor bump (additive, the existing "absent = all kinds" semantics keeps holding); changing the default away from "applies to every kind" or making the field required is a major bump. Promoting the unknown-kinds doctor warning to a hard load error is a major bump (today's contract is "load OK, surface as warning").
 - The recommended `specCompat` strategy is descriptive prose; revising the recommendation does not require a spec bump as long as the schema stays unchanged.
 - The example code blocks track the public TypeScript surface of `@skill-map/cli`; bumping their imports follows the cli's own semver.
