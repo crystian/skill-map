@@ -1,5 +1,63 @@
 # Spec changelog
 
+## [Unreleased]
+
+### Minor Changes
+
+- Plugin kind `renderer` renamed to `formatter`. Method renamed `render(ctx) → format(ctx)`. Manifest field `format` (the identifier consumed by `--format`) renamed to `formatId` to avoid clashing with the new method name. Same contract otherwise: graph → string, deterministic-only. Aligns with industry tooling (ESLint formatter, Mocha reporter, Pandoc writer). `schemas/extensions/renderer.schema.json` renamed to `formatter.schema.json`; the `kind` const flips from `"renderer"` to `"formatter"`; `base.schema.json#/properties/kind/enum` updated. `architecture.md`, `cli-contract.md`, `plugin-author-guide.md`, `README.md` updated to match (Extension kinds table, Execution modes table, testkit helper names, worked CSV example). `conformance/coverage.md` row 28 retargeted at the new schema filename. Pre-1.0 minor per `versioning.md` § Pre-1.0; breaking for any plugin or test referencing `kind: "renderer"`, `IRenderer`, `r.format`, or `render(ctx)` — no real ecosystem affected today.
+
+- Plugin kind `'detector'` renamed to `'extractor'`. Method signature
+  changes from `detect(ctx) → Link[]` to `extract(ctx) → void` — output
+  flows through three new ctx callbacks: `emitLink(link)` (kernel `links`
+  table), `enrichNode(partial)` (kernel enrichment layer, deferred-
+  persisted in A.8), and the existing `ctx.store` (plugin's own table).
+  The Extractor absorbs what would have been a separate `Enricher` kind
+  via `enrichNode`. Built-ins migrated: `claude/frontmatter`,
+  `claude/slash`, `claude/at-directive`, `core/external-url-counter` —
+  all use `emitLink` to maintain functional parity with their Detector
+  ancestors. Schema files renamed:
+  `schemas/extensions/detector.schema.json` →
+  `schemas/extensions/extractor.schema.json`. Persisted DB rows are
+  unaffected (link `sources` carry extractor ids verbatim — the field
+  was always free-form). Pre-1.0 minor per `versioning.md` § Pre-1.0;
+  breaking for any plugin or test referencing `'detector'` as the
+  kind, `IDetector`, or the old `Link[]` return signature — no real
+  ecosystem affected today.
+
+- Plugin kind `'audit'` removed. The single built-in `'validate-all'`
+  migrated to a Rule (qualified id `'core/validate-all'`, method
+  `evaluate(ctx) → Issue[]`). The kind had dual personality (composer +
+  standalone reporter); the standalone reporter case is naturally a Rule,
+  and the composer case is deferred to post-1.0 if a real use case
+  appears. CLI verbs `'sm audit run'` and `'sm audit show'` removed;
+  users invoke the rule via `sm check --rules core/validate-all`.
+  `state_executions.kind` enum narrowed to `['action']` (audit was the
+  only other value); the column is preserved as a forward-compatibility
+  lever. Schema files removed: `schemas/extensions/audit.schema.json`.
+  Coverage matrix shrinks from 29 to 28 rows. Pre-1.0 minor per
+  `versioning.md` § Pre-1.0; breaking for any plugin or test referencing
+  the audit kind, `IAudit`, `TAuditReport`, or `sm audit` verbs — no
+  real ecosystem affected today.
+
+- Plugin kind `'adapter'` renamed to `'provider'`. Manifest gains required
+  field `'explorationDir'` (filesystem directory where the Provider's
+  content lives, e.g. `'~/.claude'` for the Claude Provider). Built-in
+  `claudeAdapter` renamed to `claudeProvider`. The hexagonal-architecture
+  `'adapter'` (`RunnerPort.adapter`, `StoragePort.adapter`,
+  `FilesystemPort.adapter`, `PluginLoaderPort.adapter`) is unchanged —
+  distinct concept, distinct namespace.
+  Persisted schema fields renamed: `node.adapter` → `node.provider`,
+  `scan-result.adapters` → `scan-result.providers` (pre-1.0 minor — no
+  production DBs to migrate; `001_initial.sql` was edited in place per
+  the consolidation precedent already established for pre-1.0).
+  Project config field renamed: `project-config.adapters` →
+  `project-config.providers`. Schema files renamed:
+  `schemas/extensions/adapter.schema.json` →
+  `schemas/extensions/provider.schema.json`. Pre-1.0 minor per
+  `versioning.md` § Pre-1.0; breaking for any plugin or test referencing
+  `'adapter'` as the kind, `IAdapter`, or any persisted/config schema
+  field renamed above — no real ecosystem affected today.
+
 ## 0.7.1
 
 ### Patch Changes

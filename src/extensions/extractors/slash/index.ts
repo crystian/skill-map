@@ -1,5 +1,5 @@
 /**
- * Slash detector. Scans the node body for `/<command>` tokens and emits
+ * Slash extractor. Scans the node body for `/<command>` tokens and emits
  * one `invokes` link per distinct invocation. Deduplicates by trigger so
  * a body mentioning `/deploy` three times produces a single link.
  *
@@ -14,13 +14,12 @@
  * - Case-insensitive match; the original text is preserved verbatim
  *   in `originalTrigger`.
  *
- * Target resolution is left to the rules layer: the detector emits
+ * Target resolution is left to the rules layer: the extractor emits
  * `target: <command>` as a bare name, and `broken-ref` marks it invalid
  * if no node in the scan advertises that trigger.
  */
 
-import type { IDetector, IDetectContext } from '../../../kernel/extensions/index.js';
-import type { Link } from '../../../kernel/types.js';
+import type { IExtractor, IExtractorContext } from '../../../kernel/extensions/index.js';
 import { normalizeTrigger } from '../../../kernel/trigger-normalize.js';
 
 const ID = 'slash';
@@ -30,10 +29,10 @@ const ID = 'slash';
 // don't trigger on `/bar`).
 const SLASH_RE = /(?:^|[^A-Za-z0-9_/])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
-export const slashDetector: IDetector = {
+export const slashExtractor: IExtractor = {
   id: ID,
   pluginId: 'claude',
-  kind: 'detector',
+  kind: 'extractor',
   version: '1.0.0',
   description: 'Detects /command invocation tokens in the node body.',
   stability: 'stable',
@@ -42,16 +41,15 @@ export const slashDetector: IDetector = {
   defaultConfidence: 'medium',
   scope: 'body',
 
-  detect(ctx: IDetectContext): Link[] {
+  extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
-    const out: Link[] = [];
 
     for (const match of ctx.body.matchAll(SLASH_RE)) {
       const original = match[1]!;
       const normalized = normalizeTrigger(original);
       if (seen.has(normalized)) continue;
       seen.add(normalized);
-      out.push({
+      ctx.emitLink({
         source: ctx.node.path,
         target: original,
         kind: 'invokes',
@@ -63,6 +61,5 @@ export const slashDetector: IDetector = {
         },
       });
     }
-    return out;
   },
 };

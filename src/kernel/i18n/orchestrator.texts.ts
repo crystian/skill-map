@@ -28,7 +28,7 @@ export const ORCHESTRATOR_TEXTS = {
     'silently lost. Add a closing `---` line below the metadata block.',
 
   extensionErrorLinkKindNotDeclared:
-    'Detector "{{detectorId}}" emitted a link of kind "{{linkKind}}" outside its ' +
+    'Extractor "{{extractorId}}" emitted a link of kind "{{linkKind}}" outside its ' +
     'declared `emitsLinkKinds` set [{{declaredKinds}}]. Link dropped.',
 
   extensionErrorIssueInvalidSeverity:

@@ -1,9 +1,9 @@
 {
   "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
   "id": "kernel-empty-boot",
-  "description": "With every adapter, detector, and rule disabled, scanning an empty scope MUST return a valid, zero-filled ScanResult. Enforces the kernel boot invariant from architecture.md.",
+  "description": "With every Provider, detector, and rule disabled, scanning an empty scope MUST return a valid, zero-filled ScanResult. Enforces the kernel boot invariant from architecture.md.",
   "setup": {
-    "disableAllAdapters": true,
+    "disableAllProviders": true,
     "disableAllDetectors": true,
     "disableAllRules": true
   },

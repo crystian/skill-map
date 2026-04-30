@@ -6,17 +6,17 @@
  * verbs. `sm scan`, `sm graph`, and friends ran on built-ins exclusively.
  * Step 9.1 wires the loader into the runtime: a plugin dropped under
  * `<scope>/.skill-map/plugins/<id>/` shows up in scan output (its
- * detectors emit links, its rules emit issues) and `sm graph --format
- * <plugin-format>` resolves through the same renderer registry as the
- * built-in `ascii` renderer.
+ * extractors emit links, its rules emit issues) and `sm graph --format
+ * <plugin-format>` resolves through the same formatter registry as the
+ * built-in `ascii` formatter.
  *
  * Tests cover:
  *
- *   1. Plugin detector contributes a link kind to the persisted scan.
+ *   1. Plugin extractor contributes a link kind to the persisted scan.
  *   2. `--no-plugins` skips discovery entirely.
  *   3. A broken plugin (malformed manifest) emits a stderr warning but
  *      `sm scan` keeps running and persists the built-in result.
- *   4. Plugin renderer is selectable via `sm graph --format <plugin>`.
+ *   4. Plugin formatter is selectable via `sm graph --format <plugin>`.
  *
  * The tests use `process.chdir(fixture)` rather than spawnSync so they
  * exercise the actual command code without needing a `dist/` build. Each
@@ -130,12 +130,12 @@ function plantClaudeFixture(root: string): void {
 }
 
 /**
- * Plant a working plugin with one detector that always emits a single
+ * Plant a working plugin with one extractor that always emits a single
  * `references` link with a synthetic target. The unique target lets the
  * test assert "this exact link came from the plugin and not from any
- * built-in detector".
+ * built-in extractor".
  */
-function plantPluginDetector(root: string, id: string, target: string): void {
+function plantPluginExtractor(root: string, id: string, target: string): void {
   const dir = join(root, '.skill-map', 'plugins', id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
@@ -144,31 +144,31 @@ function plantPluginDetector(root: string, id: string, target: string): void {
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./detector.mjs'],
+      extensions: ['./extractor.mjs'],
     }),
   );
   writeFileSync(
-    join(dir, 'detector.mjs'),
+    join(dir, 'extractor.mjs'),
     `
       export default {
-        id: '${id}-detector',
-        kind: 'detector',
+        id: '${id}-extractor',
+        kind: 'extractor',
         version: '1.0.0',
-        description: 'Step 9.1 fixture detector — emits one synthetic reference per node.',
+        description: 'Step 9.1 fixture extractor — emits one synthetic reference per node.',
         emitsLinkKinds: ['references'],
         defaultConfidence: 'high',
-        detect(ctx) {
-          return [{
+        extract(ctx) {
+          ctx.emitLink({
             source: ctx.node.path,
             target: '${target}',
             kind: 'references',
             confidence: 'high',
-            sources: ['${id}-detector'],
+            sources: ['${id}-extractor'],
             trigger: {
               originalTrigger: '${target}',
               normalizedTrigger: '${target.toLowerCase()}',
             },
-          }];
+          });
         },
       };
     `,
@@ -176,10 +176,10 @@ function plantPluginDetector(root: string, id: string, target: string): void {
 }
 
 /**
- * Plant a working renderer plugin so the renderer code path is exercised
+ * Plant a working formatter plugin so the formatter code path is exercised
  * end-to-end via `sm graph`.
  */
-function plantPluginRenderer(root: string, id: string, format: string, sentinel: string): void {
+function plantPluginFormatter(root: string, id: string, formatId: string, sentinel: string): void {
   const dir = join(root, '.skill-map', 'plugins', id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(
@@ -188,19 +188,19 @@ function plantPluginRenderer(root: string, id: string, format: string, sentinel:
       id,
       version: '1.0.0',
       specCompat: '>=0.0.0',
-      extensions: ['./renderer.mjs'],
+      extensions: ['./formatter.mjs'],
     }),
   );
   writeFileSync(
-    join(dir, 'renderer.mjs'),
+    join(dir, 'formatter.mjs'),
     `
       export default {
-        id: '${id}-renderer',
-        kind: 'renderer',
+        id: '${id}-formatter',
+        kind: 'formatter',
         version: '1.0.0',
-        description: 'Step 9.1 fixture renderer.',
-        format: '${format}',
-        render(ctx) {
+        description: 'Step 9.1 fixture formatter.',
+        formatId: '${formatId}',
+        format(ctx) {
           return '${sentinel}\\n' + 'nodes:' + ctx.nodes.length;
         },
       };
@@ -221,11 +221,11 @@ function parseScanResult(stdout: string): ScanResult {
 }
 
 describe('Step 9.1 — plugin runtime wiring', () => {
-  it('plugin detector contributes a link to the scan output', async () => {
-    const fixture = freshFixture('plugin-detector');
+  it('plugin extractor contributes a link to the scan output', async () => {
+    const fixture = freshFixture('plugin-extractor');
     plantClaudeFixture(fixture);
     const target = '/synthetic-step9-target';
-    plantPluginDetector(fixture, 'fixture-emitter', target);
+    plantPluginExtractor(fixture, 'fixture-emitter', target);
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -239,7 +239,7 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       const planted = result.links.find((l) => l.target === target);
       ok(planted, `expected synthetic link with target=${target}; got ${JSON.stringify(result.links)}`);
       strictEqual(planted.kind, 'references');
-      ok(planted.sources.includes('fixture-emitter-detector'));
+      ok(planted.sources.includes('fixture-emitter-extractor'));
     } finally {
       process.chdir(original);
     }
@@ -249,7 +249,7 @@ describe('Step 9.1 — plugin runtime wiring', () => {
     const fixture = freshFixture('no-plugins');
     plantClaudeFixture(fixture);
     const target = '/synthetic-step9-skipped';
-    plantPluginDetector(fixture, 'fixture-skipped', target);
+    plantPluginExtractor(fixture, 'fixture-skipped', target);
 
     const original = process.cwd();
     process.chdir(fixture);
@@ -293,17 +293,17 @@ describe('Step 9.1 — plugin runtime wiring', () => {
     }
   });
 
-  it('plugin renderer is selectable via sm graph --format <plugin>', async () => {
-    const fixture = freshFixture('plugin-renderer');
+  it('plugin formatter is selectable via sm graph --format <plugin>', async () => {
+    const fixture = freshFixture('plugin-formatter');
     plantClaudeFixture(fixture);
-    plantPluginRenderer(fixture, 'fixture-shouter', 'shout', 'PLUGIN-RENDERER-SENTINEL');
+    plantPluginFormatter(fixture, 'fixture-shouter', 'shout', 'PLUGIN-FORMATTER-SENTINEL');
 
     const original = process.cwd();
     process.chdir(fixture);
     try {
       // 1. Prime the DB with a real scan (also exercises plugin discovery
       //    in the scan path; harmless because this plugin only contributes
-      //    a renderer, not a detector).
+      //    a formatter, not an extractor).
       const scanCap = captureContext();
       const scanCmd = buildScan();
       scanCmd.context = scanCap.context;
@@ -316,22 +316,22 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       graphCmd.context = graphCap.context;
       const code = await graphCmd.execute();
       strictEqual(code, 0, `graph exited ${code}; stderr=${graphCap.stderr()}`);
-      match(graphCap.stdout(), /PLUGIN-RENDERER-SENTINEL/);
+      match(graphCap.stdout(), /PLUGIN-FORMATTER-SENTINEL/);
     } finally {
       process.chdir(original);
     }
   });
 
-  it('--no-plugins on sm graph falls back to built-in renderers only', async () => {
+  it('--no-plugins on sm graph falls back to built-in formatters only', async () => {
     const fixture = freshFixture('graph-no-plugins');
     plantClaudeFixture(fixture);
-    plantPluginRenderer(fixture, 'fixture-hidden', 'hidden', 'HIDDEN-SENTINEL');
+    plantPluginFormatter(fixture, 'fixture-hidden', 'hidden', 'HIDDEN-SENTINEL');
 
     const original = process.cwd();
     process.chdir(fixture);
     try {
       // Prime the DB; pass --no-plugins to scan too so the test stays
-      // hermetic (the renderer plugin doesn't affect scan output, but
+      // hermetic (the formatter plugin doesn't affect scan output, but
       // skipping discovery on both verbs keeps the assertion focused).
       const scanCap = captureContext();
       const scanCmd = buildScan({ noPlugins: true });
@@ -342,8 +342,8 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       const graphCmd = buildGraph({ format: 'hidden', noPlugins: true });
       graphCmd.context = graphCap.context;
       const code = await graphCmd.execute();
-      strictEqual(code, 5, 'plugin renderer must be invisible under --no-plugins');
-      match(graphCap.stderr(), /No renderer registered for format=hidden/);
+      strictEqual(code, 5, 'plugin formatter must be invisible under --no-plugins');
+      match(graphCap.stderr(), /No formatter registered for format=hidden/);
     } finally {
       process.chdir(original);
     }

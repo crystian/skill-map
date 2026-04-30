@@ -32,14 +32,14 @@ const ZERO_BYTES: TripleSplit = { frontmatter: 0, body: 0, total: 0 };
  * it in `overrides`. Required-by-spec fields all have placeholder
  * defaults so the result is always spec-valid even with `node()` alone.
  *
- * Default kind: `skill`. Default adapter id: `claude` (the only
- * built-in adapter today). Default counts: zero.
+ * Default kind: `skill`. Default provider id: `claude` (the only
+ * built-in Provider today). Default counts: zero.
  */
 export function node(overrides: Partial<Node> = {}): Node {
   const base: Node = {
     path: overrides.path ?? '.claude/skills/example.md',
     kind: overrides.kind ?? ('skill' as NodeKind),
-    adapter: overrides.adapter ?? 'claude',
+    provider: overrides.provider ?? 'claude',
     bodyHash: overrides.bodyHash ?? PLACEHOLDER_HASH,
     frontmatterHash: overrides.frontmatterHash ?? PLACEHOLDER_HASH,
     bytes: overrides.bytes ?? ZERO_BYTES,
@@ -95,7 +95,7 @@ export function issue(overrides: Partial<Issue> = {}): Issue {
 
 /**
  * Build a `ScanResult` envelope with sensible defaults. Use this when
- * a helper expects a full scan dump (e.g. testing a renderer that
+ * a helper expects a full scan dump (e.g. testing a formatter that
  * consumes nodes + links + issues, or asserting `runScan` semantics
  * end-to-end without spinning up the orchestrator).
  *
@@ -118,7 +118,7 @@ export function scanResult(overrides: Partial<ScanResult> = {}): ScanResult {
     schemaVersion: overrides.schemaVersion ?? 1,
     scope: overrides.scope ?? 'project',
     roots: overrides.roots ?? ['.'],
-    adapters: overrides.adapters ?? ['claude'],
+    providers: overrides.providers ?? ['claude'],
     scannedAt: overrides.scannedAt ?? 0,
     scannedBy: overrides.scannedBy ?? {
       name: 'skill-map-testkit',

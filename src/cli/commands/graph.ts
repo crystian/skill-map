@@ -1,19 +1,19 @@
 /**
  * `sm graph [--format <name>]`
  *
- * Renders the persisted graph through a registered renderer and writes
+ * Renders the persisted graph through a registered formatter and writes
  * the result to stdout. Default `--format ascii` (the only built-in
- * renderer at v0.5.0; mermaid / dot land at Step 12 as drop-in additions).
+ * formatter at v0.5.0; mermaid / dot land at Step 12 as drop-in additions).
  *
- * Read-only: opens the DB, calls `loadScanResult`, picks the renderer
- * whose `format` field matches `--format`, and prints. Never persists.
+ * Read-only: opens the DB, calls `loadScanResult`, picks the formatter
+ * whose `formatId` matches `--format`, and prints. Never persists.
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
  *   2  bad flag / unhandled error
- *   5  DB missing OR no renderer registered for the requested format
+ *   5  DB missing OR no formatter registered for the requested format
  *
- * Renderer registry: built-in renderers plus drop-in plugin renderers
+ * Formatter registry: built-in formatters plus drop-in plugin formatters
  * discovered under `.skill-map/plugins/` and `~/.skill-map/plugins/`
  * (Step 9.1). Failed plugins emit one stderr warning each; the verb
  * keeps running on whatever loaded successfully. Pass `--no-plugins`
@@ -26,7 +26,7 @@ import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
-  composeRenderers,
+  composeFormatters,
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
@@ -38,10 +38,10 @@ export class GraphCommand extends Command {
   static override paths = [['graph']];
   static override usage = Command.Usage({
     category: 'Browse',
-    description: 'Render the full graph via the named renderer.',
+    description: 'Render the full graph via the named formatter.',
     details: `
       Reads the persisted scan and prints a textual rendering. The
-      built-in \`ascii\` renderer is the only format available at
+      built-in \`ascii\` formatter is the only format available at
       v0.5.0; \`mermaid\` and \`dot\` are deferred to Step 12 and will
       surface here automatically once they ship as built-ins.
 
@@ -55,12 +55,12 @@ export class GraphCommand extends Command {
   });
 
   format = Option.String('--format', DEFAULT_FORMAT, {
-    description: `Renderer format. Must match the \`format\` field of a registered renderer. Default: ${DEFAULT_FORMAT}.`,
+    description: `Formatter format. Must match the \`formatId\` field of a registered formatter. Default: ${DEFAULT_FORMAT}.`,
   });
   global = Option.Boolean('-g,--global', false);
   db = Option.String('--db', { required: false });
   noPlugins = Option.Boolean('--no-plugins', false, {
-    description: 'Skip drop-in plugin discovery. Only built-in renderers participate.',
+    description: 'Skip drop-in plugin discovery. Only built-in formatters participate.',
   });
 
   async execute(): Promise<number> {
@@ -72,29 +72,29 @@ export class GraphCommand extends Command {
       : await loadPluginRuntime({ scope: this.global ? 'global' : 'project' });
     for (const warn of pluginRuntime.warnings) this.context.stderr.write(`${warn}\n`);
 
-    const renderers = composeRenderers({ pluginRuntime });
-    const renderer = renderers.find((r) => r.format === this.format);
-    if (!renderer) {
-      const available = renderers
-        .map((r) => r.format)
+    const formatters = composeFormatters({ pluginRuntime });
+    const formatter = formatters.find((f) => f.formatId === this.format);
+    if (!formatter) {
+      const available = formatters
+        .map((f) => f.formatId)
         .sort()
         .join(', ');
       this.context.stderr.write(
-        `No renderer registered for format=${this.format}. Available: ${available || '(none)'}.\n`,
+        `No formatter registered for format=${this.format}. Available: ${available || '(none)'}.\n`,
       );
       return ExitCode.NotFound;
     }
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       const scan = await loadScanResult(adapter.db);
-      const text = renderer.render({
+      const text = formatter.format({
         nodes: scan.nodes,
         links: scan.links,
         issues: scan.issues,
       });
-      // Renderer output is text; trailing newline normalisation makes the
+      // Formatter output is text; trailing newline normalisation makes the
       // verb safe to pipe into anything that splits on lines without
-      // double-newlining when the renderer already terminates its output.
+      // double-newlining when the formatter already terminates its output.
       this.context.stdout.write(text.endsWith('\n') ? text : text + '\n');
       return ExitCode.Ok;
     });

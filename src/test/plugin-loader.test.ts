@@ -66,12 +66,12 @@ describe('PluginLoader', () => {
     strictEqual(plugins.length, 0);
   });
 
-  it('loads a green-path plugin with one detector extension', async () => {
+  it('loads a green-path plugin with one extractor extension', async () => {
     const root = makePluginsDir('green');
     const detectorSource = `
       export default {
         id: 'url-counter',
-        kind: 'detector',
+        kind: 'extractor',
         version: '1.0.0',
         description: 'Counts external URLs',
         emitsLinkKinds: ['references'],
@@ -96,7 +96,7 @@ describe('PluginLoader', () => {
     strictEqual(only.status, 'loaded');
     strictEqual(only.id, 'ok-plugin');
     strictEqual(only.extensions?.length, 1);
-    strictEqual(only.extensions?.[0]?.kind, 'detector');
+    strictEqual(only.extensions?.[0]?.kind, 'extractor');
     strictEqual(only.extensions?.[0]?.id, 'url-counter');
   });
 
@@ -155,7 +155,7 @@ describe('PluginLoader', () => {
     const badDetector = `
       export default {
         id: 'bad',
-        kind: 'detector',
+        kind: 'extractor',
         version: '1.0.0',
         // Missing required emitsLinkKinds and defaultConfidence.
       };
@@ -237,24 +237,24 @@ describe('PluginLoader', () => {
         { 'x.mjs': `export default { id: 'x', kind: 'wat', version: '1.0.0' };` },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
-      match(r[0]!.reason!, /Expected one of: adapter \/ detector \/ rule \/ action \/ audit \/ renderer/);
+      match(r[0]!.reason!, /Expected one of: provider \/ extractor \/ rule \/ action \/ formatter/);
     });
 
     it('extension manifest invalid points at its kind schema', async () => {
       const root = makePluginsDir('diag-extension-schema');
       writePlugin(
         root,
-        'broken-renderer',
+        'broken-formatter',
         {
-          id: 'broken-renderer',
+          id: 'broken-formatter',
           version: '1.0.0',
           specCompat: '>=0.0.0',
-          extensions: ['r.mjs'],
+          extensions: ['f.mjs'],
         },
-        { 'r.mjs': `export default { id: 'r', kind: 'renderer', version: '1.0.0' };` },
+        { 'f.mjs': `export default { id: 'f', kind: 'formatter', version: '1.0.0' };` },
       );
       const r = await loaderFor(root).discoverAndLoadAll();
-      match(r[0]!.reason!, /spec\/schemas\/extensions\/renderer\.schema\.json/);
+      match(r[0]!.reason!, /spec\/schemas\/extensions\/formatter\.schema\.json/);
     });
   });
 
@@ -271,7 +271,7 @@ describe('PluginLoader', () => {
       // race with the loader's timer should win.
       const hangSource = `
         await new Promise(() => {});
-        export default { id: 'never', kind: 'detector', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };
+        export default { id: 'never', kind: 'extractor', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };
       `;
       writePlugin(
         root,
@@ -305,7 +305,7 @@ describe('PluginLoader', () => {
     it('non-hanging plugin still loads fine with a tight timeout', async () => {
       const root = makePluginsDir('timeout-fast');
       const detector = `
-        export default { id: 'fast', kind: 'detector', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };
+        export default { id: 'fast', kind: 'extractor', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };
       `;
       writePlugin(
         root,
@@ -364,7 +364,7 @@ describe('PluginLoader', () => {
       const rootB = makePluginsDir('collide-B');
       const detectorSrc = `
         export default {
-          id: 'd', kind: 'detector', version: '1.0.0',
+          id: 'd', kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
@@ -416,7 +416,7 @@ describe('PluginLoader', () => {
       });
       const detectorSrc = `
         export default {
-          id: 'd', kind: 'detector', version: '1.0.0',
+          id: 'd', kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
@@ -440,7 +440,7 @@ describe('PluginLoader', () => {
       const rootB = makePluginsDir('mix-B');
       const detectorSrc = `
         export default {
-          id: 'd', kind: 'detector', version: '1.0.0',
+          id: 'd', kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
@@ -487,7 +487,7 @@ describe('PluginLoader', () => {
       const rootB = makePluginsDir('mud-B');
       const detectorSrc = `
         export default {
-          id: 'd', kind: 'detector', version: '1.0.0',
+          id: 'd', kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
@@ -536,7 +536,7 @@ describe('PluginLoader', () => {
         extensions: ['d.mjs'],
       },
       {
-        'd.mjs': `export default { id: 'd', kind: 'detector', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };`,
+        'd.mjs': `export default { id: 'd', kind: 'extractor', version: '1.0.0', emitsLinkKinds: ['references'], defaultConfidence: 'high' };`,
       },
     );
     writePlugin(root, 'broken', { id: 'broken' });
@@ -556,7 +556,7 @@ describe('PluginLoader', () => {
       const root = makePluginsDir('a6-injection');
       const detectorSrc = `
         export default {
-          id: 'greet', kind: 'detector', version: '1.0.0',
+          id: 'greet', kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
@@ -584,7 +584,7 @@ describe('PluginLoader', () => {
       const detectorSrc = `
         export default {
           id: 'greet', pluginId: 'my-plugin',
-          kind: 'detector', version: '1.0.0',
+          kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
@@ -608,7 +608,7 @@ describe('PluginLoader', () => {
         const root = makePluginsDir('granularity-extension');
         const detectorSrc = `
           export default {
-            id: 'one', kind: 'detector', version: '1.0.0',
+            id: 'one', kind: 'extractor', version: '1.0.0',
             emitsLinkKinds: ['references'], defaultConfidence: 'high',
           };
         `;
@@ -634,7 +634,7 @@ describe('PluginLoader', () => {
         const root = makePluginsDir('granularity-default');
         const detectorSrc = `
           export default {
-            id: 'one', kind: 'detector', version: '1.0.0',
+            id: 'one', kind: 'extractor', version: '1.0.0',
             emitsLinkKinds: ['references'], defaultConfidence: 'high',
           };
         `;
@@ -661,7 +661,7 @@ describe('PluginLoader', () => {
       const detectorSrc = `
         export default {
           id: 'greet', pluginId: 'someone-else',
-          kind: 'detector', version: '1.0.0',
+          kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
         };
       `;
@@ -680,7 +680,7 @@ describe('PluginLoader', () => {
     });
   });
 
-  // Spec § A.10 — `applicableKinds` filter on Detectors.
+  // Spec § A.10 — `applicableKinds` filter on Extractors.
   //
   //   - Empty array `[]` is rejected by AJV (`minItems: 1`) → load-error.
   //   - Unknown kinds (no installed Provider declares them) load OK
@@ -688,11 +688,11 @@ describe('PluginLoader', () => {
   //     covered by `plugins-cli.test.ts` separately. Here we just pin
   //     that the loader does NOT block unknown kinds.
   describe('Step A.10 — applicableKinds filter', () => {
-    it('(e) detector with applicableKinds: ["unknown-kind"] loads OK (status: loaded)', async () => {
+    it('(e) extractor with applicableKinds: ["unknown-kind"] loads OK (status: loaded)', async () => {
       const root = makePluginsDir('a10-unknown-kind');
       const detectorSrc = `
         export default {
-          id: 'd', kind: 'detector', version: '1.0.0',
+          id: 'd', kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
           applicableKinds: ['unknown-kind'],
         };
@@ -716,14 +716,14 @@ describe('PluginLoader', () => {
       // The applicableKinds field survives the load (the loader does
       // not strip it; the runtime carries it for the orchestrator and
       // doctor to inspect).
-      strictEqual(ext.kind, 'detector');
+      strictEqual(ext.kind, 'extractor');
     });
 
-    it('(f) detector with applicableKinds: [] is rejected by AJV (minItems: 1)', async () => {
+    it('(f) extractor with applicableKinds: [] is rejected by AJV (minItems: 1)', async () => {
       const root = makePluginsDir('a10-empty-array');
       const detectorSrc = `
         export default {
-          id: 'd', kind: 'detector', version: '1.0.0',
+          id: 'd', kind: 'extractor', version: '1.0.0',
           emitsLinkKinds: ['references'], defaultConfidence: 'high',
           applicableKinds: [],
         };

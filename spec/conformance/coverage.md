@@ -30,13 +30,12 @@ This file is hand-maintained. A CI check before spec release compares the schema
 | 20 | `summaries/hook.schema.json` | — | 🔴 missing | Blocked by Step 11. |
 | 21 | `summaries/note.schema.json` | — | 🔴 missing | Blocked by Step 11. |
 | 22 | `extensions/base.schema.json` | — | 🔴 missing | Meta-case: every manifest under `src/extensions/` validates against the appropriate kind schema (which extends base via `allOf`). |
-| 23 | `extensions/adapter.schema.json` | — | 🔴 missing | Case: the `claude` adapter manifest validates; a crafted invalid manifest (missing `defaultRefreshAction`) fails with `invalid-manifest`. |
-| 24 | `extensions/detector.schema.json` | — | 🔴 missing | Case: `frontmatter` + `slash` + `at-directive` detector manifests validate; a detector emitting a disallowed `emitsLinkKinds` value fails. |
+| 23 | `extensions/provider.schema.json` | — | 🔴 missing | Case: the `claude` Provider manifest validates; a crafted invalid manifest (missing `defaultRefreshAction` or `explorationDir`) fails with `invalid-manifest`. |
+| 24 | `extensions/extractor.schema.json` | — | 🔴 missing | Case: `frontmatter` + `slash` + `at-directive` extractor manifests validate; an extractor emitting a disallowed `emitsLinkKinds` value fails. |
 | 25 | `extensions/rule.schema.json` | — | 🔴 missing | Case: `trigger-collision`, `broken-ref`, `superseded` manifests validate. |
 | 26 | `extensions/action.schema.json` | — | 🔴 missing | Case: a `deterministic` action manifest validates; a `probabilistic` action WITHOUT `promptTemplateRef` fails. |
-| 27 | `extensions/audit.schema.json` | — | 🔴 missing | Case: `validate-all` audit manifest validates; an audit referencing a non-existent rule id in `composes` fails at load with `invalid-manifest`; an audit declaring `mode` directly fails at load. |
-| 28 | `extensions/renderer.schema.json` | — | 🔴 missing | Case: `ascii` renderer manifest validates. |
-| 29 | `history-stats.schema.json` | — | 🔴 missing | Blocked by Step 5 (history). Case: seed `state_executions` with a deterministic fixture, run `sm history stats --json --since <T0> --until <T1> --period month --top 5`, assert the document validates and that `totals.executionsCount == sum(perAction.executionsCount)` and `errorRates.global == totals.failedCount / totals.executionsCount`. Percentiles (`p95`/`p99`) intentionally omitted in v1 — add later as a minor bump without breaking consumers. |
+| 27 | `extensions/formatter.schema.json` | — | 🔴 missing | Case: `ascii` formatter manifest validates. |
+| 28 | `history-stats.schema.json` | — | 🔴 missing | Blocked by Step 5 (history). Case: seed `state_executions` with a deterministic fixture, run `sm history stats --json --since <T0> --until <T1> --period month --top 5`, assert the document validates and that `totals.executionsCount == sum(perAction.executionsCount)` and `errorRates.global == totals.failedCount / totals.executionsCount`. Percentiles (`p95`/`p99`) intentionally omitted in v1 — add later as a minor bump without breaking consumers. |
 
 Status legend: 🟢 covered (at least one case asserts the schema end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) · 🔴 missing.
 
@@ -48,7 +47,6 @@ These have their own conformance cases even though they are not JSON Schemas.
 |---|---|---|---|---|
 | A | Preamble verbatim text | `preamble-bitwise-match` | 🟠 deferred | Deferred to Step 10 (needs `sm job preview` to render a job file). Fixture: `fixtures/preamble-v1.txt` (already present, byte-identical to `prompt-preamble.md` source). |
 | B | Kernel empty-boot invariant | `kernel-empty-boot` | 🟢 covered | All extensions disabled → empty ScanResult. |
-| C | Audit mode derivation | `extension-mode-derivation` | 🟠 deferred | Deferred to Step 10 (audit's effective mode is derived from `composes[]` at load time; full validation requires the job subsystem to verify dispatch routing). Sub-cases: (1) audit composing only deterministic primitives → effective mode `deterministic`, runs synchronously inside `sm audit <id>`; (2) audit composing at least one probabilistic primitive → effective mode `probabilistic`, dispatches as a job; (3) audit declaring `mode` directly in the manifest → load-time error `invalid-manifest`; (4) audit composing a dangling reference → load-time error `invalid-manifest`. See `architecture.md` §Execution modes. |
 | C | Atomic-claim race safety | — | 🔴 missing | Blocked by Step 10. Two concurrent `sm job claim` invocations against a single queued row — exactly one MUST succeed. |
 | D | Duplicate detection | — | 🔴 missing | Blocked by Step 10. Two `sm job submit` with same `(action, version, node, contentHash)` — second exits 3. |
 | E | `--force` bypass | — | 🔴 missing | Blocked by Step 10. |

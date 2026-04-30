@@ -6,7 +6,7 @@
 CREATE TABLE scan_nodes (
   path TEXT PRIMARY KEY,
   kind TEXT NOT NULL,
-  adapter TEXT NOT NULL,
+  provider TEXT NOT NULL,
   title TEXT,
   description TEXT,
   stability TEXT,
@@ -29,7 +29,7 @@ CREATE TABLE scan_nodes (
   CONSTRAINT ck_scan_nodes_stability CHECK (stability IS NULL OR stability IN ('experimental','stable','deprecated'))
 );
 CREATE INDEX ix_scan_nodes_kind ON scan_nodes(kind);
-CREATE INDEX ix_scan_nodes_adapter ON scan_nodes(adapter);
+CREATE INDEX ix_scan_nodes_provider ON scan_nodes(provider);
 CREATE INDEX ix_scan_nodes_body_hash ON scan_nodes(body_hash);
 
 CREATE TABLE scan_links (
@@ -116,7 +116,7 @@ CREATE TABLE state_executions (
   tokens_out INTEGER,
   report_path TEXT,
   job_id TEXT,
-  CONSTRAINT ck_state_executions_kind CHECK (kind IN ('action','audit')),
+  CONSTRAINT ck_state_executions_kind CHECK (kind IN ('action')),
   CONSTRAINT ck_state_executions_status CHECK (status IN ('completed','failed','cancelled'))
 );
 CREATE INDEX ix_state_executions_extension_id ON state_executions(extension_id);
@@ -186,7 +186,7 @@ CREATE TABLE config_schema_versions (
 
 -- --- Scan meta envelope ----------------------------------------------------
 -- Persists scan-result metadata so `loadScanResult` returns real values for
--- `scope`, `roots`, `scannedAt`, `scannedBy`, `adapters`, and the non-derivable
+-- `scope`, `roots`, `scannedAt`, `scannedBy`, `providers`, and the non-derivable
 -- `stats` fields (filesWalked / filesSkipped / durationMs) instead of a
 -- synthetic envelope. Single-row table (CHECK id = 1); replaced atomically
 -- with the rest of the scan_* zone on every `sm scan` via
@@ -202,7 +202,7 @@ CREATE TABLE scan_meta (
   scanned_by_name TEXT NOT NULL,
   scanned_by_version TEXT NOT NULL,
   scanned_by_spec_version TEXT NOT NULL,
-  adapters_json TEXT NOT NULL,
+  providers_json TEXT NOT NULL,
   stats_files_walked INTEGER NOT NULL,
   stats_files_skipped INTEGER NOT NULL,
   stats_duration_ms INTEGER NOT NULL,

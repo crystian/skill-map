@@ -163,15 +163,15 @@ function writeMockPlugin(rootDir: string, id: string): string {
       extensions: ['detector.js'],
     }),
   );
-  // Detector manifests are pure data (no runtime methods on the
+  // Extractor manifests are pure data (no runtime methods on the
   // exported object), so they pass AJV `unevaluatedProperties: false`
-  // without needing the runtime detector contract — perfect for
+  // without needing the runtime extractor contract — perfect for
   // testing enable/disable flow.
   writeFileSync(
     join(dir, 'detector.js'),
     `export default {
-       kind: 'detector',
-       id: '${id}-detector',
+       kind: 'extractor',
+       id: '${id}-extractor',
        version: '0.1.0',
        description: 'mock',
        stability: 'experimental',

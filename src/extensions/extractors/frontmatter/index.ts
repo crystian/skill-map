@@ -1,5 +1,5 @@
 /**
- * Frontmatter detector. Reads the parsed frontmatter block and emits one
+ * Frontmatter extractor. Reads the parsed frontmatter block and emits one
  * link per structured reference:
  *
  *   metadata.supersedes[]    → supersedes links (this node → listed paths)
@@ -7,21 +7,21 @@
  *   metadata.requires[]      → references links
  *   metadata.related[]       → references links
  *
- * Frontmatter-scope detector — the orchestrator passes an empty body.
+ * Frontmatter-scope extractor — the orchestrator passes an empty body.
  * No trigger normalization on these links: the source is structured
  * path strings, not a user-typed invocation. `originalTrigger` and
  * `normalizedTrigger` stay null.
  */
 
-import type { IDetector, IDetectContext } from '../../../kernel/extensions/index.js';
+import type { IExtractor, IExtractorContext } from '../../../kernel/extensions/index.js';
 import type { Link } from '../../../kernel/types.js';
 
 const ID = 'frontmatter';
 
-export const frontmatterDetector: IDetector = {
+export const frontmatterExtractor: IExtractor = {
   id: ID,
   pluginId: 'claude',
-  kind: 'detector',
+  kind: 'extractor',
   version: '1.0.0',
   description: 'Reads structured references from the frontmatter (supersedes, supersededBy, requires, related).',
   stability: 'stable',
@@ -30,30 +30,28 @@ export const frontmatterDetector: IDetector = {
   defaultConfidence: 'high',
   scope: 'frontmatter',
 
-  detect(ctx: IDetectContext): Link[] {
+  extract(ctx: IExtractorContext): void {
     const meta = pickMetadata(ctx.frontmatter);
-    if (!meta) return [];
+    if (!meta) return;
 
     const sourcePath = ctx.node.path;
-    const out: Link[] = [];
 
     for (const target of stringArray(meta['supersedes'])) {
-      out.push(link(sourcePath, target, 'supersedes'));
+      ctx.emitLink(link(sourcePath, target, 'supersedes'));
     }
     const supersededBy = meta['supersededBy'];
     if (typeof supersededBy === 'string' && supersededBy.length > 0) {
       // Inverse direction: the path listed in supersededBy is the new node,
       // and it supersedes `sourcePath`. Emit the edge FROM the new node
       // so consumers can ask "what did X supersede?" with a single query.
-      out.push(link(supersededBy, sourcePath, 'supersedes'));
+      ctx.emitLink(link(supersededBy, sourcePath, 'supersedes'));
     }
     for (const target of stringArray(meta['requires'])) {
-      out.push(link(sourcePath, target, 'references'));
+      ctx.emitLink(link(sourcePath, target, 'references'));
     }
     for (const target of stringArray(meta['related'])) {
-      out.push(link(sourcePath, target, 'references'));
+      ctx.emitLink(link(sourcePath, target, 'references'));
     }
-    return out;
   },
 };
 

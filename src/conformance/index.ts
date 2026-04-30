@@ -45,7 +45,7 @@ interface ConformanceCase {
   description: string;
   fixture?: string;
   setup?: {
-    disableAllAdapters?: boolean;
+    disableAllProviders?: boolean;
     disableAllDetectors?: boolean;
     disableAllRules?: boolean;
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
@@ -147,7 +147,7 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
  * Replace every top-level entry in `scope` EXCEPT `.skill-map/` (which
  * holds the kernel DB and persists across staging steps), then copy
  * the fixture's contents on top. Used by `priorScans` and the main
- * fixture phase to swap adapter content while keeping the DB stable.
+ * fixture phase to swap Provider content while keeping the DB stable.
  */
 function replaceFixture(scope: string, specRoot: string, fixture: string): void {
   for (const entry of readdirSync(scope)) {

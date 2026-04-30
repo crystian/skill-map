@@ -19,9 +19,9 @@
       "type": "string",
       "description": "Name of the offline tokenizer used to compute per-node token counts during scan. Default `cl100k_base`. Stored alongside each token count in `scan_nodes` so consumers know which encoder produced the numbers. Changing this invalidates prior counts on next scan."
     },
-    "adapters": {
+    "providers": {
       "type": "array",
-      "description": "Adapter ids to enable, in priority order when multiple match. Empty/absent = use all registered.",
+      "description": "Provider ids to enable, in priority order when multiple match. Empty/absent = use all registered.",
       "items": { "type": "string" }
     },
     "roots": {

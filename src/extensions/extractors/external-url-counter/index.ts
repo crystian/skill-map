@@ -1,5 +1,5 @@
 /**
- * External URL counter detector. Scans the node body for `http://` and
+ * External URL counter extractor. Scans the node body for `http://` and
  * `https://` URLs and emits one "pseudo-link" per distinct normalized URL.
  *
  * The pseudo-links are the on-the-wire transport for a count: the
@@ -29,7 +29,7 @@
  * paths and queries. We roll our own URL normalization here.
  */
 
-import type { IDetector, IDetectContext } from '../../../kernel/extensions/index.js';
+import type { IExtractor, IExtractorContext } from '../../../kernel/extensions/index.js';
 import type { Link } from '../../../kernel/types.js';
 
 const ID = 'external-url-counter';
@@ -42,10 +42,10 @@ const URL_RE = /https?:\/\/[^\s<>"'`)\]]+/g;
 
 const TRAILING_PUNCT = /[.,;:!?]+$/;
 
-export const externalUrlCounterDetector: IDetector = {
+export const externalUrlCounterExtractor: IExtractor = {
   id: ID,
   pluginId: 'core',
-  kind: 'detector',
+  kind: 'extractor',
   version: '1.0.0',
   description:
     'Counts distinct external http(s) URLs in the node body. Emits pseudo-links the orchestrator strips after counting.',
@@ -55,9 +55,8 @@ export const externalUrlCounterDetector: IDetector = {
   defaultConfidence: 'low',
   scope: 'body',
 
-  detect(ctx: IDetectContext): Link[] {
+  extract(ctx: IExtractorContext): void {
     const seen = new Set<string>();
-    const out: Link[] = [];
     const lineStarts = computeLineStarts(ctx.body);
 
     for (const match of ctx.body.matchAll(URL_RE)) {
@@ -82,9 +81,8 @@ export const externalUrlCounterDetector: IDetector = {
         },
         location: { line: lineFor(lineStarts, offset) },
       };
-      out.push(link);
+      ctx.emitLink(link);
     }
-    return out;
   },
 };
 

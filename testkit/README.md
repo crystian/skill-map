@@ -1,6 +1,6 @@
 # `@skill-map/testkit`
 
-Kernel mocks and builders for plugin authors. Unit-test detectors, rules, and renderers without spinning up a real kernel or DB.
+Kernel mocks and builders for plugin authors. Unit-test detectors, rules, and formatters without spinning up a real kernel or DB.
 
 The full plugin contract lives in [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md). This README is a fast on-ramp: how to ship the smallest viable plugin and validate it with the testkit.
 
@@ -65,7 +65,7 @@ export default {
 
 The extension's `id` is short (`my-detector`); the kernel composes the qualified id `my-plugin/my-detector` from the manifest. Pick a token syntax that does not collide with the built-in `@<token>` and `/<token>` detectors.
 
-The five other extension kinds (`rule`, `renderer`, `adapter`, `audit`, `action`) follow the same shape — see [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md#the-six-extension-kinds).
+The four other extension kinds (`provider`, `rule`, `formatter`, `action`) follow the same shape — see [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md#the-five-extension-kinds).
 
 ## Test it
 
@@ -90,7 +90,7 @@ test('emits one link per [[ref:<name>]]', async () => {
 node --test test/my-detector.test.mjs
 ```
 
-The testkit also ships `runRuleOnGraph` (rules), `runRendererOnGraph` (renderers), `makeFakeStorage` (KV storage), and `makeFakeRunner` (probabilistic mode). Full surface in [`index.ts`](./index.ts).
+The testkit also ships `runRuleOnGraph` (rules), `runFormatterOnGraph` (formatters), `makeFakeStorage` (KV storage), and `makeFakeRunner` (probabilistic mode). Full surface in [`index.ts`](./index.ts).
 
 ## Run it under the real CLI
 
@@ -118,4 +118,4 @@ If `sm plugins list` shows anything other than `loaded` / `disabled`, run `sm pl
 
 ## Stability
 
-`experimental` while Step 9 is in flight. The detector / rule / renderer helpers and builders are intended to stay stable through v1.0; `makeFakeRunner` may change to track the Step 10 job subsystem contract.
+`experimental` while Step 9 is in flight. The detector / rule / formatter helpers and builders are intended to stay stable through v1.0; `makeFakeRunner` may change to track the Step 10 job subsystem contract.

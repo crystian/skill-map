@@ -45,13 +45,13 @@ A case is a JSON document with this shape:
   "fixture": "string — folder under fixtures/ used as the scope root.",
 
   "setup": {
-    "disableAllAdapters": false,
+    "disableAllProviders": false,
     "disableAllDetectors": false,
     "disableAllRules": false
   },
 
   "invoke": {
-    "verb": "scan | list | show | check | findings | graph | export | audit | job | record | ...",
+    "verb": "scan | list | show | check | findings | graph | export | job | record | ...",
     "sub": "submit | run | ...",
     "args": ["positional", "args"],
     "flags": ["--json", "--all", "..."]

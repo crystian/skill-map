@@ -16,7 +16,7 @@ function mockNode(
   return {
     path,
     kind,
-    adapter: 'claude',
+    provider: 'claude',
     bodyHash: 'x'.repeat(64),
     frontmatterHash: 'y'.repeat(64),
     bytes: { frontmatter: 0, body: 0, total: 0 },

@@ -234,7 +234,7 @@ describe('frontmatter-malformed', () => {
       fixture,
       '.claude/agents/hr.md',
       // A column-0 `---` followed by prose looks like a malformed
-      // frontmatter (open fence, no close). The current adapter regex
+      // frontmatter (open fence, no close). The current Provider regex
       // requires both fences, so frontmatterRaw is empty and the
       // heuristic checks for INDENTED `---`. Column-0 with no second
       // fence is left alone — markdown horizontal rule.
@@ -326,7 +326,7 @@ describe('frontmatter-malformed', () => {
     writeNode(
       fixture,
       '.claude/agents/indent-close.md',
-      // The close `---` is preceded by spaces, so the adapter regex
+      // The close `---` is preceded by spaces, so the Provider regex
       // (which requires `\n---\r?\n?`) doesn't match it.
       '---\nname: indented-close\n  ---\nbody\n',
     );

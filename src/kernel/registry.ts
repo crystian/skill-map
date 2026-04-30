@@ -1,8 +1,8 @@
 /**
- * Extension registry — six kinds, first-class, loaded through a single API.
+ * Extension registry — five kinds, first-class, loaded through a single API.
  *
  * The `Extension` shape is aligned with `spec/schemas/extensions/base.schema.json`.
- * Kind-specific manifests (adapter / detector / rule / action / audit / renderer)
+ * Kind-specific manifests (provider / extractor / rule / action / formatter)
  * extend this base structurally; the registry stores the base view and each
  * kind's code carries its own fuller type where needed.
  *
@@ -21,20 +21,18 @@
 import type { Stability } from './types.js';
 
 export type ExtensionKind =
-  | 'adapter'
-  | 'detector'
+  | 'provider'
+  | 'extractor'
   | 'rule'
   | 'action'
-  | 'audit'
-  | 'renderer';
+  | 'formatter';
 
 export const EXTENSION_KINDS: readonly ExtensionKind[] = Object.freeze([
-  'adapter',
-  'detector',
+  'provider',
+  'extractor',
   'rule',
   'action',
-  'audit',
-  'renderer',
+  'formatter',
 ] as const);
 
 export interface Extension {

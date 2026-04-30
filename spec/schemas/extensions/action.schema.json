@@ -36,10 +36,10 @@
           "items": { "type": "string", "enum": ["skill", "agent", "command", "hook", "note"] },
           "description": "Node kinds this action accepts. Omitted → any kind."
         },
-        "adapter": {
+        "provider": {
           "type": "array",
           "items": { "type": "string" },
-          "description": "Adapter ids whose nodes this action accepts. Omitted → any adapter."
+          "description": "Provider ids whose nodes this action accepts. Omitted → any Provider."
         },
         "stability": {
           "type": "array",

@@ -62,7 +62,7 @@ All verbs use this shared table. Additional codes MAY be defined per-verb (docum
 | Code | Meaning | When emitted |
 |---|---|---|
 | `0` | OK | Command completed, no issues at or above the configured severity threshold. |
-| `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`, `sm audit run`, `sm doctor`. |
+| `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`, `sm doctor`. |
 | `2` | Operational error | Bad flags, missing DB, unreadable file, corrupt config, runtime / environment mismatch (e.g. wrong Node version, missing native dependency), unhandled exception. Accompanied by an error message on stderr. |
 | `3` | Duplicate conflict | Job submission refused because an active duplicate exists (same `action + version + node + contentHash`). Returned by `sm job submit`. |
 | `4` | Nonce mismatch | `sm record` called with an `id`/`nonce` pair that does not match. |
@@ -126,7 +126,7 @@ Diagnostic report:
 - Orphan job files (count).
 - Plugins in error state (list).
 - LLM runner availability (`claude` binary on PATH, version).
-- Detected platform adapters that matched nothing.
+- Detected Providers that matched nothing, or whose `explorationDir` does not exist on disk (non-blocking warning).
 
 Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem.
 
@@ -197,10 +197,10 @@ Exit: 0 on clean (or clean watcher shutdown), 1 if error-severity issues exist (
 | Command | Purpose |
 |---|---|
 | `sm list [--kind <k>] [--issue] [--sort-by ...] [--limit N]` | Tabular listing. `--json` emits an array conforming to `node.schema.json`. |
-| `sm show <node.path>` | Node detail: weight (bytes/tokens triple-split), frontmatter, links in/out, issues, findings, summary. `--json` emits a detail object with the raw link rows. Pretty output groups identical-shape links (same endpoint, kind, normalized trigger) onto one line and lists the union of detector ids in a `sources:` field; the section header reports both the raw row count and the unique-after-grouping count, e.g. `Links out (12, 9 unique)`. Storage keeps one row per detector (`scan_links` is unchanged) — the grouping is purely a read-time presentation choice. |
+| `sm show <node.path>` | Node detail: weight (bytes/tokens triple-split), frontmatter, links in/out, issues, findings, summary. `--json` emits a detail object with the raw link rows. Pretty output groups identical-shape links (same endpoint, kind, normalized trigger) onto one line and lists the union of extractor ids in a `sources:` field; the section header reports both the raw row count and the unique-after-grouping count, e.g. `Links out (12, 9 unique)`. Storage keeps one row per extractor (`scan_links` is unchanged) — the grouping is purely a read-time presentation choice. |
 | `sm check` | Print all current issues. Equivalent to `sm scan --json \| jq '.issues'` but faster (reads from DB). |
 | `sm findings [--kind ...] [--since ...] [--threshold <n>]` | Probabilistic findings (injection, stale summaries, low confidence). `--json` emits an array of finding objects. |
-| `sm graph [--format ascii\|mermaid\|dot]` | Render the full graph via the named renderer. |
+| `sm graph [--format ascii\|mermaid\|dot]` | Render the full graph via the named formatter. |
 | `sm export <query> --format json\|md\|mermaid` | Filtered export. Query syntax is implementation-defined pre-1.0. |
 | `sm orphans` | History rows whose target node is missing. |
 | `sm orphans reconcile <orphan.path> --to <new.path>` | Migrate history rows from the old path to the new one after a rename. Use case: the scan's rename heuristic missed a match (semantic-only rename, body rewrite) and the user wants to stitch history manually. |
@@ -291,17 +291,6 @@ Authentication: the nonce is the sole credential. An implementation MUST reject 
 
 ---
 
-### Audits
-
-| Command | Purpose |
-|---|---|
-| `sm audit list` | Registered audits. |
-| `sm audit run <id>` | Execute. `--json` emits the audit report per the audit's declared shape. |
-
-Exit: 0 if audit returns "pass"; 1 if audit returns "fail" with at least one error-severity finding; 2 on operational error.
-
----
-
 ### Database
 
 See `db-schema.md` for the table catalog.
@@ -368,7 +357,7 @@ Every verb that does non-trivial work MUST report its own wall-clock duration. C
 
 ### Scope
 
-**In scope**: any verb that walks the filesystem, hits the DB, spawns a subprocess, or renders a report. Examples: `sm scan`, `sm check`, `sm list`, `sm show`, `sm findings`, `sm history`, `sm history stats`, `sm graph`, `sm export`, `sm audit run`, `sm job submit`, `sm job run`, `sm job claim`, `sm job preview`, `sm record`, `sm doctor`, `sm db backup`, `sm db restore`, `sm db dump`, `sm db migrate`, `sm plugins list`, `sm plugins doctor`, `sm init`.
+**In scope**: any verb that walks the filesystem, hits the DB, spawns a subprocess, or renders a report. Examples: `sm scan`, `sm check`, `sm list`, `sm show`, `sm findings`, `sm history`, `sm history stats`, `sm graph`, `sm export`, `sm job submit`, `sm job run`, `sm job claim`, `sm job preview`, `sm record`, `sm doctor`, `sm db backup`, `sm db restore`, `sm db dump`, `sm db migrate`, `sm plugins list`, `sm plugins doctor`, `sm init`.
 
 **Exempt**: informational verbs that return in well under a millisecond and would clutter the output — `sm --version`, `sm --help`, `sm version`, `sm help`, `sm config get`, `sm config list`, `sm config show`.
 

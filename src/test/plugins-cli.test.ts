@@ -58,14 +58,62 @@ function dropMockPlugin(scope: IScope, id: string): void {
   writeFileSync(
     join(pluginDir, 'detector.js'),
     `export default {
-       kind: 'detector',
-       id: '${id}-detector',
+       kind: 'extractor',
+       id: '${id}-extractor',
        version: '0.1.0',
        description: 'mock',
        stability: 'experimental',
        emitsLinkKinds: ['references'],
        defaultConfidence: 'high',
      };`,
+  );
+}
+
+interface IMockProviderOptions {
+  /** Override the explorationDir on the manifest. Defaults to `'~/.mock'`. */
+  explorationDir?: string;
+  /** When true, the manifest omits explorationDir entirely (invalid-manifest). */
+  omitExplorationDir?: boolean;
+}
+
+/**
+ * Drop a Provider plugin under the project scope. Used by the explorationDir
+ * validation tests; the runtime contract is just enough for the loader to
+ * accept it (or reject it deterministically when fields are missing).
+ */
+function dropMockProvider(
+  scope: IScope,
+  id: string,
+  opts: IMockProviderOptions = {},
+): void {
+  const pluginDir = join(scope.cwd, '.skill-map', 'plugins', id);
+  mkdirSync(pluginDir, { recursive: true });
+  writeFileSync(
+    join(pluginDir, 'plugin.json'),
+    JSON.stringify({
+      id,
+      version: '0.1.0',
+      specCompat: `^${installedSpecVersion()}`,
+      extensions: ['provider.js'],
+    }),
+  );
+  const manifestParts = [
+    `kind: 'provider'`,
+    `id: '${id}-provider'`,
+    `version: '0.1.0'`,
+    `description: 'mock provider'`,
+    `stability: 'experimental'`,
+    `emits: ['note']`,
+    `defaultRefreshAction: { note: '${id}/summarize-note' }`,
+  ];
+  if (!opts.omitExplorationDir) {
+    manifestParts.push(`explorationDir: '${opts.explorationDir ?? '~/.mock'}'`);
+  }
+  manifestParts.push(`async *walk() {}`);
+  manifestParts.push(`classify() { return 'note'; }`);
+  writeFileSync(
+    join(pluginDir, 'provider.js'),
+    `export default {\n  ${manifestParts.join(',\n  ')},\n};\n`,
   );
 }
 
@@ -292,7 +340,7 @@ describe('sm plugins enable / disable — granularity', () => {
     // Claude bundle line carries granularity=bundle and an inline list
     // of qualified extension ids.
     assert.match(r.stdout, /claude@built-in \(granularity=bundle\)/);
-    assert.match(r.stdout, /adapter:claude\/claude/);
+    assert.match(r.stdout, /provider:claude\/claude/);
     // Core bundle line carries granularity=extension and one indented
     // line per extension with its own status.
     assert.match(r.stdout, /core@built-in \(granularity=extension\)/);
@@ -348,8 +396,8 @@ describe('sm plugins show — qualified extension ids', () => {
     const r = sm(['plugins', 'show', 'mock-q'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
     assert.match(r.stdout, /^id:\s+mock-q$/m);
-    // Extensions row uses the qualified form `mock-q/mock-q-detector`.
-    assert.match(r.stdout, /detector:mock-q\/mock-q-detector@/);
+    // Extensions row uses the qualified form `mock-q/mock-q-extractor`.
+    assert.match(r.stdout, /extractor:mock-q\/mock-q-extractor@/);
   });
 
   it('list output renders extensions with qualified ids', () => {
@@ -359,6 +407,55 @@ describe('sm plugins show — qualified extension ids', () => {
 
     const r = sm(['plugins', 'list'], scope);
     assert.equal(r.status, 0);
-    assert.match(r.stdout, /detector:mock-l\/mock-l-detector/);
+    assert.match(r.stdout, /extractor:mock-l\/mock-l-extractor/);
+  });
+});
+
+// Provider §explorationDir — the manifest field is required (loader rejects
+// missing) and `sm plugins doctor` warns when the resolved directory does
+// not exist on disk. The warning is non-blocking — the user may install
+// the matching platform later. Three sub-cases cover the contract:
+describe('sm plugins doctor — Provider explorationDir validation', () => {
+  it('Provider with valid explorationDir loads OK (status=loaded)', () => {
+    const scope = freshScope('provider-explorationdir-ok');
+    sm(['init', '--no-scan'], scope);
+    // Use the home dir itself as explorationDir — guaranteed to exist.
+    dropMockProvider(scope, 'mock-prov-ok', { explorationDir: scope.home });
+    const r = sm(['plugins', 'list'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /\bok\b\s+mock-prov-ok@/);
+  });
+
+  it('Provider with missing explorationDir → doctor emits non-blocking warning', () => {
+    const scope = freshScope('provider-explorationdir-missing');
+    sm(['init', '--no-scan'], scope);
+    // Pin to an absolute path under the scope home that we deliberately
+    // do NOT create — guarantees the existsSync probe returns false.
+    const ghostPath = join(scope.home, 'definitely-not-here');
+    dropMockProvider(scope, 'mock-prov-ghost', { explorationDir: ghostPath });
+    const r = sm(['plugins', 'doctor'], scope);
+    // Exit 0 — explorationDir warnings do NOT promote the exit code.
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /Warnings:/);
+    assert.match(
+      r.stdout,
+      /mock-prov-ghost\/mock-prov-ghost-provider.*explorationDir/,
+    );
+  });
+
+  it('Provider without explorationDir → load-error citing the schema', () => {
+    const scope = freshScope('provider-explorationdir-omitted');
+    sm(['init', '--no-scan'], scope);
+    dropMockProvider(scope, 'mock-prov-bad', { omitExplorationDir: true });
+    const r = sm(['plugins', 'list'], scope);
+    // List itself does not error; the plugin row carries the rejection.
+    // The loader treats per-extension manifest schema failures as
+    // `load-error` (load!) rather than `invalid-manifest` (mani!) because
+    // the plugin manifest itself parsed — only one of its extensions is
+    // shape-broken — and routes the failure through the schema-cited
+    // diagnostic path.
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /load!\s+mock-prov-bad@/);
+    assert.match(r.stdout, /must have required property 'explorationDir'/);
   });
 });

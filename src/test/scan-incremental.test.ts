@@ -176,7 +176,7 @@ describe('loadScanResult', () => {
       const b = back[i]!;
       strictEqual(b.path, a.path);
       strictEqual(b.kind, a.kind);
-      strictEqual(b.adapter, a.adapter);
+      strictEqual(b.provider, a.provider);
       strictEqual(b.bodyHash, a.bodyHash);
       strictEqual(b.frontmatterHash, a.frontmatterHash);
       strictEqual(b.linksOutCount, a.linksOutCount);

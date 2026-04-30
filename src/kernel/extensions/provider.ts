@@ -1,6 +1,13 @@
 /**
- * Adapter runtime contract. Walks filesystem roots and emits raw node
+ * Provider runtime contract. Walks filesystem roots and emits raw node
  * records; classification maps path conventions to a node kind.
+ *
+ * Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`,
+ * `StoragePort.adapter`, etc.). A `Provider` is an extension kind authored
+ * by plugins to declare a platform's universe (the kinds it emits, the
+ * filesystem directory it owns); a hexagonal adapter is an internal
+ * implementation of a port. Both can coexist without confusion because
+ * they live in different namespaces.
  *
  * `walk()` is an async iterator so large scopes don't buffer in memory.
  * Each yielded `IRawNode` carries the full parsed frontmatter + body plus
@@ -23,24 +30,34 @@ export interface IRawNode {
   frontmatter: Record<string, unknown>;
 }
 
-export interface IAdapter extends IExtensionBase {
-  kind: 'adapter';
+export interface IProvider extends IExtensionBase {
+  kind: 'provider';
+
+  /**
+   * Filesystem directory (relative to user home or project root) where this
+   * Provider's content lives. Required. Examples: `'~/.claude'` for the
+   * Claude Provider, `'~/.cursor'` for a hypothetical Cursor Provider.
+   * The kernel walks this directory during boot/scan to discover nodes;
+   * `sm doctor` validates the directory exists and emits a non-blocking
+   * warning when it does not.
+   */
+  explorationDir: string;
 
   /**
    * Map from detected node kind → action id the UI calls when the user
-   * asks for a probabilistic refresh. Every kind the adapter can emit
+   * asks for a probabilistic refresh. Every kind the Provider can emit
    * MUST have an entry.
    */
   defaultRefreshAction: Partial<Record<NodeKind, string>>;
 
   /**
-   * Walk the given roots and yield every node the adapter recognises.
+   * Walk the given roots and yield every node the Provider recognises.
    * Non-matching files are silently skipped. Unreadable files produce
    * a diagnostic via the emitter (Step 4+) but do not abort the walk.
    *
-   * `options.ignoreFilter` (Step 6.4) — when supplied, the adapter MUST
+   * `options.ignoreFilter` (Step 6.4) — when supplied, the Provider MUST
    * skip every directory and file whose path-relative-to-root the
-   * filter reports as ignored. Adapters MAY also keep their own
+   * filter reports as ignored. Providers MAY also keep their own
    * hard-coded skip list (e.g. `.git`) as a defensive measure, but the
    * filter is the canonical source of user intent.
    */
@@ -51,7 +68,7 @@ export interface IAdapter extends IExtensionBase {
 
   /**
    * Given a path and its parsed frontmatter, decide the node kind. The
-   * classifier is called after walk() yields — adapters MAY embed the
+   * classifier is called after walk() yields — Providers MAY embed the
    * logic inside walk itself, but exposing it lets the kernel rebuild
    * classification during partial scans without re-walking.
    */

@@ -1,5 +1,5 @@
 /**
- * Rule runtime contract. Runs against the whole graph after every adapter
+ * Rule runtime contract. Runs against the whole graph after every Provider
  * and detector has completed; emits issues. Deterministic rules are pure
  * (same graph in → same issues out) and run synchronously inside `sm scan`
  * / `sm check`. Probabilistic rules invoke an LLM through the kernel's

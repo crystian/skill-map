@@ -11,7 +11,7 @@
   "properties": {
     "model": {
       "type": "string",
-      "description": "Model identifier for this agent (e.g. `sonnet`, `opus`, `haiku`, or a full `claude-*` id). Free-form string; adapters MAY validate against a platform-specific enum."
+      "description": "Model identifier for this agent (e.g. `sonnet`, `opus`, `haiku`, or a full `claude-*` id). Free-form string; Providers MAY validate against a platform-specific enum."
     }
   }
 }

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "autoMigrate": true,
   "tokenizer": "cl100k_base",
-  "adapters": [],
+  "providers": [],
   "roots": [],
   "ignore": [],
   "scan": {

@@ -33,8 +33,8 @@ const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 /**
  * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
  *
- * Scans the given roots using the built-in extension set (claude adapter,
- * 4 detectors, 3 rules) plus any drop-in plugin extensions discovered
+ * Scans the given roots using the built-in extension set (claude Provider,
+ * 4 extractors, 3 rules) plus any drop-in plugin extensions discovered
  * under `.skill-map/plugins/` and `~/.skill-map/plugins/` (Step 9.1).
  * The registry is populated with manifest rows so introspection
  * (`sm help`, `sm plugins list`) sees what's active; the orchestrator
@@ -64,11 +64,11 @@ export class ScanCommand extends Command {
 
   static override usage = Command.Usage({
     category: 'Scan',
-    description: 'Scan roots for markdown nodes, run detectors and rules.',
+    description: 'Scan roots for markdown nodes, run extractors and rules.',
     details: `
-      Walks the given roots with the built-in claude adapter, runs the
+      Walks the given roots with the built-in claude Provider, runs the
       frontmatter / slash / at-directive / external-url-counter
-      detectors per node, then the trigger-collision / broken-ref /
+      extractors per node, then the trigger-collision / broken-ref /
       superseded rules over the full graph. Emits a ScanResult
       conforming to scan-result.schema.json.
 
@@ -221,7 +221,7 @@ export class ScanCommand extends Command {
     // cache reuse". The orchestrator uses `priorSnapshot` to fire the
     // rename heuristic (every scan that can detect deletes / additions),
     // and uses `enableCache` — independently — to decide whether to skip
-    // detectors on hash-matching nodes (`--changed` only).
+    // extractors on hash-matching nodes (`--changed` only).
     //
     // When `--changed` is set but no prior is found, we warn so the user
     // gets feedback that the incremental flag had nothing to act on.
@@ -277,7 +277,7 @@ export class ScanCommand extends Command {
         runOptions.priorSnapshot = prior;
         // Cache reuse is opt-in via `--changed`. With a prior loaded but
         // no `--changed`, the rename heuristic still fires but every
-        // file re-walks through detectors deterministically.
+        // file re-walks through extractors deterministically.
         runOptions.enableCache = this.changed;
       }
       return await runScanWithRenames(kernel, runOptions);
@@ -386,7 +386,7 @@ export class ScanCommand extends Command {
       // H4 — under `--strict`, self-validate the ScanResult against
       // `scan-result.schema.json` before emitting it. The
       // orchestrator's per-link / per-issue guards (`validateLink`,
-      // `validateIssue`) only check shallow shape; a custom detector
+      // `validateIssue`) only check shallow shape; a custom extractor
       // could still produce a Link that fails the full schema and
       // would silently slip into stdout. Without this gate, a
       // downstream `sm scan compare-with <dump>` that loads the dump

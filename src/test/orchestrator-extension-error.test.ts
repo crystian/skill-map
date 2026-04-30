@@ -1,7 +1,7 @@
 /**
  * M6 — extension.error event coverage.
  *
- * The orchestrator drops links whose kind is not in the detector's
+ * The orchestrator drops links whose kind is not in the extractor's
  * declared `emitsLinkKinds`, and issues whose severity is not one of
  * `error` / `warn` / `info`. Until M6 those drops were silent — a
  * plugin author saw their link / issue vanish from the result with no
@@ -11,7 +11,7 @@
  *
  * These tests:
  *   1. Run a tiny scan over an in-memory fixture.
- *   2. Inject a misbehaving detector / rule.
+ *   2. Inject a misbehaving extractor / rule.
  *   3. Capture every `ProgressEvent` via a custom emitter.
  *   4. Assert (a) the offending link / issue is absent from the result,
  *      and (b) the corresponding `extension.error` event was emitted
@@ -31,7 +31,7 @@ import type {
   ProgressEvent,
   ProgressListener,
 } from '../kernel/ports/progress-emitter.js';
-import type { IDetector } from '../kernel/extensions/index.js';
+import type { IExtractor } from '../kernel/extensions/index.js';
 import type { IRule } from '../kernel/extensions/index.js';
 import type { Issue, Link } from '../kernel/types.js';
 
@@ -72,29 +72,28 @@ after(() => {
 });
 
 describe('orchestrator — extension.error events', () => {
-  it('detector emitting a kind outside emitsLinkKinds → link dropped + extension.error', async () => {
-    // Detector declares `emitsLinkKinds: ['references']` but emits a
+  it('extractor emitting a kind outside emitsLinkKinds → link dropped + extension.error', async () => {
+    // Extractor declares `emitsLinkKinds: ['references']` but emits a
     // `mentions` link. The orchestrator MUST drop the link and surface
     // the drop via an `extension.error` event.
-    const buggyDetector: IDetector = {
-      kind: 'detector',
-      id: 'bad-kind-detector',
+    const buggyExtractor: IExtractor = {
+      kind: 'extractor',
+      id: 'bad-kind-extractor',
       pluginId: 'test',
       version: '1.0.0',
       emitsLinkKinds: ['references'],
       defaultConfidence: 'low',
       scope: 'body',
-      detect: () =>
-        [
-          {
-            // Off-contract: 'mentions' is NOT in emitsLinkKinds above.
-            kind: 'mentions',
-            source: '.claude/agents/architect.md',
-            target: '.claude/commands/deploy.md',
-            confidence: 'low',
-            sources: [],
-          } satisfies Link,
-        ],
+      extract: (ctx): void => {
+        ctx.emitLink({
+          // Off-contract: 'mentions' is NOT in emitsLinkKinds above.
+          kind: 'mentions',
+          source: '.claude/agents/architect.md',
+          target: '.claude/commands/deploy.md',
+          confidence: 'low',
+          sources: [],
+        } satisfies Link);
+      },
     };
 
     const emitter = new CapturingEmitter();
@@ -104,17 +103,17 @@ describe('orchestrator — extension.error events', () => {
       roots: [fixture],
       emitter,
       extensions: {
-        adapters: baseline.adapters,
-        detectors: [buggyDetector],
+        providers: baseline.providers,
+        extractors: [buggyExtractor],
         rules: [],
       },
     });
 
-    // Result links have no entry from the buggy detector.
+    // Result links have no entry from the buggy extractor.
     const fromBuggy = result.links.filter((l) => l.kind === 'mentions');
     strictEqual(fromBuggy.length, 0, 'off-contract link must be dropped');
 
-    // The detector runs once PER node walked (2 nodes in the fixture);
+    // The extractor runs once PER node walked (2 nodes in the fixture);
     // each invocation emits one off-contract link → one
     // `extension.error` event per dropped link.
     const extErrors = emitter.events.filter((e) => e.type === 'extension.error');
@@ -122,13 +121,13 @@ describe('orchestrator — extension.error events', () => {
     const data = extErrors[0]!.data as Record<string, unknown>;
     strictEqual(data['kind'], 'link-kind-not-declared');
     // Spec § A.6 — `extensionId` is the qualified id `<pluginId>/<id>`.
-    strictEqual(data['extensionId'], 'test/bad-kind-detector');
+    strictEqual(data['extensionId'], 'test/bad-kind-extractor');
     strictEqual(data['linkKind'], 'mentions');
     deepStrictEqual(data['declaredKinds'], ['references']);
     ok(typeof data['message'] === 'string');
     ok(
-      (data['message'] as string).includes('test/bad-kind-detector'),
-      'message names the detector with its qualified id',
+      (data['message'] as string).includes('test/bad-kind-extractor'),
+      'message names the extractor with its qualified id',
     );
   });
 
@@ -160,8 +159,8 @@ describe('orchestrator — extension.error events', () => {
       roots: [fixture],
       emitter,
       extensions: {
-        adapters: baseline.adapters,
-        detectors: [],
+        providers: baseline.providers,
+        extractors: [],
         rules: [buggyRule],
       },
     });

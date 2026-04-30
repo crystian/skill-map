@@ -1,7 +1,7 @@
 /**
- * `ascii` renderer. Produces a plain-text dump of the graph for
+ * `ascii` formatter. Produces a plain-text dump of the graph for
  * `sm graph --format ascii`. Purposely minimal — a human reads it to
- * grok the shape of a scan, not to study layout. Fancier renderers
+ * grok the shape of a scan, not to study layout. Fancier formatters
  * (mermaid, dot) land as drop-in additions in later steps.
  *
  * Output layout:
@@ -23,22 +23,22 @@
  *   - [warn] broken-ref: ...
  */
 
-import type { IRenderer, IRenderContext } from '../../../kernel/extensions/index.js';
+import type { IFormatter, IFormatterContext } from '../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../kernel/types.js';
 
 const ID = 'ascii';
 const KIND_ORDER: NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'];
 
-export const asciiRenderer: IRenderer = {
+export const asciiFormatter: IFormatter = {
   id: ID,
   pluginId: 'core',
-  kind: 'renderer',
+  kind: 'formatter',
   version: '1.0.0',
   description: 'Plain-text graph dump, grouped by node kind then links then issues.',
   stability: 'stable',
-  format: 'ascii',
+  formatId: 'ascii',
 
-  render(ctx: IRenderContext): string {
+  format(ctx: IFormatterContext): string {
     const out: string[] = [];
     out.push(
       `skill-map graph — ${ctx.nodes.length} nodes, ${ctx.links.length} links, ${ctx.issues.length} issues`,

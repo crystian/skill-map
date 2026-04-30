@@ -341,15 +341,15 @@ export class PluginLoader {
       }
 
       // The runtime export carries both manifest fields (id, kind,
-      // version, kind-specific metadata) AND runtime methods (detect /
-      // evaluate / render / audit / walk / parse / run). The
+      // version, kind-specific metadata) AND runtime methods (extract /
+      // evaluate / format / walk / parse / run). The
       // extension-kind schemas are strict (`unevaluatedProperties: false`)
       // because they describe the *manifest* shape — functions are not
       // representable in JSON Schema and would always fail the strict
       // check. Strip them before validation; the runtime methods are
-      // covered by the TypeScript `IDetector` / `IRenderer` / ... interfaces
-      // at the call site (the orchestrator invokes `.detect()`,
-      // `.render()`, etc. and crashes loudly if absent).
+      // covered by the TypeScript `IExtractor` / `IFormatter` / ... interfaces
+      // at the call site (the orchestrator invokes `.extract()`,
+      // `.format()`, etc. and crashes loudly if absent).
       //
       // Also strip `pluginId`: per spec § A.6 it's a runtime concern that
       // the loader injects from `plugin.json#/id`; the schemas
@@ -397,7 +397,7 @@ export class PluginLoader {
 
 // --- helpers ---------------------------------------------------------------
 
-const KNOWN_KINDS = new Set<TExtensionKind>(['adapter', 'detector', 'rule', 'action', 'audit', 'renderer']);
+const KNOWN_KINDS = new Set<TExtensionKind>(['provider', 'extractor', 'rule', 'action', 'formatter']);
 const KNOWN_KINDS_LIST = [...KNOWN_KINDS].join(' / ');
 
 /**

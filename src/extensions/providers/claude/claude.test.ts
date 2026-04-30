@@ -4,12 +4,12 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { claudeAdapter } from './index.js';
+import { claudeProvider } from './index.js';
 
 let root: string;
 
 before(() => {
-  root = mkdtempSync(join(tmpdir(), 'claude-adapter-'));
+  root = mkdtempSync(join(tmpdir(), 'claude-provider-'));
 
   const write = (rel: string, content: string) => {
     const abs = join(root, rel);
@@ -47,10 +47,10 @@ after(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-describe('claude adapter', () => {
+describe('claude provider', () => {
   it('walks the scope and yields one node per markdown file', async () => {
     const collected: string[] = [];
-    for await (const n of claudeAdapter.walk([root])) {
+    for await (const n of claudeProvider.walk([root])) {
       collected.push(n.path);
     }
     collected.sort();
@@ -64,7 +64,7 @@ describe('claude adapter', () => {
   });
 
   it('parses frontmatter via yaml and leaves body intact', async () => {
-    for await (const n of claudeAdapter.walk([root])) {
+    for await (const n of claudeProvider.walk([root])) {
       if (n.path !== '.claude/agents/backend.md') continue;
       strictEqual((n.frontmatter as { name?: string }).name, 'backend');
       strictEqual((n.frontmatter as { description?: string }).description, 'Backend architect');
@@ -75,21 +75,25 @@ describe('claude adapter', () => {
   });
 
   it('classifies paths by convention', () => {
-    strictEqual(claudeAdapter.classify('.claude/agents/x.md', {}), 'agent');
-    strictEqual(claudeAdapter.classify('.claude/commands/y.md', {}), 'command');
-    strictEqual(claudeAdapter.classify('.claude/hooks/z.md', {}), 'hook');
-    strictEqual(claudeAdapter.classify('.claude/skills/n/SKILL.md', {}), 'skill');
-    strictEqual(claudeAdapter.classify('notes/readme.md', {}), 'note');
-    strictEqual(claudeAdapter.classify('random.md', {}), 'note');
+    strictEqual(claudeProvider.classify('.claude/agents/x.md', {}), 'agent');
+    strictEqual(claudeProvider.classify('.claude/commands/y.md', {}), 'command');
+    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'hook');
+    strictEqual(claudeProvider.classify('.claude/skills/n/SKILL.md', {}), 'skill');
+    strictEqual(claudeProvider.classify('notes/readme.md', {}), 'note');
+    strictEqual(claudeProvider.classify('random.md', {}), 'note');
   });
 
   it('handles files with no frontmatter', async () => {
-    for await (const n of claudeAdapter.walk([root])) {
+    for await (const n of claudeProvider.walk([root])) {
       if (n.path !== '.claude/hooks/pre-commit.md') continue;
       deepStrictEqual(n.frontmatter, {});
       strictEqual(n.body, '# no frontmatter');
       return;
     }
     ok(false, 'pre-commit.md not found');
+  });
+
+  it('declares an explorationDir', () => {
+    strictEqual(claudeProvider.explorationDir, '~/.claude');
   });
 });

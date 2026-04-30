@@ -72,7 +72,7 @@ export interface IEffectiveConfig {
   schemaVersion: 1;
   autoMigrate: boolean;
   tokenizer: string;
-  adapters: string[];
+  providers: string[];
   roots: string[];
   ignore: string[];
   scan: IScanConfig;

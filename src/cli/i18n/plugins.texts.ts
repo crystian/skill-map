@@ -28,12 +28,21 @@ export const PLUGINS_TEXTS = {
   qualifiedIdUnknownBundle:
     "Qualified extension id references unknown bundle: {{bundleId}}. Run `sm plugins list` for known bundle ids.",
 
-  // Spec § A.10 — `applicableKinds` filter on Detectors. When a detector
-  // declares a kind that no installed Adapter / Provider emits, the load
-  // succeeds (the Provider may arrive later) but `sm plugins doctor`
-  // surfaces a non-blocking warning so the author sees the typo / missing
-  // dependency. Exit code is NOT promoted by this warning.
+  // Spec § A.10 — `applicableKinds` filter on Extractors. When an extractor
+  // declares a kind that no installed Provider emits, the load succeeds
+  // (the Provider may arrive later) but `sm plugins doctor` surfaces a
+  // non-blocking warning so the author sees the typo / missing dependency.
+  // Exit code is NOT promoted by this warning.
   doctorApplicableKindUnknown:
-    "Detector '{{detectorId}}' declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
-    "The detector is loaded but will never fire on that kind.",
+    "Extractor '{{extractorId}}' declares applicableKinds including '{{unknownKind}}', but no installed Provider declares that kind. " +
+    "The extractor is loaded but will never fire on that kind.",
+
+  // Provider explorationDir validation. Each Provider declares a filesystem
+  // directory where its content lives (e.g. `~/.claude` for the Claude
+  // Provider). `sm plugins doctor` checks the directory exists and surfaces
+  // a non-blocking warning when missing — the user may legitimately not
+  // have installed that platform yet, so the warning is informational.
+  doctorProviderExplorationDirMissing:
+    "Provider '{{providerId}}' declares explorationDir '{{explorationDir}}', but the resolved path '{{resolvedPath}}' does not exist. " +
+    "The Provider is loaded but will yield no nodes from that directory until it appears.",
 } as const;

@@ -73,7 +73,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 |---|---|---|---|
 | `path` | TEXT | PRIMARY KEY | Relative path from scope root. Canonical node identifier. |
 | `kind` | TEXT | NOT NULL, CHECK in (`skill`, `agent`, `command`, `hook`, `note`) | |
-| `adapter` | TEXT | NOT NULL | Adapter extension id. |
+| `provider` | TEXT | NOT NULL | Provider extension id. |
 | `title` | TEXT | NULL | |
 | `description` | TEXT | NULL | |
 | `stability` | TEXT | CHECK in (`experimental`, `stable`, `deprecated`) OR NULL | Denormalized from frontmatter. |
@@ -93,7 +93,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | `external_refs_count` | INTEGER | NOT NULL DEFAULT 0 | |
 | `scanned_at` | INTEGER | NOT NULL | Unix ms. |
 
-Indexes: `ix_scan_nodes_kind`, `ix_scan_nodes_adapter`, `ix_scan_nodes_body_hash` (rename heuristic).
+Indexes: `ix_scan_nodes_kind`, `ix_scan_nodes_provider`, `ix_scan_nodes_body_hash` (rename heuristic).
 
 ### `scan_links`
 
@@ -106,7 +106,7 @@ One row per detected link, matching [`schemas/link.schema.json`](./schemas/link.
 | `target_path` | TEXT | NOT NULL | MAY point to a missing node (broken ref). |
 | `kind` | TEXT | NOT NULL, CHECK in (`invokes`, `references`, `mentions`, `supersedes`) | |
 | `confidence` | TEXT | NOT NULL, CHECK in (`high`, `medium`, `low`) | |
-| `sources_json` | TEXT | NOT NULL | JSON array of detector ids. |
+| `sources_json` | TEXT | NOT NULL | JSON array of extractor ids. |
 | `original_trigger` | TEXT | NULL | |
 | `normalized_trigger` | TEXT | NULL | |
 | `location_line` | INTEGER | NULL | |
@@ -136,7 +136,7 @@ Indexes: `ix_scan_issues_rule_id`, `ix_scan_issues_severity`.
 
 ### `scan_meta`
 
-Single-row table holding the metadata of the last persisted scan. Lets `loadScanResult` return the real `scope` / `roots` / `scannedAt` / `scannedBy` / `adapters` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of the `scan_*` zone on every `sm scan`.
+Single-row table holding the metadata of the last persisted scan. Lets `loadScanResult` return the real `scope` / `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked|filesSkipped|durationMs` instead of synthesising them. Replaced atomically with the rest of the `scan_*` zone on every `sm scan`.
 
 `nodesCount` / `linksCount` / `issuesCount` are not stored here — they derive from `COUNT(*)` of the sibling tables.
 
@@ -149,7 +149,7 @@ Single-row table holding the metadata of the last persisted scan. Lets `loadScan
 | `scanned_by_name` | TEXT | NOT NULL |
 | `scanned_by_version` | TEXT | NOT NULL |
 | `scanned_by_spec_version` | TEXT | NOT NULL |
-| `adapters_json` | TEXT | NOT NULL | JSON array of adapter ids. |
+| `providers_json` | TEXT | NOT NULL | JSON array of Provider ids. |
 | `stats_files_walked` | INTEGER | NOT NULL |
 | `stats_files_skipped` | INTEGER | NOT NULL |
 | `stats_duration_ms` | INTEGER | NOT NULL |
@@ -193,7 +193,7 @@ Matching [`schemas/execution-record.schema.json`](./schemas/execution-record.sch
 | Column | Type | Constraint |
 |---|---|---|
 | `id` | TEXT | PRIMARY KEY |
-| `kind` | TEXT | NOT NULL, CHECK in (`action`, `audit`) |
+| `kind` | TEXT | NOT NULL, CHECK in (`action`) |
 | `extension_id` | TEXT | NOT NULL |
 | `extension_version` | TEXT | NOT NULL |
 | `node_ids_json` | TEXT | NOT NULL DEFAULT '[]' |

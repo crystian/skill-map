@@ -4,7 +4,7 @@
   "title": "Node",
   "description": "A single markdown file in the graph (skill, agent, command, hook, note). Identified by its relative path from the scope root.",
   "type": "object",
-  "required": ["path", "kind", "adapter", "bodyHash", "frontmatterHash", "bytes", "linksOutCount", "linksInCount", "externalRefsCount"],
+  "required": ["path", "kind", "provider", "bodyHash", "frontmatterHash", "bytes", "linksOutCount", "linksInCount", "externalRefsCount"],
   "additionalProperties": false,
   "properties": {
     "path": {
@@ -14,11 +14,11 @@
     "kind": {
       "type": "string",
       "enum": ["skill", "agent", "command", "hook", "note"],
-      "description": "Category assigned by the adapter. Stability: stable. New kinds may be added in a minor bump."
+      "description": "Category assigned by the Provider. Stability: stable. New kinds may be added in a minor bump."
     },
-    "adapter": {
+    "provider": {
       "type": "string",
-      "description": "Identifier of the adapter extension that classified this node (e.g. `claude`)."
+      "description": "Identifier of the Provider extension that classified this node (e.g. `claude`)."
     },
     "title": {
       "type": ["string", "null"],

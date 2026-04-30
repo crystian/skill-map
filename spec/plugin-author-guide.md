@@ -1,6 +1,6 @@
 # Plugin author guide
 
-How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the six extension kinds, storage choice, version compatibility, dual-mode posture, and how to test the result with `@skill-map/testkit`.
+How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the five extension kinds, storage choice, version compatibility, dual-mode posture, and how to test the result with `@skill-map/testkit`.
 
 This guide is **descriptive prose**, not the normative contract. The normative pieces live in the schemas and the architecture document — every claim here is cross-linked to its source. When the two disagree, [`architecture.md`](./architecture.md) wins.
 
@@ -14,7 +14,7 @@ This guide is **descriptive prose**, not the normative contract. The normative p
 my-plugin/
 ├── plugin.json            ← manifest (required)
 └── extensions/
-    └── detector.mjs       ← one file per declared extension
+    └── extractor.mjs      ← one file per declared extension
 ```
 
 ```jsonc
@@ -23,22 +23,29 @@ my-plugin/
   "id": "my-plugin",
   "version": "1.0.0",
   "specCompat": "^1.0.0",
-  "extensions": ["./extensions/detector.mjs"]
+  "extensions": ["./extensions/extractor.mjs"]
 }
 ```
 
 ```javascript
-// my-plugin/extensions/detector.mjs
+// my-plugin/extensions/extractor.mjs
 export default {
-  id: 'my-detector',
-  kind: 'detector',
+  id: 'my-extractor',
+  kind: 'extractor',
   version: '1.0.0',
   emitsLinkKinds: ['references'],
   defaultConfidence: 'high',
   scope: 'body',
-  detect(ctx) {
-    // ctx.node, ctx.body, ctx.frontmatter — return Link[]
-    return [];
+  extract(ctx) {
+    // ctx.node, ctx.body, ctx.frontmatter, ctx.emitLink, ctx.enrichNode
+    // Output flows through the callbacks; the method returns void.
+    ctx.emitLink({
+      source: ctx.node.path,
+      target: 'something.md',
+      kind: 'references',
+      confidence: 'high',
+      sources: ['my-extractor'],
+    });
   },
 };
 ```
@@ -75,28 +82,28 @@ Concrete examples for the reference impl's bundled extensions:
 
 | Extension | Short id (in the file) | Qualified id (in the registry) |
 |---|---|---|
-| Claude adapter | `claude` | `claude/claude` |
-| Frontmatter detector | `frontmatter` | `claude/frontmatter` |
-| Slash detector | `slash` | `claude/slash` |
-| At-directive detector | `at-directive` | `claude/at-directive` |
+| Claude Provider | `claude` | `claude/claude` |
+| Frontmatter extractor | `frontmatter` | `claude/frontmatter` |
+| Slash extractor | `slash` | `claude/slash` |
+| At-directive extractor | `at-directive` | `claude/at-directive` |
 | External-URL counter | `external-url-counter` | `core/external-url-counter` |
 | Broken-ref rule | `broken-ref` | `core/broken-ref` |
 | Trigger-collision rule | `trigger-collision` | `core/trigger-collision` |
-| ASCII renderer | `ascii` | `core/ascii` |
-| Validate-all audit | `validate-all` | `core/validate-all` |
+| ASCII formatter | `ascii` | `core/ascii` |
+| Validate-all rule | `validate-all` | `core/validate-all` |
 
 Two namespaces are convention for built-ins:
 
-- **`core/`** — kernel-internal primitives (every built-in rule, the ASCII renderer, the audit, the external-URL counter detector). Platform-agnostic.
-- **`claude/`** — the Claude Code provider bundle (the adapter plus the three detectors that decode Claude-specific syntax: frontmatter, slash, `@`-directive).
+- **`core/`** — kernel-internal primitives (every built-in rule including `validate-all`, the ASCII formatter, the external-URL counter extractor). Platform-agnostic.
+- **`claude/`** — the Claude Code Provider bundle (the Provider plus the three extractors that decode Claude-specific syntax: frontmatter, slash, `@`-directive).
 
-For your own plugin, the `id` you declare in `plugin.json` is the namespace for every extension the plugin contains. If your manifest declares `id: "my-plugin"` and your extension file declares `id: "foo-detector"`, the kernel registers it as `my-plugin/foo-detector`. You do **not** write the qualifier yourself — the loader injects it.
+For your own plugin, the `id` you declare in `plugin.json` is the namespace for every extension the plugin contains. If your manifest declares `id: "my-plugin"` and your extension file declares `id: "foo-extractor"`, the kernel registers it as `my-plugin/foo-extractor`. You do **not** write the qualifier yourself — the loader injects it.
 
 What this means in practice:
 
 - **In the extension file**, declare only the short id (`id: "greet"`). Do **not** prefix it with the plugin id (`id: "my-plugin/greet"` is rejected as a kebab-case violation).
 - **In the manifest's `extensions[]`**, list relative paths to extension files as before — nothing changes.
-- **In `defaultRefreshAction` (adapter)** and any other cross-extension reference (e.g. an audit's `composes[]` once that surface lands), use the qualified id of the target. A built-in adapter that wants the `core/summarize-agent` action references it by the qualified form; a third-party adapter that wants its own bundled action references `<my-plugin>/<my-action>`.
+- **In `defaultRefreshAction` (Provider)** and any other cross-extension reference, use the qualified id of the target. A built-in Provider that wants the `core/summarize-agent` action references it by the qualified form; a third-party Provider that wants its own bundled action references `<my-plugin>/<my-action>`.
 - **`sm plugins list` and `sm plugins show`** print qualified ids for every extension. The plugin id itself stays unqualified (it IS the namespace; nothing wraps it).
 - **`sm plugins enable/disable <id>`** still operates on the **plugin id** (the namespace), not on individual extensions. Toggle the namespace and every extension under it follows.
 
@@ -113,13 +120,13 @@ Every plugin and every built-in bundle declares a **granularity** that controls 
 
 | Granularity | Toggle key | When to use |
 |---|---|---|
-| `bundle` (default) | the bundle id alone (e.g. `my-plugin`, `claude`) | The plugin's extensions form a coherent product (e.g. an adapter and the detectors that decode its native syntax). The user wants one switch. **95% of plugins.** |
+| `bundle` (default) | the bundle id alone (e.g. `my-plugin`, `claude`) | The plugin's extensions form a coherent product (e.g. a Provider and the extractors that decode its native syntax). The user wants one switch. **95% of plugins.** |
 | `extension` | the qualified extension id (`<bundle>/<ext-id>`, e.g. `core/superseded`, `my-plugin/orphan-skill`) | The plugin ships several orthogonal capabilities a user might reasonably want piecemeal. **Built-in `core` is the canonical example** — the spec promises every kernel built-in is removable, so each one toggles independently. |
 
 Built-in mapping:
 
-- **`claude`** — `granularity: 'bundle'`. `sm plugins disable claude` flips the adapter and the three Claude-specific detectors at once.
-- **`core`** — `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession rule; the other six core extensions stay live.
+- **`claude`** — `granularity: 'bundle'`. `sm plugins disable claude` flips the Provider and the three Claude-specific extractors at once.
+- **`core`** — `granularity: 'extension'`. `sm plugins disable core/superseded` flips just the supersession rule; the other six core extensions (the four other rules, the ASCII formatter, the external-URL counter extractor) stay live.
 
 Per-verb behaviour:
 
@@ -144,32 +151,32 @@ In your own plugin's `plugin.json`, set `granularity` only when you opt into the
   "granularity": "extension",
   "extensions": [
     "./extensions/orphan-skill-rule.mjs",
-    "./extensions/csv-renderer.mjs"
+    "./extensions/csv-formatter.mjs"
   ]
 }
 ```
 
 The default (`'bundle'`) is the right answer for almost every plugin — keep the manifest minimal until the plugin actually ships several independent capabilities.
 
-### Detector `applicableKinds` — narrow the pipeline
+### Extractor `applicableKinds` — narrow the pipeline
 
-A `Detector` extension MAY declare an `applicableKinds` array on its manifest. When declared, the kernel runs the detector **only** against nodes whose `kind` is in the list — the filter is fail-fast (no detect context, no method call) so a probabilistic detector wastes zero LLM cost (and a deterministic detector zero CPU) on nodes it cannot meaningfully process.
+An `Extractor` extension MAY declare an `applicableKinds` array on its manifest. When declared, the kernel runs the extractor **only** against nodes whose `kind` is in the list — the filter is fail-fast (no extractor context, no method call) so a probabilistic extractor wastes zero LLM cost (and a deterministic extractor zero CPU) on nodes it cannot meaningfully process.
 
 | `applicableKinds` | Behaviour |
 |---|---|
-| Absent (`undefined`) | **Default.** The detector runs on every kind the loaded adapters emit. |
+| Absent (`undefined`) | **Default.** The extractor runs on every kind the loaded Providers emit. |
 | `['skill']` | Runs only on skill nodes. |
 | `['skill', 'agent']` | Runs on skills + agents. Hooks, commands, notes are skipped. |
 | `[]` | **Invalid.** AJV rejects the manifest at load time (`minItems: 1`). The absence of the field already means "every kind"; an empty array is reserved for "this is a typo". |
 
-There is no wildcard syntax (no `'*'`) — omitting the field IS the wildcard. The pattern is intentional: a literal absence is unambiguous, a string sentinel would invite typos that silently disable the detector.
+There is no wildcard syntax (no `'*'`) — omitting the field IS the wildcard. The pattern is intentional: a literal absence is unambiguous, a string sentinel would invite typos that silently disable the extractor.
 
 Use case — a probabilistic tag-inferrer that only makes sense for skills:
 
 ```javascript
 export default {
   id: 'tag-inferrer',
-  kind: 'detector',
+  kind: 'extractor',
   mode: 'probabilistic',
   version: '1.0.0',
   description: 'LLM-derived tag links for skill nodes.',
@@ -177,22 +184,24 @@ export default {
   defaultConfidence: 'medium',
   scope: 'body',
   applicableKinds: ['skill'],
-  async detect(ctx) {
+  async extract(ctx) {
     // Never invoked for agents, commands, hooks, or notes — the kernel
     // skipped this node before reaching us.
     const tags = await ctx.runner.invoke({ /* prompt … */ });
-    return tags.map((t) => ({
-      source: ctx.node.path,
-      target: t.path,
-      kind: 'references',
-      confidence: 'medium',
-      sources: ['tag-inferrer'],
-    }));
+    for (const t of tags) {
+      ctx.emitLink({
+        source: ctx.node.path,
+        target: t.path,
+        kind: 'references',
+        confidence: 'medium',
+        sources: ['tag-inferrer'],
+      });
+    }
   },
 };
 ```
 
-**Unknown kinds are non-blocking.** A detector that lists a kind no installed Adapter declares (typo, missing Provider plugin) still loads with status `loaded`; `sm plugins doctor` surfaces an informational warning so the author sees the mismatch. The exit code of `doctor` is NOT promoted to 1 by this warning — the corresponding Provider may legitimately arrive later (e.g. when the user installs the matching plugin), and the load contract favours forward compatibility over rigid checks. The full set of "known kinds" is the union of every installed Adapter's `defaultRefreshAction` keys.
+**Unknown kinds are non-blocking.** An extractor that lists a kind no installed Provider declares (typo, missing Provider plugin) still loads with status `loaded`; `sm plugins doctor` surfaces an informational warning so the author sees the mismatch. The exit code of `doctor` is NOT promoted to 1 by this warning — the corresponding Provider may legitimately arrive later (e.g. when the user installs the matching plugin), and the load contract favours forward compatibility over rigid checks. The full set of "known kinds" is the union of every installed Provider's `defaultRefreshAction` keys.
 
 ---
 
@@ -233,56 +242,68 @@ Authors who explicitly review each minor's changelog **MAY** widen across the ne
 
 ---
 
-## The six extension kinds
+## The five extension kinds
 
-The kernel knows six categories. Four are dual-mode (deterministic or probabilistic per [`architecture.md` §Execution modes](./architecture.md)); two are deterministic-only because they sit at the system boundaries.
+The kernel knows five categories. Three are dual-mode (deterministic or probabilistic per [`architecture.md` §Execution modes](./architecture.md)); two are deterministic-only because they sit at the system boundaries.
 
 | Kind | Method | Receives | Returns | Mode |
 |---|---|---|---|---|
-| `adapter` | `walk(roots, opts)` | filesystem roots | `IRawNode[]` | deterministic only |
-| `detector` | `detect(ctx)` | one node + body + frontmatter | `Link[]` | dual-mode |
+| `provider` | `walk(roots, opts)` | filesystem roots | `IRawNode[]` | deterministic only |
+| `extractor` | `extract(ctx)` | one node + body + frontmatter + callbacks | `void` (output via `ctx.emitLink` / `ctx.enrichNode` / `ctx.store`) | dual-mode |
 | `rule` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
 | `action` | `run(ctx)` | one or more nodes | execution record | dual-mode |
-| `audit` | `audit(ctx)` | full graph | `TAuditReport` | derived (from `composes[]`) |
-| `renderer` | `render(ctx)` | full graph | `string` | deterministic only |
+| `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
 
-The runtime instance you `export default` from an extension file MUST include both the manifest fields (id, kind, version, plus kind-specific metadata) AND the runtime method. The kernel strips function-typed properties before AJV-validating the manifest shape, so `detect` / `evaluate` / etc. live alongside metadata without confusing the schema.
+The runtime instance you `export default` from an extension file MUST include both the manifest fields (id, kind, version, plus kind-specific metadata) AND the runtime method. The kernel strips function-typed properties before AJV-validating the manifest shape, so `extract` / `evaluate` / etc. live alongside metadata without confusing the schema.
 
-### Detectors
+### Extractors
 
-Pure single-node analysis. **Never** read another node, the graph, or the database — cross-node reasoning is for rules. Spec at [`schemas/extensions/detector.schema.json`](./schemas/extensions/detector.schema.json).
+Pure single-node analysis. **Never** read another node, the graph, or the database — cross-node reasoning is for rules. Spec at [`schemas/extensions/extractor.schema.json`](./schemas/extensions/extractor.schema.json).
 
-> **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` detector fires on any `@token`; the built-in `slash` detector fires on any `/token`. A new detector that also matches one of those prefixes will likely fire on the same input, and if the two emit different `target` shapes the kernel raises a `trigger-collision` error. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this; reserve `@` and `/` for the built-ins.
+The runtime method is `extract(ctx) → void`. Output flows through three callbacks the kernel binds onto the context:
+
+- **`ctx.emitLink(link)`** — append a `Link` to the kernel's `links` table. The kernel validates against the extractor's declared `emitsLinkKinds` before persistence; off-contract kinds are dropped and surface as `extension.error` events. URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted.
+- **`ctx.enrichNode(partial)`** — merge canonical, kernel-curated properties onto the node. **Strictly separate from the author-supplied frontmatter** — the latter remains immutable. Use this for facts the author did not write but the extractor inferred (computed titles, summaries, signals from probabilistic extractors).
+- **`ctx.store`** — plugin-scoped persistence. Optional, only present when your `plugin.json` declares `storage.mode`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md).
+
+A probabilistic extractor additionally receives `ctx.runner` (the `RunnerPort`) for LLM dispatch.
+
+> **Pick a syntax that doesn't collide with built-ins.** The built-in `at-directive` extractor fires on any `@token`; the built-in `slash` extractor fires on any `/token`. A new extractor that also matches one of those prefixes will likely fire on the same input, and if the two emit different `target` shapes the kernel raises a `trigger-collision` error. The example below uses a wikilink-style `[[ref:<name>]]` pattern to side-step this; reserve `@` and `/` for the built-ins.
 
 ```javascript
 import { normalizeTrigger } from '@skill-map/cli';
 
 export default {
-  id: 'ref-detector',
-  kind: 'detector',
+  id: 'ref-extractor',
+  kind: 'extractor',
   version: '1.0.0',
-  description: 'Detects [[ref:<name>]] tokens in the body.',
+  description: 'Extracts [[ref:<name>]] tokens from the body.',
   stability: 'experimental',
   emitsLinkKinds: ['references'],
   defaultConfidence: 'medium',
   scope: 'body',
-  detect(ctx) {
-    const matches = [...ctx.body.matchAll(/\[\[ref:([a-z0-9-]+)\]\]/gi)];
-    return matches.map((m) => ({
-      source: ctx.node.path,
-      target: m[1],
-      kind: 'references',
-      confidence: 'medium',
-      sources: ['ref-detector'],
-      trigger: { originalTrigger: m[0], normalizedTrigger: m[0].toLowerCase() },
-    }));
+  extract(ctx) {
+    for (const m of ctx.body.matchAll(/\[\[ref:([a-z0-9-]+)\]\]/gi)) {
+      ctx.emitLink({
+        source: ctx.node.path,
+        target: m[1],
+        kind: 'references',
+        confidence: 'medium',
+        sources: ['ref-extractor'],
+        trigger: { originalTrigger: m[0], normalizedTrigger: m[0].toLowerCase() },
+      });
+    }
+    // Optional: emit a canonical title onto the enrichment layer.
+    // ctx.enrichNode({ title: 'Computed title' });
   },
 };
 ```
 
+> **Migration note (spec 0.8.x).** This kind was previously named `Detector` with a `detect(ctx) → Link[]` signature. The rename to `Extractor` and the move to callback-based output landed as a single breaking minor in the pre-1.0 line. The mechanical migration: rename `kind: 'detector'` → `kind: 'extractor'`, rename `detect` → `extract`, replace `return links` with `for (const l of links) ctx.emitLink(l)`. The `applicableKinds`, `emitsLinkKinds`, `defaultConfidence`, and `scope` fields are unchanged.
+
 ### Rules
 
-Cross-node reasoning over the merged graph. Run after every adapter and detector has completed. Spec at [`schemas/extensions/rule.schema.json`](./schemas/extensions/rule.schema.json).
+Cross-node reasoning over the merged graph. Run after every Provider and extractor has completed. Spec at [`schemas/extensions/rule.schema.json`](./schemas/extensions/rule.schema.json).
 
 ```javascript
 export default {
@@ -307,18 +328,20 @@ export default {
 };
 ```
 
-### Renderers
+### Formatters
 
-Graph-to-string serializers. Invoked by `sm graph --format <name>`. Output **MUST** be byte-deterministic for the same input graph (the snapshot-test suite relies on this). Spec at [`schemas/extensions/renderer.schema.json`](./schemas/extensions/renderer.schema.json).
+Graph-to-string serializers. Invoked by `sm graph --format <name>`. Output **MUST** be byte-deterministic for the same input graph (the snapshot-test suite relies on this). Spec at [`schemas/extensions/formatter.schema.json`](./schemas/extensions/formatter.schema.json).
+
+The manifest field `formatId` carries the identifier the user types on the command line (matching `sm graph --format <name>`); the runtime method `format(ctx)` produces the serialized output. The split is deliberate: the method reads naturally as `Formatter.format()`, and the field is the lookup key used by the kernel.
 
 ```javascript
 export default {
-  id: 'csv-renderer',
-  kind: 'renderer',
+  id: 'csv-formatter',
+  kind: 'formatter',
   version: '1.0.0',
-  format: 'csv',
+  formatId: 'csv',
   contentType: 'text/csv',
-  render(ctx) {
+  format(ctx) {
     const rows = ['source,target,kind,confidence'];
     for (const link of ctx.links) {
       rows.push([link.source, link.target, link.kind, link.confidence].join(','));
@@ -328,9 +351,29 @@ export default {
 };
 ```
 
-### Adapters / Audits / Actions
+### Providers / Actions
 
 These ship later in the v1.x line as bundled built-ins; the spec already pins their manifest shapes. Until the testkit grows full helpers for them (planned alongside Step 10), authors are encouraged to test them with a live kernel via `sm scan` against a fixture directory rather than in unit tests.
+
+#### Provider — `explorationDir`
+
+Every Provider declares an `explorationDir: string` (required). The kernel walks this directory at boot/scan time to discover candidate files; `sm doctor` checks the resolved path exists and emits a non-blocking warning when it does not — the user may legitimately install the matching platform later.
+
+```jsonc
+{
+  "id": "cursor",
+  "kind": "provider",
+  "version": "1.0.0",
+  "explorationDir": "~/.cursor",
+  "emits": ["skill", "command"],
+  "defaultRefreshAction": {
+    "skill":   "cursor/summarize-skill",
+    "command": "cursor/summarize-command"
+  }
+}
+```
+
+Bare `~` and `~/...` prefixes resolve against the current user's home (the same convention the shell applies). Relative paths fall back to the cwd. Keep `explorationDir` short and platform-canonical; the doctor warning is the only place the user sees the field, so misleading values create confusion later.
 
 ---
 
@@ -340,7 +383,7 @@ The kernel validates frontmatter on a graduated dial; tighter is opt-in. The mod
 
 | Tier | Mechanism | Behavior on unknown / non-conforming fields |
 |---|---|---|
-| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and on every per-kind frontmatter schema. | Field passes silently, persists in `node.frontmatter`, and is available to every extension (detectors, rules, actions, renderers, audits). |
+| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and on every per-kind frontmatter schema. | Field passes silently, persists in `node.frontmatter`, and is available to every extension (extractors, rules, actions, formatters). |
 | **1 — Built-in `unknown-field` rule** | Deterministic Rule shipped with the kernel. Always active. | Emits an Issue with `severity: 'warn'` for every key outside the documented catalog (base + the matched kind's schema). |
 | **2 — Strict mode** | [`schemas/project-config.schema.json`](./schemas/project-config.schema.json) `scan.strict: true` (team default in `settings.json`); also via `--strict` on `sm scan`. | Promotes **all** frontmatter warnings to `severity: 'error'`. They persist in the DB; `sm check` then exits `1` on the next read. CI fails. |
 
@@ -360,7 +403,7 @@ priority: high          # ← author-defined, not in any schema
 ---
 ```
 
-**Tier 0 (default permissive — no project config, default scan).** The field validates fine. `node.frontmatter.priority === 'high'` for any detector / rule / action that reads the node. No issues raised by the schema itself.
+**Tier 0 (default permissive — no project config, default scan).** The field validates fine. `node.frontmatter.priority === 'high'` for any extractor / rule / action that reads the node. No issues raised by the schema itself.
 
 **Tier 1 (always-active `unknown-field` rule).** After `sm scan`, the rule emits:
 
@@ -395,7 +438,7 @@ A reasonable next thought is: "I want my plugin to widen the frontmatter schema 
 2. Validates them against whatever shape your domain expects (regex, enum, cross-node consistency).
 3. Emits Issues for violations.
 
-The trade-off is intentional: a "schema-extender" kind would force every consumer (the kernel, the storage adapter, every other plugin, the UI) to re-resolve the active schema set per scan. A Rule-driven approach keeps the kernel's parser one-pass and the validation surface composable — the union of every author's rules is the project's policy.
+The trade-off is intentional: a "schema-extender" kind would force every consumer (the kernel, the storage layer, every other plugin, the UI) to re-resolve the active schema set per scan. A Rule-driven approach keeps the kernel's parser one-pass and the validation surface composable — the union of every author's rules is the project's policy.
 
 If the rule needs to be CI-blocking, the rule itself emits the Issue at `severity: 'error'`. `--strict` / `scan.strict` apply only to the kernel's own frontmatter-shape and `unknown-field` warnings; plugin-authored rules pick their own severity directly.
 
@@ -445,11 +488,11 @@ Forbidden in plugin migrations: `BEGIN` / `COMMIT` / `ROLLBACK` / `SAVEPOINT` / 
 
 ## Execution modes
 
-Detector / Rule / Action declare `mode` in the manifest with default `deterministic`. Audit forbids `mode` — the kernel derives it from `composes[]` at load time. Adapter / Renderer must NOT declare `mode`.
+Extractor / Rule / Action declare `mode` in the manifest with default `deterministic`. Provider / Formatter must NOT declare `mode`.
 
 ```jsonc
-// deterministic detector — default, runs in sm scan
-{ "kind": "detector", "id": "my-detector", "mode": "deterministic", ... }
+// deterministic extractor — default, runs in sm scan
+{ "kind": "extractor", "id": "my-extractor", "mode": "deterministic", ... }
 ```
 
 ```jsonc
@@ -469,17 +512,17 @@ The full per-kind capability matrix lives in [`architecture.md` §Execution mode
 npm install --save-dev @skill-map/testkit
 ```
 
-The testkit ships builders, per-kind context factories, in-memory KV / runner fakes, and high-level `runDetectorOnFixture` / `runRuleOnGraph` / `runRendererOnGraph` helpers. Most plugin tests reduce to one line per assertion.
+The testkit ships builders, per-kind context factories, in-memory KV / runner fakes, and high-level `runExtractorOnFixture` / `runRuleOnGraph` / `runFormatterOnGraph` helpers. Most plugin tests reduce to one line per assertion.
 
 ```javascript
 import { test } from 'node:test';
 import { strictEqual } from 'node:assert';
-import { runDetectorOnFixture, node } from '@skill-map/testkit';
+import { runExtractorOnFixture, node } from '@skill-map/testkit';
 
-import detector from '../extensions/detector.mjs';
+import extractor from '../extensions/extractor.mjs';
 
 test('emits one reference per [[ref:<name>]] token', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: 'Talk to [[ref:architect]] or [[ref:sre]].',
     context: { node: node({ path: 'a.md' }) },
   });
@@ -488,7 +531,7 @@ test('emits one reference per [[ref:<name>]] token', async () => {
 });
 ```
 
-For rule tests, `runRuleOnGraph(rule, { context: { nodes, links } })` returns the issue array. For renderer tests, `runRendererOnGraph(renderer, { context: { nodes, links, issues } })` returns the rendered string.
+For rule tests, `runRuleOnGraph(rule, { context: { nodes, links } })` returns the issue array. For formatter tests, `runFormatterOnGraph(formatter, { context: { nodes, links, issues } })` returns the formatted string.
 
 For probabilistic extensions, `makeFakeRunner()` queues canned responses and records every call:
 
@@ -534,11 +577,11 @@ Full surface in `@skill-map/testkit/index.ts`.
 
 ## Stability
 
-- Document status: **stable** as of spec v1.0.0. Future minor revisions add new sections (e.g. richer testkit coverage when actions / audits gain helpers); breaking edits to the documented surface require a major bump per [`versioning.md`](./versioning.md).
+- Document status: **stable** as of spec v1.0.0. Future minor revisions add new sections (e.g. richer testkit coverage when actions gain helpers); breaking edits to the documented surface require a major bump per [`versioning.md`](./versioning.md).
 - The six plugin statuses (`loaded` / `disabled` / `incompatible-spec` / `invalid-manifest` / `load-error` / `id-collision`) are stable; adding a seventh status is a minor bump.
 - The structural rule **directory name MUST equal manifest id** is stable; relaxing it (allowing mismatch) is a major bump.
 - The cross-root id-collision rule (both sides blocked, no precedence) is stable; introducing precedence (e.g. project root wins over global) is a major bump.
 - The `granularity` field on `PluginManifest` is stable as introduced. The two values (`bundle` / `extension`) are stable. Adding a third value is a minor bump; changing the default away from `bundle` is a major bump (every existing plugin manifest would silently flip toggle semantics).
-- The optional `applicableKinds` field on the Detector manifest is stable as introduced. Adding a wildcard syntax (`'*'`) is a minor bump (additive, the existing "absent = all kinds" semantics keeps holding); changing the default away from "applies to every kind" or making the field required is a major bump. Promoting the unknown-kinds doctor warning to a hard load error is a major bump (today's contract is "load OK, surface as warning").
+- The optional `applicableKinds` field on the Extractor manifest is stable as introduced. Adding a wildcard syntax (`'*'`) is a minor bump (additive, the existing "absent = all kinds" semantics keeps holding); changing the default away from "applies to every kind" or making the field required is a major bump. Promoting the unknown-kinds doctor warning to a hard load error is a major bump (today's contract is "load OK, surface as warning").
 - The recommended `specCompat` strategy is descriptive prose; revising the recommendation does not require a spec bump as long as the schema stays unchanged.
 - The example code blocks track the public TypeScript surface of `@skill-map/cli`; bumping their imports follows the cli's own semver.

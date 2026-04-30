@@ -84,7 +84,7 @@ describe('SqliteStorageAdapter', () => {
         .values({
           path: 'notes/readme.md',
           kind: 'note',
-          adapter: 'claude',
+          provider: 'claude',
           title: 'README',
           description: 'root doc',
           stability: 'stable',
@@ -128,7 +128,7 @@ describe('SqliteStorageAdapter', () => {
           .values({
             path: 'x.md',
             kind: 'not-a-kind' as never,
-            adapter: 'claude',
+            provider: 'claude',
             frontmatterJson: '{}',
             bodyHash: 'a'.repeat(64),
             frontmatterHash: 'b'.repeat(64),
@@ -297,7 +297,7 @@ function makeNodeFixture(path: string) {
   return {
     path,
     kind: 'note' as const,
-    adapter: 'claude',
+    provider: 'claude',
     title: 'pristine',
     description: 'known row for round-trip',
     stability: 'stable' as const,

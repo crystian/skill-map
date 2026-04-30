@@ -6,8 +6,8 @@
  * Keeping runtime references separate from the manifest-only entries the
  * Registry indexes: a consumer that only needs to list what's bundled
  * iterates `listBuiltIns()` for cheap manifest facts, while the
- * orchestrator needs the concrete `IAdapter` / `IDetector` / ... values
- * to actually call walk / detect / evaluate / render / run. Two exports
+ * orchestrator needs the concrete `IProvider` / `IExtractor` / ... values
+ * to actually call walk / extract / evaluate / format. Two exports
  * keep both access patterns first-class.
  *
  * **Spec § A.6 — qualified ids.** Every built-in declares its `pluginId`
@@ -16,10 +16,9 @@
  * Two namespaces by convention:
  *
  *   - **`core/`** — kernel-internal primitives (every rule, the ASCII
- *     renderer, the audit, the external-URL counter detector).
- *     Platform-agnostic.
- *   - **`claude/`** — the Claude Code provider bundle (the adapter plus
- *     its kind-aware detectors: frontmatter, slash, at-directive).
+ *     formatter, the external-URL counter extractor). Platform-agnostic.
+ *   - **`claude/`** — the Claude Code Provider bundle (the Provider plus
+ *     its kind-aware extractors: frontmatter, slash, at-directive).
  *
  * The registry composes the qualified id `<pluginId>/<id>` at registration
  * time; cross-extension references (`defaultRefreshAction`, future
@@ -29,52 +28,50 @@
  * toggles it whole (`granularity: 'bundle'`) or one extension at a time
  * (`granularity: 'extension'`). The two built-in bundles split:
  *
- *   - `claude` — `granularity: 'bundle'`. Adapter + its kind-aware
- *     detectors form a coherent provider; the user enables or disables
- *     the whole Claude Code surface, never half of it.
+ *   - `claude` — `granularity: 'bundle'`. Provider + its kind-aware
+ *     extractors form a coherent platform integration; the user enables
+ *     or disables the whole Claude Code surface, never half of it.
  *   - `core`   — `granularity: 'extension'`. Per the spec promise that
  *     "no extension is privileged, removable", every kernel built-in
- *     (each rule, the ASCII renderer, the audit, the external-URL
- *     counter detector) is independently toggle-able via its qualified
- *     id (e.g. `sm plugins disable core/superseded`).
+ *     (each rule, the ASCII formatter, the external-URL counter extractor)
+ *     is independently toggle-able via its qualified id (e.g.
+ *     `sm plugins disable core/superseded`).
  */
 
 import type {
-  IAdapter,
-  IAudit,
-  IDetector,
-  IRenderer,
+  IProvider,
+  IExtractor,
+  IFormatter,
   IRule,
 } from '../kernel/extensions/index.js';
 import type { Extension } from '../kernel/registry.js';
 import type { TGranularity } from '../kernel/types/plugin.js';
-import { claudeAdapter } from './adapters/claude/index.js';
-import { frontmatterDetector } from './detectors/frontmatter/index.js';
-import { slashDetector } from './detectors/slash/index.js';
-import { atDirectiveDetector } from './detectors/at-directive/index.js';
-import { externalUrlCounterDetector } from './detectors/external-url-counter/index.js';
+import { claudeProvider } from './providers/claude/index.js';
+import { frontmatterExtractor } from './extractors/frontmatter/index.js';
+import { slashExtractor } from './extractors/slash/index.js';
+import { atDirectiveExtractor } from './extractors/at-directive/index.js';
+import { externalUrlCounterExtractor } from './extractors/external-url-counter/index.js';
 import { triggerCollisionRule } from './rules/trigger-collision/index.js';
 import { brokenRefRule } from './rules/broken-ref/index.js';
 import { supersededRule } from './rules/superseded/index.js';
 import { linkConflictRule } from './rules/link-conflict/index.js';
-import { asciiRenderer } from './renderers/ascii/index.js';
-import { validateAllAudit } from './audits/validate-all/index.js';
+import { asciiFormatter } from './formatters/ascii/index.js';
+import { validateAllRule } from './rules/validate-all/index.js';
 
 export interface IBuiltIns {
-  adapters: IAdapter[];
-  detectors: IDetector[];
+  providers: IProvider[];
+  extractors: IExtractor[];
   rules: IRule[];
-  renderers: IRenderer[];
-  audits: IAudit[];
+  formatters: IFormatter[];
 }
 
 /**
  * Concrete runtime instance of any extension kind a built-in can carry.
- * Mirrors what the orchestrator actually invokes (`walk` / `detect` /
- * `evaluate` / `render` / `audit`); composed into the `IBuiltIns` buckets
+ * Mirrors what the orchestrator actually invokes (`walk` / `extract` /
+ * `evaluate` / `format`); composed into the `IBuiltIns` buckets
  * by `builtIns()`.
  */
-export type TBuiltInExtension = IAdapter | IDetector | IRule | IRenderer | IAudit;
+export type TBuiltInExtension = IProvider | IExtractor | IRule | IFormatter;
 
 /**
  * One bundle of built-in extensions. The bundle's `id` is the plugin id
@@ -94,32 +91,32 @@ export interface IBuiltInBundle {
  * `composeScanExtensions`, `sm plugins list`) iterate this directly.
  *
  * Iteration order is stable: claude first, core second. It mirrors the
- * order in which built-ins land in the registry (claude adapter +
- * detectors, then core rules / renderer / audit). Stable order matters
- * for snapshot tests and CI output diffs.
+ * order in which built-ins land in the registry (claude Provider +
+ * extractors, then core rules / formatter). Stable order matters for
+ * snapshot tests and CI output diffs.
  */
 export const builtInBundles: IBuiltInBundle[] = [
   {
     id: 'claude',
     granularity: 'bundle',
     extensions: [
-      claudeAdapter,
-      frontmatterDetector,
-      slashDetector,
-      atDirectiveDetector,
+      claudeProvider,
+      frontmatterExtractor,
+      slashExtractor,
+      atDirectiveExtractor,
     ],
   },
   {
     id: 'core',
     granularity: 'extension',
     extensions: [
-      externalUrlCounterDetector,
+      externalUrlCounterExtractor,
       triggerCollisionRule,
       brokenRefRule,
       supersededRule,
       linkConflictRule,
-      asciiRenderer,
-      validateAllAudit,
+      asciiFormatter,
+      validateAllRule,
     ],
   },
 ];
@@ -132,11 +129,10 @@ export const builtInBundles: IBuiltInBundle[] = [
  */
 export function builtIns(): IBuiltIns {
   const out: IBuiltIns = {
-    adapters: [],
-    detectors: [],
+    providers: [],
+    extractors: [],
     rules: [],
-    renderers: [],
-    audits: [],
+    formatters: [],
   };
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
@@ -165,20 +161,17 @@ export function listBuiltIns(): Extension[] {
  */
 function bucketBuiltIn(ext: TBuiltInExtension, out: IBuiltIns): void {
   switch (ext.kind) {
-    case 'adapter':
-      out.adapters.push(ext);
+    case 'provider':
+      out.providers.push(ext);
       break;
-    case 'detector':
-      out.detectors.push(ext);
+    case 'extractor':
+      out.extractors.push(ext);
       break;
     case 'rule':
       out.rules.push(ext);
       break;
-    case 'renderer':
-      out.renderers.push(ext);
-      break;
-    case 'audit':
-      out.audits.push(ext);
+    case 'formatter':
+      out.formatters.push(ext);
       break;
   }
 }

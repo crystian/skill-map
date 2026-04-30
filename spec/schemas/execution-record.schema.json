@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/execution-record.schema.json",
   "title": "ExecutionRecord",
-  "description": "A single row in the execution history (`state_executions`). One record per action or audit invocation — regardless of whether the runner was CLI, Skill, or in-process.",
+  "description": "A single row in the execution history (`state_executions`). One record per action invocation — regardless of whether the runner was CLI, Skill, or in-process.",
   "type": "object",
   "required": ["id", "kind", "extensionId", "extensionVersion", "status", "startedAt", "finishedAt"],
   "additionalProperties": false,
@@ -13,12 +13,12 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["action", "audit"],
-      "description": "Which extension kind was executed."
+      "enum": ["action"],
+      "description": "Which extension kind was executed. The enum has a single value today (the audit kind was removed pre-1.0); the field is preserved as a forward-compatibility lever."
     },
     "extensionId": {
       "type": "string",
-      "description": "Id of the action or audit that ran (e.g. `skill-summarizer`, `validate-all`)."
+      "description": "Id of the action that ran (e.g. `skill-summarizer`)."
     },
     "extensionVersion": {
       "type": "string",
@@ -26,13 +26,13 @@
     },
     "nodeIds": {
       "type": "array",
-      "description": "Target `node.path` values. Empty for audits that evaluate the whole graph.",
+      "description": "Target `node.path` values. Empty for whole-graph actions.",
       "items": { "type": "string" }
     },
     "contentHash": {
       "type": ["string", "null"],
       "pattern": "^[a-f0-9]{64}$",
-      "description": "Duplicate-prevention hash used at submit time: sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash). Null for audits."
+      "description": "Duplicate-prevention hash used at submit time: sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash). May be null for in-process actions that don't memoize."
     },
     "status": {
       "type": "string",
@@ -51,7 +51,7 @@
     "runner": {
       "type": ["string", "null"],
       "enum": ["cli", "skill", "in-process", null],
-      "description": "Which runner executed this job. Null for audits."
+      "description": "Which runner executed this job. Null when the action runs synchronously without dispatching."
     },
     "startedAt": {
       "type": "integer",
@@ -82,7 +82,7 @@
     },
     "jobId": {
       "type": ["string", "null"],
-      "description": "Originating job id when applicable. Null for audits and in-process actions."
+      "description": "Originating job id when applicable. Null for in-process actions."
     }
   }
 }

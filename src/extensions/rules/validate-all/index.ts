@@ -1,23 +1,29 @@
 /**
- * `validate-all` audit. Post-scan consistency check. Runs the current
- * ScanResult back through AJV against the authoritative schemas:
+ * `validate-all` rule. Cross-graph consistency check that runs alongside
+ * the other deterministic rules. Validates the in-flight scan output back
+ * through AJV against the authoritative schemas:
  *
- *   - Every Node's parsed frontmatter against `frontmatter/<kind>.schema.json`.
+ *   - Every Node's record against `node.schema.json`. The per-kind
+ *     `frontmatter/<kind>.schema.json` is reached transitively via the
+ *     node schema's `$ref`s.
  *   - Every Link against `link.schema.json` (except the id/location
  *     numeric fields that only exist on the DB row).
- *   - Every Issue against `issue.schema.json`.
  *
- * Failures become findings on the returned audit report. `status: 'pass'`
- * only when every item validates; otherwise `'fail'`. Exit handling is
- * the CLI's concern (`sm audit run` returns exit 1 on fail, per
- * cli-contract.md §Audits).
+ * Failures become `Issue[]` like every other rule. The CLI / report
+ * formatter wrapping is no longer this extension's concern; consumers
+ * surface `validate-all`-emitted issues the same way they surface
+ * `broken-ref` / `trigger-collision` / etc.
  *
  * Manifest validation for registered extensions is already enforced at
  * load time by the PluginLoader — there's no need to redo it here. This
- * audit focuses on user content that the scan produced.
+ * rule focuses on user content that the scan produced. Cross-rule issue
+ * validation (revalidating other rules' `Issue[]` output) used to live
+ * here when the extension was an audit reading `ScanResult.issues`; rules
+ * see only the graph (`nodes` + `links`), so that branch is gone — the
+ * kernel's own `validateIssue()` already gates issues at emit time.
  */
 
-import type { IAudit, IAuditContext, TAuditReport } from '../../../kernel/extensions/index.js';
+import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
 import type { Issue, Link, Node, NodeKind } from '../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators, type TSchemaName } from '../../../kernel/adapters/schema-validators.js';
 
@@ -39,15 +45,16 @@ const FRONTMATTER_BY_KIND: Record<NodeKind, TSchemaName | null> = {
   note: null,
 };
 
-export const validateAllAudit: IAudit = {
+export const validateAllRule: IRule = {
   id: ID,
   pluginId: 'core',
-  kind: 'audit',
+  kind: 'rule',
   version: '1.0.0',
-  description: 'Validates every scanned node / link / issue against the authoritative @skill-map/spec schemas.',
+  description: 'Validates every scanned node / link against the authoritative @skill-map/spec schemas.',
   stability: 'stable',
+  mode: 'deterministic',
 
-  run(ctx: IAuditContext): TAuditReport {
+  evaluate(ctx: IRuleContext): Issue[] {
     const validators = loadSchemaValidators();
     const findings: Issue[] = [];
 
@@ -57,18 +64,8 @@ export const validateAllAudit: IAudit = {
     for (const link of ctx.links) {
       collectLinkFindings(validators, link, findings);
     }
-    for (const issue of ctx.issues) {
-      collectIssueFindings(validators, issue, findings);
-    }
 
-    return {
-      auditId: ID,
-      status: findings.length === 0 ? 'pass' : 'fail',
-      findings,
-      summary: findings.length === 0
-        ? `Validated ${ctx.nodes.length} nodes / ${ctx.links.length} links / ${ctx.issues.length} issues — all ok.`
-        : `Found ${findings.length} validation issue(s).`,
-    };
+    return findings;
   },
 };
 
@@ -99,27 +96,15 @@ function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): vo
   });
 }
 
-function collectIssueFindings(v: ISchemaValidators, issue: Issue, out: Issue[]): void {
-  const result = v.validate('issue', toIssueForSchema(issue));
-  if (result.ok) return;
-  out.push({
-    ruleId: ID,
-    severity: 'error',
-    nodeIds: issue.nodeIds,
-    message: `Issue ${issue.ruleId} failed schema validation: ${result.errors}`,
-    data: { target: 'issue', ruleId: issue.ruleId },
-  });
-}
-
 // The runtime TypeScript types carry a convenience shape (e.g. bytes as
 // a triple-split object); the spec schemas use slightly different field
-// layouts. These adapters bridge the two without leaking the DB-internal
-// fields (id, `data_json`, etc.).
+// layouts. These shape transformers bridge the two without leaking the
+// DB-internal fields (id, `data_json`, etc.).
 function toNodeForSchema(node: Node): unknown {
   return {
     path: node.path,
     kind: node.kind,
-    adapter: node.adapter,
+    provider: node.provider,
     title: node.title ?? undefined,
     description: node.description ?? undefined,
     stability: node.stability ?? undefined,
@@ -146,18 +131,5 @@ function toLinkForSchema(link: Link): unknown {
     trigger: link.trigger ?? undefined,
     location: link.location ?? undefined,
     raw: link.raw ?? undefined,
-  };
-}
-
-function toIssueForSchema(issue: Issue): unknown {
-  return {
-    ruleId: issue.ruleId,
-    severity: issue.severity,
-    nodeIds: issue.nodeIds,
-    linkIndices: issue.linkIndices,
-    message: issue.message,
-    detail: issue.detail ?? undefined,
-    fix: issue.fix ?? undefined,
-    data: issue.data ?? undefined,
   };
 }

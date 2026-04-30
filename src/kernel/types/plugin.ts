@@ -37,7 +37,7 @@ export type TPluginStorage =
  * - `'extension'` — each extension is independently toggle-able under its
  *                   qualified id `<plugin-id>/<extension-id>`. Used for
  *                   the built-in `core` bundle (every kernel built-in
- *                   rule / renderer / audit is removable per spec
+ *                   rule / formatter is removable per spec
  *                   "no extension is privileged"). Plugin authors opt in
  *                   only when the plugin ships several orthogonal
  *                   capabilities a user might reasonably want piecemeal.

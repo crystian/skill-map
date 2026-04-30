@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/rule.schema.json",
   "title": "ExtensionRule",
-  "description": "Manifest shape for a `Rule` extension. A rule consumes the full graph (nodes + links) after all detectors have run and emits `Issue[]`. Rules are dual-mode: `deterministic` rules MUST be byte-for-byte reproducible (same graph in → same issues out; time, random, and network are forbidden) and run synchronously inside `sm check` / `sm scan`. `probabilistic` rules invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (`sm job submit rule:<id>`); their output MAY vary across runs and they NEVER participate in `sm scan`. See `architecture.md` §Execution modes for the full contract.",
+  "description": "Manifest shape for a `Rule` extension. A rule consumes the full graph (nodes + links) after all extractors have run and emits `Issue[]`. Rules are dual-mode: `deterministic` rules MUST be byte-for-byte reproducible (same graph in → same issues out; time, random, and network are forbidden) and run synchronously inside `sm check` / `sm scan`. `probabilistic` rules invoke an LLM through the kernel's `RunnerPort` and execute only as queued jobs (`sm job submit rule:<id>`); their output MAY vary across runs and they NEVER participate in `sm scan`. See `architecture.md` §Execution modes for the full contract.",
   "allOf": [
     { "$ref": "base.schema.json" }
   ],

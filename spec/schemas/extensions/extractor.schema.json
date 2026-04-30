@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/extractor.schema.json",
+  "title": "ExtensionExtractor",
+  "description": "Manifest shape for an `Extractor` extension. An extractor consumes a parsed node (frontmatter + body) and emits output through three context-supplied callbacks rather than returning a value: `ctx.emitLink(link)` writes to the kernel's `links` table (validated against `emitsLinkKinds` before persistence), `ctx.enrichNode(partial)` merges author-canonical properties into the kernel's enrichment layer (separate from the author-supplied frontmatter), and `ctx.store` persists into the plugin's own KV namespace or dedicated tables. The runtime method is `extract(ctx) → void`. Extractors run in isolation: they MUST NOT read other nodes, the graph, or the DB. Cross-node reasoning lives in Rules. Extractors are dual-mode: `deterministic` extractors run synchronously inside `sm scan`; `probabilistic` extractors invoke an LLM through the kernel's `RunnerPort` (exposed as `ctx.runner`) and execute only as queued jobs (never during scan). See `architecture.md` §Execution modes for the full contract. Renamed from `detector` in spec 0.8.x — the FindBugs/SpotBugs lineage of \"detector\" connoted bug finding, while this kind extracts signals (relations, enrichments, custom data); ENRE (Entity Relationship Extractor) is the closer precedent.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "emitsLinkKinds", "defaultConfidence"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind": { "const": "extractor" },
+    "mode": {
+      "type": "string",
+      "enum": ["deterministic", "probabilistic"],
+      "default": "deterministic",
+      "description": "`deterministic` (default): pure code, runs synchronously during `sm scan`. Same input → same output, every run. `probabilistic`: invokes an LLM via `ctx.runner` and runs only as a queued job (`sm job submit extractor:<id>`); never participates in `sm scan`. The kernel rejects probabilistic extractors that try to register scan-time hooks at load time. Omitting the field is equivalent to declaring `deterministic`."
+    },
+    "emitsLinkKinds": {
+      "type": "array",
+      "description": "Subset of `Link.kind` values this extractor is allowed to emit through `ctx.emitLink(...)`. Emitting an unlisted kind at runtime → kernel rejects the link and logs `extractor-kind-violation`.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["invokes", "references", "mentions", "supersedes"]
+      }
+    },
+    "defaultConfidence": {
+      "type": "string",
+      "enum": ["high", "medium", "low"],
+      "description": "Confidence attached to emitted links by default. Extractors MAY override per-link at emission time."
+    },
+    "scope": {
+      "type": "string",
+      "enum": ["frontmatter", "body", "both"],
+      "default": "both",
+      "description": "Which part of the node this extractor consumes. The kernel passes only the declared scope to the extractor — a `frontmatter` extractor that tries to read `body` receives an empty string."
+    },
+    "applicableKinds": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "uniqueItems": true,
+      "description": "Optional opt-in filter. If declared, the extractor runs only on nodes whose kind is in this list. Absent = applies to all kinds (default). No wildcards — the absence of the field already means \"every kind\". Empty array is invalid (`minItems: 1`). Unknown kinds (not declared by any installed Provider) load OK but emit a warning in `sm plugins doctor` — the Provider may arrive later. The kernel filters fail-fast: nodes whose kind is excluded never see `extract()`, so a probabilistic extractor wastes zero LLM cost on inapplicable nodes."
+    }
+  }
+}

@@ -1,5 +1,5 @@
 /**
- * Scan orchestrator — runs the adapter → detector → rule pipeline across
+ * Scan orchestrator — runs the Provider → extractor → rule pipeline across
  * every registered extension and emits `ProgressEmitterPort` events in
  * canonical order. The callable extension set is injected via
  * `RunScanOptions.extensions` — the Registry holds manifest metadata, the
@@ -15,21 +15,31 @@
  * must exist on disk as a directory. The first failure throws a clear
  * `Error` naming the offending path. This guards every caller (CLI,
  * server, skill-agent) against silently producing a zero-filled
- * `ScanResult` when an adapter walks a non-existent path — the bug
+ * `ScanResult` when a Provider walks a non-existent path — the bug
  * that wiped a populated DB via `sm scan -- --dry-run` (clipanion's
  * `--` made `--dry-run` a positional root that did not exist).
  *
  * Incremental scans (Step 4.4): when `priorSnapshot` is supplied, the
  * orchestrator walks the filesystem, hashes each file, and reuses the
- * prior node + its prior-detected internal links whenever both
+ * prior node + its prior-extracted internal links whenever both
  * `bodyHash` and `frontmatterHash` match. New / modified files run
- * through the full detector pipeline (including the external-url-counter
+ * through the full extractor pipeline (including the external-url-counter
  * which produces ephemeral pseudo-links). Rules ALWAYS run over the
  * fully merged graph — issue state can change even for an unchanged node
  * (e.g. a previously broken `references` link now resolves because a new
  * node was added). For unchanged nodes the prior `externalRefsCount` is
  * preserved as-is (the external pseudo-links were never persisted, so
  * they cannot be reconstructed; the count survived in the node row).
+ *
+ * Extractor output model (B.1, post-rename from Detector): extractors
+ * return `void` and emit through three callbacks injected on the context:
+ *   - `ctx.emitLink(link)` → orchestrator validates against
+ *     `emitsLinkKinds` then partitions into internal / external buckets.
+ *   - `ctx.enrichNode(partial)` → orchestrator merges into an in-memory
+ *     buffer keyed by node path. Persistence to the DB is deferred to
+ *     Phase 4 (A.8 stale tracking); B.1 only sets the API contract.
+ *   - `ctx.store` → plugin's own KV / dedicated tables (out of scope
+ *     here — the orchestrator never inspects it).
  */
 
 import { createHash } from 'node:crypto';
@@ -65,9 +75,9 @@ import { loadSchemaValidators, type TSchemaName } from './adapters/schema-valida
 import { ORCHESTRATOR_TEXTS } from './i18n/orchestrator.texts.js';
 import { tx } from './util/tx.js';
 import type {
-  IAdapter,
-  IDetectContext,
-  IDetector,
+  IProvider,
+  IExtractorContext,
+  IExtractor,
   IRule,
 } from './extensions/index.js';
 
@@ -90,8 +100,8 @@ function resolveSpecVersionSafe(): string {
 }
 
 export interface IScanExtensions {
-  adapters: IAdapter[];
-  detectors: IDetector[];
+  providers: IProvider[];
+  extractors: IExtractor[];
   rules: IRule[];
 }
 
@@ -144,7 +154,7 @@ export interface RunScanOptions {
    *      whose `path` exists in the prior with both `bodyHash` and
    *      `frontmatterHash` matching the freshly-computed hashes are
    *      reused as-is (their internal links and `externalRefsCount`
-   *      survive); only new / modified nodes run through detectors.
+   *      survive); only new / modified nodes run through extractors.
    *      Rules always re-run over the merged graph.
    *
    * Pass `null` (or omit) for a fresh scan with no rename detection.
@@ -152,7 +162,7 @@ export interface RunScanOptions {
   priorSnapshot?: ScanResult | null;
   /**
    * Reuse unchanged nodes from `priorSnapshot` instead of re-running
-   * detectors over them. Defaults to `false` so a plain `sm scan`
+   * extractors over them. Defaults to `false` so a plain `sm scan`
    * always re-walks deterministically. `sm scan --changed` flips this
    * to `true` for the perf win on unchanged files.
    *
@@ -161,9 +171,9 @@ export interface RunScanOptions {
    */
   enableCache?: boolean;
   /**
-   * Filter that decides which paths the adapters skip. Composed by the
+   * Filter that decides which paths the Providers skip. Composed by the
    * caller (typically the CLI) from bundled defaults + `config.ignore`
-   * + `.skill-mapignore`. Adapters that omit this option fall back to
+   * + `.skill-mapignore`. Providers that omit this option fall back to
    * their own defensive defaults (just enough to keep `.git` /
    * `node_modules` out).
    */
@@ -211,7 +221,7 @@ async function runScanInternal(
   const start = Date.now();
   const scannedAt = start;
   const emitter = options.emitter ?? new InMemoryProgressEmitter();
-  const exts = options.extensions ?? { adapters: [], detectors: [], rules: [] };
+  const exts = options.extensions ?? { providers: [], extractors: [], rules: [] };
   const tokenize = options.tokenize !== false;
   const scope: 'project' | 'global' = options.scope ?? 'project';
   const strict = options.strict === true;
@@ -225,9 +235,9 @@ async function runScanInternal(
 
   emitter.emit(makeEvent('scan.started', { roots: options.roots }));
 
-  const walked = await walkAndDetect({
-    adapters: exts.adapters,
-    detectors: exts.detectors,
+  const walked = await walkAndExtract({
+    providers: exts.providers,
+    extractors: exts.extractors,
     roots: options.roots,
     ...(options.ignoreFilter ? { ignoreFilter: options.ignoreFilter } : {}),
     emitter,
@@ -260,11 +270,11 @@ async function runScanInternal(
   const renameOps = prior ? detectRenamesAndOrphans(prior, walked.nodes, issues) : [];
 
   const stats = {
-    // `filesSkipped` is "files walked but not classified by any adapter".
-    // Today every walked file IS classified by its adapter (the `claude`
-    // adapter's `classify()` always returns a kind, falling back to
+    // `filesSkipped` is "files walked but not classified by any Provider".
+    // Today every walked file IS classified by its Provider (the `claude`
+    // Provider's `classify()` always returns a kind, falling back to
     // `'note'`), so this is always 0. Wired now so the field shape is
-    // spec-conformant; meaningful once multiple adapters compete (Step 9+).
+    // spec-conformant; meaningful once multiple Providers compete (Step 9+).
     filesWalked: walked.filesWalked,
     filesSkipped: 0,
     nodesCount: walked.nodes.length,
@@ -281,7 +291,7 @@ async function runScanInternal(
       scannedAt,
       scope,
       roots: options.roots,
-      adapters: exts.adapters.map((a) => a.id),
+      providers: exts.providers.map((a) => a.id),
       scannedBy: SCANNED_BY,
       nodes: walked.nodes,
       links: walked.internalLinks,
@@ -296,7 +306,7 @@ async function runScanInternal(
  * Validate every root exists as a directory BEFORE any IO, BEFORE the
  * tokenizer is constructed, BEFORE `scan.started` fires. Throws on the
  * first failure — single-error feedback is enough; the user fixes it
- * and re-runs. Without this guard the claude adapter's `walk()` swallows
+ * and re-runs. Without this guard the claude Provider's `walk()` swallows
  * ENOENT inside `readdir` and returns silently, which lets a non-existent
  * root produce a valid-looking zero-filled `ScanResult` — directly
  * enabling the `sm scan -- --dry-run` typo-trap that wipes a populated
@@ -326,9 +336,9 @@ interface IPriorIndex {
   priorNodePaths: Set<string>;
   /**
    * Prior internal links bucketed by **originating node** — the node
-   * whose body / frontmatter the detector was processing when it emitted
+   * whose body / frontmatter the extractor was processing when it emitted
    * the link. For most kinds that equals `link.source`, but the
-   * frontmatter detector emits inverted `supersedes` links where the
+   * frontmatter extractor emits inverted `supersedes` links where the
    * originating node is `link.target`.
    */
   priorLinksByOriginating: Map<string, Link[]>;
@@ -369,9 +379,9 @@ function indexPriorSnapshot(prior: ScanResult | null): IPriorIndex {
   return { priorNodesByPath, priorNodePaths, priorLinksByOriginating, priorFrontmatterIssuesByNode };
 }
 
-interface IWalkAndDetectOptions {
-  adapters: IAdapter[];
-  detectors: IDetector[];
+interface IWalkAndExtractOptions {
+  providers: IProvider[];
+  extractors: IExtractor[];
   roots: string[];
   ignoreFilter?: IIgnoreFilter;
   emitter: ProgressEmitterPort;
@@ -382,7 +392,7 @@ interface IWalkAndDetectOptions {
   priorIndex: IPriorIndex;
 }
 
-interface IWalkAndDetectResult {
+interface IWalkAndExtractResult {
   nodes: Node[];
   internalLinks: Link[];
   externalLinks: Link[];
@@ -393,15 +403,26 @@ interface IWalkAndDetectResult {
    *  composer appends these to the rule-emitted issue list so the
    *  final ordering stays "rules first, then derived issues". */
   frontmatterIssues: Issue[];
-  /** Every `IRawNode` an adapter yielded across the whole scan
-   *  (including cached reuse). With one adapter it equals
-   *  `nodesCount`; with future multi-adapter scans walking overlapping
+  /**
+   * In-memory enrichment buffer collected from `ctx.enrichNode(...)`
+   * calls during the walk. B.1 sets the API contract only — the
+   * orchestrator currently discards this buffer at scan completion.
+   * Phase 4 (A.8 stale tracking) will persist it into a dedicated
+   * column / table; until then consumers may read it within the same
+   * scan via the result, but the kernel itself does not yet propagate
+   * it through `ScanResult`. Surfaced on the internal walk result so
+   * tests can assert the contract without round-tripping through the DB.
+   */
+  nodeEnrichments: Map<string, Partial<Node>>;
+  /** Every `IRawNode` a Provider yielded across the whole scan
+   *  (including cached reuse). With one Provider it equals
+   *  `nodesCount`; with future multi-Provider scans walking overlapping
    *  roots it can diverge. */
   filesWalked: number;
 }
 
-async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetectResult> {
-  const { adapters, detectors, roots, ignoreFilter, emitter, encoder, strict, enableCache, prior, priorIndex } = opts;
+async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExtractResult> {
+  const { providers, extractors, roots, ignoreFilter, emitter, encoder, strict, enableCache, prior, priorIndex } = opts;
   const { priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode } = priorIndex;
 
   const nodes: Node[] = [];
@@ -409,12 +430,17 @@ async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetec
   const externalLinks: Link[] = [];
   const cachedPaths = new Set<string>();
   const frontmatterIssues: Issue[] = [];
+  // B.1 enrichment buffer. `ctx.enrichNode(partial)` calls fold into this
+  // map; the kernel discards it at scan completion (persistence is deferred
+  // to A.8 in Phase 4). Keyed by node path so multiple enrichments on the
+  // same node merge predictably (last-write-wins per field).
+  const nodeEnrichments = new Map<string, Partial<Node>>();
   let filesWalked = 0;
   let index = 0;
   const walkOptions = ignoreFilter ? { ignoreFilter } : {};
 
-  for (const adapter of adapters) {
-    for await (const raw of adapter.walk(roots, walkOptions)) {
+  for (const provider of providers) {
+    for await (const raw of provider.walk(roots, walkOptions)) {
       filesWalked += 1;
       const bodyHash = sha256(raw.body);
       // Step 5.13 — hash a CANONICAL form of the frontmatter so a YAML
@@ -438,12 +464,12 @@ async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetec
         priorNode.bodyHash === bodyHash &&
         priorNode.frontmatterHash === frontmatterHash;
 
-      const kind = adapter.classify(raw.path, raw.frontmatter);
+      const kind = provider.classify(raw.path, raw.frontmatter);
       index += 1;
 
       if (cached && priorNode) {
         // Reuse the prior node row verbatim; reuse its outbound internal
-        // links. Detectors are NOT re-run for this node — the body
+        // links. Extractors are NOT re-run for this node — the body
         // didn't change, so neither did anything derived from it.
         // Shallow-clone to avoid mutating the caller's prior snapshot
         // when `recomputeLinkCounts` resets per-node counts later.
@@ -468,7 +494,7 @@ async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetec
       const node = buildNode({
         path: raw.path,
         kind,
-        adapterId: adapter.id,
+        providerId: provider.id,
         frontmatterRaw: raw.frontmatterRaw,
         body: raw.body,
         frontmatter: raw.frontmatter,
@@ -487,7 +513,7 @@ async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetec
         const fmIssue = validateFrontmatter(kind, raw.frontmatter, raw.path, strict);
         if (fmIssue) frontmatterIssues.push(fmIssue);
       } else {
-        // Step 9.4 follow-up — `frontmatter-malformed`: the adapter
+        // Step 9.4 follow-up — `frontmatter-malformed`: the Provider
         // could not recognise a frontmatter fence, but the body opens
         // with an indented `---` (or BOM, or unclosed fence). Emit a
         // `warn` so the author sees it; `--strict` promotes to `error`.
@@ -496,31 +522,43 @@ async function walkAndDetect(opts: IWalkAndDetectOptions): Promise<IWalkAndDetec
       }
       emitter.emit(makeEvent('scan.progress', { index, path: raw.path, kind, cached: false }));
 
-      for (const detector of detectors) {
+      for (const extractor of extractors) {
         // Spec § A.10 — `applicableKinds` is an optional opt-in filter on
         // `node.kind`. When declared, skip invocation entirely BEFORE
-        // building the detect context so a probabilistic detector wastes
-        // zero LLM cost (and a deterministic detector zero CPU) on
+        // building the extractor context so a probabilistic extractor wastes
+        // zero LLM cost (and a deterministic extractor zero CPU) on
         // inapplicable nodes. Absent → applies to every kind.
         if (
-          detector.applicableKinds !== undefined &&
-          !detector.applicableKinds.includes(node.kind)
+          extractor.applicableKinds !== undefined &&
+          !extractor.applicableKinds.includes(node.kind)
         ) {
           continue;
         }
-        const ctx = buildDetectContext(detector, node, raw.body, raw.frontmatter);
-        const emitted = await detector.detect(ctx);
-        for (const link of emitted) {
-          const validated = validateLink(detector, link, emitter);
-          if (!validated) continue;
+        // B.1 callback wiring. `emitLink` validates against the extractor's
+        // declared `emitsLinkKinds` and partitions external (URL-shaped)
+        // pseudo-links from internal ones. `enrichNode` folds partials into
+        // the in-memory enrichment buffer keyed by node path; persistence is
+        // deferred to A.8 in Phase 4. The extractor receives an
+        // `IExtractorContext` with both callbacks bound; `extract()`
+        // returns `void` (or `Promise<void>`) — there is no return-value
+        // channel in B.1 onward.
+        const emitLink = (link: Link): void => {
+          const validated = validateLink(extractor, link, emitter);
+          if (!validated) return;
           if (isExternalUrlLink(validated)) externalLinks.push(validated);
           else internalLinks.push(validated);
-        }
+        };
+        const enrichNode = (partial: Partial<Node>): void => {
+          const existing = nodeEnrichments.get(node.path);
+          nodeEnrichments.set(node.path, existing ? { ...existing, ...partial } : { ...partial });
+        };
+        const ctx = buildExtractorContext(extractor, node, raw.body, raw.frontmatter, emitLink, enrichNode);
+        await extractor.extract(ctx);
       }
     }
   }
 
-  return { nodes, internalLinks, externalLinks, cachedPaths, frontmatterIssues, filesWalked };
+  return { nodes, internalLinks, externalLinks, cachedPaths, frontmatterIssues, filesWalked, nodeEnrichments };
 }
 
 /**
@@ -547,26 +585,26 @@ async function runRules(
 
 /**
  * The "originating node" of a link — the node whose body / frontmatter
- * the detector was processing when it emitted the link. For most kinds
- * this equals `link.source`, but the frontmatter detector emits inverted
+ * the extractor was processing when it emitted the link. For most kinds
+ * this equals `link.source`, but the frontmatter extractor emits inverted
  * `supersedes` links (from a node's `metadata.supersededBy`) where
  * `target` is the originating node and `source` is the (forward-pointing)
  * supersedor. The forward case (`metadata.supersedes`) keeps
- * `originating === source` like every other detector.
+ * `originating === source` like every other extractor.
  *
  * Discriminator: the supersedor path in an inverted edge is rarely a
  * real node (it points "forward" to a file that may or may not exist on
  * disk under that exact path); the originating node always exists in
- * the prior snapshot (it's the node whose detection produced the link).
+ * the prior snapshot (it's the node whose extraction produced the link).
  * So for `kind === 'supersedes'`: prefer `source` when source is a known
  * prior node, otherwise fall back to `target`. This handles BOTH the
  * forward case (originating === source, which IS a known node) and the
  * inverted case (source not a node → fall through to target, the
  * originating older node).
  *
- * Frontmatter is the only detector that emits cross-source links today;
- * if a future detector adds another inversion case, escalate to a
- * persisted `Link.detectedFromPath` field with a schema bump rather
+ * Frontmatter is the only extractor that emits cross-source links today;
+ * if a future extractor adds another inversion case, escalate to a
+ * persisted `Link.extractedFromPath` field with a schema bump rather
  * than extending this heuristic.
  */
 function originatingNodeOf(link: Link, priorNodePaths: Set<string>): string {
@@ -755,7 +793,7 @@ function makeEvent(type: string, data: unknown): ProgressEvent {
 interface IBuildNodeArgs {
   path: string;
   kind: Node['kind'];
-  adapterId: string;
+  providerId: string;
   frontmatterRaw: string;
   body: string;
   frontmatter: Record<string, unknown>;
@@ -771,7 +809,7 @@ function buildNode(args: IBuildNodeArgs): Node {
   const node: Node = {
     path: args.path,
     kind: args.kind,
-    adapter: args.adapterId,
+    provider: args.providerId,
     bodyHash: args.bodyHash,
     frontmatterHash: args.frontmatterHash,
     bytes: {
@@ -818,14 +856,14 @@ function sha256(input: string): string {
  * breaks the medium-confidence rename heuristic.
  *
  * Strategy:
- *   1. Take the parsed object the adapter already produced.
+ *   1. Take the parsed object the Provider already produced.
  *   2. Re-emit via `yaml.dump` with `sortKeys: true`, `lineWidth: -1`
  *      (no auto-wrap), `noRefs: true` (no `*alias` shorthand),
  *      `noCompatMode: true` (modern YAML 1.2 output).
  *   3. Hash the result.
  *
  * Fallback: when `parsed` is the empty object `{}` BUT `raw` is
- * non-empty, the adapter's parse failed silently. We fall back to
+ * non-empty, the Provider's parse failed silently. We fall back to
  * hashing the raw text — a malformed-YAML file should still hash
  * deterministically against itself across rescans, even if the
  * canonical form would be empty.
@@ -863,51 +901,55 @@ function pickStability(value: unknown): 'experimental' | 'stable' | 'deprecated'
   return null;
 }
 
-function buildDetectContext(
-  detector: IDetector,
+function buildExtractorContext(
+  extractor: IExtractor,
   node: Node,
   body: string,
   frontmatter: Record<string, unknown>,
-): IDetectContext {
-  const scope = detector.scope;
+  emitLink: (link: Link) => void,
+  enrichNode: (partial: Partial<Node>) => void,
+): IExtractorContext {
+  const scope = extractor.scope;
   return {
     node,
     body: scope === 'frontmatter' ? '' : body,
     frontmatter: scope === 'body' ? {} : frontmatter,
+    emitLink,
+    enrichNode,
   };
 }
 
-function validateLink(detector: IDetector, link: Link, emitter: ProgressEmitterPort): Link | null {
-  if (!detector.emitsLinkKinds.includes(link.kind as LinkKind)) {
-    // Detector emitted a kind outside its declared set — drop the link.
+function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitterPort): Link | null {
+  if (!extractor.emitsLinkKinds.includes(link.kind as LinkKind)) {
+    // Extractor emitted a kind outside its declared set — drop the link.
     // Surface a `extension.error` diagnostic so plugin authors see WHY a
     // link they expected vanished from the result; silent drops are the
     // worst possible plugin-author UX. The orchestrator is the last line
-    // of defence against a misbehaving detector, but the author needs to
+    // of defence against a misbehaving extractor, but the author needs to
     // know the line fired.
     //
     // `extensionId` carries the qualified form `<pluginId>/<id>` (spec
     // § A.6) so the diagnostic matches what `sm plugins list` and
     // registry lookups use. Older builds emitted just the short id; the
     // qualified form is unambiguous across plugins.
-    const qualifiedId = `${detector.pluginId}/${detector.id}`;
+    const qualifiedId = `${extractor.pluginId}/${extractor.id}`;
     emitter.emit(
       makeEvent('extension.error', {
         kind: 'link-kind-not-declared',
         extensionId: qualifiedId,
         linkKind: link.kind,
-        declaredKinds: detector.emitsLinkKinds,
+        declaredKinds: extractor.emitsLinkKinds,
         link: { source: link.source, target: link.target, kind: link.kind },
         message: tx(ORCHESTRATOR_TEXTS.extensionErrorLinkKindNotDeclared, {
-          detectorId: qualifiedId,
+          extractorId: qualifiedId,
           linkKind: link.kind,
-          declaredKinds: detector.emitsLinkKinds.join(', '),
+          declaredKinds: extractor.emitsLinkKinds.join(', '),
         }),
       }),
     );
     return null;
   }
-  const confidence: Confidence = link.confidence ?? detector.defaultConfidence;
+  const confidence: Confidence = link.confidence ?? extractor.defaultConfidence;
   return { ...link, confidence };
 }
 
@@ -940,8 +982,8 @@ function validateFrontmatter(
 
 /**
  * Step 9.4 follow-up — detect cases where the user clearly meant
- * frontmatter but the adapter's regex couldn't recognise the fence.
- * The adapter regex requires `^---\r?\n[\s\S]*?\r?\n---\r?\n?` —
+ * frontmatter but the Provider's regex couldn't recognise the fence.
+ * The Provider regex requires `^---\r?\n[\s\S]*?\r?\n---\r?\n?` —
  * column-0 open fence, column-0 close fence, CRLF or LF line endings.
  * Three real-world variants that fall through silently and silently
  * lose every metadata field:
@@ -951,7 +993,7 @@ function validateFrontmatter(
  *     (surfaced during Step 9 manual QA).
  *   - `byte-order-mark`: a UTF-8 BOM (﻿) precedes the fence. Some
  *     editors (notably old VS Code on Windows) inject this; the YAML
- *     parser handles BOM, but the adapter regex doesn't anchor past it.
+ *     parser handles BOM, but the Provider regex doesn't anchor past it.
  *   - `missing-close`: the open fence is on column 0 but the closing
  *     fence is missing or indented. Whole "frontmatter" parses as body.
  *
@@ -967,7 +1009,7 @@ function validateFrontmatter(
  *     legitimate horizontal rule with prose underneath. Tested.
  *
  * The schema-strict validator above only fires when `frontmatterRaw`
- * is non-empty; this fills the previously-silent path where the adapter
+ * is non-empty; this fills the previously-silent path where the Provider
  * couldn't even recognise the fence.
  */
 function detectMalformedFrontmatter(body: string, path: string, strict: boolean): Issue | null {
@@ -986,7 +1028,7 @@ type TMalformedHint = 'paste-with-indent' | 'byte-order-mark' | 'missing-close';
 
 function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
   // (a) BOM at the very first byte. Check before everything else
-  // because a BOM offsets the column-0 anchor of the adapter's regex.
+  // because a BOM offsets the column-0 anchor of the Provider's regex.
   // Pattern after BOM is the standard column-0 fence + YAML key-value
   // line, so we still require that shape to avoid false positives on
   // any BOM-prefixed prose.
@@ -1003,19 +1045,19 @@ function classifyMalformedFrontmatter(body: string): TMalformedHint | null {
   }
 
   // (c) Column-0 opening fence followed by a YAML-looking key-value
-  // line, but no matching closing fence. The adapter regex needs both
+  // line, but no matching closing fence. The Provider regex needs both
   // fences; a missing close means the entire intended frontmatter
   // (plus the body) parses as body.
   //
   // Heuristic: open at column 0, then at least one `key: value` line
   // immediately, then anywhere in the file there is NO column-0 `---`
   // closing the block. If the body had been parsed as frontmatter the
-  // adapter would have set `frontmatterRaw` non-empty and we wouldn't
+  // Provider would have set `frontmatterRaw` non-empty and we wouldn't
   // be in this branch — so the absence of close means the regex
   // didn't match.
   if (/^---\r?\n[ \t]*[A-Za-z0-9_-]+\s*:/.test(body)) {
     // Search for any line that is exactly `---` (column 0, no indent).
-    // If found, the adapter regex would have matched and this code
+    // If found, the Provider regex would have matched and this code
     // path is unreachable; absence here means the close is missing
     // or indented.
     const hasCloseFence = /\r?\n---(?:\r?\n|$)/.test(body);
@@ -1090,15 +1132,15 @@ function recomputeExternalRefsCount(
   for (const node of nodes) {
     // Zero only freshly-built nodes. Cached nodes preserve their prior
     // `externalRefsCount` because external pseudo-links were never
-    // persisted, so we cannot re-derive the count from a fresh detector
+    // persisted, so we cannot re-derive the count from a fresh extractor
     // pass — the count survives untouched in the node row.
     if (!cachedPaths.has(node.path)) node.externalRefsCount = 0;
     byPath.set(node.path, node);
   }
   for (const link of externalLinks) {
     const source = byPath.get(link.source);
-    // Cached nodes never appear as the source of a freshly-detected
-    // external pseudo-link (detectors didn't run for them), so this
+    // Cached nodes never appear as the source of a freshly-emitted
+    // external pseudo-link (extractors didn't run for them), so this
     // increment only ever lands on a freshly-built node — but the guard
     // is cheap and defensive.
     if (source && !cachedPaths.has(source.path)) source.externalRefsCount += 1;

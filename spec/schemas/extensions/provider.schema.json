@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/provider.schema.json",
+  "title": "ExtensionProvider",
+  "description": "Manifest shape for a `Provider` extension. A Provider declares its own universe: the platform it recognises (Claude Code, Codex, Gemini, Obsidian vault, generic MD), the node `kind`s it emits, the schemas those nodes follow, and the filesystem directory (`explorationDir`) where its content lives. Exactly zero or one Provider MUST match any given file; multiple matches → the kernel emits an issue `provider-ambiguous` and the file is left unclassified. Providers are deterministic-only — they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in Provider manifests. If you need LLM-assisted classification, write a probabilistic Extractor that emits classification hints via `ctx.emitLink`. Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`, `StoragePort.adapter`, etc.), which is an internal driven-adapter implementing a port — Providers live in the extension surface, hexagonal adapters live in `src/kernel/adapters/`. Stability: stable as of spec v1.0.0 except where noted.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "emits", "explorationDir", "defaultRefreshAction"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind": { "const": "provider" },
+    "emits": {
+      "type": "array",
+      "description": "Node kinds this Provider may classify files into.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "enum": ["skill", "agent", "command", "hook", "note"]
+      }
+    },
+    "explorationDir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Filesystem directory (relative to user home or project root) where this Provider's content lives. Required. Examples: '~/.claude' for the Claude Provider; '~/.cursor' for a hypothetical Cursor Provider. The kernel walks this directory during boot/scan to discover nodes; the Provider's `globs` (if declared) refines what to match inside. `sm doctor` validates the directory exists; missing directory yields a non-blocking warning."
+    },
+    "roots": {
+      "type": "array",
+      "description": "Path globs (relative to scope root) that this Provider SHOULD be consulted for. Advisory — the kernel walks all roots and consults every Provider regardless, but this field lets `sm doctor` warn when no file matched a specific Provider (i.e. the Provider was loaded for a platform that isn't in this scope).",
+      "items": { "type": "string" }
+    },
+    "defaultRefreshAction": {
+      "type": "object",
+      "description": "Map from node `kind` to the action id the UI's probabilistic-refresh surface (`🧠 prob`) submits for that kind. MUST cover every kind listed in `emits`. Referenced action ids MUST be **qualified** (`<plugin-id>/<action-id>` — e.g. `claude/summarize-skill`) so the kernel can resolve them deterministically against the qualified registry. A dangling reference disables the Provider with status `invalid-manifest`.",
+      "propertyNames": {
+        "enum": ["skill", "agent", "command", "hook", "note"]
+      },
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*/[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+      }
+    }
+  }
+}

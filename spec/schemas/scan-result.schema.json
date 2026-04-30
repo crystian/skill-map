@@ -37,9 +37,9 @@
       "minItems": 1,
       "items": { "type": "string" }
     },
-    "adapters": {
+    "providers": {
       "type": "array",
-      "description": "Adapter ids that participated in classification. Empty if no adapter matched.",
+      "description": "Provider ids that participated in classification. Empty if no Provider matched.",
       "items": { "type": "string" }
     },
     "nodes": {
@@ -60,7 +60,7 @@
       "additionalProperties": false,
       "properties": {
         "filesWalked": { "type": "integer", "minimum": 0 },
-        "filesSkipped": { "type": "integer", "minimum": 0, "description": "Files walked but not classified by any adapter." },
+        "filesSkipped": { "type": "integer", "minimum": 0, "description": "Files walked but not classified by any Provider." },
         "nodesCount": { "type": "integer", "minimum": 0 },
         "linksCount": { "type": "integer", "minimum": 0 },
         "issuesCount": { "type": "integer", "minimum": 0 },

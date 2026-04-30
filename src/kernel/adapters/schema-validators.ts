@@ -44,19 +44,18 @@ export type TSchemaName =
   | 'report-base'
   | 'conformance-case'
   | 'history-stats'
-  | 'extension-adapter'
-  | 'extension-detector'
+  | 'extension-provider'
+  | 'extension-extractor'
   | 'extension-rule'
   | 'extension-action'
-  | 'extension-audit'
-  | 'extension-renderer'
+  | 'extension-formatter'
   | 'frontmatter-skill'
   | 'frontmatter-agent'
   | 'frontmatter-command'
   | 'frontmatter-hook'
   | 'frontmatter-note';
 
-export type TExtensionKind = 'adapter' | 'detector' | 'rule' | 'action' | 'audit' | 'renderer';
+export type TExtensionKind = 'provider' | 'extractor' | 'rule' | 'action' | 'formatter';
 
 const SCHEMA_FILES: Record<TSchemaName, string> = {
   node: 'schemas/node.schema.json',
@@ -70,12 +69,11 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'report-base': 'schemas/report-base.schema.json',
   'conformance-case': 'schemas/conformance-case.schema.json',
   'history-stats': 'schemas/history-stats.schema.json',
-  'extension-adapter': 'schemas/extensions/adapter.schema.json',
-  'extension-detector': 'schemas/extensions/detector.schema.json',
+  'extension-provider': 'schemas/extensions/provider.schema.json',
+  'extension-extractor': 'schemas/extensions/extractor.schema.json',
   'extension-rule': 'schemas/extensions/rule.schema.json',
   'extension-action': 'schemas/extensions/action.schema.json',
-  'extension-audit': 'schemas/extensions/audit.schema.json',
-  'extension-renderer': 'schemas/extensions/renderer.schema.json',
+  'extension-formatter': 'schemas/extensions/formatter.schema.json',
   'frontmatter-skill': 'schemas/frontmatter/skill.schema.json',
   'frontmatter-agent': 'schemas/frontmatter/agent.schema.json',
   'frontmatter-command': 'schemas/frontmatter/command.schema.json',
@@ -153,12 +151,11 @@ function buildSchemaValidators(): ISchemaValidators {
   }
 
   const extensionByKind: Record<TExtensionKind, TSchemaName> = {
-    adapter: 'extension-adapter',
-    detector: 'extension-detector',
+    provider: 'extension-provider',
+    extractor: 'extension-extractor',
     rule: 'extension-rule',
     action: 'extension-action',
-    audit: 'extension-audit',
-    renderer: 'extension-renderer',
+    formatter: 'extension-formatter',
   };
 
   // Dedicated validator that targets PluginManifest inside the oneOf of

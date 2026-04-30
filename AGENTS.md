@@ -95,7 +95,7 @@ The kernel uses four naming buckets for TypeScript types / interfaces. The full 
 
 1. **Domain types** — mirror `spec/schemas/*.json`. **No prefix.** `Node`, `Link`, `Issue`, `ScanResult`, `ExecutionRecord`. The name tracks the schema verbatim because the spec is the source of truth.
 2. **Hexagonal ports** — abstract boundaries with `Port` suffix: `StoragePort`, `RunnerPort`, `ProgressEmitterPort`. The suffix flags the architectural role and avoids clash with the concrete adapter (e.g. `SqliteStorageAdapter` implements `StoragePort`).
-3. **Runtime extension contracts** — shapes a plugin author implements: `IAdapter`, `IDetector`, `IRule`, `IRenderer`, `IAudit`. **`I` prefix.** Reads as "you supply this".
+3. **Runtime extension contracts** — shapes a plugin author implements: `IProvider`, `IExtractor`, `IRule`, `IAction`, `IFormatter`. **`I` prefix.** Reads as "you supply this".
 4. **Internal shapes** — option bags, result records, config slices that live only in TS (never in JSON): `IPluginRuntimeBundle`, `IPruneResult`, `IDbLocationOptions`. **`I` prefix.**
 
 Two known edge cases kept on purpose: `RunScanOptions` and `RenameOp` are category 4 but lack the `I` prefix because they're part of the public kernel surface and renaming is a breaking change for plugin authors. They are grandfathered; new public option bags should still take `I*`.

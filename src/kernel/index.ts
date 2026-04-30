@@ -101,16 +101,14 @@ export type {
 
 // --- extension kinds (./extensions/...) --------------------------------
 export type {
-  IAdapter,
+  IProvider,
   IRawNode,
-  IDetector,
-  IDetectContext,
+  IExtractor,
+  IExtractorContext,
+  IExtractorCallbacks,
   IRule,
   IRuleContext,
-  IRenderer,
-  IRenderContext,
-  IAudit,
-  IAuditContext,
-  TAuditReport,
+  IFormatter,
+  IFormatterContext,
   IExtensionBase,
 } from './extensions/index.js';

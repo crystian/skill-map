@@ -1,7 +1,6 @@
 /**
  * Plugin runtime loader — single source of truth for any read-side verb
- * that needs plugin extensions on the wire (`sm scan`, `sm graph`, future
- * `sm audit run`).
+ * that needs plugin extensions on the wire (`sm scan`, `sm graph`).
  *
  * Step 9.1: this is the path that turns "discovered" plugins into
  * "executing" plugins. Until now `PluginLoader` was only invoked by the
@@ -28,10 +27,9 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import type {
-  IAdapter,
-  IAudit,
-  IDetector,
-  IRenderer,
+  IProvider,
+  IExtractor,
+  IFormatter,
   IRule,
 } from '../../kernel/extensions/index.js';
 import type { Extension } from '../../kernel/registry.js';
@@ -69,11 +67,10 @@ export interface ILoadPluginRuntimeOptions {
 export interface IPluginRuntimeBundle {
   /** Bucketed runtime extensions keyed by kind, ready to merge with `builtIns()`. */
   extensions: {
-    adapters: IAdapter[];
-    detectors: IDetector[];
+    providers: IProvider[];
+    extractors: IExtractor[];
     rules: IRule[];
-    renderers: IRenderer[];
-    audits: IAudit[];
+    formatters: IFormatter[];
   };
   /** Manifest rows for the Registry. One per loaded plugin extension. */
   manifests: Extension[];
@@ -89,7 +86,7 @@ export interface IPluginRuntimeBundle {
   /**
    * Resolver used to layer `config_plugins` (DB) over `settings.json`.
    * Surfaced so call sites that compose built-ins (`composeScanExtensions`,
-   * `composeRenderers`) can apply the same precedence to the
+   * `composeFormatters`) can apply the same precedence to the
    * `core/<ext-id>` keys without rebuilding the resolver. Returns `true`
    * for any id that has no explicit override (the default-enabled
    * fall-back). Always populated — `emptyPluginRuntime()` returns a
@@ -132,7 +129,7 @@ export async function loadPluginRuntime(
   const discovered = await loader.discoverAndLoadAll();
 
   const bundle: IPluginRuntimeBundle = {
-    extensions: { adapters: [], detectors: [], rules: [], renderers: [], audits: [] },
+    extensions: { providers: [], extractors: [], rules: [], formatters: [] },
     manifests: [],
     warnings: [],
     discovered,
@@ -158,7 +155,7 @@ export async function loadPluginRuntime(
  */
 export function emptyPluginRuntime(): IPluginRuntimeBundle {
   return {
-    extensions: { adapters: [], detectors: [], rules: [], renderers: [], audits: [] },
+    extensions: { providers: [], extractors: [], rules: [], formatters: [] },
     manifests: [],
     warnings: [],
     discovered: [],
@@ -221,9 +218,9 @@ export function isBuiltInExtensionEnabled(
 export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
   pluginRuntime: IPluginRuntimeBundle;
-}): { adapters: IAdapter[]; detectors: IDetector[]; rules: IRule[] } | undefined {
-  const adapters: IAdapter[] = [];
-  const detectors: IDetector[] = [];
+}): { providers: IProvider[]; extractors: IExtractor[]; rules: IRule[] } | undefined {
+  const providers: IProvider[] = [];
+  const extractors: IExtractor[] = [];
   const rules: IRule[] = [];
 
   if (!opts.noBuiltIns) {
@@ -231,55 +228,55 @@ export function composeScanExtensions(opts: {
       for (const ext of bundle.extensions) {
         if (!isBuiltInExtensionEnabled(bundle, ext, opts.pluginRuntime.resolveEnabled)) continue;
         switch (ext.kind) {
-          case 'adapter':
-            adapters.push(ext);
+          case 'provider':
+            providers.push(ext);
             break;
-          case 'detector':
-            detectors.push(ext);
+          case 'extractor':
+            extractors.push(ext);
             break;
           case 'rule':
             rules.push(ext);
             break;
-          // renderers / audits are not consumed by scan; skipped silently.
+          // formatters are not consumed by scan; skipped silently.
           default:
             break;
         }
       }
     }
   }
-  adapters.push(...opts.pluginRuntime.extensions.adapters);
-  detectors.push(...opts.pluginRuntime.extensions.detectors);
+  providers.push(...opts.pluginRuntime.extensions.providers);
+  extractors.push(...opts.pluginRuntime.extensions.extractors);
   rules.push(...opts.pluginRuntime.extensions.rules);
 
-  if (adapters.length === 0 && detectors.length === 0 && rules.length === 0) {
+  if (providers.length === 0 && extractors.length === 0 && rules.length === 0) {
     return undefined;
   }
-  return { adapters, detectors, rules };
+  return { providers, extractors, rules };
 }
 
 /**
- * Same idea as `composeScanExtensions` but for renderers (consumed by
- * `sm graph`). Built-ins layer first, plugin renderers after — first
- * registration wins on a `format` collision, which keeps the kernel's
+ * Same idea as `composeScanExtensions` but for formatters (consumed by
+ * `sm graph`). Built-ins layer first, plugin formatters after — first
+ * registration wins on a `formatId` collision, which keeps the kernel's
  * defaults predictable when a plugin claims an existing format. Built-in
- * renderers respect the same granularity filter as scan-side built-ins.
+ * formatters respect the same granularity filter as scan-side built-ins.
  */
-export function composeRenderers(opts: {
+export function composeFormatters(opts: {
   noBuiltIns?: boolean;
   pluginRuntime: IPluginRuntimeBundle;
-}): IRenderer[] {
+}): IFormatter[] {
   const noBuiltIns = opts.noBuiltIns ?? false;
-  const out: IRenderer[] = [];
+  const out: IFormatter[] = [];
   if (!noBuiltIns) {
     for (const bundle of builtInBundles) {
       for (const ext of bundle.extensions) {
-        if (ext.kind !== 'renderer') continue;
+        if (ext.kind !== 'formatter') continue;
         if (!isBuiltInExtensionEnabled(bundle, ext, opts.pluginRuntime.resolveEnabled)) continue;
         out.push(ext);
       }
     }
   }
-  out.push(...opts.pluginRuntime.extensions.renderers);
+  out.push(...opts.pluginRuntime.extensions.formatters);
   return out;
 }
 
@@ -361,20 +358,17 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
     // but the default export object is not).
     (instance as Record<string, unknown>)['pluginId'] = ext.pluginId;
     switch (ext.kind) {
-      case 'adapter':
-        bundle.extensions.adapters.push(instance as IAdapter);
+      case 'provider':
+        bundle.extensions.providers.push(instance as IProvider);
         break;
-      case 'detector':
-        bundle.extensions.detectors.push(instance as IDetector);
+      case 'extractor':
+        bundle.extensions.extractors.push(instance as IExtractor);
         break;
       case 'rule':
         bundle.extensions.rules.push(instance as IRule);
         break;
-      case 'renderer':
-        bundle.extensions.renderers.push(instance as IRenderer);
-        break;
-      case 'audit':
-        bundle.extensions.audits.push(instance as IAudit);
+      case 'formatter':
+        bundle.extensions.formatters.push(instance as IFormatter);
         break;
       case 'action':
         // Actions are runtime-only via the job subsystem (Step 10);

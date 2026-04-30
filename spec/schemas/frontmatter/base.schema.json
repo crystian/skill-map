@@ -19,7 +19,7 @@
     },
     "type": {
       "type": "string",
-      "description": "User-declared kind hint. Optional; the adapter may use it to tie-break classification. Free-form string so that new kinds introduced by adapters don't require a spec bump."
+      "description": "User-declared kind hint. Optional; the Provider may use it to tie-break classification. Free-form string so that new kinds introduced by Providers don't require a spec bump."
     },
     "author": {
       "type": "string",

@@ -1,6 +1,6 @@
 # Architecture
 
-Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the six **extension kinds** that live outside the kernel.
+Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the five **extension kinds** that live outside the kernel.
 
 Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces them.
 
@@ -72,9 +72,9 @@ The loader enforces two id-uniqueness rules during discovery (see [`plugin-autho
 1. **Directory name == manifest id.** A plugin lives at `<root>/<id>/plugin.json`. A mismatch surfaces as status `invalid-manifest`. This rule eliminates same-root collisions by construction.
 2. **Cross-root id collision blocks both sides.** Two plugins reachable from different roots (project + global, or any `--plugin-dir` combination) that declare the same `id` BOTH receive status `id-collision`. No precedence rule applies — coherent with §Boot invariant ("no extension is privileged"). The user resolves by renaming one of them.
 
-In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `claude/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts` — `core/` for kernel-internal primitives (rules, the renderer, the audit, the external-url-counter detector) and `claude/` for the Claude provider bundle (the adapter and its kind-aware detectors). If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
+In addition, the loader **qualifies every extension** with its owning plugin id before registering it. The registry stores extensions under the qualified id `<plugin-id>/<extension-id>` (e.g. `claude/slash`, `core/broken-ref`, `hello-world/greet`). Authors continue to declare the short `id` in each extension manifest; the loader composes the qualified form from `manifest.id` at load time. Built-in extensions bundled with the reference impl declare their `pluginId` directly in `built-ins.ts` — `core/` for kernel-internal primitives (rules, the formatter, the external-url-counter extractor) and `claude/` for the Claude provider bundle (the Provider and its kind-aware extractors). If a plugin author injects a `pluginId` field on an extension that disagrees with `plugin.json`'s `id`, the loader emits `invalid-manifest` with a directed reason.
 
-Each plugin (and each built-in bundle) declares a **granularity** that controls how its extensions are toggled. `granularity: 'bundle'` (the default) means the plugin id is the only enable/disable key; `granularity: 'extension'` means each extension is independently toggle-able under its qualified id. The loader's pre-import `resolveEnabled(pluginId)` short-circuit is always coarse (bundle level) — when a granularity=`extension` bundle is partially enabled, the import work proceeds and the runtime composer (the CLI's `composeScanExtensions` / `composeRenderers` in `src/cli/util/plugin-runtime.ts`) drops the disabled extensions before they reach the orchestrator. The two built-in bundles split deliberately: `claude` is granularity=`bundle` (provider-level toggle), `core` is granularity=`extension` (every kernel built-in is removable, satisfying §Boot invariant: "no extension is privileged"). See [`plugin-author-guide.md` §Granularity — bundle vs extension](./plugin-author-guide.md#granularity--bundle-vs-extension) for the author-facing summary.
+Each plugin (and each built-in bundle) declares a **granularity** that controls how its extensions are toggled. `granularity: 'bundle'` (the default) means the plugin id is the only enable/disable key; `granularity: 'extension'` means each extension is independently toggle-able under its qualified id. The loader's pre-import `resolveEnabled(pluginId)` short-circuit is always coarse (bundle level) — when a granularity=`extension` bundle is partially enabled, the import work proceeds and the runtime composer (the CLI's `composeScanExtensions` / `composeFormatters` in `src/cli/util/plugin-runtime.ts`) drops the disabled extensions before they reach the orchestrator. The two built-in bundles split deliberately: `claude` is granularity=`bundle` (provider-level toggle), `core` is granularity=`extension` (every kernel built-in is removable, satisfying §Boot invariant: "no extension is privileged"). See [`plugin-author-guide.md` §Granularity — bundle vs extension](./plugin-author-guide.md#granularity--bundle-vs-extension) for the author-facing summary.
 
 ### `RunnerPort`
 
@@ -112,15 +112,15 @@ The kernel is the only component that MAY:
 - Dispatch extension hooks.
 
 The kernel MUST NOT:
-- Know which adapter produced an event.
-- Know which platform a node belongs to (that is the `Adapter` extension's job).
+- Know which Provider produced an event.
+- Know which platform a node belongs to (that is the `Provider` extension's job).
 - Contain any platform-specific branching (e.g., `if (platform === 'claude')`).
 
 ### Boot invariant
 
 **With all extensions removed, the kernel MUST boot and return an empty graph.** This is enforced by the conformance suite case `kernel-empty-boot`.
 
-No extension is privileged. The Claude adapter ships bundled with the reference impl but is removable, same as any third-party plugin.
+No extension is privileged. The Claude Provider ships bundled with the reference impl but is removable, same as any third-party plugin.
 
 ---
 
@@ -137,25 +137,15 @@ Mode is a property of the extension as a whole, not of an individual call. **An 
 
 | Kind | Modes | How mode is set |
 |---|---|---|
-| **Detector** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
+| **Extractor** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
 | **Rule** | deterministic / probabilistic | declared in manifest (`mode` field, optional; defaults to `deterministic`) |
 | **Action** | deterministic / probabilistic | declared in manifest (`mode` field, **required** — no default) |
-| **Audit** | deterministic / probabilistic | derived from `composes[]` (see below) |
-| **Adapter** | deterministic-only | implicit; `mode` field MUST NOT appear |
-| **Renderer** | deterministic-only | implicit; `mode` field MUST NOT appear |
+| **Provider** | deterministic-only | implicit; `mode` field MUST NOT appear |
+| **Formatter** | deterministic-only | implicit; `mode` field MUST NOT appear |
 
-Adapter and Renderer are locked to deterministic because they sit at the **boundaries** of the system. An adapter resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. A renderer must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings, not in renderers.
+Provider and Formatter are locked to deterministic because they sit at the **boundaries** of the system. A Provider resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. A formatter must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings, not in formatters.
 
-### Audit · derived mode
-
-An audit is a **composer**: it declares which primitives it runs and the kernel handles dispatch. The audit manifest does NOT carry a `mode` field. Instead it declares `composes[]` — the rule and action references the audit executes in sequence. At load time the kernel resolves each entry and computes the audit's **effective mode**:
-
-- If every composed primitive is `deterministic` → the audit's effective mode is `deterministic`. Runs synchronously inside `sm audit <id>`.
-- If any composed primitive is `probabilistic` → the audit's effective mode is `probabilistic`. Dispatches as a job via `sm job submit audit:<id>`.
-
-A dangling reference in `composes[]` (the id doesn't resolve, the kind is wrong, or the primitive is disabled) is a **load-time error**. The audit is rejected with status `invalid-manifest`, not silently skipped. This matches the rule already in place for `defaultRefreshAction`. Declaring `mode` directly on an audit manifest is also a load-time error.
-
-The effective mode is exposed to the UI and to `sm audit show <id>` so consumers can preview cost before invoking.
+> **Naming note — `Provider` vs hexagonal `adapter`.** The extension kind formerly named `Adapter` is now `Provider`. The hexagonal-architecture term `adapter` (driving / driven adapters that implement ports — `RunnerPort.adapter`, `StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter`) is unchanged: those live in `kernel/adapters/` and are internal to the impl. A `Provider` is an **extension** authored by plugins; an **adapter** in the hexagonal sense is a **port implementation** internal to the kernel package. The two concepts share an architectural lineage (both bridge two worlds) but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
 
 ### When each mode runs
 
@@ -174,30 +164,43 @@ A probabilistic extension receives the runner in its invocation context alongsid
 
 ## Extension kinds
 
-Six kinds, all first-class, all loaded through the same registry. Each kind has a JSON Schema describing its manifest shape under [`schemas/extensions/`](./schemas/extensions/). Implementations MUST validate every extension manifest against the schema for its declared kind at load time; validation failure → the extension is skipped with status `invalid-manifest`.
+Five kinds, all first-class, all loaded through the same registry. Each kind has a JSON Schema describing its manifest shape under [`schemas/extensions/`](./schemas/extensions/). Implementations MUST validate every extension manifest against the schema for its declared kind at load time; validation failure → the extension is skipped with status `invalid-manifest`.
 
 | Kind | Role | Input | Output |
 |---|---|---|---|
-| **Adapter** | Recognizes a platform. Decides which files are nodes and what kind they are. Declares per-kind `defaultRefreshAction` (an action id that drives the probabilistic-refresh surface). Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, adapter } \| null`. |
-| **Detector** | Extracts signals from a node body. Dual-mode: `deterministic` runs in scan, `probabilistic` runs in jobs. | Parsed node (frontmatter + body). | `Link[]`. |
+| **Provider** | Recognizes a platform. Declares the kinds it emits, the schemas those nodes follow, the filesystem `explorationDir` where its content lives, and per-kind `defaultRefreshAction` (an action id that drives the probabilistic-refresh surface). Deterministic-only. | Filesystem walk results, candidate path. | `{ kind, provider } \| null`. |
+| **Extractor** | Extracts signals from a node body. Dual-mode: `deterministic` runs in scan, `probabilistic` runs in jobs. Output flows through three context callbacks (no return value): `ctx.emitLink(link)` for the kernel's `links` table, `ctx.enrichNode(partial)` for the kernel's enrichment layer (separate from the author's frontmatter), `ctx.store` for the plugin's own KV / dedicated tables. | Parsed node (frontmatter + body) + callbacks. | `void` (output via callbacks). |
 | **Rule** | Evaluates the graph. Dual-mode: `deterministic` runs in `sm check`, `probabilistic` runs in jobs. | Full graph (nodes + links). | `Issue[]`. |
 | **Action** | Operates on one or more nodes. Dual-mode: `deterministic` (in-process code) or `probabilistic` (rendered prompt the runner executes). | Node(s), optional args. | Deterministic: report JSON. Probabilistic: rendered prompt that a runner executes. |
-| **Audit** | Workflow that composes rules and actions. Effective mode is derived from `composes[]` — deterministic if all composed primitives are deterministic, probabilistic otherwise. Produces a structured report. | Graph + optional scope filter. | Audit report (hardcoded shape, kind-specific). |
-| **Renderer** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
+| **Formatter** | Serializes the graph. Deterministic-only. | Graph + optional filter. | String (ASCII / Mermaid / DOT / JSON / user-defined). |
 
-### Adapter · `defaultRefreshAction`
+### Provider · `defaultRefreshAction`
 
-Every `Adapter` extension MUST declare a map `defaultRefreshAction: { <kind>: <actionId> }` covering every `kind` it emits. The referenced action MUST exist in the registry by the time the graph is queried; a dangling reference is a load-time error for the adapter. Consumers (CLI `🧠 prob` buttons in `sm show`, Web UI inspector) dispatch `sm job submit <defaultRefreshAction[kind]> -n <nodePath>` when the user asks for a probabilistic refresh on a node. Implementations MAY allow plugins to override the default per-node via `metadata.refreshAction`, but the adapter default is normative.
+Every `Provider` extension MUST declare a map `defaultRefreshAction: { <kind>: <actionId> }` covering every `kind` it emits. The referenced action MUST exist in the registry by the time the graph is queried; a dangling reference is a load-time error for the Provider. Consumers (CLI `🧠 prob` buttons in `sm show`, Web UI inspector) dispatch `sm job submit <defaultRefreshAction[kind]> -n <nodePath>` when the user asks for a probabilistic refresh on a node. Implementations MAY allow plugins to override the default per-node via `metadata.refreshAction`, but the Provider default is normative.
 
-### Detector · `applicableKinds` filter
+### Provider · `explorationDir`
 
-Detectors MAY declare an optional `applicableKinds: string[]` on their manifest. When declared, the kernel filters fail-fast: `detect()` is invoked **only** for nodes whose `kind` appears in the list. The skip happens BEFORE the detect context is built so a probabilistic detector wastes zero LLM cost — and a deterministic detector zero CPU — on inapplicable nodes. Absent (`undefined`) is the default and means "applies to every kind"; there is no wildcard syntax. An empty array (`[]`) is invalid (`minItems: 1` in the schema). Unknown kinds (no installed Adapter declares them via `defaultRefreshAction`) are non-blocking: the detector keeps `loaded` status and `sm plugins doctor` surfaces an informational warning so the author sees typos and missing-Provider cases, but the doctor's exit code is NOT promoted by this warning. See [`plugin-author-guide.md` §Detector `applicableKinds`](./plugin-author-guide.md#detector-applicablekinds--narrow-the-pipeline) for the full author-side contract.
+Every `Provider` extension MUST declare an `explorationDir: string` naming the filesystem directory (relative to user home or project root) where its content lives. Examples: `'~/.claude'` for the Claude Provider, `'~/.cursor'` for a hypothetical Cursor Provider. The kernel walks this directory during boot/scan to discover nodes; the Provider's `globs` (if declared) refines what to match inside. `sm doctor` (and `sm plugins doctor`) validates the directory exists; missing directory yields a non-blocking warning so the user sees the gap without the load failing — the Provider may legitimately precede installation of its platform.
 
-### Detector · trigger normalization
+### Extractor · output callbacks
 
-Detectors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in [`schemas/link.schema.json`](./schemas/link.schema.json):
+The `Extractor` runtime contract is `extract(ctx) → void`. The extractor emits its work through three callbacks the kernel binds onto `ctx`:
 
-- `originalTrigger` — the exact source text the detector saw, byte-for-byte. Used only for display.
+- `ctx.emitLink(link)` — append a `Link` to the kernel's `links` table. The kernel validates the link against the extractor's declared `emitsLinkKinds` before persistence; off-contract links are dropped and surface as `extension.error` events. URL-shaped targets (`http(s)://…`) are partitioned out into `node.externalRefsCount` and never persisted.
+- `ctx.enrichNode(partial)` — merge canonical, kernel-curated properties onto the current node's enrichment layer. **Strictly separate from the author-supplied frontmatter** (the latter remains immutable across scans). The enrichment layer is the right home for kernel-derived facts (e.g. computed titles, summaries, signals from probabilistic extractors) without polluting what the user wrote on disk.
+- `ctx.store` — plugin-scoped persistence. Optional, present only when the plugin declares `storage.mode` in `plugin.json`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md).
+
+Probabilistic extractors additionally receive `ctx.runner` (the `RunnerPort`) for LLM dispatch.
+
+### Extractor · `applicableKinds` filter
+
+Extractors MAY declare an optional `applicableKinds: string[]` on their manifest. When declared, the kernel filters fail-fast: `extract()` is invoked **only** for nodes whose `kind` appears in the list. The skip happens BEFORE the extractor context is built so a probabilistic extractor wastes zero LLM cost — and a deterministic extractor zero CPU — on inapplicable nodes. Absent (`undefined`) is the default and means "applies to every kind"; there is no wildcard syntax. An empty array (`[]`) is invalid (`minItems: 1` in the schema). Unknown kinds (no installed Provider declares them via `defaultRefreshAction`) are non-blocking: the extractor keeps `loaded` status and `sm plugins doctor` surfaces an informational warning so the author sees typos and missing-Provider cases, but the doctor's exit code is NOT promoted by this warning. See [`plugin-author-guide.md` §Extractor `applicableKinds`](./plugin-author-guide.md#extractor-applicablekinds--narrow-the-pipeline) for the full author-side contract.
+
+### Extractor · trigger normalization
+
+Extractors that emit invocation-style links (slashes, at-directives, command names) populate the `link.trigger` block defined in [`schemas/link.schema.json`](./schemas/link.schema.json):
+
+- `originalTrigger` — the exact source text the extractor saw, byte-for-byte. Used only for display.
 - `normalizedTrigger` — the output of the pipeline below. Used for equality and collision detection — the built-in `trigger-collision` rule keys on this field.
 
 Both fields MUST be present whenever `link.trigger` is non-null. Implementations MUST produce byte-identical `normalizedTrigger` output for byte-identical input across platforms and locales.
@@ -213,7 +216,7 @@ Applied in exactly this order:
 5. **Collapse whitespace** — runs of two or more spaces become one.
 6. **Trim** — strip leading and trailing whitespace.
 
-Characters outside the separator set that are not letters or digits (e.g. `/`, `@`, `:`, `.`) are **preserved**. Stripping them is the detector's concern, not the normalizer's — the normalizer operates on whatever the detector classifies as "the trigger text". This keeps namespaced invocations like `/skill-map:explore` or `@my-plugin/foo` comparable in their intended form.
+Characters outside the separator set that are not letters or digits (e.g. `/`, `@`, `:`, `.`) are **preserved**. Stripping them is the extractor's concern, not the normalizer's — the normalizer operates on whatever the extractor classifies as "the trigger text". This keeps namespaced invocations like `/skill-map:explore` or `@my-plugin/foo` comparable in their intended form.
 
 #### Examples
 
@@ -225,7 +228,7 @@ Characters outside the separator set that are not letters or digits (e.g. `/`, `
 | `  hacer   review  ` | `hacer review` |
 | `Clúster` | `cluster` |
 | `/MyCommand` | `/mycommand` |
-| `@FooDetector` | `@foodetector` |
+| `@FooExtractor` | `@fooextractor` |
 | `skill-map:explore` | `skill map:explore` |
 
 ### Contract rules
@@ -239,7 +242,7 @@ Characters outside the separator set that are not letters or digits (e.g. `/`, `
 ### Locality
 
 - **Drop-in**: extensions live inside plugins, discovered at boot from `.skill-map/plugins/<id>/` and `~/.skill-map/plugins/<id>/`.
-- **Built-in**: the reference impl bundles a default extension set (one adapter, three detectors, three rules, one audit, one renderer). These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
+- **Built-in**: the reference impl bundles a default extension set (one Provider, four extractors, five rules, one formatter). The fifth rule, `core/validate-all`, replays every scanned node and link through the authoritative spec schemas via AJV — the kernel-side guard against persisting non-conforming graph rows. These are loaded from `src/extensions/` and are indistinguishable from plugin-supplied extensions from the kernel's point of view.
 
 ---
 
@@ -326,10 +329,10 @@ This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel funct
 
 The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bump.
 
-The **extension kind list** (6 kinds) is stable as of spec v1.0.0. Adding a seventh kind is a major bump.
+The **extension kind list** (5 kinds) is stable as of spec v1.0.0. Adding a sixth kind is a major bump.
 
-The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode, changing which kinds are dual-mode, or changing the audit's mode-derivation rule is a major bump. Renaming or repurposing the mode enum values is a major bump.
+The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode or changing which kinds are dual-mode is a major bump. Renaming or repurposing the mode enum values is a major bump.
 
 The **dependency rules** above are stable as of spec v1.0.0. Relaxing any is a major bump; tightening (forbidding an allowed import) is a minor bump.
 
-The **Detector · trigger normalization** pipeline (six steps, in order) is stable from the next spec release. Adding a new step at the end is a minor bump; reordering, removing, or changing any existing step (including the character classes in step 4) is a major bump. Implementations that produce different `normalizedTrigger` output for equivalent input are non-conforming.
+The **Extractor · trigger normalization** pipeline (six steps, in order) is stable from the next spec release. Adding a new step at the end is a minor bump; reordering, removing, or changing any existing step (including the character classes in step 4) is a major bump. Implementations that produce different `normalizedTrigger` output for equivalent input are non-conforming.

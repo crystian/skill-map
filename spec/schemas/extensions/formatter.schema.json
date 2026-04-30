@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/formatter.schema.json",
+  "title": "ExtensionFormatter",
+  "description": "Manifest shape for a `Formatter` extension. A formatter serializes the graph (or a filtered subgraph) into a string in a declared format. Formatters are invoked by `sm graph --format <format>` and `sm export`. Formatters are deterministic-only — they sit at the graph-to-string boundary and their output MUST be byte-deterministic for the same input graph (the snapshot-test suite relies on this). The `mode` field MUST NOT appear in formatter manifests. Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings, not in formatters.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "formatId"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind": { "const": "formatter" },
+    "formatId": {
+      "type": "string",
+      "description": "Format identifier consumed by `sm graph --format <name>`. Built-in set: `ascii`, `mermaid`, `dot`, `json`. Third-party formatters MAY register new format ids; collisions are a load-time error. Distinct from the runtime method `format(ctx)` which produces the serialized output."
+    },
+    "contentType": {
+      "type": "string",
+      "description": "MIME-like hint used by the Server when streaming formatted output over HTTP (e.g. `text/plain`, `image/svg+xml`, `application/json`). Advisory.",
+      "default": "text/plain"
+    },
+    "supportsFilter": {
+      "type": "boolean",
+      "default": true,
+      "description": "If true, the formatter accepts the `--filter` expression used by `sm export`. If false, `sm export --format <this>` rejects `--filter` with exit 2."
+    }
+  }
+}

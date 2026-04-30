@@ -286,33 +286,6 @@ export class RecordCommand extends Command {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Audits
-// ---------------------------------------------------------------------------
-
-export class AuditListCommand extends Command {
-  static override paths = [['audit', 'list']];
-  static override usage = Command.Usage({ category: 'Audits', description: planned('Registered audits.') });
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'audit list');
-  }
-}
-
-export class AuditRunCommand extends Command {
-  static override paths = [['audit', 'run']];
-  static override usage = Command.Usage({
-    category: 'Audits',
-    description: planned('Execute an audit. --json emits the audit report per its declared shape.'),
-  });
-  id = Option.String({ required: true });
-  json = Option.Boolean('--json', false);
-
-  async execute(): Promise<number> {
-    return notImplemented(this, 'audit run');
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
@@ -350,7 +323,5 @@ export const STUB_COMMANDS = [
   JobStatusCommand,
   JobCancelCommand,
   RecordCommand,
-  AuditListCommand,
-  AuditRunCommand,
   ServeCommand,
 ];

@@ -1,5 +1,5 @@
 /**
- * Built-in `claude` adapter. Walks Claude Code's on-disk convention:
+ * Built-in `claude` Provider. Walks Claude Code's on-disk convention:
  *
  *     <root>/.claude/agents/*.md             → kind: agent
  *     <root>/.claude/commands/*.md           → kind: command
@@ -19,24 +19,29 @@ import { join, relative, sep } from 'node:path';
 import yaml from 'js-yaml';
 
 import { buildIgnoreFilter, type IIgnoreFilter } from '../../../kernel/scan/ignore.js';
-import type { IAdapter, IRawNode } from '../../../kernel/extensions/index.js';
+import type { IProvider, IRawNode } from '../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../kernel/types.js';
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
-export const claudeAdapter: IAdapter = {
+export const claudeProvider: IProvider = {
   id: 'claude',
   pluginId: 'claude',
-  kind: 'adapter',
+  kind: 'provider',
   version: '1.0.0',
   description: 'Walks Claude Code scope conventions (.claude/{agents,commands,hooks,skills} + notes).',
   stability: 'stable',
+
+  // The Claude Provider's content lives under `~/.claude` for the global
+  // scope (and inside `.claude/` for project scope). `sm doctor` validates
+  // the directory exists for global scope; missing → non-blocking warning.
+  explorationDir: '~/.claude',
 
   // Per spec § A.6, defaultRefreshAction values MUST be qualified action
   // ids. The summarize-* actions are not yet implemented as registry
   // entries (they ship later under the Claude bundle), but the qualified
   // form is the contract: when those actions land, they will register
-  // under `claude/summarize-<kind>` and the adapter resolves them
+  // under `claude/summarize-<kind>` and the Provider resolves them
   // deterministically.
   defaultRefreshAction: {
     agent: 'claude/summarize-agent',
@@ -49,7 +54,7 @@ export const claudeAdapter: IAdapter = {
   async *walk(roots, options = {}): AsyncIterable<IRawNode> {
     // The orchestrator is the canonical source of the filter (it composes
     // bundled defaults + config.ignore + .skill-mapignore). When the
-    // adapter is invoked directly (tests, kernel-empty-boot), fall back
+    // Provider is invoked directly (tests, kernel-empty-boot), fall back
     // to bundled defaults only — that's still enough to keep `.git`,
     // `node_modules`, and friends out of the result.
     const filter: IIgnoreFilter = options.ignoreFilter ?? buildIgnoreFilter();

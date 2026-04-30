@@ -48,7 +48,7 @@ No official tool (Anthropic, Cursor, GitHub, skills.sh) covers this. Obsidian of
 2. **Optional LLM layer** consumes that data and adds semantic intelligence: validates ambiguous references, clusters equivalent triggers, compares nodes, answers questions.
 3. **`sm` CLI** exposes every operation. It is the primary surface.
 4. **Web UI** (prototype in Step 0c with mocked data; full integration at `v1.0`) consumes the same kernel and offers visual navigation, inspector, and execution. The prototype does **not** ship in `v0.5.0`.
-5. **Plugin system** (drop-in, kernel + extensions) lets third parties add detectors, rules, actions, adapters, or renderers without touching the kernel.
+5. **Plugin system** (drop-in, kernel + extensions) lets third parties add detectors, rules, actions, adapters, or formatters without touching the kernel.
 
 ## Two execution modes — the meta-architecture
 
@@ -59,7 +59,7 @@ Every analytical extension declares one of two modes:
 - **`deterministic`** — pure code. Same input → same output, every run. Fast, free, reproducible. Runs synchronously inside `sm scan` / `sm check`. CI-safe.
 - **`probabilistic`** — invokes an LLM through the kernel's `RunnerPort`. Output may vary. Cost and latency are non-trivial. Runs only as a queued job (`sm job submit <kind>:<id>`), never during scan.
 
-Four of the six extension kinds support both modes (Detector, Rule, Action, Audit). The remaining two are deterministic-only (Adapter, Renderer) because they sit at the boundaries — filesystem-to-graph and graph-to-string — where reproducibility is essential.
+Four of the six extension kinds support both modes (Detector, Rule, Action, Audit). The remaining two are deterministic-only (Adapter, Formatter) because they sit at the boundaries — filesystem-to-graph and graph-to-string — where reproducibility is essential.
 
 This is what unlocks the workflow:
 
@@ -101,7 +101,7 @@ Full vocabulary in [ROADMAP §Glossary](./ROADMAP.md#glossary).
 - **Link** — a directed relation between two nodes (`invokes` / `references` / `mentions` / `supersedes`).
 - **Issue** — deterministic problem emitted by a rule.
 - **Finding** — probabilistic analysis output (injection detection, low confidence, stale summary).
-- **Extension kinds** (six, stable) — **Adapter** (platform recognizer), **Detector** (link extractor), **Rule** (issue producer), **Action** (executable operation), **Audit** (deterministic workflow), **Renderer** (graph serializer).
+- **Extension kinds** (six, stable) — **Adapter** (platform recognizer), **Detector** (link extractor), **Rule** (issue producer), **Action** (executable operation), **Audit** (deterministic workflow), **Formatter** (graph serializer).
 - **Kernel** — pure domain core; imports no platform knowledge.
 - **Port** — interface the kernel declares (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`).
 - **Job** — runtime instance of an Action over one or more nodes; lives in `state_jobs`.

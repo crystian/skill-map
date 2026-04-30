@@ -11,7 +11,7 @@
   "properties": {
     "event": {
       "type": "string",
-      "description": "Event name this hook reacts to (e.g. `PreToolUse`, `PostToolUse`, `SubagentStop`, `SessionStart`). Platform-specific enum; adapters MAY validate."
+      "description": "Event name this hook reacts to (e.g. `PreToolUse`, `PostToolUse`, `SubagentStop`, `SessionStart`). Platform-specific enum; Providers MAY validate."
     },
     "condition": {
       "type": "string",

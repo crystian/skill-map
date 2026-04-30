@@ -45,7 +45,7 @@ export type TJobFailureReason =
   | 'user-cancelled';
 export type TJobRunner = 'cli' | 'skill' | 'in-process';
 
-export type TExecutionKind = 'action' | 'audit';
+export type TExecutionKind = 'action';
 export type TExecutionStatus = 'completed' | 'failed' | 'cancelled';
 
 export type TSchemaVersionScope = 'kernel' | 'plugin';
@@ -55,7 +55,7 @@ export type TSchemaVersionScope = 'kernel' | 'plugin';
 export interface IScanNodesTable {
   path: string;
   kind: TNodeKind;
-  adapter: string;
+  provider: string;
   title: string | null;
   description: string | null;
   stability: TStability | null;
@@ -113,7 +113,7 @@ export interface IScanMetaTable {
   scannedByName: string;
   scannedByVersion: string;
   scannedBySpecVersion: string;
-  adaptersJson: string;
+  providersJson: string;
   statsFilesWalked: number;
   statsFilesSkipped: number;
   statsDurationMs: number;

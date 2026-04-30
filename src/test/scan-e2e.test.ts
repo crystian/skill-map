@@ -1,5 +1,5 @@
 /**
- * End-to-end scan test. Proves the orchestrator + claude adapter + the
+ * End-to-end scan test. Proves the orchestrator + claude provider + the
  * three detectors + the three rules work together on a realistic
  * fixture. Hits the orchestrator directly (not through the CLI) so the
  * assertions can inspect intermediate state the CLI only exposes as JSON.
@@ -95,7 +95,7 @@ describe('scan end-to-end', () => {
       strictEqual(node.bodyHash.length, 64);
       strictEqual(node.frontmatterHash.length, 64);
       ok(node.bytes.total === node.bytes.frontmatter + node.bytes.body);
-      strictEqual(node.adapter, 'claude');
+      strictEqual(node.provider, 'claude');
     }
 
     // Links: frontmatter.related + slash /deploy + slash /unknown + at @backend-lead

@@ -9,7 +9,7 @@
  *    the canonical default list, loaded once at module init (or at
  *    explicit build time, depending on bundling). The runtime never
  *    re-reads it per scan.
- * 2. Stable interface — adapters and the orchestrator depend on a
+ * 2. Stable interface — Providers and the orchestrator depend on a
  *    minimal `IIgnoreFilter` shape, so the underlying library can be
  *    swapped without touching every consumer.
  * 3. Path normalization — every consumer passes the path RELATIVE to

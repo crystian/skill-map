@@ -31,6 +31,7 @@
  * intent is `--no-built-ins` on `sm scan`.
  */
 
+import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -38,8 +39,8 @@ import { Command, Option } from 'clipanion';
 
 import { builtInBundles } from '../../extensions/built-ins.js';
 import type {
-  IAdapter,
-  IDetector,
+  IProvider,
+  IExtractor,
 } from '../../kernel/extensions/index.js';
 import type { ILoadedExtension } from '../../kernel/types/plugin.js';
 import {
@@ -322,14 +323,14 @@ export class PluginsShowCommand extends Command {
 // --- applicableKinds doctor warnings (Spec § A.10) -----------------------
 
 /**
- * One unknown-kind warning. Produced when a Detector declares
- * `applicableKinds` including a kind that no installed Adapter (built-in
- * or user plugin) emits. The detector itself stays `loaded` — the
+ * One unknown-kind warning. Produced when an Extractor declares
+ * `applicableKinds` including a kind that no installed Provider (built-in
+ * or user plugin) emits. The extractor itself stays `loaded` — the
  * Provider may arrive later — but `sm plugins doctor` surfaces the
  * mismatch so authors catch typos and missing-dependency cases early.
  */
 interface IApplicableKindWarning {
-  detectorQualifiedId: string;
+  extractorQualifiedId: string;
   unknownKind: string;
 }
 
@@ -350,27 +351,27 @@ function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | nul
 }
 
 /**
- * Collect the set of `node.kind` values every installed Adapter
+ * Collect the set of `node.kind` values every installed Provider
  * (built-in + user plugin) declares it can emit. The truth source is
- * `IAdapter.defaultRefreshAction` — every kind the adapter emits MUST
- * appear there per `architecture.md` §`Adapter`. The union of those
+ * `IProvider.defaultRefreshAction` — every kind the Provider emits MUST
+ * appear there per `architecture.md` §`Provider`. The union of those
  * keys is the kernel's "known kinds" surface for unknown-kind detection.
  */
 function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
   const known = new Set<string>();
-  // Built-in adapters first.
+  // Built-in Providers first.
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
-      if (ext.kind !== 'adapter') continue;
-      const adapter = ext as IAdapter;
-      for (const k of Object.keys(adapter.defaultRefreshAction)) known.add(k);
+      if (ext.kind !== 'provider') continue;
+      const provider = ext as IProvider;
+      for (const k of Object.keys(provider.defaultRefreshAction)) known.add(k);
     }
   }
-  // User-plugin adapters.
+  // User-plugin Providers.
   for (const p of plugins) {
     if (p.status !== 'loaded' || !p.extensions) continue;
     for (const ext of p.extensions) {
-      if (ext.kind !== 'adapter') continue;
+      if (ext.kind !== 'provider') continue;
       const inst = extensionInstance(ext);
       if (!inst) continue;
       const map = inst['defaultRefreshAction'];
@@ -382,8 +383,8 @@ function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
 }
 
 /**
- * Walk every loaded Detector (built-in + user plugin) and produce one
- * warning per unknown kind referenced via `applicableKinds`. A detector
+ * Walk every loaded Extractor (built-in + user plugin) and produce one
+ * warning per unknown kind referenced via `applicableKinds`. An extractor
  * with no `applicableKinds` field is silent (default = applies to all
  * kinds). Iteration order is deterministic so the rendered doctor output
  * stays stable across runs.
@@ -393,27 +394,27 @@ function collectApplicableKindWarnings(
   knownKinds: Set<string>,
 ): IApplicableKindWarning[] {
   const out: IApplicableKindWarning[] = [];
-  // Built-in detectors.
+  // Built-in extractors.
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
-      if (ext.kind !== 'detector') continue;
-      const detector = ext as IDetector;
-      if (!detector.applicableKinds) continue;
-      for (const k of detector.applicableKinds) {
+      if (ext.kind !== 'extractor') continue;
+      const extractor = ext as IExtractor;
+      if (!extractor.applicableKinds) continue;
+      for (const k of extractor.applicableKinds) {
         if (!knownKinds.has(k)) {
           out.push({
-            detectorQualifiedId: qualifiedExtensionId(bundle.id, detector.id),
+            extractorQualifiedId: qualifiedExtensionId(bundle.id, extractor.id),
             unknownKind: k,
           });
         }
       }
     }
   }
-  // User-plugin detectors.
+  // User-plugin extractors.
   for (const p of plugins) {
     if (p.status !== 'loaded' || !p.extensions) continue;
     for (const ext of p.extensions) {
-      if (ext.kind !== 'detector') continue;
+      if (ext.kind !== 'extractor') continue;
       const inst = extensionInstance(ext);
       if (!inst) continue;
       const ak = inst['applicableKinds'];
@@ -422,10 +423,84 @@ function collectApplicableKindWarnings(
         if (typeof k !== 'string') continue;
         if (!knownKinds.has(k)) {
           out.push({
-            detectorQualifiedId: qualifiedExtensionId(ext.pluginId, ext.id),
+            extractorQualifiedId: qualifiedExtensionId(ext.pluginId, ext.id),
             unknownKind: k,
           });
         }
+      }
+    }
+  }
+  return out;
+}
+
+// --- explorationDir doctor warnings (Provider §) -------------------------
+
+/**
+ * One missing-explorationDir warning. Produced when a Provider declares an
+ * `explorationDir` that does not exist on the filesystem after `~`
+ * expansion. Non-blocking — the user may legitimately have not installed
+ * that platform yet — so the warning is informational and does NOT promote
+ * the exit code.
+ */
+interface IProviderExplorationDirWarning {
+  providerQualifiedId: string;
+  explorationDir: string;
+  resolvedPath: string;
+}
+
+/**
+ * Resolve `~` and `~user` prefixes against the current user's home dir.
+ * Mirrors the canonical shell convention so the doctor's existence check
+ * matches what the Provider's `walk()` would actually traverse at scan
+ * time. Returns the input verbatim when no `~` prefix is present.
+ */
+function expandHome(p: string): string {
+  if (p === '~') return homedir();
+  if (p.startsWith('~/')) return join(homedir(), p.slice(2));
+  return p;
+}
+
+/**
+ * Walk every loaded Provider (built-in + user plugin) and emit one warning
+ * per declared `explorationDir` that does not exist on disk. The lookup
+ * resolves `~` against the current user's home; relative paths fall back
+ * to the cwd.
+ */
+function collectExplorationDirWarnings(
+  plugins: IDiscoveredPlugin[],
+): IProviderExplorationDirWarning[] {
+  const out: IProviderExplorationDirWarning[] = [];
+  // Built-in Providers first.
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (ext.kind !== 'provider') continue;
+      const provider = ext as IProvider;
+      const resolved = expandHome(provider.explorationDir);
+      if (!existsSync(resolved)) {
+        out.push({
+          providerQualifiedId: qualifiedExtensionId(bundle.id, provider.id),
+          explorationDir: provider.explorationDir,
+          resolvedPath: resolved,
+        });
+      }
+    }
+  }
+  // User-plugin Providers.
+  for (const p of plugins) {
+    if (p.status !== 'loaded' || !p.extensions) continue;
+    for (const ext of p.extensions) {
+      if (ext.kind !== 'provider') continue;
+      const inst = extensionInstance(ext);
+      if (!inst) continue;
+      const dir = inst['explorationDir'];
+      if (typeof dir !== 'string' || dir.length === 0) continue;
+      const resolved = expandHome(dir);
+      if (!existsSync(resolved)) {
+        out.push({
+          providerQualifiedId: qualifiedExtensionId(ext.pluginId, ext.id),
+          explorationDir: dir,
+          resolvedPath: resolved,
+        });
       }
     }
   }
@@ -482,17 +557,29 @@ export class PluginsDoctorCommand extends Command {
     // Spec § A.10 — applicableKinds: surface unknown-kind warnings as
     // informational diagnostics. They do NOT promote the exit code (the
     // Provider that declares the kind may legitimately arrive later);
-    // they only tell the author "your detector will never fire on the
+    // they only tell the author "your extractor will never fire on the
     // kind you typed".
     const knownKinds = collectKnownKinds(plugins);
     const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
-    if (applicableKindWarnings.length > 0) {
+    // Provider explorationDir validation. Non-blocking — the user may not
+    // have installed that platform yet, so missing dir is informational.
+    const explorationDirWarnings = collectExplorationDirWarnings(plugins);
+    if (applicableKindWarnings.length > 0 || explorationDirWarnings.length > 0) {
       this.context.stdout.write('\nWarnings:\n');
       for (const w of applicableKindWarnings) {
         this.context.stdout.write(
           `  [warn] ${tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
-            detectorId: w.detectorQualifiedId,
+            extractorId: w.extractorQualifiedId,
             unknownKind: w.unknownKind,
+          })}\n`,
+        );
+      }
+      for (const w of explorationDirWarnings) {
+        this.context.stdout.write(
+          `  [warn] ${tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
+            providerId: w.providerQualifiedId,
+            explorationDir: w.explorationDir,
+            resolvedPath: w.resolvedPath,
           })}\n`,
         );
       }

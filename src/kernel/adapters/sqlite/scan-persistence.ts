@@ -139,7 +139,7 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
   return {
     path: node.path,
     kind: node.kind,
-    adapter: node.adapter,
+    provider: node.provider,
     title: node.title ?? null,
     description: node.description ?? null,
     stability: node.stability ?? null,
@@ -186,7 +186,7 @@ function metaToRow(result: ScanResult): Insertable<IScanMetaTable> {
     scannedByName: result.scannedBy?.name ?? 'skill-map',
     scannedByVersion: result.scannedBy?.version ?? 'unknown',
     scannedBySpecVersion: result.scannedBy?.specVersion ?? 'unknown',
-    adaptersJson: JSON.stringify(result.adapters),
+    providersJson: JSON.stringify(result.providers),
     statsFilesWalked: result.stats.filesWalked,
     statsFilesSkipped: result.stats.filesSkipped,
     statsDurationMs: result.stats.durationMs,

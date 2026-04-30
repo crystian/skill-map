@@ -410,7 +410,7 @@ function mkNode(path: string, kind: NodeKind): Node {
   return {
     path,
     kind,
-    adapter: 'claude',
+    provider: 'claude',
     bodyHash: 'b',
     frontmatterHash: 'f',
     bytes: { frontmatter: 0, body: 0, total: 0 },

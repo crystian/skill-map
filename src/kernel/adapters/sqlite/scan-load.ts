@@ -21,7 +21,7 @@
  * new / modified nodes from a fresh detector pass.
  *
  * Meta envelope: since Step 5.1 the `scan_meta` table persists `scope` /
- * `roots` / `scannedAt` / `scannedBy` / `adapters` / `stats.filesWalked` /
+ * `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked` /
  * `stats.filesSkipped` / `stats.durationMs`. When the row exists, those
  * fields come back authoritatively. When it does not (DB freshly migrated
  * but never scanned, or a pre-5.1 DB never re-persisted), the loader
@@ -34,7 +34,7 @@
  *     load-bearing: the orchestrator's incremental path only reads
  *     `nodes` / `links` / `issues` from the prior; it never reuses the
  *     prior `roots`.
- *   - `adapters`  ← `[]`.
+ *   - `providers` ← `[]`.
  *   - `stats`     ← zeros for `filesWalked` / `filesSkipped` /
  *     `durationMs`; the three count fields derive from row counts.
  *
@@ -95,7 +95,7 @@ export async function loadScanResult(
       scannedAt: metaRow.scannedAt,
       scope: metaRow.scope as TScanScope,
       roots: parseJsonArray<string>(metaRow.rootsJson),
-      adapters: parseJsonArray<string>(metaRow.adaptersJson),
+      providers: parseJsonArray<string>(metaRow.providersJson),
       scannedBy,
       nodes,
       links,
@@ -123,7 +123,7 @@ export async function loadScanResult(
     scannedAt,
     scope: 'project',
     roots: ['.'],
-    adapters: [],
+    providers: [],
     nodes,
     links,
     issues,
@@ -153,7 +153,7 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
   const node: Node = {
     path: row.path,
     kind: row.kind as NodeKind,
-    adapter: row.adapter,
+    provider: row.provider,
     bodyHash: row.bodyHash,
     frontmatterHash: row.frontmatterHash,
     bytes,
