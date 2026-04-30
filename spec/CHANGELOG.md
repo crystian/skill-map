@@ -1,5 +1,79 @@
 # Spec changelog
 
+## 0.9.0
+
+### Minor Changes
+
+- 88afe24: Cleanup pass post-v0.8.0 — finishing the renames and wiring the
+  conformance kill-switches.
+
+  **Pre-1.0 minor bump** per `spec/versioning.md` § Pre-1.0. The schema
+  field rename below is technically breaking, but ships as a minor while
+  the spec stays `0.Y.Z`.
+
+  ## Spec changes (`@skill-map/spec`)
+
+  ### Breaking — `conformance-case.schema.json`
+
+  - **Rename `setup.disableAllDetectors` → `setup.disableAllExtractors`.**
+    Finishes the kind rename Detector → Extractor introduced in 0.8.0
+    (Phase 2 of the plug-in model overhaul). The previous name was the
+    last residue and it never reached a release where anything consumed
+    it.
+  - **`setup.disableAll{Providers,Extractors,Rules}` are now consumed
+    end-to-end.** Until this release the three toggles were declared in
+    the schema and accepted by the runner, but the runner never threaded
+    them anywhere — the `kernel-empty-boot` case happened to pass
+    because its fixture is empty. The runner now injects
+    `SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}=1` into the
+    child process environment when the matching toggle is `true`, and
+    the CLI's scan composer drops every extension of the disabled kind
+    from the in-scan pipeline regardless of granularity gates and
+    `--no-built-ins`. Each toggle now has a docstring on the schema
+    property pointing at the env-var convention.
+  - `kernel-empty-boot` case updated for the rename.
+  - `conformance/README.md` example updated.
+
+  ### Non-breaking — copy fixes
+
+  - Comments and docstrings across `architecture.md` and friends already
+    refer to "Extractor" everywhere; only the schema field stayed on the
+    old name. No prose changes in this bump.
+
+  ## CLI changes (`@skill-map/cli`)
+
+  ### Breaking — `IDiscoveredPlugin.status` enum
+
+  - **Rename `'loaded'` → `'enabled'`.** The schema enum
+    (`plugins-registry.schema.json`) already used `enabled` since 0.8.0;
+    the runtime drifted to `loaded` and has now been pulled back so the
+    runtime status matches the spec contract. `'disabled'`, the
+    semantic pair, was already aligned. Every consumer (`sm plugins
+list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
+    plugin composer) updated. No published consumers exist.
+
+  ### Non-breaking — sweep cleanup
+
+  - Old `Detector` / `detector` references (kind name, manifest field
+    names, JSDoc, comments, test fixture filenames, test variable
+    names) replaced with `Extractor` / `extractor` across the
+    production code and test suite. Excludes historical CHANGELOG
+    entries, explicit migration notes ("Renamed from Detector"), and
+    test data strings whose semantics are independent of the kind
+    name (e.g. `'@FooDetector'` in trigger normalization tests).
+  - A residual reference to "an audit reading `ScanResult.issues`" in
+    `validate-all`'s docstring rewritten without the removed kind name.
+
+  ## Tests
+
+  - `plugin-runtime-branches.test.ts` — five new unit tests covering
+    the env-var kill-switch in `composeScanExtensions` (per kind, all
+    three together, and stray-value resilience).
+  - `conformance-disable-flags.test.ts` — four new e2e tests pointing
+    the runner at a populated fixture with each toggle in turn (and a
+    baseline) so a regression in the env-var pipeline shows up
+    structurally rather than relying on the empty-fixture coincidence.
+
 ## [Unreleased]
 
 ### Minor (breaking, pre-1.0)
@@ -114,36 +188,32 @@
   - **H3 — `--dry-run` semantics unified across `init` / `db reset`
     / `db restore`.** The new spec §Dry-run codifies the "no
     writes, reads OK" contract; three verbs that did not previously
-    expose a preview now do:
-    - `sm init --dry-run` — previews the would-create lines for
-      `.skill-map/`, `settings.json`, `settings.local.json`,
-      `.skill-mapignore`, the `.gitignore` entries that would be
-      appended (deduped against the existing file), the DB
-      provisioning, and the first-scan trigger. Honours `--force`
-      for the would-overwrite preview. Re-init over an existing
-      scope without `--force` still exits 2 (same gate as live).
-    - `sm db reset --dry-run` (default + `--state`) — opens the DB
-      read-only, computes the row count per `scan_*` (and `state_*`
-      when `--state`) table, and prints them. No `DELETE`
-      statements issued. Bypasses the `--state` confirmation prompt
-      entirely.
-    - `sm db reset --hard --dry-run` — reports the DB file path and
-      size that would be unlinked; missing-file case prints a clear
-      no-op line instead of an error.
-    - `sm db restore <src> --dry-run` — validates the source exists
-      (still exits 5 if missing), reports the source size and
-      whether the target would be created or overwritten, plus the
-      WAL / SHM sidecars that would be dropped. Bypasses the
-      confirmation prompt.
-      Implementation: new helper `previewGitignoreEntries(scopeRoot,
+    expose a preview now do: - `sm init --dry-run` — previews the would-create lines for
+    `.skill-map/`, `settings.json`, `settings.local.json`,
+    `.skill-mapignore`, the `.gitignore` entries that would be
+    appended (deduped against the existing file), the DB
+    provisioning, and the first-scan trigger. Honours `--force`
+    for the would-overwrite preview. Re-init over an existing
+    scope without `--force` still exits 2 (same gate as live). - `sm db reset --dry-run` (default + `--state`) — opens the DB
+    read-only, computes the row count per `scan_*` (and `state_*`
+    when `--state`) table, and prints them. No `DELETE`
+    statements issued. Bypasses the `--state` confirmation prompt
+    entirely. - `sm db reset --hard --dry-run` — reports the DB file path and
+    size that would be unlinked; missing-file case prints a clear
+    no-op line instead of an error. - `sm db restore <src> --dry-run` — validates the source exists
+    (still exits 5 if missing), reports the source size and
+    whether the target would be created or overwritten, plus the
+    WAL / SHM sidecars that would be dropped. Bypasses the
+    confirmation prompt.
+    Implementation: new helper `previewGitignoreEntries(scopeRoot,
 entries)` in `init.ts` mirrors `ensureGitignoreEntries` parsing
-      so the preview tracks the live outcome exactly. Texts moved
-      into `cli/i18n/init.texts.ts` and `cli/i18n/db.texts.ts` per
-      the N4 pattern. **9 new tests** under `init-cli.test.ts` (5
-      cases) and `db-cli.test.ts` (9 cases) cover the previews + the
-      spec invariants ("DB file checksum unchanged after dry-run",
-      "scope directory absent after dry-run", "source-not-found
-      still exits 5", "confirmation prompt skipped under dry-run").
+    so the preview tracks the live outcome exactly. Texts moved
+    into `cli/i18n/init.texts.ts` and `cli/i18n/db.texts.ts` per
+    the N4 pattern. **9 new tests** under `init-cli.test.ts` (5
+    cases) and `db-cli.test.ts` (9 cases) cover the previews + the
+    spec invariants ("DB file checksum unchanged after dry-run",
+    "scope directory absent after dry-run", "source-not-found
+    still exits 5", "confirmation prompt skipped under dry-run").
   - **H1 — Centralised exit codes.** New `cli/util/exit-codes.ts`
     exporting `ExitCode` (`Ok` / `Issues` / `Error` / `Duplicate` /
     `NonceMismatch` / `NotFound`) and the type alias `TExitCode`.
@@ -278,53 +348,53 @@ the`CamelCasePlugin`; raw SQL fragments must use snake_case to
     a real i18n library, the strings move as-is. Functions would
     have to be re-shaped first.
 
-    Helper at `kernel/util/tx.ts`. Contract:
+        Helper at `kernel/util/tx.ts`. Contract:
 
-    - Every `{{name}}` token MUST have a matching key in the vars
-      object — missing key throws (silent fallback hides
-      forgotten args in production).
-    - `null` / `undefined` values throw — caller coerces
-      upstream.
-    - Whitespace inside the braces tolerated (`{{ name }}`) so
-      long templates wrap cleanly across `+`-joined lines.
-    - Plural / conditional logic does NOT live in the template;
-      the caller picks `*_singular` vs `*_plural` keys.
+        - Every `{{name}}` token MUST have a matching key in the vars
+          object — missing key throws (silent fallback hides
+          forgotten args in production).
+        - `null` / `undefined` values throw — caller coerces
+          upstream.
+        - Whitespace inside the braces tolerated (`{{ name }}`) so
+          long templates wrap cleanly across `+`-joined lines.
+        - Plural / conditional logic does NOT live in the template;
+          the caller picks `*_singular` vs `*_plural` keys.
 
-    Files created:
+        Files created:
 
-    - `kernel/util/tx.ts` — the helper itself, with 13 tests in
-      `test/tx.test.ts` (single / multi token, whitespace,
-      missing / null / undefined keys, identifier shapes, error
-      truncation).
-    - `kernel/i18n/orchestrator.texts.ts` — frontmatter
-      malformed/invalid templates, `extension.error` payloads,
-      root validation errors.
-    - `kernel/i18n/plugin-loader.texts.ts` — every `load-error` /
-      `invalid-manifest` / `incompatible-spec` reason, plus the
-      import timeout message.
-    - `cli/i18n/scan.texts.ts` — `sm scan` flag-clash / scan
-      failure / guard / summary templates, plus the `sm scan
-compare-with` dump-load errors.
-    - `cli/i18n/watch.texts.ts` — `sm watch` lifecycle templates.
-    - `cli/i18n/init.texts.ts` — `sm init` templates including
-      the `--dry-run` previews and the singular/plural pair for
+        - `kernel/util/tx.ts` — the helper itself, with 13 tests in
+          `test/tx.test.ts` (single / multi token, whitespace,
+          missing / null / undefined keys, identifier shapes, error
+          truncation).
+        - `kernel/i18n/orchestrator.texts.ts` — frontmatter
+          malformed/invalid templates, `extension.error` payloads,
+          root validation errors.
+        - `kernel/i18n/plugin-loader.texts.ts` — every `load-error` /
+          `invalid-manifest` / `incompatible-spec` reason, plus the
+          import timeout message.
+        - `cli/i18n/scan.texts.ts` — `sm scan` flag-clash / scan
+          failure / guard / summary templates, plus the `sm scan
+
+    compare-with`dump-load errors.
+    -`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
+    -`cli/i18n/init.texts.ts`—`sm init`templates including
+      the`--dry-run`previews and the singular/plural pair for
       gitignore updates.
-    - `cli/i18n/db.texts.ts` — `sm db reset` / `sm db restore`
-      templates including their `--dry-run` previews.
-    - `cli/i18n/cli-progress-emitter.texts.ts` — the
-      `extension.error: ...` stderr line.
+    -`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
+    -`cli/i18n/cli-progress-emitter.texts.ts`— the
+     `extension.error: ...` stderr line.
 
-    String content moved verbatim — every existing test that
-    matches on stderr / stdout content keeps passing. Trivial
-    single-token strings (`'No issues.\n'`) and rare per-handler
-    bespoke phrases stay inline; the pattern is now established
-    for whoever wants to migrate them in a follow-up.
+        String content moved verbatim — every existing test that
+        matches on stderr / stdout content keeps passing. Trivial
+        single-token strings (`'No issues.\n'`) and rare per-handler
+        bespoke phrases stay inline; the pattern is now established
+        for whoever wants to migrate them in a follow-up.
 
-    Note on `ui/` divergence: today the two workspaces use
-    different shapes for their text tables (functions in `ui/`,
-    templates in `cli/`). Aligning them is a follow-up — the day a
-    real i18n library lands, both converge on its native shape.
-    The CLI shape is closer to the eventual destination.
+        Note on `ui/` divergence: today the two workspaces use
+        different shapes for their text tables (functions in `ui/`,
+        templates in `cli/`). Aligning them is a follow-up — the day a
+        real i18n library lands, both converge on its native shape.
+        The CLI shape is closer to the eventual destination.
 
   - **N6 — `TIssueSeverity` aliased to `Severity`.** SQLite schema
     type now reads `type TIssueSeverity = Severity` instead of
@@ -972,9 +1042,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                 `--json` output is byte-identical to before — raw rows, no merge.
-                 Storage is byte-identical to before. The grouping is purely a
-                 read-time presentation choice for human eyes.
+                       `--json` output is byte-identical to before — raw rows, no merge.
+                       Storage is byte-identical to before. The grouping is purely a
+                       read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
