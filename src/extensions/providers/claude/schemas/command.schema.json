@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://skill-map.dev/spec/v0/frontmatter/command.schema.json",
+  "$id": "https://skill-map.dev/providers/claude/v1/frontmatter/command.schema.json",
   "title": "FrontmatterCommand",
-  "description": "Frontmatter shape for nodes classified as `command`. Extends `base.schema.json`. Kind-specific fields: `args`, `shortcut`.",
+  "description": "Frontmatter shape for nodes classified as `command` by the Claude Provider. Extends the spec's universal `frontmatter/base.schema.json` via $ref-by-$id. Kind-specific fields: `args`, `shortcut`. Owned by the Claude Provider; relocated from `spec/schemas/frontmatter/` in spec 0.8.0 (Phase 3 of plug-in model overhaul).",
   "allOf": [
-    { "$ref": "base.schema.json" }
+    { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
   ],
   "type": "object",
   "additionalProperties": true,

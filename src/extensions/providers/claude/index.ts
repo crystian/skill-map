@@ -11,6 +11,14 @@
  * Frontmatter is parsed with js-yaml; anything that fails to parse still
  * produces a node with an empty-object frontmatter so the scan keeps
  * advancing. Pure filesystem walk + parse — no DB awareness.
+ *
+ * **Phase 3 (spec 0.8.0).** The Provider owns the per-kind frontmatter
+ * schemas (relocated from spec — `skill`, `agent`, `command`, `hook`,
+ * `note`). The flat `defaultRefreshAction` map collapsed into the
+ * `kinds` map; each kind entry pairs the loaded JSON Schema with its
+ * qualified refresh action id. The kernel's frontmatter-validation flow
+ * asks the Provider for the schema instead of reading directly from
+ * spec/.
  */
 
 import { readFile, readdir, stat } from 'node:fs/promises';
@@ -21,6 +29,11 @@ import yaml from 'js-yaml';
 import { buildIgnoreFilter, type IIgnoreFilter } from '../../../kernel/scan/ignore.js';
 import type { IProvider, IRawNode } from '../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../kernel/types.js';
+import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
+import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
+import commandSchema from './schemas/command.schema.json' with { type: 'json' };
+import hookSchema from './schemas/hook.schema.json' with { type: 'json' };
+import noteSchema from './schemas/note.schema.json' with { type: 'json' };
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
 
@@ -43,12 +56,37 @@ export const claudeProvider: IProvider = {
   // form is the contract: when those actions land, they will register
   // under `claude/summarize-<kind>` and the Provider resolves them
   // deterministically.
-  defaultRefreshAction: {
-    agent: 'claude/summarize-agent',
-    command: 'claude/summarize-command',
-    skill: 'claude/summarize-skill',
-    hook: 'claude/summarize-hook',
-    note: 'claude/summarize-note',
+  //
+  // Phase 3 (spec 0.8.0): the per-kind catalog lives here. Each entry
+  // pairs the relative manifest-style schema path (mirrors what the
+  // spec's provider.schema.json validates) with the loaded JSON Schema
+  // (`schemaJson`) the kernel registers with AJV at scan boot.
+  kinds: {
+    agent: {
+      schema: './schemas/agent.schema.json',
+      schemaJson: agentSchema,
+      defaultRefreshAction: 'claude/summarize-agent',
+    },
+    command: {
+      schema: './schemas/command.schema.json',
+      schemaJson: commandSchema,
+      defaultRefreshAction: 'claude/summarize-command',
+    },
+    hook: {
+      schema: './schemas/hook.schema.json',
+      schemaJson: hookSchema,
+      defaultRefreshAction: 'claude/summarize-hook',
+    },
+    skill: {
+      schema: './schemas/skill.schema.json',
+      schemaJson: skillSchema,
+      defaultRefreshAction: 'claude/summarize-skill',
+    },
+    note: {
+      schema: './schemas/note.schema.json',
+      schemaJson: noteSchema,
+      defaultRefreshAction: 'claude/summarize-note',
+    },
   },
 
   async *walk(roots, options = {}): AsyncIterable<IRawNode> {

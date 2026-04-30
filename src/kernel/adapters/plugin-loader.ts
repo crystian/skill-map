@@ -457,7 +457,15 @@ function extractDefault(mod: unknown): unknown {
  * Schema's `unevaluatedProperties: false` posture would otherwise reject
  * the whole export. Same posture for `pluginId` — per spec § A.6 it's a
  * runtime concern injected by the loader, not a manifest field.
- * Cheap shallow copy — manifests don't nest deep.
+ *
+ * Phase 3 (spec 0.8.0): Provider runtime instances carry an additional
+ * runtime-only field per `kinds` entry — `schemaJson`, the loaded JSON
+ * Schema for the kind. The manifest declares `schema` (a relative path
+ * string); `schemaJson` is loaded by the kernel/loader at boot. Strip
+ * it before AJV-validating against the strict provider schema (which
+ * has `additionalProperties: false` on each kind entry).
+ *
+ * Cheap shallow + one-level-deep copy — manifests are flat enough.
  */
 function stripFunctionsAndPluginId(input: unknown): unknown {
   if (!isRecord(input)) return input;
@@ -465,7 +473,34 @@ function stripFunctionsAndPluginId(input: unknown): unknown {
   for (const [k, v] of Object.entries(input)) {
     if (typeof v === 'function') continue;
     if (k === 'pluginId') continue;
+    if (k === 'kinds' && isRecord(v)) {
+      out[k] = stripKindsRuntimeFields(v);
+      continue;
+    }
     out[k] = v;
+  }
+  return out;
+}
+
+/**
+ * Provider `kinds` map: for each entry, drop runtime-only fields
+ * (`schemaJson`) so AJV sees only the manifest-level fields the spec
+ * declares (`schema`, `defaultRefreshAction`).
+ */
+function stripKindsRuntimeFields(kinds: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [kind, entry] of Object.entries(kinds)) {
+    if (!isRecord(entry)) {
+      out[kind] = entry;
+      continue;
+    }
+    const cleaned: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(entry)) {
+      if (k === 'schemaJson') continue;
+      if (typeof v === 'function') continue;
+      cleaned[k] = v;
+    }
+    out[kind] = cleaned;
   }
   return out;
 }

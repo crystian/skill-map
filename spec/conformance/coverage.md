@@ -18,24 +18,21 @@ This file is hand-maintained. A CI check before spec release compares the schema
 | 8 | `job.schema.json` | — | 🔴 missing | Blocked by Step 10 (job system). Needs a case that submits a local action (no LLM), inspects `sm job show --json`. |
 | 9 | `report-base.schema.json` | — | 🔴 missing | Indirect coverage once any summarizer case lands. Direct contract case: validate a handcrafted minimal report ({confidence, safety}) against the base schema. |
 | 10 | `conformance-case.schema.json` | — | 🔴 missing | Self-referential: every `*.json` under `cases/` MUST validate against this schema. Add a meta-case that enumerates + validates all cases. |
-| 11 | `frontmatter/base.schema.json` | `basic-scan` (indirect) | 🟡 partial | Covered via every kind schema's `allOf`. Direct case: fixture with min-required frontmatter only. |
-| 12 | `frontmatter/skill.schema.json` | `basic-scan` | 🟢 covered | One skill in `minimal-claude`. |
-| 13 | `frontmatter/agent.schema.json` | `basic-scan` | 🟢 covered | One agent in `minimal-claude`. |
-| 14 | `frontmatter/command.schema.json` | `basic-scan` | 🟢 covered | One command in `minimal-claude`. |
-| 15 | `frontmatter/hook.schema.json` | `basic-scan` | 🟢 covered | One hook in `minimal-claude`. |
-| 16 | `frontmatter/note.schema.json` | `basic-scan` | 🟢 covered | One note in `minimal-claude`. |
-| 17 | `summaries/skill.schema.json` | — | 🔴 missing | Blocked by Step 10 (`skill-summarizer`). Case: submit summarizer, validate report. |
-| 18 | `summaries/agent.schema.json` | — | 🔴 missing | Blocked by Step 11. |
-| 19 | `summaries/command.schema.json` | — | 🔴 missing | Blocked by Step 11. |
-| 20 | `summaries/hook.schema.json` | — | 🔴 missing | Blocked by Step 11. |
-| 21 | `summaries/note.schema.json` | — | 🔴 missing | Blocked by Step 11. |
-| 22 | `extensions/base.schema.json` | — | 🔴 missing | Meta-case: every manifest under `src/extensions/` validates against the appropriate kind schema (which extends base via `allOf`). |
-| 23 | `extensions/provider.schema.json` | — | 🔴 missing | Case: the `claude` Provider manifest validates; a crafted invalid manifest (missing `defaultRefreshAction` or `explorationDir`) fails with `invalid-manifest`. |
-| 24 | `extensions/extractor.schema.json` | — | 🔴 missing | Case: `frontmatter` + `slash` + `at-directive` extractor manifests validate; an extractor emitting a disallowed `emitsLinkKinds` value fails. |
-| 25 | `extensions/rule.schema.json` | — | 🔴 missing | Case: `trigger-collision`, `broken-ref`, `superseded` manifests validate. |
-| 26 | `extensions/action.schema.json` | — | 🔴 missing | Case: a `deterministic` action manifest validates; a `probabilistic` action WITHOUT `promptTemplateRef` fails. |
-| 27 | `extensions/formatter.schema.json` | — | 🔴 missing | Case: `ascii` formatter manifest validates. |
-| 28 | `history-stats.schema.json` | — | 🔴 missing | Blocked by Step 5 (history). Case: seed `state_executions` with a deterministic fixture, run `sm history stats --json --since <T0> --until <T1> --period month --top 5`, assert the document validates and that `totals.executionsCount == sum(perAction.executionsCount)` and `errorRates.global == totals.failedCount / totals.executionsCount`. Percentiles (`p95`/`p99`) intentionally omitted in v1 — add later as a minor bump without breaking consumers. |
+| 11 | `frontmatter/base.schema.json` | `basic-scan` (indirect) | 🟡 partial | Universal frontmatter shape. Per-kind schemas (skill / agent / command / hook / note) are no longer in spec — they relocated to the **Claude Provider** under `src/extensions/providers/claude/schemas/` in spec 0.8.0 (Phase 3 of plug-in model overhaul) and extend this base via `$ref`-by-`$id`. Direct case: fixture with min-required frontmatter only. |
+| 12 | `summaries/skill.schema.json` | — | 🔴 missing | Blocked by Step 10 (`skill-summarizer`). Case: submit summarizer, validate report. |
+| 13 | `summaries/agent.schema.json` | — | 🔴 missing | Blocked by Step 11. |
+| 14 | `summaries/command.schema.json` | — | 🔴 missing | Blocked by Step 11. |
+| 15 | `summaries/hook.schema.json` | — | 🔴 missing | Blocked by Step 11. |
+| 16 | `summaries/note.schema.json` | — | 🔴 missing | Blocked by Step 11. |
+| 17 | `extensions/base.schema.json` | — | 🔴 missing | Meta-case: every manifest under `src/extensions/` validates against the appropriate kind schema (which extends base via `allOf`). |
+| 18 | `extensions/provider.schema.json` | — | 🔴 missing | Case: the `claude` Provider manifest validates; a crafted invalid manifest (missing `kinds` or `explorationDir`) fails with `invalid-manifest`. |
+| 19 | `extensions/extractor.schema.json` | — | 🔴 missing | Case: `frontmatter` + `slash` + `at-directive` extractor manifests validate; an extractor emitting a disallowed `emitsLinkKinds` value fails. |
+| 20 | `extensions/rule.schema.json` | — | 🔴 missing | Case: `trigger-collision`, `broken-ref`, `superseded` manifests validate. |
+| 21 | `extensions/action.schema.json` | — | 🔴 missing | Case: a `deterministic` action manifest validates; a `probabilistic` action WITHOUT `promptTemplateRef` fails. |
+| 22 | `extensions/formatter.schema.json` | — | 🔴 missing | Case: `ascii` formatter manifest validates. |
+| 23 | `history-stats.schema.json` | — | 🔴 missing | Blocked by Step 5 (history). Case: seed `state_executions` with a deterministic fixture, run `sm history stats --json --since <T0> --until <T1> --period month --top 5`, assert the document validates and that `totals.executionsCount == sum(perAction.executionsCount)` and `errorRates.global == totals.failedCount / totals.executionsCount`. Percentiles (`p95`/`p99`) intentionally omitted in v1 — add later as a minor bump without breaking consumers. |
+
+> **Note on Provider-owned schemas.** Per spec 0.8.0 Phase 3, the per-kind frontmatter schemas (`skill`, `agent`, `command`, `hook`, `note`) live with the Provider that emits them — for the built-in Claude Provider, that is `src/extensions/providers/claude/schemas/`. Those schemas are NOT counted in the spec's coverage matrix above; they belong to the Provider's own conformance suite (planned in Phase 5, A.13). The matrix shrinks from 28 to 23 rows accordingly.
 
 Status legend: 🟢 covered (at least one case asserts the schema end-to-end) · 🟡 partial (covered only indirectly or via a sub-shape) · 🔴 missing.
 

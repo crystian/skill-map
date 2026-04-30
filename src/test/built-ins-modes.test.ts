@@ -141,16 +141,35 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
     assert.equal(rows.length, 11);
   });
 
-  it('claude provider declares qualified action ids in defaultRefreshAction', () => {
+  it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {
     const set = builtIns();
     const claude = set.providers.find((a) => a.id === 'claude');
     assert.ok(claude, 'expected the claude provider to be bundled');
-    for (const [kind, action] of Object.entries(claude.defaultRefreshAction)) {
+    for (const [kind, entry] of Object.entries(claude.kinds)) {
       assert.match(
-        String(action),
+        entry.defaultRefreshAction,
         /^[a-z][a-z0-9]*(-[a-z0-9]+)*\/[a-z][a-z0-9]*(-[a-z0-9]+)*$/,
-        `defaultRefreshAction for kind ${kind} must be a qualified action id; got ${action}`,
+        `defaultRefreshAction for kind ${kind} must be a qualified action id; got ${entry.defaultRefreshAction}`,
       );
+    }
+  });
+
+  it('claude provider declares schema + schemaJson per kind (Phase 3 catalog)', () => {
+    const set = builtIns();
+    const claude = set.providers.find((a) => a.id === 'claude');
+    if (!claude) throw new Error('expected the claude provider to be bundled');
+    const expectedKinds = new Set(['skill', 'agent', 'command', 'hook', 'note']);
+    const seen = new Set<string>();
+    for (const [k, entry] of Object.entries(claude.kinds)) {
+      seen.add(k);
+      assert.equal(typeof entry.schema, 'string', `kinds.${k}.schema must be a string path`);
+      assert.ok(entry.schema.endsWith('.schema.json'), `kinds.${k}.schema should point at a JSON Schema file`);
+      assert.ok(entry.schemaJson !== null && typeof entry.schemaJson === 'object', `kinds.${k}.schemaJson must be a loaded JSON object`);
+      const json = entry.schemaJson as { $id?: string };
+      assert.equal(typeof json.$id, 'string', `kinds.${k}.schemaJson must declare an $id`);
+    }
+    for (const expected of expectedKinds) {
+      assert.ok(seen.has(expected), `kind ${expected} must have a catalog entry`);
     }
   });
 });

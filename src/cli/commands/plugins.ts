@@ -353,9 +353,14 @@ function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | nul
 /**
  * Collect the set of `node.kind` values every installed Provider
  * (built-in + user plugin) declares it can emit. The truth source is
- * `IProvider.defaultRefreshAction` — every kind the Provider emits MUST
- * appear there per `architecture.md` §`Provider`. The union of those
- * keys is the kernel's "known kinds" surface for unknown-kind detection.
+ * `IProvider.kinds` — every kind the Provider emits MUST appear there
+ * per `architecture.md` §`Provider`. The union of those keys is the
+ * kernel's "known kinds" surface for unknown-kind detection.
+ *
+ * Phase 3 (spec 0.8.0): the source-of-truth migrated from a flat
+ * `defaultRefreshAction` map to the `kinds` map (which subsumes both
+ * the per-kind schema and the refresh action). The set of keys is the
+ * same — only the field name changed.
  */
 function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
   const known = new Set<string>();
@@ -364,7 +369,7 @@ function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
     for (const ext of bundle.extensions) {
       if (ext.kind !== 'provider') continue;
       const provider = ext as IProvider;
-      for (const k of Object.keys(provider.defaultRefreshAction)) known.add(k);
+      for (const k of Object.keys(provider.kinds)) known.add(k);
     }
   }
   // User-plugin Providers.
@@ -374,7 +379,7 @@ function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
       if (ext.kind !== 'provider') continue;
       const inst = extensionInstance(ext);
       if (!inst) continue;
-      const map = inst['defaultRefreshAction'];
+      const map = inst['kinds'];
       if (map === null || typeof map !== 'object') continue;
       for (const k of Object.keys(map)) known.add(k);
     }

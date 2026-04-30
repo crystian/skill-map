@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/providers/claude/v1/frontmatter/agent.schema.json",
+  "title": "FrontmatterAgent",
+  "description": "Frontmatter shape for nodes classified as `agent` by the Claude Provider. Extends the spec's universal `frontmatter/base.schema.json` via $ref-by-$id. Kind-specific field: `model`. The `tools` and `allowedTools` fields live on the spec base and apply here unchanged. Color, when needed, lives in `metadata.color` (inherited from base). Owned by the Claude Provider; relocated from `spec/schemas/frontmatter/` in spec 0.8.0 (Phase 3 of plug-in model overhaul).",
+  "allOf": [
+    { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
+  ],
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "model": {
+      "type": "string",
+      "description": "Model identifier for this agent (e.g. `sonnet`, `opus`, `haiku`, or a full `claude-*` id). Free-form string; Providers MAY validate against a platform-specific enum."
+    }
+  }
+}

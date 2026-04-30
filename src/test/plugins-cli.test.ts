@@ -97,14 +97,18 @@ function dropMockProvider(
       extensions: ['provider.js'],
     }),
   );
+  // Phase 3 (spec 0.8.0): the Provider runtime shape collapses
+  // `emits` + flat `defaultRefreshAction` into the `kinds` map. The
+  // mock declares a single `note` kind whose schemaJson is a tiny
+  // pass-everything schema so AJV can compile it during boot without
+  // needing a real per-kind file on disk.
   const manifestParts = [
     `kind: 'provider'`,
     `id: '${id}-provider'`,
     `version: '0.1.0'`,
     `description: 'mock provider'`,
     `stability: 'experimental'`,
-    `emits: ['note']`,
-    `defaultRefreshAction: { note: '${id}/summarize-note' }`,
+    `kinds: { note: { schema: './schemas/note.schema.json', schemaJson: { $id: 'urn:test:${id}/note', type: 'object', additionalProperties: true }, defaultRefreshAction: '${id}/summarize-note' } }`,
   ];
   if (!opts.omitExplorationDir) {
     manifestParts.push(`explorationDir: '${opts.explorationDir ?? '~/.mock'}'`);

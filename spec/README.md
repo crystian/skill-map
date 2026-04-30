@@ -83,12 +83,11 @@ spec/                              ← published as @skill-map/spec
 │   │   └── formatter.schema.json            ┘
 │   │
 │   ├── frontmatter/                         ← user-authored; additionalProperties: true
-│   │   ├── base.schema.json                 ┐
-│   │   ├── skill.schema.json                │
-│   │   ├── agent.schema.json                │ 6 frontmatter schemas
-│   │   ├── command.schema.json              │ (base + 5 kinds; each kind
-│   │   ├── hook.schema.json                 │ extends base via allOf)
-│   │   └── note.schema.json                 ┘
+│   │   └── base.schema.json                  ← universal shape; per-kind schemas live with
+│   │                                            the Provider that emits the kind (e.g. the
+│   │                                            built-in Claude Provider's `skill / agent /
+│   │                                            command / hook / note` schemas live in
+│   │                                            `src/extensions/providers/claude/schemas/`)
 │   │
 │   └── summaries/                           ← kernel-controlled; additionalProperties: false
 │       ├── skill.schema.json                ┐

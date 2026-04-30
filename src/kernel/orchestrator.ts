@@ -71,7 +71,10 @@ import type {
 } from './ports/progress-emitter.js';
 import { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 import { installedSpecVersion } from './adapters/plugin-loader.js';
-import { loadSchemaValidators, type TSchemaName } from './adapters/schema-validators.js';
+import {
+  buildProviderFrontmatterValidator,
+  type IProviderFrontmatterValidator,
+} from './adapters/schema-validators.js';
 import { ORCHESTRATOR_TEXTS } from './i18n/orchestrator.texts.js';
 import { tx } from './util/tx.js';
 import type {
@@ -233,6 +236,11 @@ async function runScanInternal(
 
   const priorIndex = indexPriorSnapshot(prior);
 
+  // Phase 3 (spec 0.8.0): each Provider owns its per-kind frontmatter
+  // schemas. Compose a single AJV-backed validator over the live set of
+  // Providers so the orchestrator can ask it directly during the walk.
+  const providerFrontmatter = buildProviderFrontmatterValidator(exts.providers);
+
   emitter.emit(makeEvent('scan.started', { roots: options.roots }));
 
   const walked = await walkAndExtract({
@@ -246,6 +254,7 @@ async function runScanInternal(
     enableCache,
     prior,
     priorIndex,
+    providerFrontmatter,
   });
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
@@ -390,6 +399,7 @@ interface IWalkAndExtractOptions {
   enableCache: boolean;
   prior: ScanResult | null;
   priorIndex: IPriorIndex;
+  providerFrontmatter: IProviderFrontmatterValidator;
 }
 
 interface IWalkAndExtractResult {
@@ -422,7 +432,19 @@ interface IWalkAndExtractResult {
 }
 
 async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExtractResult> {
-  const { providers, extractors, roots, ignoreFilter, emitter, encoder, strict, enableCache, prior, priorIndex } = opts;
+  const {
+    providers,
+    extractors,
+    roots,
+    ignoreFilter,
+    emitter,
+    encoder,
+    strict,
+    enableCache,
+    prior,
+    priorIndex,
+    providerFrontmatter,
+  } = opts;
   const { priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode } = priorIndex;
 
   const nodes: Node[] = [];
@@ -510,7 +532,14 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // fence is not a violation. Severity defaults to `warn`; the CLI
       // promotes it to `error` via `--strict` or `scan.strict: true`.
       if (raw.frontmatterRaw.length > 0) {
-        const fmIssue = validateFrontmatter(kind, raw.frontmatter, raw.path, strict);
+        const fmIssue = validateFrontmatter(
+          providerFrontmatter,
+          provider,
+          kind,
+          raw.frontmatter,
+          raw.path,
+          strict,
+        );
         if (fmIssue) frontmatterIssues.push(fmIssue);
       } else {
         // Step 9.4 follow-up — `frontmatter-malformed`: the Provider
@@ -954,22 +983,31 @@ function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitte
 }
 
 /**
- * Validate a node's frontmatter against the kind-specific schema. Only
- * called for files that actually declared a fence (caller checks
- * `frontmatterRaw.length > 0`). Returns a single `frontmatter-invalid`
- * issue with the AJV error string, or `null` when the frontmatter is
- * structurally valid. Severity is `warn` by default; `strict` flips it
- * to `error` so the scan exit code rises to 1.
+ * Validate a node's frontmatter against the per-kind schema declared by
+ * the Provider that classified the node. Only called for files that
+ * actually declared a fence (caller checks `frontmatterRaw.length > 0`).
+ * Returns a single `frontmatter-invalid` issue with the AJV error
+ * string, or `null` when the frontmatter is structurally valid. Severity
+ * is `warn` by default; `strict` flips it to `error` so the scan exit
+ * code rises to 1.
+ *
+ * Phase 3 (spec 0.8.0): per-kind schemas live with the Provider, not in
+ * spec. The orchestrator passes the live `IProviderFrontmatterValidator`
+ * (composed from every loaded Provider's `kinds[<kind>].schemaJson`)
+ * plus the active Provider so the lookup is `(provider.id, kind) →
+ * schema`. A Provider that does not declare an entry for the kind it
+ * classified into still gets a `frontmatter-invalid` issue with errors
+ * `'no-schema'` so the kernel never silently skips validation.
  */
 function validateFrontmatter(
+  providerFrontmatter: IProviderFrontmatterValidator,
+  provider: IProvider,
   kind: NodeKind,
   frontmatter: Record<string, unknown>,
   path: string,
   strict: boolean,
 ): Issue | null {
-  const validators = loadSchemaValidators();
-  const schemaName: TSchemaName = `frontmatter-${kind}` as const;
-  const result = validators.validate(schemaName, frontmatter);
+  const result = providerFrontmatter.validate(provider, kind, frontmatter);
   if (result.ok) return null;
   return {
     ruleId: 'frontmatter-invalid',

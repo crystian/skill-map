@@ -96,4 +96,25 @@ describe('claude provider', () => {
   it('declares an explorationDir', () => {
     strictEqual(claudeProvider.explorationDir, '~/.claude');
   });
+
+  // Phase 3 (spec 0.8.0): the Provider owns its per-kind frontmatter
+  // schemas. Smoke-test that every kind it can classify into has a
+  // catalog entry whose schemaJson AJV-validates against the live
+  // provider-frontmatter validator built from the Provider itself.
+  it('every kind it classifies into resolves a per-kind schema via provider.kinds', async () => {
+    const { buildProviderFrontmatterValidator } = await import('../../../kernel/adapters/schema-validators.js');
+    const validator = buildProviderFrontmatterValidator([claudeProvider]);
+    const kinds = ['skill', 'agent', 'command', 'hook', 'note'] as const;
+    for (const kind of kinds) {
+      const entry = claudeProvider.kinds[kind];
+      ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);
+      // A minimal frontmatter that satisfies base required fields. The
+      // per-kind schemas all extend base via $ref-by-$id; if the loader
+      // could not resolve the cross-package $ref this would surface as
+      // a compile-time AJV error during `buildProviderFrontmatterValidator`.
+      const fm = { name: 'x', description: 'y', metadata: { version: '1.0.0' } };
+      const result = validator.validate(claudeProvider, kind, fm);
+      ok(result.ok, `frontmatter for kind ${kind} must validate; got: ${result.ok ? '' : result.errors}`);
+    }
+  });
 });

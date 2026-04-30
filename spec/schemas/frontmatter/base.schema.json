@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json",
   "title": "FrontmatterBase",
-  "description": "Base shape of the YAML frontmatter block on every node, across all kinds. Kind-specific schemas (`skill`, `agent`, `command`, `hook`, `note`) extend this via `allOf`. camelCase keys throughout. `additionalProperties` is intentionally permissive; the deterministic `unknown-field` rule emits warnings for keys outside the catalog so that the JSON Schema remains shape-only and policy lives in rules.",
+  "description": "Base shape of the YAML frontmatter block on every node, across all kinds. Universal — common to every Provider's nodes regardless of platform. Per-kind schemas live in the Provider that emits the kind (declared via `provider.kinds[<kind>].schema`) and extend this base via `allOf` + `$ref` to its `$id`. camelCase keys throughout. `additionalProperties` is intentionally permissive; the deterministic `unknown-field` rule emits warnings for keys outside the catalog so that the JSON Schema remains shape-only and policy lives in rules.",
   "type": "object",
   "required": ["name", "description", "metadata"],
   "additionalProperties": true,

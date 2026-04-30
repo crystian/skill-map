@@ -355,9 +355,13 @@ export default {
 
 These ship later in the v1.x line as bundled built-ins; the spec already pins their manifest shapes. Until the testkit grows full helpers for them (planned alongside Step 10), authors are encouraged to test them with a live kernel via `sm scan` against a fixture directory rather than in unit tests.
 
-#### Provider — `explorationDir`
+#### Provider — `kinds` catalog and `explorationDir`
 
-Every Provider declares an `explorationDir: string` (required). The kernel walks this directory at boot/scan time to discover candidate files; `sm doctor` checks the resolved path exists and emits a non-blocking warning when it does not — the user may legitimately install the matching platform later.
+Every Provider declares two required fields beyond the manifest base.
+
+**`kinds` catalog.** Maps each kind the Provider emits to its frontmatter schema (path relative to the Provider's package directory) and its qualified `defaultRefreshAction`. The catalog is the single source of truth for "which kinds does this Provider emit"; the kernel derives the supported kind set from `Object.keys(kinds)`. The schema MUST extend the spec's universal [`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`, so cross-package resolution works without copying base into every Provider.
+
+**`explorationDir`.** Filesystem directory the kernel walks at boot/scan time to discover candidate files; `sm doctor` checks the resolved path exists and emits a non-blocking warning when it does not — the user may legitimately install the matching platform later.
 
 ```jsonc
 {
@@ -365,25 +369,32 @@ Every Provider declares an `explorationDir: string` (required). The kernel walks
   "kind": "provider",
   "version": "1.0.0",
   "explorationDir": "~/.cursor",
-  "emits": ["skill", "command"],
-  "defaultRefreshAction": {
-    "skill":   "cursor/summarize-skill",
-    "command": "cursor/summarize-command"
+  "kinds": {
+    "skill": {
+      "schema": "./schemas/skill.schema.json",
+      "defaultRefreshAction": "cursor/summarize-skill"
+    },
+    "command": {
+      "schema": "./schemas/command.schema.json",
+      "defaultRefreshAction": "cursor/summarize-command"
+    }
   }
 }
 ```
 
-Bare `~` and `~/...` prefixes resolve against the current user's home (the same convention the shell applies). Relative paths fall back to the cwd. Keep `explorationDir` short and platform-canonical; the doctor warning is the only place the user sees the field, so misleading values create confusion later.
+Bare `~` and `~/...` prefixes in `explorationDir` resolve against the current user's home (the same convention the shell applies); relative paths fall back to the cwd. Keep `explorationDir` short and platform-canonical; the doctor warning is the only place the user sees the field, so misleading values create confusion later.
+
+> **Migration note (spec 0.8.x).** Pre-0.8 Providers declared two separate fields, `emits: string[]` and a flat `defaultRefreshAction: { <kind>: actionId }`. Both collapsed into the `kinds` map in 0.8.0 (Phase 3 of plug-in model overhaul); the per-kind frontmatter schema (which previously lived under `spec/schemas/frontmatter/<kind>.schema.json`) joined the same map entry. Migration: drop `emits` (replaced by `Object.keys(kinds)`); move each `defaultRefreshAction[<kind>]` value into `kinds[<kind>].defaultRefreshAction`; ship your per-kind schemas inside the plugin package and reference them via `kinds[<kind>].schema`.
 
 ---
 
 ## Frontmatter validation — three-tier model
 
-The kernel validates frontmatter on a graduated dial; tighter is opt-in. The model is normative — every conforming implementation MUST honour the three tiers — but the policy lives in **rules**, not the JSON Schemas. The schemas stay shape-only ([`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) declares `additionalProperties: true` deliberately) so that authors can extend their own nodes without forking the spec.
+The kernel validates frontmatter on a graduated dial; tighter is opt-in. The model is normative — every conforming implementation MUST honour the three tiers — but the policy lives in **rules**, not the JSON Schemas. The schemas stay shape-only ([`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) declares `additionalProperties: true` deliberately) so that authors can extend their own nodes without forking the spec. Per-kind frontmatter schemas live with the **Provider** that emits the kind (declared via `provider.kinds[<kind>].schema`); spec only ships the universal `base`.
 
 | Tier | Mechanism | Behavior on unknown / non-conforming fields |
 |---|---|---|
-| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and on every per-kind frontmatter schema. | Field passes silently, persists in `node.frontmatter`, and is available to every extension (extractors, rules, actions, formatters). |
+| **0 — Default permissive** | `additionalProperties: true` on `base.schema.json` and on every per-kind frontmatter schema declared by an installed Provider. | Field passes silently, persists in `node.frontmatter`, and is available to every extension (extractors, rules, actions, formatters). |
 | **1 — Built-in `unknown-field` rule** | Deterministic Rule shipped with the kernel. Always active. | Emits an Issue with `severity: 'warn'` for every key outside the documented catalog (base + the matched kind's schema). |
 | **2 — Strict mode** | [`schemas/project-config.schema.json`](./schemas/project-config.schema.json) `scan.strict: true` (team default in `settings.json`); also via `--strict` on `sm scan`. | Promotes **all** frontmatter warnings to `severity: 'error'`. They persist in the DB; `sm check` then exits `1` on the next read. CI fails. |
 
