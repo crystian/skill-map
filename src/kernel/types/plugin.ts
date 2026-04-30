@@ -5,7 +5,7 @@
  *
  * Per ROADMAP §DTO gap (review-pass decision): the proper emission of
  * typed DTOs from `@skill-map/spec` is deferred until Step 2, when a
- * third consumer (real adapters / detectors / rules) forces a single
+ * third consumer (real providers / extractors / rules) forces a single
  * source of truth. Until then, both `ui/src/models/` and `src/kernel/types/`
  * hand-curate their own local mirror — the risk of drift is accepted at
  * this scale (17 schemas) and flagged in the roadmap.
@@ -44,7 +44,7 @@ export type TPluginStorage =
  *                 bundle of extensions follows the toggle; the user cannot
  *                 enable some extensions of the bundle and disable others.
  *                 Default for plugins (and for the built-in `claude`
- *                 bundle, where the adapter and its kind-aware detectors
+ *                 bundle, where the provider and its kind-aware extractors
  *                 form a coherent provider).
  * - `'extension'` — each extension is independently toggle-able under its
  *                   qualified id `<plugin-id>/<extension-id>`. Used for
@@ -87,9 +87,10 @@ export interface IPluginManifest {
  *   or the imported manifest failed its extension-kind schema.
  */
 /**
- * Possible outcomes after the loader sees a plugin.json.
+ * Possible outcomes after the loader sees a plugin.json. Mirrors the
+ * `status` enum in `spec/schemas/plugins-registry.schema.json`.
  *
- * - `loaded`              — manifest valid, specCompat satisfied, every
+ * - `enabled`             — manifest valid, specCompat satisfied, every
  *                           extension imported and validated.
  * - `disabled`            — user-toggled off via `sm plugins disable` or
  *                           `settings.json#/plugins/<id>/enabled`. Manifest
@@ -111,7 +112,7 @@ export interface IPluginManifest {
  *                           by renaming one of them and rerunning.
  */
 export type TPluginLoadStatus =
-  | 'loaded'
+  | 'enabled'
   | 'disabled'
   | 'incompatible-spec'
   | 'invalid-manifest'
@@ -140,9 +141,9 @@ export interface IDiscoveredPlugin {
   /** Plugin id — populated from the manifest if it parsed, else a path hint. */
   id: string;
   status: TPluginLoadStatus;
-  /** Only present when status === 'loaded' or 'incompatible-spec'. */
+  /** Only present when status === 'enabled' or 'incompatible-spec'. */
   manifest?: IPluginManifest;
-  /** Only present when status === 'loaded'. */
+  /** Only present when status === 'enabled'. */
   extensions?: ILoadedExtension[];
   /**
    * Resolved granularity for this plugin. Always populated from
@@ -170,7 +171,7 @@ export interface IDiscoveredPlugin {
    *
    * Absent (`undefined`) when no schemas were declared OR when the load
    * surfaced a `load-error` (the discovered plugin keeps its failure
-   * status; consumers must check `status === 'loaded'`).
+   * status; consumers must check `status === 'enabled'`).
    */
   storageSchemas?: Record<string, IPluginStorageSchema>;
   /** Human-readable diagnostic shown by `sm plugins list/show`. */

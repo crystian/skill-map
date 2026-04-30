@@ -242,7 +242,7 @@ describe('sm scan compare-with', () => {
     strictEqual(code, 1);
     match(cap.stdout(), /1 nodes added/);
     match(cap.stdout(), /\+ \.claude\/commands\/rollback\.md \(command\)/);
-    // The new file's body says "@architect" → at-directive detector emits
+    // The new file's body says "@architect" → at-directive extractor emits
     // a `mentions` link, which should land in the delta's added bucket.
     match(cap.stdout(), /\+ \.claude\/commands\/rollback\.md --mentions--> @architect/);
   });

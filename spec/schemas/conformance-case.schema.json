@@ -31,9 +31,18 @@
       "description": "Pre-invocation toggles and ordered staging steps. All toggles default to `false`. `priorScans`, when present, run BEFORE the main `invoke` so a case can establish a prior snapshot the heuristic-driven verbs (e.g. `sm scan` rename detection) can react to.",
       "additionalProperties": false,
       "properties": {
-        "disableAllProviders": { "type": "boolean" },
-        "disableAllDetectors": { "type": "boolean" },
-        "disableAllRules": { "type": "boolean" },
+        "disableAllProviders": {
+          "type": "boolean",
+          "description": "When true, the runner injects `SKILL_MAP_DISABLE_ALL_PROVIDERS=1` into the child process environment, dropping every Provider extension (built-in and user-plugin) before scan composition."
+        },
+        "disableAllExtractors": {
+          "type": "boolean",
+          "description": "When true, the runner injects `SKILL_MAP_DISABLE_ALL_EXTRACTORS=1` into the child process environment, dropping every Extractor extension before scan composition."
+        },
+        "disableAllRules": {
+          "type": "boolean",
+          "description": "When true, the runner injects `SKILL_MAP_DISABLE_ALL_RULES=1` into the child process environment, dropping every Rule extension before scan composition."
+        },
         "priorScans": {
           "type": "array",
           "description": "Ordered staging scans, each running before the next. For step N, the runner first replaces the scope's Provider content with `priorScans[N].fixture`, then invokes `sm scan` with the supplied flags. After the last step, the runner copies the top-level `fixture` (overwriting again) and runs the main `invoke`. The DB persists across all steps because `.skill-map/` is preserved between fixture swaps.",

@@ -64,7 +64,7 @@ A case is a JSON document with this shape:
 
   "setup": {
     "disableAllProviders": false,
-    "disableAllDetectors": false,
+    "disableAllExtractors": false,
     "disableAllRules": false
   },
 

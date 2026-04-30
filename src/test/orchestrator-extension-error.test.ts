@@ -50,7 +50,7 @@ let fixture: string;
 before(() => {
   fixture = mkdtempSync(join(tmpdir(), 'skill-map-extension-error-'));
   // One agent + one command, both with valid frontmatter. The body /
-  // frontmatter content is irrelevant — the misbehaving detector emits
+  // frontmatter content is irrelevant — the misbehaving extractor emits
   // its broken links unconditionally.
   const write = (rel: string, content: string): void => {
     const abs = join(fixture, rel);

@@ -267,6 +267,98 @@ describe('plugin-runtime — branch coverage', () => {
     });
   });
 
+  // Conformance kill-switches — `SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}=1`
+  // wired by the conformance runner from `setup.disableAll*` toggles.
+  // Each var drops every extension of its kind from the composed bundle,
+  // overriding granularity gates and `--no-built-ins` semantics. Cases:
+  //   (a) PROVIDERS=1 → providers empty, extractors + rules unaffected.
+  //   (b) EXTRACTORS=1 → extractors empty.
+  //   (c) RULES=1 → rules empty.
+  //   (d) all three set → composed=undefined (kernel-empty-boot).
+  //   (e) values other than literal '1' do NOT trigger the switch.
+  describe('conformance disable-all env vars', () => {
+    const VARS = [
+      'SKILL_MAP_DISABLE_ALL_PROVIDERS',
+      'SKILL_MAP_DISABLE_ALL_EXTRACTORS',
+      'SKILL_MAP_DISABLE_ALL_RULES',
+    ] as const;
+    function withEnv<T>(set: Partial<Record<typeof VARS[number], string>>, fn: () => T): T {
+      const prior: Record<string, string | undefined> = {};
+      for (const k of VARS) {
+        prior[k] = process.env[k];
+        if (k in set) process.env[k] = set[k]!;
+        else delete process.env[k];
+      }
+      try {
+        return fn();
+      } finally {
+        for (const k of VARS) {
+          if (prior[k] === undefined) delete process.env[k];
+          else process.env[k] = prior[k];
+        }
+      }
+    }
+
+    it('(a) DISABLE_ALL_PROVIDERS=1 empties only the providers bucket', () => {
+      const composed = withEnv({ SKILL_MAP_DISABLE_ALL_PROVIDERS: '1' }, () =>
+        composeScanExtensions({ noBuiltIns: false, pluginRuntime: emptyPluginRuntime() }),
+      );
+      assert.ok(composed);
+      assert.equal(composed.providers.length, 0);
+      assert.equal(composed.extractors.length, 4, 'extractors untouched');
+      assert.equal(composed.rules.length, 5, 'rules untouched');
+    });
+
+    it('(b) DISABLE_ALL_EXTRACTORS=1 empties only the extractors bucket', () => {
+      const composed = withEnv({ SKILL_MAP_DISABLE_ALL_EXTRACTORS: '1' }, () =>
+        composeScanExtensions({ noBuiltIns: false, pluginRuntime: emptyPluginRuntime() }),
+      );
+      assert.ok(composed);
+      assert.equal(composed.providers.length, 1);
+      assert.equal(composed.extractors.length, 0);
+      assert.equal(composed.rules.length, 5);
+    });
+
+    it('(c) DISABLE_ALL_RULES=1 empties only the rules bucket', () => {
+      const composed = withEnv({ SKILL_MAP_DISABLE_ALL_RULES: '1' }, () =>
+        composeScanExtensions({ noBuiltIns: false, pluginRuntime: emptyPluginRuntime() }),
+      );
+      assert.ok(composed);
+      assert.equal(composed.providers.length, 1);
+      assert.equal(composed.extractors.length, 4);
+      assert.equal(composed.rules.length, 0);
+    });
+
+    it('(d) all three set → composed undefined (kernel-empty-boot invariant)', () => {
+      const composed = withEnv(
+        {
+          SKILL_MAP_DISABLE_ALL_PROVIDERS: '1',
+          SKILL_MAP_DISABLE_ALL_EXTRACTORS: '1',
+          SKILL_MAP_DISABLE_ALL_RULES: '1',
+        },
+        () => composeScanExtensions({ noBuiltIns: false, pluginRuntime: emptyPluginRuntime() }),
+      );
+      assert.equal(composed, undefined);
+    });
+
+    it('(e) values other than literal "1" leave every bucket intact', () => {
+      for (const stray of ['0', 'true', 'yes', '', ' 1 ']) {
+        const composed = withEnv(
+          {
+            SKILL_MAP_DISABLE_ALL_PROVIDERS: stray,
+            SKILL_MAP_DISABLE_ALL_EXTRACTORS: stray,
+            SKILL_MAP_DISABLE_ALL_RULES: stray,
+          },
+          () => composeScanExtensions({ noBuiltIns: false, pluginRuntime: emptyPluginRuntime() }),
+        );
+        assert.ok(composed, `stray value ${JSON.stringify(stray)} must not trigger any switch`);
+        assert.equal(composed.providers.length, 1);
+        assert.equal(composed.extractors.length, 4);
+        assert.equal(composed.rules.length, 5);
+      }
+    });
+  });
+
   it('failed plugins surface in warnings, not extensions', async () => {
     const dir = freshDir('mixed');
     // Bad plugin

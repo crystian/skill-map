@@ -6,7 +6,7 @@
  * and graceful error handling.
  *
  * Coverage map:
- *   (a) Hook with valid trigger loads with status 'loaded'.
+ *   (a) Hook with valid trigger loads with status 'enabled'.
  *   (b) Hook with trigger outside curated set → invalid-manifest at load.
  *   (c) Deterministic hook subscribed to scan.completed → invoked once
  *       per scan with the event payload threaded through ctx.
@@ -97,7 +97,7 @@ function loaderFor(): PluginLoader {
 }
 
 describe('Hook extension kind (spec § A.11)', () => {
-  it('(a) hook with a valid trigger loads with status "loaded"', async () => {
+  it('(a) hook with a valid trigger loads with status "enabled"', async () => {
     writeHookPlugin(
       'hook-ok',
       `export default {
@@ -110,7 +110,7 @@ describe('Hook extension kind (spec § A.11)', () => {
     );
     const result = await loaderFor().discoverAndLoadAll();
     const ok_plugin = result.find((p) => p.id === 'hook-ok')!;
-    strictEqual(ok_plugin.status, 'loaded');
+    strictEqual(ok_plugin.status, 'enabled');
     strictEqual(ok_plugin.extensions?.length, 1);
     strictEqual(ok_plugin.extensions?.[0]?.kind, 'hook');
     rmSync(join(pluginsRoot, 'hook-ok'), { recursive: true, force: true });

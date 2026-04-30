@@ -175,7 +175,7 @@ describe('broken-ref rule', () => {
 
   it('strips the sigil + normalises before matching names', async () => {
     const nodes = [mockNode('agents/backend.md', 'Backend-Architect')];
-    // Detector output: @backend-architect normalizes to "@backend architect"
+    // Extractor output: @backend-architect normalizes to "@backend architect"
     // (hyphen → space, @ preserved); rule strips the @ and matches the
     // node whose name normalises to "backend architect".
     const links = [invocation('note.md', '@backend-architect', '@backend architect', 'mentions')];
@@ -220,7 +220,7 @@ function rawLink(
   source: string,
   target: string,
   kind: LinkKind,
-  detector: string,
+  extractor: string,
   confidence: Confidence = 'medium',
 ): Link {
   return {
@@ -228,7 +228,7 @@ function rawLink(
     target,
     kind,
     confidence,
-    sources: [detector],
+    sources: [extractor],
   };
 }
 
@@ -238,13 +238,13 @@ describe('link-conflict rule', () => {
     strictEqual(issues.length, 0);
   });
 
-  it('stays silent when only one detector emits the pair', async () => {
+  it('stays silent when only one extractor emits the pair', async () => {
     const links = [rawLink('a.md', 'b.md', 'invokes', 'slash')];
     const issues = await run(linkConflictRule, { nodes: [], links });
     strictEqual(issues.length, 0);
   });
 
-  it('stays silent when two detectors agree on kind (happy path)', async () => {
+  it('stays silent when two extractors agree on kind (happy path)', async () => {
     const links = [
       rawLink('audit-flow', 'security-scanner', 'references', 'frontmatter'),
       rawLink('audit-flow', 'security-scanner', 'references', 'slash'),
@@ -253,7 +253,7 @@ describe('link-conflict rule', () => {
     strictEqual(issues.length, 0, 'agreement on kind must not emit findings');
   });
 
-  it('emits one warn when detectors disagree on kind', async () => {
+  it('emits one warn when extractors disagree on kind', async () => {
     const links = [
       rawLink('audit-flow', 'security-scanner', 'references', 'frontmatter'),
       rawLink('audit-flow', 'security-scanner', 'invokes', 'slash'),
@@ -280,7 +280,7 @@ describe('link-conflict rule', () => {
   });
 
   it('groups multiple sources of the same kind into one variant', async () => {
-    // Three rows, two kinds. References has 2 detectors (frontmatter +
+    // Three rows, two kinds. References has 2 extractors (frontmatter +
     // mentions), invokes has 1 (slash). After grouping: 2 variants.
     const links = [
       rawLink('a.md', 'b.md', 'references', 'frontmatter'),

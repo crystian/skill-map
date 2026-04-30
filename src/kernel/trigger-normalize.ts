@@ -1,10 +1,10 @@
 /**
  * Normative trigger normalisation pipeline. Shared utility used by every
- * detector that emits invocation-style links (slash, at-directive,
+ * extractor that emits invocation-style links (slash, at-directive,
  * command-name) and by the `trigger-collision` rule that keys on the
  * result.
  *
- * Defined by `spec/architecture.md` §Detector · trigger normalization:
+ * Defined by `spec/architecture.md` §Extractor · trigger normalization:
  *
  *   1. Unicode NFD (canonical decomposition).
  *   2. Strip diacritics (every code point in category Mn / Nonspacing_Mark).
@@ -14,7 +14,7 @@
  *   6. Trim.
  *
  * Non-separator, non-alphanumeric characters (e.g. /, @, :, .) are
- * PRESERVED — stripping them is the detector's concern, not the
+ * PRESERVED — stripping them is the extractor's concern, not the
  * normalizer's. This keeps `/ns:verb` and `@scope/foo` comparable in
  * their intended form.
  */

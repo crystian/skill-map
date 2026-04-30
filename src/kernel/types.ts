@@ -25,7 +25,7 @@
  *      implements `StoragePort`).
  *
  *   3. **Runtime extension contracts** — what a plugin author
- *      implements: `IProvider`, `IDetector`, `IRule`, `IFormatter`,
+ *      implements: `IProvider`, `IExtractor`, `IRule`, `IFormatter`,
  *      `IExtensionBase`. **`I` prefix.** The prefix flags "this is a
  *      contract you supply, not a value the kernel hands you" — same
  *      reading as the rest of TypeScript's plugin ecosystems where a
@@ -73,7 +73,7 @@ export type Stability = 'experimental' | 'stable' | 'deprecated';
  *     as a queued job (`sm job submit <kind>:<id>`); never participates in
  *     scan-time pipelines.
  *
- * Detector / Rule / Action declare it directly (default `deterministic` when
+ * Extractor / Rule / Action declare it directly (default `deterministic` when
  * omitted in the manifest). Provider / Formatter are deterministic-only and
  * MUST NOT carry the field.
  */
@@ -116,15 +116,15 @@ export interface Node {
 }
 
 export interface Link {
-  /** The originating node — the path of the file the detector was reading
+  /** The originating node — the path of the file the extractor was reading
    *  when it emitted this link. Singular, NOT to be confused with
    *  `sources` (plural) below. */
   source: string;
   target: string;
   kind: LinkKind;
   confidence: Confidence;
-  /** Identifiers of the detectors / extensions that contributed evidence
-   *  for this link (one link can be confirmed by multiple detectors).
+  /** Identifiers of the extractors / extensions that contributed evidence
+   *  for this link (one link can be confirmed by multiple extractors).
    *  Plural; NOT the same as `source` (singular) above, which is the
    *  originating node path. Naming is unfortunate but spec-frozen. */
   sources: string[];

@@ -455,7 +455,7 @@ export class PluginLoader {
     return {
       path: pluginPath,
       id: manifest.id,
-      status: 'loaded',
+      status: 'enabled',
       manifest,
       granularity: manifest.granularity ?? 'bundle',
       extensions: loaded,
@@ -609,7 +609,7 @@ function pathId(p: string): string {
  * `id-collision` with a reason naming the other path(s).
  *
  * "Trusted id" means the manifest parsed and validated. The eligible
- * statuses are therefore `loaded`, `disabled`, and `incompatible-spec`
+ * statuses are therefore `enabled`, `disabled`, and `incompatible-spec`
  * (each of those keeps `manifest` populated). The remaining failure
  * modes — `invalid-manifest` and `load-error` — either never reached the
  * id-trust point (`invalid-manifest`) or carry a manifest that's still

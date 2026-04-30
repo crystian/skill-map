@@ -60,7 +60,7 @@ interface ConformanceCase {
   fixture?: string;
   setup?: {
     disableAllProviders?: boolean;
-    disableAllDetectors?: boolean;
+    disableAllExtractors?: boolean;
     disableAllRules?: boolean;
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
   };
@@ -71,6 +71,20 @@ interface ConformanceCase {
     flags?: string[];
   };
   assertions: Assertion[];
+}
+
+/**
+ * Build the env-var bag a case's `setup.disableAll*` toggles inject into
+ * every child invocation (priorScans + the main `invoke`). The CLI's scan
+ * composer (`composeScanExtensions`) reads these vars and drops every
+ * extension of the matching kind from the in-scan pipeline.
+ */
+function disableEnv(setup: ConformanceCase['setup']): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  if (setup?.disableAllProviders) env['SKILL_MAP_DISABLE_ALL_PROVIDERS'] = '1';
+  if (setup?.disableAllExtractors) env['SKILL_MAP_DISABLE_ALL_EXTRACTORS'] = '1';
+  if (setup?.disableAllRules) env['SKILL_MAP_DISABLE_ALL_RULES'] = '1';
+  return env;
 }
 
 type Assertion =
@@ -95,6 +109,7 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
   const fixturesRoot = options.fixturesRoot ?? join(options.specRoot, 'conformance', 'fixtures');
 
   const scope = mkdtempSync(join(tmpdir(), `sm-conformance-${c.id}-`));
+  const setupEnv = disableEnv(c.setup);
   try {
     // 1. Run every priorScan in order. Each step replaces every non-
     //    `.skill-map/` directory with the named fixture, then runs
@@ -106,7 +121,7 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
       const stepArgv = ['scan', ...(step.flags ?? [])];
       const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
         cwd: scope,
-        env: { ...process.env, ...options.env },
+        env: { ...process.env, ...options.env, ...setupEnv },
         encoding: 'utf8',
       });
       if ((stepChild.status ?? 0) !== 0) {
@@ -140,7 +155,7 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
 
     const child = spawnSync(process.execPath, [options.binary, ...argv], {
       cwd: scope,
-      env: { ...process.env, ...options.env },
+      env: { ...process.env, ...options.env, ...setupEnv },
       encoding: 'utf8',
     });
 

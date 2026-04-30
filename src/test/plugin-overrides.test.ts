@@ -160,7 +160,7 @@ function writeMockPlugin(rootDir: string, id: string): string {
       id,
       version: '0.1.0',
       specCompat: `^${installedSpecVersion()}`,
-      extensions: ['detector.js'],
+      extensions: ['extractor.js'],
     }),
   );
   // Extractor manifests are pure data (no runtime methods on the
@@ -168,7 +168,7 @@ function writeMockPlugin(rootDir: string, id: string): string {
   // without needing the runtime extractor contract — perfect for
   // testing enable/disable flow.
   writeFileSync(
-    join(dir, 'detector.js'),
+    join(dir, 'extractor.js'),
     `export default {
        kind: 'extractor',
        id: '${id}-extractor',
@@ -213,6 +213,6 @@ describe('PluginLoader — disabled status', () => {
     });
     const plugins = await loader.discoverAndLoadAll();
     assert.equal(plugins.length, 1);
-    assert.equal(plugins[0]!.status, 'loaded');
+    assert.equal(plugins[0]!.status, 'enabled');
   });
 });

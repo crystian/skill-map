@@ -52,11 +52,11 @@ function dropMockPlugin(scope: IScope, id: string): void {
       id,
       version: '0.1.0',
       specCompat: `^${installedSpecVersion()}`,
-      extensions: ['detector.js'],
+      extensions: ['extractor.js'],
     }),
   );
   writeFileSync(
-    join(pluginDir, 'detector.js'),
+    join(pluginDir, 'extractor.js'),
     `export default {
        kind: 'extractor',
        id: '${id}-extractor',
@@ -255,11 +255,11 @@ describe('sm plugins enable / disable', () => {
 
     const list = sm(['plugins', 'list'], scope);
     assert.equal(list.status, 0);
-    // DB says enabled → status loaded
+    // DB says enabled → status enabled
     assert.match(list.stdout, /ok\s+mock-f/);
   });
 
-  it('settings.json baseline applies when DB has no override (loaded by default → disabled by settings)', () => {
+  it('settings.json baseline applies when DB has no override (enabled by default → disabled by settings)', () => {
     const scope = freshScope('settings-only');
     sm(['init', '--no-scan'], scope);
     dropMockPlugin(scope, 'mock-g');
@@ -420,7 +420,7 @@ describe('sm plugins show — qualified extension ids', () => {
 // not exist on disk. The warning is non-blocking — the user may install
 // the matching platform later. Three sub-cases cover the contract:
 describe('sm plugins doctor — Provider explorationDir validation', () => {
-  it('Provider with valid explorationDir loads OK (status=loaded)', () => {
+  it('Provider with valid explorationDir loads OK (status=enabled)', () => {
     const scope = freshScope('provider-explorationdir-ok');
     sm(['init', '--no-scan'], scope);
     // Use the home dir itself as explorationDir — guaranteed to exist.

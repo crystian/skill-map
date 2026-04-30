@@ -4,7 +4,7 @@
  * emits an `extension.error` event.
  *
  * Why: the orchestrator drops links / issues that violate their
- * extension's declared contract (e.g. a detector emitting a kind it did
+ * extension's declared contract (e.g. an extractor emitting a kind it did
  * not declare in `emitsLinkKinds`, a rule emitting an issue with an
  * out-of-spec severity). Without surfacing the drop, a plugin author
  * sees their link / issue silently disappear from the result with no

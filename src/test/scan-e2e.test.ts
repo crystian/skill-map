@@ -1,6 +1,6 @@
 /**
  * End-to-end scan test. Proves the orchestrator + claude provider + the
- * three detectors + the three rules work together on a realistic
+ * three extractors + the three rules work together on a realistic
  * fixture. Hits the orchestrator directly (not through the CLI) so the
  * assertions can inspect intermediate state the CLI only exposes as JSON.
  */
@@ -215,7 +215,7 @@ describe('scan end-to-end', () => {
         (l) => l.target.startsWith('http://') || l.target.startsWith('https://'),
       );
       strictEqual(externalSurvivors.length, 0, 'external pseudo-links were stripped');
-      // linksOutCount reflects ONLY internal detectors (frontmatter + slash + at).
+      // linksOutCount reflects ONLY internal extractors (frontmatter + slash + at).
       // This fixture has no frontmatter references, no slash commands, no @handles —
       // so linksOutCount must be 0, untouched by the URL counter.
       strictEqual(links!.linksOutCount, 0, 'URL counter does not inflate linksOutCount');

@@ -14,7 +14,7 @@
  *   - **Link**: `(source, target, kind, normalizedTrigger ?? '')`. This
  *     mirrors Step 7.2's link-conflict rule and `sm show` aggregation —
  *     two links with identical endpoints, kind, and (optional) trigger
- *     are the same link, even if emitted by different detectors. The
+ *     are the same link, even if emitted by different extractors. The
  *     `sources[]` union and confidence are NOT part of identity; they
  *     are presentation facets that can churn without making the link
  *     "different" for delta purposes.

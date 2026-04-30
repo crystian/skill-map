@@ -1,5 +1,36 @@
 # Spec changelog
 
+## [Unreleased]
+
+### Minor (breaking, pre-1.0)
+
+- **`conformance-case.schema.json` — rename `setup.disableAllDetectors`
+  → `setup.disableAllExtractors`.** Finishes the kind rename Detector →
+  Extractor introduced in 0.8.0 (Phase 2 of the plug-in model
+  overhaul). The previous name was a residue from an unfinished sweep
+  and never reached a release that consumed it.
+- **`setup.disableAll{Providers,Extractors,Rules}` are now wired
+  end-to-end.** Until this release the toggles were declared in the
+  schema but the runner threaded them nowhere; the `kernel-empty-boot`
+  case happened to pass because its fixture is empty. The runner now
+  injects `SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}=1` into
+  the child process environment per toggle, and the CLI's scan
+  composer drops every extension of the disabled kind from the
+  in-scan pipeline (overriding granularity gates and `--no-built-ins`).
+  Migration: any case JSON authored against the unwired schema needs
+  to swap `disableAllDetectors` for `disableAllExtractors`; behaviour
+  changes only when the toggles were already `true` (those cases will
+  now actually disable the kind, where previously they relied on
+  fixture content for the same outcome).
+
+### Patch
+
+- Updated `conformance/cases/kernel-empty-boot.json` for the field
+  rename above.
+- Updated `conformance/README.md` example for the field rename above.
+- Schema docstrings added to each `disableAll*` property documenting
+  the env-var convention the runner uses.
+
 ## 0.8.0
 
 ### Minor Changes

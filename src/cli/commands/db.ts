@@ -410,7 +410,7 @@ export class DbMigrateCommand extends Command {
         this.context.stderr.write(`${warn}\n`);
       }
       const dedicated = pluginRuntime.discovered.filter(
-        (p) => p.status === 'loaded' && p.manifest?.storage?.mode === 'dedicated',
+        (p) => p.status === 'enabled' && p.manifest?.storage?.mode === 'dedicated',
       );
       const targetedPlugins = this.pluginId !== undefined
         ? dedicated.filter((p) => p.id === this.pluginId)

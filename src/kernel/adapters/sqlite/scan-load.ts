@@ -12,13 +12,13 @@
  *
  * **Documented omission**: external pseudo-links (those whose target is
  * an `http://` / `https://` URL emitted by the external-url-counter
- * detector) are NEVER persisted to `scan_links` — only their per-node
+ * extractor) are NEVER persisted to `scan_links` — only their per-node
  * count survives in `scan_nodes.external_refs_count`. Therefore the
  * `result.links` returned by `loadScanResult` contains only internal
  * graph links, and `node.externalRefsCount` is the authoritative count
  * carried over from the prior scan. The orchestrator's incremental path
  * preserves that count for "unchanged" nodes and re-derives it for
- * new / modified nodes from a fresh detector pass.
+ * new / modified nodes from a fresh extractor pass.
  *
  * Meta envelope: since Step 5.1 the `scan_meta` table persists `scope` /
  * `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked` /

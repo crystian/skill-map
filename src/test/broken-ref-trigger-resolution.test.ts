@@ -12,7 +12,7 @@
  *   - `@architect` link resolves to a node where `frontmatter.name === 'architect'`
  *   - Trigger normalisation applies on both sides (case, hyphens, accents)
  *   - Path-style targets (`.claude/commands/foo.md`) still resolve via
- *     verbatim path lookup (frontmatter detector path)
+ *     verbatim path lookup (frontmatter extractor path)
  *   - When neither path lookup nor name index matches, broken-ref fires.
  *
  * The rule has unit-level coverage via the orchestrator-level scan test
@@ -184,7 +184,7 @@ describe('broken-ref — trigger resolution against frontmatter.name', () => {
     );
   });
 
-  it('path-style target (frontmatter detector) still uses verbatim path lookup', async () => {
+  it('path-style target (frontmatter extractor) still uses verbatim path lookup', async () => {
     const fixture = freshFixture('path');
     writeNode(
       fixture,

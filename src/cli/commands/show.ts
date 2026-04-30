@@ -151,12 +151,12 @@ function renderHuman(doc: IShowDocument): string {
   out.push('', 'Frontmatter:');
   out.push(indent(JSON.stringify(node.frontmatter ?? {}, null, 2), 2));
 
-  // Per Step 7.2 + Decision #90: storage keeps one row per detector
+  // Per Step 7.2 + Decision #90: storage keeps one row per extractor
   // (no merge), but the human view groups identical-shape links so a
-  // skill detected by both the frontmatter and slash detector renders
+  // skill detected by both the frontmatter and slash extractor renders
   // as one line with `sources: frontmatter, slash` instead of two
   // duplicated rows. The total row count is preserved in the header
-  // so authors notice when N detectors emit the same link. `--json`
+  // so authors notice when N extractors emit the same link. `--json`
   // output stays raw for machines (no behavioural change).
   const aggregatedOut = aggregateLinks(linksOut, 'target');
   out.push('', `Links out (${linksOut.length}, ${aggregatedOut.length} unique):`);
@@ -208,7 +208,7 @@ interface IGroupedLink {
   kind: Link['kind'];
   /** Highest confidence across the group (rank: high > medium > low). */
   confidence: Link['confidence'];
-  /** Union of all detector ids that emitted any row in the group, sorted. */
+  /** Union of all extractor ids that emitted any row in the group, sorted. */
   sources: string[];
   /** Original row count — informational, mirrors what `linksOut.length` showed before grouping. */
   rowCount: number;
@@ -219,7 +219,7 @@ interface IGroupedLink {
 /**
  * Group a flat link array by `(endpoint, kind, normalizedTrigger or null)`.
  * Used by the human renderer to collapse rows emitted by multiple
- * detectors for the same conceptual link into a single line. Storage
+ * extractors for the same conceptual link into a single line. Storage
  * keeps the raw rows; `--json` emits them unchanged.
  *
  * `endpointSide` picks which end of the link is the "other" node:

@@ -118,7 +118,7 @@ async function loadAll(opts: IScopeOptions): Promise<IDiscoveredPlugin[]> {
 
 function statusIcon(status: IDiscoveredPlugin['status']): string {
   switch (status) {
-    case 'loaded': return 'ok';
+    case 'enabled': return 'ok';
     case 'disabled': return 'off';
     case 'incompatible-spec': return 'spec!';
     case 'invalid-manifest': return 'mani!';
@@ -239,7 +239,7 @@ export class PluginsListCommand extends Command {
       const granularitySuffix =
         p.granularity ? ` (granularity=${p.granularity})` : '';
       const head = `${statusIcon(p.status).padEnd(6)} ${p.id}@${p.manifest?.version ?? '?'}${granularitySuffix}`;
-      const tail = p.status === 'loaded' ? ` · ${kinds}` : ` · ${p.reason ?? ''}`;
+      const tail = p.status === 'enabled' ? ` · ${kinds}` : ` · ${p.reason ?? ''}`;
       this.context.stdout.write(head + tail + '\n');
     }
     return ExitCode.Ok;
@@ -282,7 +282,7 @@ export class PluginsShowCommand extends Command {
       const lines = [
         `id:           ${builtIn.id}`,
         `path:         (built-in)`,
-        `status:       ${builtIn.enabled ? 'loaded' : 'disabled'}`,
+        `status:       ${builtIn.enabled ? 'enabled' : 'disabled'}`,
         `granularity:  ${builtIn.granularity}`,
         'extensions:',
       ];
@@ -374,7 +374,7 @@ function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
   }
   // User-plugin Providers.
   for (const p of plugins) {
-    if (p.status !== 'loaded' || !p.extensions) continue;
+    if (p.status !== 'enabled' || !p.extensions) continue;
     for (const ext of p.extensions) {
       if (ext.kind !== 'provider') continue;
       const inst = extensionInstance(ext);
@@ -417,7 +417,7 @@ function collectApplicableKindWarnings(
   }
   // User-plugin extractors.
   for (const p of plugins) {
-    if (p.status !== 'loaded' || !p.extensions) continue;
+    if (p.status !== 'enabled' || !p.extensions) continue;
     for (const ext of p.extensions) {
       if (ext.kind !== 'extractor') continue;
       const inst = extensionInstance(ext);
@@ -492,7 +492,7 @@ function collectExplorationDirWarnings(
   }
   // User-plugin Providers.
   for (const p of plugins) {
-    if (p.status !== 'loaded' || !p.extensions) continue;
+    if (p.status !== 'enabled' || !p.extensions) continue;
     for (const ext of p.extensions) {
       if (ext.kind !== 'provider') continue;
       const inst = extensionInstance(ext);
@@ -530,21 +530,21 @@ export class PluginsDoctorCommand extends Command {
     const resolveEnabled = await buildResolver(this.global);
     const builtIns = builtInRows(resolveEnabled);
     const counts: Record<IDiscoveredPlugin['status'], number> = {
-      loaded: 0,
+      enabled: 0,
       disabled: 0,
       'incompatible-spec': 0,
       'invalid-manifest': 0,
       'load-error': 0,
       'id-collision': 0,
     };
-    // Built-ins contribute to loaded / disabled counts so the doctor
+    // Built-ins contribute to enabled / disabled counts so the doctor
     // summary reflects the full surface, not just user plugins.
     for (const b of builtIns) {
       if (b.granularity === 'bundle') {
-        counts[b.enabled ? 'loaded' : 'disabled']++;
+        counts[b.enabled ? 'enabled' : 'disabled']++;
       } else {
         for (const ext of b.extensions) {
-          counts[ext.enabled ? 'loaded' : 'disabled']++;
+          counts[ext.enabled ? 'enabled' : 'disabled']++;
         }
       }
     }
@@ -592,7 +592,7 @@ export class PluginsDoctorCommand extends Command {
 
     // Errors gate the exit code; `disabled` is intentional and never an issue.
     const bad = plugins.filter(
-      (p) => p.status !== 'loaded' && p.status !== 'disabled',
+      (p) => p.status !== 'enabled' && p.status !== 'disabled',
     );
     if (bad.length > 0) {
       this.context.stdout.write('\nIssues:\n');

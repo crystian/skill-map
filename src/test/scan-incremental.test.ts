@@ -481,7 +481,7 @@ describe('incremental scan via priorSnapshot', () => {
   });
 
   it('preserves supersedes-inversion links from cached nodes (B3 regression)', async () => {
-    // The frontmatter detector emits an inverted `supersedes` link when a
+    // The frontmatter extractor emits an inverted `supersedes` link when a
     // node carries `metadata.supersededBy: <newer>`: source = <newer>,
     // target = <this-node>. The cached-reuse filter previously keyed
     // prior links by `link.source === node.path`, which dropped these
@@ -530,7 +530,7 @@ describe('incremental scan via priorSnapshot', () => {
 
   it('full scan and incremental scan over identical input yield set-equal links (structural invariant)', async () => {
     // Codifies the invariant the supersedes-inversion bug violated. Use a
-    // fixture that exercises every detector: forward `supersedes`,
+    // fixture that exercises every extractor: forward `supersedes`,
     // inverted `supersededBy`, slash, at-directive, and frontmatter
     // requires/related. Both scans must yield the same set of (source,
     // kind, target) tuples — incremental reuse must not lose links.
@@ -624,11 +624,11 @@ describe('incremental scan via priorSnapshot', () => {
   it('deletion-driven dynamic broken-ref re-evaluation: full scan after delete also fires the rule on the deleted target', async () => {
     // Companion to the "drops a deleted node" test above. That one
     // exercises the INCREMENTAL path (the more interesting one — the
-    // surviving node is cached, no detector re-runs against it, yet the
+    // surviving node is cached, no extractor re-runs against it, yet the
     // rule still sees the missing target). This one exercises the FULL
     // scan path to lock in the same invariant from the other side: rules
     // always run over the merged graph, regardless of whether nodes came
-    // from the cache or from a fresh detector pass.
+    // from the cache or from a fresh extractor pass.
     //
     // The default fixture's architect already has /unknown + @backend-lead
     // dangling, so we can't simply assert "broken-ref appears after delete"

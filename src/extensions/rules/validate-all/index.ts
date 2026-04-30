@@ -17,9 +17,8 @@
  * Manifest validation for registered extensions is already enforced at
  * load time by the PluginLoader — there's no need to redo it here. This
  * rule focuses on user content that the scan produced. Cross-rule issue
- * validation (revalidating other rules' `Issue[]` output) used to live
- * here when the extension was an audit reading `ScanResult.issues`; rules
- * see only the graph (`nodes` + `links`), so that branch is gone — the
+ * validation (revalidating other rules' `Issue[]` output) is intentionally
+ * NOT done here; rules see only the graph (`nodes` + `links`), and the
  * kernel's own `validateIssue()` already gates issues at emit time.
  */
 

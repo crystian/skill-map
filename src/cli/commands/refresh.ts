@@ -362,7 +362,7 @@ async function upsertEnrichments(
  * Provider's regex (`^---\r?\n[\s\S]*?\r?\n---\r?\n?`); if the close
  * fence is missing or the prefix is malformed, the helper returns the
  * original text unchanged — same fall-through as the Provider, where the
- * malformed-frontmatter detector is responsible for surfacing the issue.
+ * malformed-frontmatter extractor is responsible for surfacing the issue.
  */
 function stripFrontmatterFence(text: string): string {
   const match = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);

@@ -4,12 +4,12 @@
  * Generates 500 synthetic markdown files under
  * `<repo>/.tmp/scan-bench-<random>/.claude/{agents,commands,hooks,skills}/`
  * (+ a sibling `notes/` for the note kind) and runs `runScan` over them
- * with the full built-in pipeline (claude Provider + 4 detectors + 3
+ * with the full built-in pipeline (claude Provider + 4 extractors + 3
  * rules) and tokenization enabled. Asserts:
  *
  *   1. `runScan` completes within the perf budget.
  *   2. `result.stats.nodesCount === 500`.
- *   3. `result.stats.linksCount > 0` (sanity — detectors fired).
+ *   3. `result.stats.linksCount > 0` (sanity — extractors fired).
  *
  * On every run, prints a single line to stderr summarising the actual
  * numbers so a contributor whose CI tripped the threshold sees the
@@ -25,7 +25,7 @@
  * Each file ships a minimal-but-realistic frontmatter (name + description
  * + occasional `metadata.related[]`) and a body of ~1 KB containing one
  * slash invocation, one `@`-directive, and one http URL — exercising every
- * detector. Ten of the agents intentionally share the same `name` so the
+ * extractor. Ten of the agents intentionally share the same `name` so the
  * trigger-collision rule has work to do; a few commands cross-reference
  * each other via `metadata.related[]`.
  */
@@ -107,7 +107,7 @@ describe('scan benchmark (500 MDs)', () => {
     );
 
     strictEqual(result.stats.nodesCount, 500, 'expected exactly 500 nodes');
-    ok(result.stats.linksCount > 0, 'detectors should produce at least one link');
+    ok(result.stats.linksCount > 0, 'extractors should produce at least one link');
     if (!SKIP_BUDGET) {
       ok(
         elapsedMs <= BUDGET_MS,
@@ -131,7 +131,7 @@ describe('scan benchmark (500 MDs)', () => {
 function generateFixture(root: string): void {
   const PER_KIND = 100;
 
-  // Filler body to land each file at ~1 KB while exercising every detector.
+  // Filler body to land each file at ~1 KB while exercising every extractor.
   // Slash invocation + @-directive + http URL all present.
   const filler = (i: number): string =>
     [

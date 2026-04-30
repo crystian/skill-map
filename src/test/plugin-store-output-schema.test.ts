@@ -213,7 +213,7 @@ describe('A.12 — plugin storage outputSchema (runtime wrapper)', () => {
     const kvPlugin: IDiscoveredPlugin = {
       path: '/plugins/kv',
       id: 'kvp',
-      status: 'loaded',
+      status: 'enabled',
       manifest: {
         id: 'kvp',
         version: '1.0.0',
@@ -340,7 +340,7 @@ describe('A.12 — loader load-error on missing / bad schema files', () => {
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
-    strictEqual(result[0]?.status, 'loaded');
+    strictEqual(result[0]?.status, 'enabled');
     ok(result[0]?.storageSchemas, 'storageSchemas populated when schema declared');
     ok(result[0]!.storageSchemas![KV_SCHEMA_KEY], 'KV sentinel present');
     strictEqual(
@@ -365,7 +365,7 @@ describe('A.12 — loader load-error on missing / bad schema files', () => {
     );
 
     const result = await loaderFor(root).discoverAndLoadAll();
-    strictEqual(result[0]?.status, 'loaded');
+    strictEqual(result[0]?.status, 'enabled');
     strictEqual(result[0]?.storageSchemas, undefined);
   });
 });

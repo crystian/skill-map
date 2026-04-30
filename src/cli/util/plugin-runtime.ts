@@ -145,7 +145,7 @@ export async function loadPluginRuntime(
   };
 
   for (const plugin of discovered) {
-    if (plugin.status === 'loaded') {
+    if (plugin.status === 'enabled') {
       bucketLoaded(plugin.extensions ?? [], bundle);
       continue;
     }
@@ -207,6 +207,28 @@ export function isBuiltInExtensionEnabled(
 }
 
 /**
+ * Conformance-only kill-switch env vars (mirrored in the
+ * `conformance-case.schema.json#/properties/setup` toggles). Each var
+ * drops every extension of its kind from the scan composer regardless of
+ * granularity gates and `--no-built-ins`. Production callers MUST NOT
+ * set these — they exist so the conformance runner can drive the
+ * `kernel-empty-boot` invariant (and any future case that needs an
+ * isolated kind) without depending on fixture content being empty.
+ *
+ * Truthy = literal `'1'`. Anything else (absent, `'0'`, `'true'`,
+ * whitespace) is treated as off so the runner injecting `'1'` is
+ * unambiguous and a stray export of the variable in a developer shell
+ * does not silently disable production scans.
+ */
+const ENV_DISABLE_PROVIDERS = 'SKILL_MAP_DISABLE_ALL_PROVIDERS';
+const ENV_DISABLE_EXTRACTORS = 'SKILL_MAP_DISABLE_ALL_EXTRACTORS';
+const ENV_DISABLE_RULES = 'SKILL_MAP_DISABLE_ALL_RULES';
+
+function envFlagOn(name: string): boolean {
+  return process.env[name] === '1';
+}
+
+/**
  * Compose the `IScanExtensions` shape the orchestrator consumes. Built-ins
  * load conditionally (gated by `--no-built-ins`); plugin extensions always
  * fold in, even under `--no-built-ins` — the user wants a stripped-down
@@ -219,6 +241,12 @@ export function isBuiltInExtensionEnabled(
  * extensions; a user that disables `core/superseded` (extension
  * granularity) drops only that rule. `--no-built-ins` is the macro
  * override that wins when both layers say "skip".
+ *
+ * Conformance kill-switches (`SKILL_MAP_DISABLE_ALL_{PROVIDERS,EXTRACTORS,RULES}=1`)
+ * win over both layers — they drop every extension of the chosen kind
+ * from the composed bundle, including user plugins. The conformance
+ * runner injects them per `setup.disableAll*` toggle; nothing in the
+ * production code path sets them.
  *
  * Returns `undefined` when both halves are empty so the orchestrator
  * follows its zero-extension code path.
@@ -266,15 +294,29 @@ export function composeScanExtensions(opts: {
   rules.push(...opts.pluginRuntime.extensions.rules);
   hooks.push(...opts.pluginRuntime.extensions.hooks);
 
+  // Conformance kill-switches. Applied last so they trump every other
+  // gate (granularity, --no-built-ins, plugin enable/disable).
+  const disabledProviders = envFlagOn(ENV_DISABLE_PROVIDERS);
+  const disabledExtractors = envFlagOn(ENV_DISABLE_EXTRACTORS);
+  const disabledRules = envFlagOn(ENV_DISABLE_RULES);
+  const finalProviders = disabledProviders ? [] : providers;
+  const finalExtractors = disabledExtractors ? [] : extractors;
+  const finalRules = disabledRules ? [] : rules;
+
   if (
-    providers.length === 0 &&
-    extractors.length === 0 &&
-    rules.length === 0 &&
+    finalProviders.length === 0 &&
+    finalExtractors.length === 0 &&
+    finalRules.length === 0 &&
     hooks.length === 0
   ) {
     return undefined;
   }
-  return { providers, extractors, rules, hooks };
+  return {
+    providers: finalProviders,
+    extractors: finalExtractors,
+    rules: finalRules,
+    hooks,
+  };
 }
 
 /**

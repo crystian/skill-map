@@ -29,11 +29,11 @@ describe('createCliProgressEmitter', () => {
       timestamp: new Date().toISOString(),
       data: {
         kind: 'link-kind-not-declared',
-        extensionId: 'broken-detector',
-        message: 'Detector "broken-detector" emitted off-contract link.',
+        extensionId: 'broken-extractor',
+        message: 'Extractor "broken-extractor" emitted off-contract link.',
       },
     });
-    match(stderr.text, /^extension\.error: Detector "broken-detector" emitted off-contract link\.\n$/);
+    match(stderr.text, /^extension\.error: Extractor "broken-extractor" emitted off-contract link\.\n$/);
   });
 
   it('falls back to a placeholder when extension.error has no message', () => {
