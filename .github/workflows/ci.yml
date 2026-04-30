@@ -73,6 +73,86 @@ jobs:
       - name: Test
         run: npm run test:ci --workspace=@skill-map/cli
 
+  smoke-install:
+    name: smoke install (tarball)
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install deps
+        run: npm ci --ignore-scripts
+
+      - name: Build (tsup)
+        run: npm run build --workspace=@skill-map/cli
+
+      - name: Pack workspaces
+        run: |
+          mkdir -p .tmp/packs
+          npm pack --workspace=@skill-map/spec --pack-destination=.tmp/packs
+          npm pack --workspace=@skill-map/cli --pack-destination=.tmp/packs
+
+      - name: Verify tarball contents
+        run: |
+          npm pack --workspace=@skill-map/cli --dry-run --json | node -e '
+            const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const files = (data[0]?.files ?? []).map((f) => f.path);
+            const required = [
+              "bin/sm.js",
+              "dist/cli.js",
+              "dist/index.js",
+              "dist/kernel/index.js",
+              "dist/conformance/index.js",
+              "dist/migrations/001_initial.sql",
+              "package.json",
+            ];
+            const missing = required.filter((r) => !files.includes(r));
+            if (missing.length) {
+              console.error("Missing in tarball:", missing.join(", "));
+              process.exit(1);
+            }
+            console.log("Tarball contents OK (" + files.length + " files).");
+          '
+
+      - name: Install globally from tarballs
+        run: |
+          spec_tgz=$(ls .tmp/packs/skill-map-spec-*.tgz | head -n 1)
+          cli_tgz=$(ls .tmp/packs/skill-map-cli-*.tgz | head -n 1)
+          npm i -g "$spec_tgz" "$cli_tgz"
+
+      - name: Verify CLI surface
+        run: |
+          sm --version
+          skill-map --version
+          sm --help > /dev/null
+          test -f "$(npm root -g)/@skill-map/cli/dist/migrations/001_initial.sql"
+
+      - name: Verify init + scan flow on a temp dir
+        run: |
+          workdir=$(mktemp -d)
+          cd "$workdir"
+          echo "# hello" > a.md
+          sm init --no-scan
+          test -f .skill-map/skill-map.db
+          sm scan --json . > scan.json
+          test -s scan.json
+          node -e '
+            const r = JSON.parse(require("fs").readFileSync("scan.json", "utf8"));
+            if (!Array.isArray(r.nodes) || r.nodes.length === 0) {
+              console.error("scan output missing nodes[]");
+              process.exit(1);
+            }
+            console.log("scan produced " + r.nodes.length + " node(s).");
+          '
+
   changeset:
     name: require changeset on PR
     if: github.event_name == 'pull_request'

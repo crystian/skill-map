@@ -35,6 +35,7 @@ jobs:
         run: node scripts/build-spec-index.js --check
 
       - name: Changesets — version PR or publish
+        id: changesets
         uses: changesets/action@v1
         with:
           version: npm run changeset:version
@@ -44,3 +45,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Smoke install from npm (post-publish)
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          # Allow npm registry propagation before pulling the freshly
+          # published versions. The publish itself just returned, but the
+          # CDN can lag a few seconds before the new tag resolves.
+          sleep 60
+          npm i -g @skill-map/cli@latest
+          sm --version
+          skill-map --version
+          sm --help > /dev/null
