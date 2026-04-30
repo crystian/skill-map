@@ -23,7 +23,7 @@ export function createKernel(): Kernel {
 // types, orchestrator, watcher / delta / query, ports, extension
 // kinds.
 
-export { Registry, EXTENSION_KINDS, DuplicateExtensionError } from './registry.js';
+export { Registry, EXTENSION_KINDS, DuplicateExtensionError, qualifiedExtensionId } from './registry.js';
 export type { Extension, ExtensionKind } from './registry.js';
 
 // --- domain types (./types.ts) -----------------------------------------
@@ -63,8 +63,19 @@ export type {
 } from './types.js';
 
 // --- orchestrator (./orchestrator.ts) ---------------------------------
-export { runScan, runScanWithRenames, detectRenamesAndOrphans } from './orchestrator.js';
-export type { RunScanOptions, RenameOp } from './orchestrator.js';
+export {
+  runScan,
+  runScanWithRenames,
+  detectRenamesAndOrphans,
+  mergeNodeWithEnrichments,
+} from './orchestrator.js';
+export type {
+  RunScanOptions,
+  RenameOp,
+  IExtractorRunRecord,
+  IEnrichmentRecord,
+  IPersistedEnrichment,
+} from './orchestrator.js';
 
 // --- adapters (./adapters/...) -----------------------------------------
 export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
@@ -101,16 +112,19 @@ export type {
 
 // --- extension kinds (./extensions/...) --------------------------------
 export type {
-  IAdapter,
+  IProvider,
   IRawNode,
-  IDetector,
-  IDetectContext,
+  IExtractor,
+  IExtractorContext,
+  IExtractorCallbacks,
   IRule,
   IRuleContext,
-  IRenderer,
-  IRenderContext,
-  IAudit,
-  IAuditContext,
-  TAuditReport,
+  IFormatter,
+  IFormatterContext,
+  IHook,
+  IHookContext,
+  THookTrigger,
+  THookFilter,
   IExtensionBase,
 } from './extensions/index.js';
+export { HOOK_TRIGGERS } from './extensions/index.js';

@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/providers/claude/v1/frontmatter/command.schema.json",
+  "title": "FrontmatterCommand",
+  "description": "Frontmatter shape for nodes classified as `command` by the Claude Provider. Extends the spec's universal `frontmatter/base.schema.json` via $ref-by-$id. Kind-specific fields: `args`, `shortcut`. Owned by the Claude Provider; relocated from `spec/schemas/frontmatter/` in spec 0.8.0 (Phase 3 of plug-in model overhaul).",
+  "allOf": [
+    { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
+  ],
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "args": {
+      "type": "array",
+      "description": "Declared positional / named arguments for this command.",
+      "items": { "$ref": "#/$defs/CommandArg" }
+    },
+    "shortcut": {
+      "type": "string",
+      "description": "Keyboard shortcut hint. Platform-specific notation (e.g. `cmd+shift+k`, `ctrl+alt+m`). Purely advisory."
+    }
+  },
+  "$defs": {
+    "CommandArg": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "description": "Free-form type hint (e.g. `string`, `integer`, `path`, `boolean`, `enum:a|b|c`)."
+        },
+        "required": { "type": "boolean", "default": false },
+        "description": { "type": "string" },
+        "default": { "description": "Any JSON value." }
+      }
+    }
+  }
+}

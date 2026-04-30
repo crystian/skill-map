@@ -86,7 +86,7 @@ export class HistoryCommand extends Command {
     details: `
       Reads from state_executions. Filters:
         -n <path>          restrict to executions whose nodeIds[] contains <path>
-        --action <id>      restrict to a specific extension (action / audit) id
+        --action <id>      restrict to a specific action extension id
         --status <s,...>   restrict to one or more of completed,failed,cancelled
         --since <ISO>      lower bound on startedAt (inclusive, ISO-8601)
         --until <ISO>      upper bound on startedAt (exclusive, ISO-8601)

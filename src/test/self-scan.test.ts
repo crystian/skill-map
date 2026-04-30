@@ -8,7 +8,7 @@
  *   2. The whole `ScanResult` validates against the top-level
  *      `scan-result.schema.json` (Step 4.7 reconciliation — the runtime now
  *      matches the spec it should have matched all along: integer
- *      `scannedAt`, `scope`, `adapters`, `scannedBy`, `filesWalked`,
+ *      `scannedAt`, `scope`, `providers`, `scannedBy`, `filesWalked`,
  *      `filesSkipped`). Per-element node / link / issue schemas are
  *      transitively exercised via `$ref` from the top-level schema.
  *   3. The repo has nodes (markdown is everywhere).
@@ -60,7 +60,7 @@ describe('self-scan acceptance', () => {
     // are reached transitively via $ref). This is the strong assertion
     // for Step 4.7 reconciliation — proves the runtime now matches the
     // spec it should have matched all along (integer `scannedAt`,
-    // `scope`, `adapters`, `scannedBy`, `filesWalked` / `filesSkipped`).
+    // `scope`, `providers`, `scannedBy`, `filesWalked` / `filesSkipped`).
     const validators = loadSchemaValidators();
     const scanResultValidator = validators.getValidator('scan-result');
     const valid = scanResultValidator(result);

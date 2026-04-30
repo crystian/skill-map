@@ -6,7 +6,7 @@
 CREATE TABLE scan_nodes (
   path TEXT PRIMARY KEY,
   kind TEXT NOT NULL,
-  adapter TEXT NOT NULL,
+  provider TEXT NOT NULL,
   title TEXT,
   description TEXT,
   stability TEXT,
@@ -29,7 +29,7 @@ CREATE TABLE scan_nodes (
   CONSTRAINT ck_scan_nodes_stability CHECK (stability IS NULL OR stability IN ('experimental','stable','deprecated'))
 );
 CREATE INDEX ix_scan_nodes_kind ON scan_nodes(kind);
-CREATE INDEX ix_scan_nodes_adapter ON scan_nodes(adapter);
+CREATE INDEX ix_scan_nodes_provider ON scan_nodes(provider);
 CREATE INDEX ix_scan_nodes_body_hash ON scan_nodes(body_hash);
 
 CREATE TABLE scan_links (
@@ -116,7 +116,7 @@ CREATE TABLE state_executions (
   tokens_out INTEGER,
   report_path TEXT,
   job_id TEXT,
-  CONSTRAINT ck_state_executions_kind CHECK (kind IN ('action','audit')),
+  CONSTRAINT ck_state_executions_kind CHECK (kind IN ('action')),
   CONSTRAINT ck_state_executions_status CHECK (status IN ('completed','failed','cancelled'))
 );
 CREATE INDEX ix_state_executions_extension_id ON state_executions(extension_id);
@@ -186,7 +186,7 @@ CREATE TABLE config_schema_versions (
 
 -- --- Scan meta envelope ----------------------------------------------------
 -- Persists scan-result metadata so `loadScanResult` returns real values for
--- `scope`, `roots`, `scannedAt`, `scannedBy`, `adapters`, and the non-derivable
+-- `scope`, `roots`, `scannedAt`, `scannedBy`, `providers`, and the non-derivable
 -- `stats` fields (filesWalked / filesSkipped / durationMs) instead of a
 -- synthetic envelope. Single-row table (CHECK id = 1); replaced atomically
 -- with the rest of the scan_* zone on every `sm scan` via
@@ -202,10 +202,61 @@ CREATE TABLE scan_meta (
   scanned_by_name TEXT NOT NULL,
   scanned_by_version TEXT NOT NULL,
   scanned_by_spec_version TEXT NOT NULL,
-  adapters_json TEXT NOT NULL,
+  providers_json TEXT NOT NULL,
   stats_files_walked INTEGER NOT NULL,
   stats_files_skipped INTEGER NOT NULL,
   stats_duration_ms INTEGER NOT NULL,
   CONSTRAINT ck_scan_meta_singleton CHECK (id = 1),
   CONSTRAINT ck_scan_meta_scope CHECK (scope IN ('project','global'))
 );
+
+-- --- Fine-grained scan cache ----------------------------------------------
+-- Phase 4 / A.9 — per-(node, extractor) cache breadcrumbs. Lets the
+-- orchestrator skip rerunning extractors against an unchanged body when the
+-- same extractor already ran against that body_hash, and — critically —
+-- detect when a NEW extractor was registered between scans (no row yet for
+-- that pair) so the new extractor runs over the cached node without
+-- requiring a full cache invalidation. Replace-all on every persist:
+-- obsolete rows (extractor uninstalled since the last scan) disappear
+-- automatically and cannot mask a stale cache hit.
+
+CREATE TABLE scan_extractor_runs (
+  node_path TEXT NOT NULL,
+  extractor_id TEXT NOT NULL,
+  body_hash_at_run TEXT NOT NULL,
+  ran_at INTEGER NOT NULL,
+  PRIMARY KEY (node_path, extractor_id)
+);
+CREATE INDEX ix_scan_extractor_runs_node ON scan_extractor_runs(node_path);
+CREATE INDEX ix_scan_extractor_runs_extractor ON scan_extractor_runs(extractor_id);
+
+-- --- Universal enrichment layer --------------------------------------------
+-- Phase 4 / A.8 — stores `ctx.enrichNode(partial)` outputs separately from
+-- the author-supplied frontmatter (which remains immutable from Extractors).
+-- Layer separation is universal: deterministic and probabilistic Extractors
+-- both write here. Only probabilistic enrichments need stale tracking
+-- (`is_probabilistic = 1`); when a node body changes between scans, those
+-- rows are flagged `stale = 1` (NOT deleted, preserving the LLM cost).
+-- Deterministic enrichments regenerate via the A.9 fine-grained cache and
+-- simply pisar the prior row via PRIMARY KEY conflict on the next scan.
+--
+-- Read-side `node.merged` view (helper `mergeNodeWithEnrichments`):
+-- author frontmatter + non-stale enrichments ordered by enriched_at ASC,
+-- last-write-wins per field. Rules / `sm check` / `sm export` consume the
+-- author frontmatter by default (CI-safe deterministic baseline);
+-- enrichment consumption is opt-in.
+
+CREATE TABLE node_enrichments (
+  node_path TEXT NOT NULL,
+  extractor_id TEXT NOT NULL,
+  body_hash_at_enrichment TEXT NOT NULL,
+  value_json TEXT NOT NULL,
+  stale INTEGER NOT NULL DEFAULT 0,
+  enriched_at INTEGER NOT NULL,
+  is_probabilistic INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (node_path, extractor_id),
+  CONSTRAINT ck_node_enrichments_stale CHECK (stale IN (0, 1)),
+  CONSTRAINT ck_node_enrichments_is_probabilistic CHECK (is_probabilistic IN (0, 1))
+);
+CREATE INDEX ix_node_enrichments_node ON node_enrichments(node_path);
+CREATE INDEX ix_node_enrichments_stale ON node_enrichments(stale);

@@ -100,15 +100,6 @@
       </button>
 
       <div class="lp-nav__drawer" id="nav-drawer">
-        <div class="lp-nav__links">
-          <a href="#features" data-i18n="nav.features">Features</a>
-          <a href="#how"      data-i18n="nav.how">How it works</a>
-          <a href="#cli"      data-i18n="nav.cli">CLI</a>
-          <a href="#cases"    data-i18n="nav.cases">Use cases</a>
-          <a href="https://github.com/crystian/skill-map/tree/main/docs"
-             target="_blank" rel="noopener"
-             data-i18n="nav.docs">Docs</a>
-        </div>
 
         <div class="lp-nav__right">
           <div class="lp-lang" role="group" data-i18n-aria-label="lang.toggle.label">
@@ -144,7 +135,7 @@
           </h1>
 
           <p class="hero__sub" data-i18n="hero.sub">
-            Stop guessing. See collisions, orphans, and risky calls before your agents do.
+            Stop guessing. Find collisions, orphans, semantic duplicates, and optimization opportunities before your agents do — static and LLM analysis, on the same graph.
           </p>
 
           <div class="hero__ctas">
@@ -195,9 +186,9 @@
           <div class="hero__graph-legend">
             <div><i style="background:#00C853"></i><span data-i18n="graph.legend.skill">Skill</span></div>
             <div><i style="background:#7C3AED"></i><span data-i18n="graph.legend.agent">Agent</span></div>
-            <div><i style="background:#4C1D95"></i><span data-i18n="graph.legend.command">Command</span></div>
             <div><i style="background:#A78BFA"></i><span data-i18n="graph.legend.hook">Hook</span></div>
             <div><i style="background:#8A93A1"></i><span data-i18n="graph.legend.note">Note</span></div>
+            <div><i style="background:#4C1D95"></i><span data-i18n="graph.legend.command">Command</span></div>
             <div><i style="background:transparent;border:1px dashed #5A6472"></i><span data-i18n="graph.legend.orphan">Orphan</span></div>
           </div>
 
@@ -276,26 +267,6 @@
 
     <hr class="section-divider" aria-hidden="true">
 
-    <!-- ============== ROADMAP ============== -->
-    <section class="roadmap" id="roadmap">
-      <div class="roadmap__head">
-        <div>
-          <h2 class="roadmap__title">
-            <span data-i18n="rm.title">Roadmap.</span><br>
-            <span class="roadmap__title-soft" data-i18n="rm.sub">A definition, three phases to 1.0, and what comes after.</span>
-          </h2>
-        </div>
-      </div>
-      <div id="roadmap-mount"></div>
-      <noscript>
-        <p style="text-align:center;color:rgba(255,255,255,.6);font-size:14px;margin-top:24px">
-          <span data-i18n="rm.noscript.before">Interactive timeline requires JavaScript. Read the full </span><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" style="color:var(--violet-400)">ROADMAP.md</a><span data-i18n="rm.noscript.after"> on GitHub.</span>
-        </p>
-      </noscript>
-    </section>
-
-    <hr class="section-divider" aria-hidden="true">
-
     <!-- ============== FEATURES ============== -->
     <!-- Two visual blocks share this section.
          Top — `.features-grid`: two cards with full-card treatment.
@@ -325,7 +296,7 @@
             <h3 class="feature__title" data-i18n="feat.modes.t">Deterministic &amp; probabilistic, side by side</h3>
             <span class="feature__tag">modes</span>
           </div>
-          <p class="feature__body" data-i18n="feat.modes.b">Static analysis runs in milliseconds; LLM analysis runs in jobs. Same plugin model, same context, same graph. Choose what runs in pre-commit and what runs nightly.</p>
+          <p class="feature__body" data-i18n="feat.modes.b">Static analysis runs in milliseconds; LLM analysis runs in jobs. Same plugin model, same context, same graph.</p>
         </article>
 
         <article class="feature feature--violet">
@@ -361,18 +332,6 @@
 
         <li class="features-list__item features-list__item--amber">
           <div class="features-list__icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
-              <path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="features-list__title" data-i18n="feat.deps.t">External deps</h3>
-            <p class="features-list__body" data-i18n="feat.deps.b">Lists every URL and asset your workspace fetches. Audit your supply chain.</p>
-          </div>
-        </li>
-
-        <li class="features-list__item features-list__item--amber">
-          <div class="features-list__icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M9 17H7A5 5 0 0 1 7 7h2"/>
               <path d="M15 7h2a5 5 0 0 1 4 8"/>
@@ -397,31 +356,43 @@
             <p class="features-list__body" data-i18n="feat.coll.b">Two skills claiming the same invocation? Flagged before the runtime picks the wrong one.</p>
           </div>
         </li>
+
+        <li class="features-list__item features-list__item--amber">
+          <div class="features-list__icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2 4 5v7c0 5 3.5 9 8 10 4.5-1 8-5 8-10V5l-8-3z"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="features-list__title" data-i18n="feat.deps.t">External deps</h3>
+            <p class="features-list__body" data-i18n="feat.deps.b">Lists every URL and asset your workspace fetches. Audit your supply chain.</p>
+          </div>
+        </li>
       </ul>
     </section>
 
     <hr class="section-divider" aria-hidden="true">
 
     <!-- ============== PLUGIN ECOSYSTEM ============== -->
-    <!-- Six plugin types orbiting the kernel. Hover/click a satellite to
+    <!-- Six plugin kinds orbiting the kernel. Hover/click a satellite to
          pin it; the brief panel on the right swaps in the matching content.
          Layout falls back to a single column on small viewports. The active
          id lives on `.peco[data-active]`; CSS routes visibility from there. -->
-    <section class="section peco" id="ecosystem" data-active="adapter" style="--pe-accent: #7C3AED;">
+    <section class="section peco" id="ecosystem" data-active="provider" style="--pe-accent: #7C3AED;">
       <header class="section-header section-header--center">
         <div>
           <div class="section-badge" data-i18n="pe.eyebrow">Ecosystem</div>
           <h2 class="section-title">
-            <span data-i18n="pe.title.1">Six hooks.</span><br>
+            <span data-i18n="pe.title.1">Plugins: Six kinds.</span><br>
             <span class="section-title-soft" data-i18n="pe.title.2">Infinite extensions.</span>
           </h2>
-          <p class="peco__sub" data-i18n="pe.sub">The kernel understands six plugin types. Compose what you need, publish your own, install everyone else's. The graph stays the same; the ecosystem makes it yours.</p>
+          <p class="peco__sub" data-i18n="pe.sub">Six ways to extend this platform. Your plugin, your company's, the community's — all run against the same kernel.</p>
         </div>
       </header>
 
       <div class="peco__grid">
         <div class="peco__viz">
-          <svg viewBox="0 0 720 720" class="peco__svg" role="img" aria-label="Six plugin types orbiting the skill-map kernel">
+          <svg viewBox="0 0 720 720" class="peco__svg" role="img" aria-label="Six plugin kinds orbiting the skill-map kernel">
             <defs>
               <radialGradient id="peco-core" cx=".5" cy=".5">
                 <stop offset="0%"   stop-color="rgba(124,58,237,.95)"/>
@@ -433,12 +404,12 @@
                 <stop offset="55%"  stop-color="#A78BFA"/>
                 <stop offset="100%" stop-color="#7C3AED"/>
               </radialGradient>
-              <radialGradient id="peco-fill-adapter"  cx=".5" cy=".5"><stop offset="0%" stop-color="#7C3AED" stop-opacity="1"/><stop offset="100%" stop-color="#7C3AED" stop-opacity=".5"/></radialGradient>
-              <radialGradient id="peco-fill-detector" cx=".5" cy=".5"><stop offset="0%" stop-color="#A78BFA" stop-opacity="1"/><stop offset="100%" stop-color="#A78BFA" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-provider"  cx=".5" cy=".5"><stop offset="0%" stop-color="#7C3AED" stop-opacity="1"/><stop offset="100%" stop-color="#7C3AED" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-extractor" cx=".5" cy=".5"><stop offset="0%" stop-color="#A78BFA" stop-opacity="1"/><stop offset="100%" stop-color="#A78BFA" stop-opacity=".5"/></radialGradient>
               <radialGradient id="peco-fill-rule"     cx=".5" cy=".5"><stop offset="0%" stop-color="#5FD17C" stop-opacity="1"/><stop offset="100%" stop-color="#5FD17C" stop-opacity=".5"/></radialGradient>
               <radialGradient id="peco-fill-action"   cx=".5" cy=".5"><stop offset="0%" stop-color="#00C853" stop-opacity="1"/><stop offset="100%" stop-color="#00C853" stop-opacity=".5"/></radialGradient>
-              <radialGradient id="peco-fill-audit"    cx=".5" cy=".5"><stop offset="0%" stop-color="#FFB627" stop-opacity="1"/><stop offset="100%" stop-color="#FFB627" stop-opacity=".5"/></radialGradient>
-              <radialGradient id="peco-fill-renderer" cx=".5" cy=".5"><stop offset="0%" stop-color="#5BC0EB" stop-opacity="1"/><stop offset="100%" stop-color="#5BC0EB" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-hook"    cx=".5" cy=".5"><stop offset="0%" stop-color="#FFB627" stop-opacity="1"/><stop offset="100%" stop-color="#FFB627" stop-opacity=".5"/></radialGradient>
+              <radialGradient id="peco-fill-formatter" cx=".5" cy=".5"><stop offset="0%" stop-color="#5BC0EB" stop-opacity="1"/><stop offset="100%" stop-color="#5BC0EB" stop-opacity=".5"/></radialGradient>
             </defs>
 
             <!-- Orbit ring -->
@@ -446,11 +417,11 @@
             <circle cx="360" cy="360" r="249" fill="none" stroke="rgba(124,58,237,.05)" stroke-width="40"/>
 
             <!-- Connection lines from kernel to each satellite (one group per id). -->
-            <g class="peco__line" data-pe-id="adapter">
+            <g class="peco__line" data-pe-id="provider">
               <line x1="360" y1="360" x2="360" y2="110" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#7C3AED"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L360,110"/></circle>
             </g>
-            <g class="peco__line" data-pe-id="detector">
+            <g class="peco__line" data-pe-id="extractor">
               <line x1="360" y1="360" x2="576.5" y2="235" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#A78BFA"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L576.5,235"/></circle>
             </g>
@@ -462,11 +433,11 @@
               <line x1="360" y1="360" x2="360" y2="610" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#00C853"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L360,610"/></circle>
             </g>
-            <g class="peco__line" data-pe-id="audit">
+            <g class="peco__line" data-pe-id="hook">
               <line x1="360" y1="360" x2="143.5" y2="485" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#FFB627"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,485"/></circle>
             </g>
-            <g class="peco__line" data-pe-id="renderer">
+            <g class="peco__line" data-pe-id="formatter">
               <line x1="360" y1="360" x2="143.5" y2="235" stroke-dasharray="3 5"/>
               <circle r="3" class="peco__line-traveler" fill="#5BC0EB"><animateMotion dur="1.6s" repeatCount="indefinite" path="M360,360 L143.5,235"/></circle>
             </g>
@@ -500,34 +471,34 @@
             </g>
 
             <!-- Six satellites. -->
-            <g class="peco__sat" data-pe-id="adapter" data-pe-accent="#7C3AED" data-pe-builtin="true" tabindex="0" role="button" aria-label="Adapter plugin type">
+            <g class="peco__sat" data-pe-id="provider" data-pe-accent="#7C3AED" data-pe-builtin="true" tabindex="0" role="button" aria-label="Provider plugin kind">
               <circle cx="360" cy="110" r="44" class="peco__sat-pulse" fill="none" stroke="#7C3AED" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="360" cy="110" r="42" class="peco__sat-glow" fill="#7C3AED" opacity=".15"/>
               <circle cx="360" cy="110" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#7C3AED" stroke-width="1.2"/>
-              <circle cx="360" cy="110" r="20" class="peco__sat-fill" fill="url(#peco-fill-adapter)" opacity=".6"/>
+              <circle cx="360" cy="110" r="20" class="peco__sat-fill" fill="url(#peco-fill-provider)" opacity=".6"/>
               <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
                 <rect x="351" y="103" width="8" height="14" rx="1"/>
                 <rect x="361" y="103" width="8" height="14" rx="1"/>
                 <line x1="359" y1="110" x2="361" y2="110"/>
               </g>
-              <text x="360" y="168" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.adapter.title">Adapter</text>
+              <text x="360" y="168" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.provider.title">Provider</text>
               <text x="360" y="184" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="detector" data-pe-accent="#A78BFA" data-pe-builtin="true" tabindex="0" role="button" aria-label="Detector plugin type">
+            <g class="peco__sat" data-pe-id="extractor" data-pe-accent="#A78BFA" data-pe-builtin="true" tabindex="0" role="button" aria-label="Extractor plugin kind">
               <circle cx="576.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#A78BFA" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="576.5" cy="235" r="42" class="peco__sat-glow" fill="#A78BFA" opacity=".15"/>
               <circle cx="576.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#A78BFA" stroke-width="1.2"/>
-              <circle cx="576.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-detector)" opacity=".6"/>
+              <circle cx="576.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-extractor)" opacity=".6"/>
               <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
                 <circle cx="574.5" cy="233" r="6"/>
                 <line x1="579.5" y1="238" x2="584.5" y2="243"/>
               </g>
-              <text x="576.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.detector.title">Detector</text>
+              <text x="576.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.extractor.title">Extractor</text>
               <text x="576.5" y="309" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="rule" data-pe-accent="#5FD17C" data-pe-builtin="true" tabindex="0" role="button" aria-label="Rule plugin type">
+            <g class="peco__sat" data-pe-id="rule" data-pe-accent="#5FD17C" data-pe-builtin="true" tabindex="0" role="button" aria-label="Rule plugin kind">
               <circle cx="576.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#5FD17C" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="576.5" cy="485" r="42" class="peco__sat-glow" fill="#5FD17C" opacity=".15"/>
               <circle cx="576.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5FD17C" stroke-width="1.2"/>
@@ -539,7 +510,7 @@
               <text x="576.5" y="559" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="action" data-pe-accent="#00C853" tabindex="0" role="button" aria-label="Action plugin type">
+            <g class="peco__sat" data-pe-id="action" data-pe-accent="#00C853" tabindex="0" role="button" aria-label="Action plugin kind">
               <circle cx="360" cy="610" r="44" class="peco__sat-pulse" fill="none" stroke="#00C853" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="360" cy="610" r="42" class="peco__sat-glow" fill="#00C853" opacity=".15"/>
               <circle cx="360" cy="610" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#00C853" stroke-width="1.2"/>
@@ -550,79 +521,79 @@
               <text x="360" y="668" text-anchor="middle" class="peco__sat-label" data-i18n="pe.action.title">Action</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="audit" data-pe-accent="#FFB627" data-pe-builtin="true" tabindex="0" role="button" aria-label="Audit plugin type">
+            <g class="peco__sat" data-pe-id="hook" data-pe-accent="#FFB627" data-pe-builtin="true" tabindex="0" role="button" aria-label="Hook plugin kind">
               <circle cx="143.5" cy="485" r="44" class="peco__sat-pulse" fill="none" stroke="#FFB627" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="143.5" cy="485" r="42" class="peco__sat-glow" fill="#FFB627" opacity=".15"/>
               <circle cx="143.5" cy="485" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#FFB627" stroke-width="1.2"/>
-              <circle cx="143.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-audit)" opacity=".6"/>
+              <circle cx="143.5" cy="485" r="20" class="peco__sat-fill" fill="url(#peco-fill-hook)" opacity=".6"/>
               <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
                 <rect x="136.5" y="478" width="14" height="14" rx="1.5"/>
                 <line x1="139.5" y1="482" x2="147.5" y2="482"/>
                 <line x1="139.5" y1="485" x2="147.5" y2="485"/>
                 <line x1="139.5" y1="488" x2="144.5" y2="488"/>
               </g>
-              <text x="143.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.audit.title">Audit</text>
+              <text x="143.5" y="543" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.hook.title">Hook</text>
               <text x="143.5" y="559" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
 
-            <g class="peco__sat" data-pe-id="renderer" data-pe-accent="#5BC0EB" data-pe-builtin="true" tabindex="0" role="button" aria-label="Renderer plugin type">
+            <g class="peco__sat" data-pe-id="formatter" data-pe-accent="#5BC0EB" data-pe-builtin="true" tabindex="0" role="button" aria-label="Formatter plugin kind">
               <circle cx="143.5" cy="235" r="44" class="peco__sat-pulse" fill="none" stroke="#5BC0EB" stroke-width="1.5"><animate attributeName="r" from="40" to="56" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" from=".6" to="0" dur="1.8s" repeatCount="indefinite"/></circle>
               <circle cx="143.5" cy="235" r="42" class="peco__sat-glow" fill="#5BC0EB" opacity=".15"/>
               <circle cx="143.5" cy="235" r="32" class="peco__sat-body" fill="rgba(14,19,26,.92)" stroke="#5BC0EB" stroke-width="1.2"/>
-              <circle cx="143.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-renderer)" opacity=".6"/>
+              <circle cx="143.5" cy="235" r="20" class="peco__sat-fill" fill="url(#peco-fill-formatter)" opacity=".6"/>
               <g class="peco__sat-glyph" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round">
                 <line x1="136.5" y1="230" x2="150.5" y2="230"/>
                 <line x1="136.5" y1="235" x2="148.5" y2="235"/>
                 <line x1="136.5" y1="240" x2="146.5" y2="240"/>
               </g>
-              <text x="143.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.renderer.title">Renderer</text>
+              <text x="143.5" y="293" text-anchor="middle" class="peco__sat-label"   data-i18n="pe.formatter.title">Formatter</text>
               <text x="143.5" y="309" text-anchor="middle" class="peco__sat-builtin" data-i18n="pe.builtin">BUILT-IN</text>
             </g>
           </svg>
         </div>
 
         <div class="peco__panel">
-          <article class="peco__brief" data-pe-id="adapter">
+          <article class="peco__brief" data-pe-id="provider">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
-              <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
+              <span data-i18n="pe.tag">plugin kind</span>
             </div>
-            <h3 class="peco__brief-title" data-i18n="pe.adapter.title">Adapter</h3>
-            <p class="peco__brief-one"   data-i18n="pe.adapter.one">Recognize a platform</p>
-            <p class="peco__brief-body"  data-i18n="pe.adapter.brief">Decides which files in a project are nodes and what kind (skill / agent / hook / command / note). The Claude adapter ships built-in; write one for Cursor, Cline, your own runner.</p>
-            <pre class="peco__brief-code"><code>export const claude: IAdapter = {
-  id: 'claude', kind: 'adapter',
+            <h3 class="peco__brief-title" data-i18n="pe.provider.title">Provider</h3>
+            <p class="peco__brief-one"   data-i18n="pe.provider.one">Defines an agent (Claude, Codex, etc)</p>
+            <p class="peco__brief-body"  data-i18n="pe.provider.brief">Declares the file kinds an agent exposes (skill / agent / hook / note / command for Claude) and how to classify them. The Claude provider ships built-in; write one for Cursor, Copilot, or your own runner.</p>
+            <pre class="peco__brief-code"><code>export const claude: IProvider = {
+  id: 'claude', kind: 'provider',
   globs: ['~/.claude/**/*.md'],
+  kinds: { skill, agent, hook, command, note },
   classify: (p) =&gt; /* skill | agent | hook | … */,
 };</code></pre>
           </article>
 
-          <article class="peco__brief" data-pe-id="detector">
+          <article class="peco__brief" data-pe-id="extractor">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
-              <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
+              <span data-i18n="pe.tag">plugin kind</span>
             </div>
-            <h3 class="peco__brief-title" data-i18n="pe.detector.title">Detector</h3>
-            <p class="peco__brief-one"   data-i18n="pe.detector.one">Extract signals from a node</p>
-            <p class="peco__brief-body"  data-i18n="pe.detector.brief">Reads the body of a single node and returns Link[] — slash invocations, @-mentions, imports, URLs, anything you can grep. Detectors are how the graph stops being a directory and starts being a graph.</p>
-            <pre class="peco__brief-code"><code>export const slash: IDetector = {
-  id: 'slash', kind: 'detector',
-  detect: (ctx) =&gt; [...ctx.body.matchAll(SLASH_RE)]
-    .map(m =&gt; ({ kind: 'invokes', target: m[1] })),
+            <h3 class="peco__brief-title" data-i18n="pe.extractor.title">Extractor</h3>
+            <p class="peco__brief-one"   data-i18n="pe.extractor.one">Extracts data from a node</p>
+            <p class="peco__brief-body"  data-i18n="pe.extractor.brief">Each file is a node; an Extractor turns it into data. It extracts links to other nodes, attributes that enrich the node, or extra information.</p>
+            <pre class="peco__brief-code"><code>export const slash: IExtractor = {
+  id: 'slash', kind: 'extractor',
+  extract: (ctx) =&gt; {
+    for (const m of ctx.body.matchAll(SLASH_RE))
+      ctx.emitLink({ kind: 'invokes', target: m[1] });
+  },
 };</code></pre>
           </article>
 
           <article class="peco__brief" data-pe-id="rule">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
-              <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
+              <span data-i18n="pe.tag">plugin kind</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.rule.title">Rule</h3>
-            <p class="peco__brief-one"   data-i18n="pe.rule.one">Lint the whole graph</p>
-            <p class="peco__brief-body"  data-i18n="pe.rule.brief">Receives the assembled graph and returns Issue[]. Trigger collisions, orphans, external deps that died, dangling references — write one rule, run it on every project, ship it as a package.</p>
+            <p class="peco__brief-one"   data-i18n="pe.rule.one">Finds problems in the graph</p>
+            <p class="peco__brief-body"  data-i18n="pe.rule.brief">Looks at the whole graph and spots problems: trigger collisions, orphans, dead dependencies, broken references. Write a rule, run it on any project, or publish it for others to use.</p>
             <pre class="peco__brief-code"><code>export const triggerCollisions: IRule = {
   id: 'trigger-collisions', kind: 'rule',
   evaluate: (graph) =&gt; byTrigger(graph)
@@ -634,13 +605,13 @@
           <article class="peco__brief" data-pe-id="action">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
-              <span data-i18n="pe.tag">plugin type</span>
+              <span data-i18n="pe.tag">plugin kind</span>
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.action.title">Action</h3>
-            <p class="peco__brief-one"   data-i18n="pe.action.one">Operate on nodes</p>
-            <p class="peco__brief-body"  data-i18n="pe.action.brief">Two flavors. Local: deterministic code that mutates files. Invocation-template: a prompt the agent runner executes against an LLM. Either way, actions are how Issues become fixes.</p>
+            <p class="peco__brief-one"   data-i18n="pe.action.one">Improves your agents and skills automatically</p>
+            <p class="peco__brief-body"  data-i18n="pe.action.brief">Actions are the only plugin kind that touches disk. Deterministic mode: straight code — rename a trigger, tweak frontmatter. Probabilistic: a prompt run by the LLM — regenerate a summary, rewrite text.</p>
             <pre class="peco__brief-code"><code>export const renameTrigger: IAction = {
-  id: 'rename-trigger', kind: 'action', mode: 'local',
+  id: 'rename-trigger', kind: 'action', mode: 'deterministic',
   run: async (node, { newTrigger }) =&gt; {
     node.frontmatter.trigger = newTrigger;
     await node.save();
@@ -648,39 +619,37 @@
 };</code></pre>
           </article>
 
-          <article class="peco__brief" data-pe-id="audit">
+          <article class="peco__brief" data-pe-id="hook">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
-              <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
+              <span data-i18n="pe.tag">plugin kind</span>
             </div>
-            <h3 class="peco__brief-title" data-i18n="pe.audit.title">Audit</h3>
-            <p class="peco__brief-one"   data-i18n="pe.audit.one">Compose rules + actions</p>
-            <p class="peco__brief-body"  data-i18n="pe.audit.brief">A deterministic workflow that runs rules, runs actions, and emits a structured report. CI-friendly. Ship one as a package, the team runs `sm audit @org/security` and gets the same answer every time.</p>
-            <pre class="peco__brief-code"><code>export const securityBaseline: IAudit = {
-  id: 'security-baseline', kind: 'audit',
-  rules: ['external-deps', 'dangling-refs'],
-  run: (graph) =&gt; composeRules(graph),
+            <h3 class="peco__brief-title" data-i18n="pe.hook.title">Hook</h3>
+            <p class="peco__brief-one"   data-i18n="pe.hook.one">Notifies and integrates with other tools</p>
+            <p class="peco__brief-body"  data-i18n="pe.hook.brief">When something happens in skill-map (scan finished, action executed, job failed), a Hook reacts. Send it to Slack, fire a webhook, gate a spawn before it starts. There are eight events you can subscribe to.</p>
+            <pre class="peco__brief-code"><code>export const slackOnFailure: IHook = {
+  id: 'slack-on-failure', kind: 'hook',
+  triggers: ['job.failed'],
+  on: async (event) =&gt; slack.post('#alerts', event.error),
 };</code></pre>
           </article>
 
-          <article class="peco__brief" data-pe-id="renderer">
+          <article class="peco__brief" data-pe-id="formatter">
             <div class="peco__brief-tag">
               <span class="peco__brief-dot"></span>
-              <span data-i18n="pe.tag">plugin type</span>
-              <span class="peco__brief-builtin" data-i18n="pe.builtin">BUILT-IN</span>
+              <span data-i18n="pe.tag">plugin kind</span>
             </div>
-            <h3 class="peco__brief-title" data-i18n="pe.renderer.title">Renderer</h3>
-            <p class="peco__brief-one"   data-i18n="pe.renderer.one">Serialize the graph</p>
-            <p class="peco__brief-body"  data-i18n="pe.renderer.brief">Take the in-memory graph and emit it as something else: ASCII, Mermaid, DOT, JSON, your custom format. Bundled renderers cover the basics; the interesting ones are the ones you write.</p>
-            <pre class="peco__brief-code"><code>export const mermaid: IRenderer = {
-  id: 'mermaid', kind: 'renderer',
-  render: (graph) =&gt; 'graph LR\n' +
+            <h3 class="peco__brief-title" data-i18n="pe.formatter.title">Formatter</h3>
+            <p class="peco__brief-one"   data-i18n="pe.formatter.one">Exports the graph to other formats</p>
+            <p class="peco__brief-body"  data-i18n="pe.formatter.brief">The graph lives in memory; a Formatter ships it out. ASCII for terminal, Mermaid for your README, DOT for Graphviz, JSON for your pipeline. Built-ins cover the common cases; write your own for the rest.</p>
+            <pre class="peco__brief-code"><code>export const mermaid: IFormatter = {
+  id: 'mermaid', kind: 'formatter',
+  format: (graph) =&gt; 'graph LR\n' +
     graph.edges.map(e =&gt; `  ${e.src} --&gt; ${e.dst}`).join('\n'),
 };</code></pre>
           </article>
 
-          <nav class="peco__nav" aria-label="Cycle through plugin types">
+          <nav class="peco__nav" aria-label="Cycle through plugin kinds">
             <button type="button" class="peco__nav-btn" data-pe-nav="prev" data-i18n="pe.prev">← prev</button>
             <span class="peco__nav-count"><span class="peco__nav-i">1</span> / 6</span>
             <button type="button" class="peco__nav-btn" data-pe-nav="next" data-i18n="pe.next">next →</button>
@@ -694,8 +663,15 @@
           <code class="peco__cta-cmd">sm plugins list</code>
         </div>
         <div class="peco__cta-actions">
-          <a class="btn btn--ghost" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener" data-i18n="pe.cta.docs">Read the docs →</a>
-          <a class="btn btn--accent" href="https://github.com/crystian/skill-map" target="_blank" rel="noopener" data-i18n="pe.cta.template">Plugin template</a>
+          <a class="btn btn--ghost" href="https://github.com/crystian/skill-map/blob/main/testkit/README.md" target="_blank" rel="noopener">
+            <span data-i18n="pe.cta.docs">Read the docs</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+          <a class="btn btn--accent" href="https://github.com/crystian/skill-map/blob/main/testkit/index.ts" target="_blank" rel="noopener" data-i18n="pe.cta.template">Plugin template</a>
         </div>
       </div>
     </section>
@@ -705,30 +681,32 @@
     <!-- ============== HOW IT WORKS ============== -->
     <section class="section" id="how">
       <header class="section-header section-header--center">
-        <div class="section-eyebrow" data-i18n="how.eyebrow">How it works</div>
-        <h2 class="section-title" data-i18n="how.title">Three steps. No config file.</h2>
+        <div>
+          <div class="section-badge" data-i18n="how.eyebrow">How it works</div>
+          <h2 class="section-title" data-i18n="how.title">Three steps. No config file.</h2>
+        </div>
       </header>
 
       <ol class="howit-grid">
         <li class="howit-step">
           <div class="howit-step__num"><span>01</span></div>
           <h3 class="howit-step__title" data-i18n="how.s1.t">Point it at a folder.</h3>
-          <p class="howit-step__body" data-i18n="how.s1.b">One command. ~/.claude/skills, your repo root, any folder — anything with skills, agents, hooks, or notes inside.</p>
-          <div class="howit-step__code"><span class="prompt">$</span> sm scan ~/.claude/skills</div>
+          <p class="howit-step__body" data-i18n="how.s1.b">Run it from the repo root where your skills live — it picks up `.claude`, `.agents`, etc. — plus whatever's in your home folder, for the full map.</p>
+          <div class="howit-step__code"><span class="prompt">$</span> sm scan</div>
         </li>
 
         <li class="howit-step">
           <div class="howit-step__num"><span>02</span></div>
           <h3 class="howit-step__title" data-i18n="how.s2.t">Get the graph.</h3>
-          <p class="howit-step__body" data-i18n="how.s2.b">Static analysis builds the full reference graph. Trigger collisions, orphans, byte weights, external deps — surfaced in milliseconds.</p>
-          <div class="howit-step__code"><span class="prompt">$</span> 1,247 nodes &middot; 3,891 edges &middot; 287ms</div>
+          <p class="howit-step__body" data-i18n="how.s2.b">skill-map reads the files, parses frontmatter and body, and builds the full reference graph. No LLM, no network — local analysis, in milliseconds.</p>
+          <div class="howit-step__code">Scanned 1 root in 287ms<br>142 nodes, 318 links, 7 issues</div>
         </li>
 
         <li class="howit-step">
           <div class="howit-step__num"><span>03</span></div>
           <h3 class="howit-step__title" data-i18n="how.s3.t">Open the explorer.</h3>
-          <p class="howit-step__body" data-i18n="how.s3.b">Visual graph in your browser. Click any node to inspect. Filter by type. ⌘K to jump anywhere. Or stay in the terminal — your call.</p>
-          <div class="howit-step__code"><span class="prompt">$</span> sm open  &rarr;  http://localhost:7800</div>
+          <p class="howit-step__body" data-i18n="how.s3.b">Explore from the terminal with sm list, sm show, sm check, or open the visual graph in your browser. Whichever you prefer.</p>
+          <div class="howit-step__code"><span class="prompt">$</span> sm open</div>
         </li>
       </ol>
     </section>
@@ -737,49 +715,39 @@
 
     <!-- ============== USE CASES ============== -->
     <section class="section" id="cases">
-      <header class="section-header section-header--stacked">
-        <div class="section-eyebrow section-eyebrow--green" data-i18n="cases.eyebrow">Use cases</div>
-        <h2 class="section-title" data-i18n="cases.title">For people who read code for fun.</h2>
-        <p class="section-sub" data-i18n="cases.sub">No promises. No "magic". Just a graph and the data already in your repo.</p>
+      <header class="section-header section-header--center">
+        <div>
+          <div class="section-badge" data-i18n="cases.eyebrow">Use cases</div>
+          <h2 class="section-title" data-i18n="cases.title">Built for people who live in Markdown.</h2>
+          <p class="section-sub" data-i18n="cases.sub">No promises, no magic. Just a graph over the files you already have.</p>
+        </div>
       </header>
 
       <div class="cases-grid">
         <article class="case case--green">
-          <div class="case__tag" data-i18n="cases.c1.tag">For skill authors</div>
-          <h3 class="case__title" data-i18n="cases.c1.t">Audit before you ship.</h3>
-          <p class="case__body" data-i18n="cases.c1.b">Every skill touches dozens of others. skill-map shows you the blast radius of any change before you push it.</p>
-          <div class="case__stat">
-            <span class="case__stat-num">127</span>
-            <span class="case__stat-label" data-i18n="cases.c1.s">avg refs per skill</span>
-          </div>
+          <div class="case__tag" data-i18n="cases.c1.tag">For authors</div>
+          <h3 class="case__title" data-i18n="cases.c1.t">Optimize before you publish.</h3>
+          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or note — all your Markdown lives connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
         </article>
 
         <article class="case case--violet">
-          <div class="case__tag" data-i18n="cases.c2.tag">For platform teams</div>
-          <h3 class="case__title" data-i18n="cases.c2.t">Know what your fleet runs.</h3>
-          <p class="case__body" data-i18n="cases.c2.b">Map every agent across every project. Find duplicates, deprecated forks, and the orphan skills nobody owns anymore.</p>
-          <div class="case__stat">
-            <span class="case__stat-num">12&times;</span>
-            <span class="case__stat-label" data-i18n="cases.c2.s">fewer trigger collisions</span>
-          </div>
+          <div class="case__tag" data-i18n="cases.c2.tag">For AI architects & platform teams</div>
+          <h3 class="case__title" data-i18n="cases.c2.t">Knows what's running in your arsenal.</h3>
+          <p class="case__body" data-i18n="cases.c2.b">Multiple projects, multiple agents, divergent copies of the same skill. One scan puts the whole hive in the same graph.</p>
         </article>
 
         <article class="case case--amber">
           <div class="case__tag" data-i18n="cases.c3.tag">For agent debuggers</div>
           <h3 class="case__title" data-i18n="cases.c3.t">Trace a misfire to its source.</h3>
-          <p class="case__body" data-i18n="cases.c3.b">Agent picked the wrong skill? Trace the invocation back through hooks, commands, and trigger phrases in seconds.</p>
-          <div class="case__stat">
-            <span class="case__stat-num">&lt; 300ms</span>
-            <span class="case__stat-label" data-i18n="cases.c3.s">graph rebuild</span>
-          </div>
+          <p class="case__body" data-i18n="cases.c3.b">The agent picked the wrong invocation. What triggered it? skill-map follows the full path — from the trigger phrase to the skill that won the match. All in real time.</p>
         </article>
       </div>
     </section>
 
-    <hr class="section-divider" aria-hidden="true">
+    <hr class="section-divider" aria-hidden="true" hidden>
 
     <!-- ============== CLI ============== -->
-    <section class="section" id="cli">
+    <section class="section" id="cli" hidden>
       <div class="cli-grid">
         <div class="cli-copy">
           <div class="section-eyebrow section-eyebrow--green" data-i18n="cli.eyebrow">CLI first</div>
@@ -838,13 +806,15 @@
       </div>
     </section>
 
-    <hr class="section-divider" aria-hidden="true">
+    <hr class="section-divider" aria-hidden="true" hidden>
 
     <!-- ============== QUOTES ============== -->
-    <section class="section" id="quotes">
-      <header class="section-header section-header--stacked">
-        <div class="section-eyebrow" data-i18n="quotes.eyebrow">Quotes</div>
-        <h2 class="section-title" data-i18n="quotes.title">What people who use it say.</h2>
+    <section class="section" id="quotes" hidden>
+      <header class="section-header section-header--center">
+        <div>
+          <div class="section-badge" data-i18n="quotes.eyebrow">Quotes</div>
+          <h2 class="section-title" data-i18n="quotes.title">What people who use it say.</h2>
+        </div>
       </header>
 
       <div class="quotes-grid">
@@ -914,7 +884,7 @@
           <span data-i18n="cta.title.1">Stop reading dirs.</span><br>
           <span data-i18n="cta.title.2">Start reading graphs.</span>
         </h2>
-        <p class="cta-bar__sub" data-i18n="cta.sub">One command. No config. MIT licensed. Built for the people who never closed iTerm.</p>
+        <p class="cta-bar__sub" data-i18n="cta.sub">See your entire agent ecosystem at a glance. No config, no server, no LLM required.</p>
 
         <div class="cta-bar__ctas">
           <button type="button" class="btn btn--accent btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">
@@ -932,8 +902,28 @@
           </a>
         </div>
 
-        <div class="cta-bar__fineprint" data-i18n="cta.fineprint">Works offline · Zero telemetry · Apache + MIT skills welcome</div>
+        <div class="cta-bar__fineprint" data-i18n="cta.fineprint" hidden>Works offline · Zero telemetry · Apache + MIT skills welcome</div>
       </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
+
+    <!-- ============== ROADMAP ============== -->
+    <section class="roadmap" id="roadmap">
+      <div class="roadmap__head">
+        <div>
+          <h2 class="roadmap__title">
+            <span data-i18n="rm.title">Roadmap.</span><br>
+            <span class="roadmap__title-soft" data-i18n="rm.sub">A definition, three phases to 1.0, and what comes after.</span>
+          </h2>
+        </div>
+      </div>
+      <div id="roadmap-mount"></div>
+      <noscript>
+        <p style="text-align:center;color:rgba(255,255,255,.6);font-size:14px;margin-top:24px">
+          <span data-i18n="rm.noscript.before">Interactive timeline requires JavaScript. Read the full </span><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" style="color:var(--violet-400)">ROADMAP.md</a><span data-i18n="rm.noscript.after"> on GitHub.</span>
+        </p>
+      </noscript>
     </section>
 
     <!-- ============== FOOTER ============== -->
@@ -944,21 +934,20 @@
             <span class="lp-nav__logo-mark"><img src="/img/skill-map-mark-light.svg" alt=""></span>
             skill-map
           </a>
-          <p class="lp-footer__tagline" data-i18n="foot.tagline">A graph explorer for Markdown-based AI-agent ecosystems.</p>
+          <p class="lp-footer__tagline" data-i18n="foot.tagline">An explorer for Markdown-based AI-agent ecosystems.</p>
           <div class="lp-footer__tags">
             <span class="code-tag">v {{SPEC_VERSION}}</span>
-            <span class="code-tag lp-footer__online">● <span data-i18n="foot.online">online</span></span>
           </div>
         </div>
 
         <div class="lp-footer__col">
           <h4 class="lp-footer__h" data-i18n="foot.h.product">Product</h4>
           <ul>
-            <li><a href="#features" data-i18n="nav.features">Features</a></li>
-            <li><a href="#how"      data-i18n="nav.how">How it works</a></li>
-            <li><a href="#cli"      data-i18n="nav.cli">CLI</a></li>
-            <li><a href="#cases"    data-i18n="nav.cases">Use cases</a></li>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" target="_blank" rel="noopener" data-i18n="rm.eyebrow">Roadmap</a></li>
+            <li><a href="#features"  data-i18n="nav.features">Features</a></li>
+            <li><a href="#ecosystem" data-i18n="pe.eyebrow">Ecosystem</a></li>
+            <li><a href="#how"       data-i18n="nav.how">How it works</a></li>
+            <li><a href="#cases"     data-i18n="nav.cases">Use cases</a></li>
+            <li><a href="#roadmap"   data-i18n="rm.eyebrow">Roadmap</a></li>
           </ul>
         </div>
 
@@ -977,28 +966,17 @@
           <ul>
             <li><a href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">GitHub</a></li>
             <li><a href="https://github.com/crystian/skill-map/issues" target="_blank" rel="noopener">Issues</a></li>
-            <li><a href="https://github.com/crystian/skill-map/discussions" target="_blank" rel="noopener">Discussions</a></li>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
-          </ul>
-        </div>
-
-        <div class="lp-footer__col">
-          <h4 class="lp-footer__h" data-i18n="foot.h.company">Company</h4>
-          <ul>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a></li>
-            <li><a href="https://www.npmjs.com/package/@skill-map/spec" target="_blank" rel="noopener">npm: spec</a></li>
-            <li><a href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener">npm: cli</a></li>
           </ul>
         </div>
       </div>
 
       <div class="lp-footer__bottom">
-        <div data-i18n="foot.copy">© 2026 skill-map · MIT licensed · Built for people who read source code for fun.</div>
-        <button type="button" class="lp-footer__cmd js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">npm i -g @skill-map/cli</button>
-      </div>
-
-      <div class="lp-footer__powered">
-        <span data-i18n="foot.powered.pre">A </span><a href="https://www.makersia.com" target="_blank" rel="noopener">Makersia</a><span data-i18n="foot.powered.post"> project</span>
+        <div>
+          <span data-i18n="foot.copy.pre">© 2026 skill-map · MIT licensed · Made with &lt;3 by </span><a href="https://www.linkedin.com/in/crystian/" target="_blank" rel="noopener">Crystian</a>
+        </div>
+        <div class="lp-footer__powered">
+          <span data-i18n="foot.powered.pre">A </span><a href="https://www.makersia.com" target="_blank" rel="noopener">Makersia</a><span data-i18n="foot.powered.post"> project</span>
+        </div>
       </div>
     </footer>
 

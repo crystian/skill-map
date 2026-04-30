@@ -7,7 +7,7 @@ This document is the **source of truth**. The reference implementation under `..
 ## What this spec defines
 
 - The **domain model**: nodes, links, issues, scan results.
-- The **extension contract**: six extension kinds (detector, adapter, rule, action, audit, renderer) with their input/output shapes.
+- The **extension contract**: six extension kinds (provider, extractor, rule, action, formatter, hook) with their input/output shapes.
 - The **CLI contract**: verb set, flags, exit codes, JSON introspection.
 - The **persistence contract**: table catalog owned by the kernel, plugin key-value API.
 - The **job contract**: lifecycle states, event stream, prompt preamble, submit/claim/record semantics.
@@ -76,20 +76,18 @@ spec/                              ← published as @skill-map/spec
 │   │
 │   ├── extensions/                          ← one per extension kind; validated at plugin load
 │   │   ├── base.schema.json                 ┐
-│   │   ├── adapter.schema.json              │
-│   │   ├── detector.schema.json             │ 7 extension schemas
-│   │   ├── rule.schema.json                 │ (base + 6 kinds)
+│   │   ├── provider.schema.json             │
+│   │   ├── extractor.schema.json            │ 6 extension schemas
+│   │   ├── rule.schema.json                 │ (base + 5 kinds)
 │   │   ├── action.schema.json               │
-│   │   ├── audit.schema.json                │
-│   │   └── renderer.schema.json             ┘
+│   │   └── formatter.schema.json            ┘
 │   │
 │   ├── frontmatter/                         ← user-authored; additionalProperties: true
-│   │   ├── base.schema.json                 ┐
-│   │   ├── skill.schema.json                │
-│   │   ├── agent.schema.json                │ 6 frontmatter schemas
-│   │   ├── command.schema.json              │ (base + 5 kinds; each kind
-│   │   ├── hook.schema.json                 │ extends base via allOf)
-│   │   └── note.schema.json                 ┘
+│   │   └── base.schema.json                  ← universal shape; per-kind schemas live with
+│   │                                            the Provider that emits the kind (e.g. the
+│   │                                            built-in Claude Provider's `skill / agent /
+│   │                                            command / hook / note` schemas live in
+│   │                                            `src/extensions/providers/claude/schemas/`)
 │   │
 │   └── summaries/                           ← kernel-controlled; additionalProperties: false
 │       ├── skill.schema.json                ┐
@@ -110,7 +108,7 @@ spec/                              ← published as @skill-map/spec
 ## How to read this spec
 
 - **Building a tool or plugin that consumes skill-map output?** Start with [`schemas/scan-result.schema.json`](./schemas/scan-result.schema.json) and [`schemas/node.schema.json`](./schemas/node.schema.json).
-- **Building a custom detector, rule, or renderer?** Read [`architecture.md`](./architecture.md), then the relevant schema under [`schemas/extensions/`](./schemas/extensions/).
+- **Building a custom extractor, rule, or formatter?** Read [`architecture.md`](./architecture.md), then the relevant schema under [`schemas/extensions/`](./schemas/extensions/).
 - **Building an alternative CLI implementation?** Read [`cli-contract.md`](./cli-contract.md) and run [`conformance/`](./conformance/README.md).
 - **Integrating a new platform (adapter)?** Read [`architecture.md`](./architecture.md) §adapters, then the Claude adapter source in `../src/extensions/adapters/claude/` as a worked example.
 - **Shipping a job-running runner?** Read [`job-events.md`](./job-events.md), [`job-lifecycle.md`](./job-lifecycle.md), [`prompt-preamble.md`](./prompt-preamble.md).

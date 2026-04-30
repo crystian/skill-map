@@ -73,6 +73,7 @@ type IClaim = IInvocationClaim | IAdvertiserClaim;
 
 export const triggerCollisionRule: IRule = {
   id: ID,
+  pluginId: 'core',
   kind: 'rule',
   mode: 'deterministic',
   version: '1.0.0',

@@ -41,7 +41,7 @@ cp -r path/to/hello-world .skill-map/plugins/
 
 # 2. Verify the kernel can load it.
 sm plugins list
-# expected: ok    hello-world@1.0.0 · detector:hello-world-greet
+# expected: ok    hello-world@1.0.0 · detector:hello-world/hello-world-greet
 
 # 3. Plant a fixture node and scan.
 mkdir -p .claude/agents

@@ -34,8 +34,22 @@ export interface RunCaseOptions {
   binary: string;
   /** Absolute path to the `@skill-map/spec` root. */
   specRoot: string;
-  /** Absolute path to the case JSON under `spec/conformance/cases/`. */
+  /** Absolute path to the case JSON under `<conformance-root>/cases/`. */
   casePath: string;
+  /**
+   * Absolute path to the `<conformance-root>/fixtures/` directory backing
+   * this case (or the parent conformance suite).
+   *
+   * Phase 5 / A.13 introduced per-Provider conformance directories that
+   * live outside the spec tree (Claude-specific cases moved to
+   * `src/extensions/providers/claude/conformance/`). Cases reference
+   * fixtures by directory name; the runner resolves them under
+   * `fixturesRoot` so the spec-agnostic kernel-empty-boot case and the
+   * Claude `basic-scan` / `rename-high` / `orphan-detection` cases can
+   * coexist without colliding fixture namespaces. Defaults to
+   * `<specRoot>/conformance/fixtures` for the legacy spec layout.
+   */
+  fixturesRoot?: string;
   /** Extra env vars passed to the child. */
   env?: NodeJS.ProcessEnv;
 }
@@ -45,7 +59,7 @@ interface ConformanceCase {
   description: string;
   fixture?: string;
   setup?: {
-    disableAllAdapters?: boolean;
+    disableAllProviders?: boolean;
     disableAllDetectors?: boolean;
     disableAllRules?: boolean;
     priorScans?: Array<{ fixture: string; flags?: string[] }>;
@@ -78,6 +92,8 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
   const raw = readFileSync(options.casePath, 'utf8');
   const c: ConformanceCase = JSON.parse(raw);
 
+  const fixturesRoot = options.fixturesRoot ?? join(options.specRoot, 'conformance', 'fixtures');
+
   const scope = mkdtempSync(join(tmpdir(), `sm-conformance-${c.id}-`));
   try {
     // 1. Run every priorScan in order. Each step replaces every non-
@@ -86,7 +102,7 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
     //    scope DB survives across steps because we never delete
     //    `.skill-map/`.
     for (const step of c.setup?.priorScans ?? []) {
-      replaceFixture(scope, options.specRoot, step.fixture);
+      replaceFixture(scope, fixturesRoot, step.fixture);
       const stepArgv = ['scan', ...(step.flags ?? [])];
       const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
         cwd: scope,
@@ -114,7 +130,7 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
     // 2. Copy the main fixture (replacing prior fixture content but
     //    preserving the DB), then run the case's `invoke`.
     if (c.fixture) {
-      replaceFixture(scope, options.specRoot, c.fixture);
+      replaceFixture(scope, fixturesRoot, c.fixture);
     }
 
     const argv = [c.invoke.verb];
@@ -133,7 +149,14 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
     const exitCode = child.status ?? 0;
 
     const assertions = c.assertions.map((a) =>
-      evaluateAssertion(a, { exitCode, stdout, stderr, scope, specRoot: options.specRoot }),
+      evaluateAssertion(a, {
+        exitCode,
+        stdout,
+        stderr,
+        scope,
+        specRoot: options.specRoot,
+        fixturesRoot,
+      }),
     );
     const passed = assertions.every((a) => a.ok);
 
@@ -147,14 +170,18 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
  * Replace every top-level entry in `scope` EXCEPT `.skill-map/` (which
  * holds the kernel DB and persists across staging steps), then copy
  * the fixture's contents on top. Used by `priorScans` and the main
- * fixture phase to swap adapter content while keeping the DB stable.
+ * fixture phase to swap Provider content while keeping the DB stable.
+ *
+ * `fixturesRoot` is the absolute path to the `fixtures/` directory of
+ * the conformance suite hosting the case (spec-owned for kernel cases,
+ * Provider-owned for Provider cases — see `RunCaseOptions.fixturesRoot`).
  */
-function replaceFixture(scope: string, specRoot: string, fixture: string): void {
+function replaceFixture(scope: string, fixturesRoot: string, fixture: string): void {
   for (const entry of readdirSync(scope)) {
     if (entry === '.skill-map') continue;
     rmSync(join(scope, entry), { recursive: true, force: true });
   }
-  const src = join(specRoot, 'conformance', 'fixtures', fixture);
+  const src = join(fixturesRoot, fixture);
   cpSync(src, scope, { recursive: true });
 }
 
@@ -164,6 +191,7 @@ interface AssertionContext {
   stderr: string;
   scope: string;
   specRoot: string;
+  fixturesRoot: string;
 }
 
 function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult {
@@ -185,7 +213,7 @@ function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult
         : { ok: false, type: a.type, reason: `file not found: ${a.path}` };
     }
     case 'file-contains-verbatim': {
-      const fixturePath = join(ctx.specRoot, 'conformance', 'fixtures', a.fixture);
+      const fixturePath = join(ctx.fixturesRoot, a.fixture);
       const targetPath = resolve(ctx.scope, a.path);
       if (!existsSync(targetPath)) {
         return { ok: false, type: a.type, reason: `target not found: ${a.path}` };

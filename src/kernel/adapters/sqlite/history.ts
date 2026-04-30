@@ -139,7 +139,7 @@ export async function listExecutions(
 
 function rowToExecution(row: {
   id: string;
-  kind: 'action' | 'audit';
+  kind: 'action';
   extensionId: string;
   extensionVersion: string;
   nodeIdsJson: string;

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/providers/claude/v1/frontmatter/note.schema.json",
+  "title": "FrontmatterNote",
+  "description": "Frontmatter shape for nodes classified as `note` by the Claude Provider. Extends the spec's universal `frontmatter/base.schema.json` via $ref-by-$id with no additional fields. Exists so that every kind has a matching schema for uniform routing. Owned by the Claude Provider; relocated from `spec/schemas/frontmatter/` in spec 0.8.0 (Phase 3 of plug-in model overhaul).",
+  "allOf": [
+    { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
+  ],
+  "type": "object",
+  "additionalProperties": true
+}

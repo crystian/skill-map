@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/provider.schema.json",
+  "title": "ExtensionProvider",
+  "description": "Manifest shape for a `Provider` extension. A Provider declares its own universe: the platform it recognises (Claude Code, Codex, Gemini, Obsidian vault, generic MD), the catalog of node `kind`s it emits, the per-kind frontmatter schema each kind follows, and the filesystem directory (`explorationDir`) where its content lives. The catalog lives in the `kinds` map, keyed by kind name. Each map entry declares the relative path to the kind's frontmatter schema (resolved against the Provider's directory) and the qualified `defaultRefreshAction` id the UI's probabilistic-refresh surface dispatches for that kind. Spec only ships `frontmatter/base.schema.json` (universal); per-kind schemas live with their owning Provider so that adding a new platform is purely additive — no spec bump needed to introduce kinds. Exactly zero or one Provider MUST match any given file; multiple matches → the kernel emits an issue `provider-ambiguous` and the file is left unclassified. Providers are deterministic-only — they sit at the filesystem boundary and run during boot; probabilistic classification would make boot slow, costly, and non-reproducible. The `mode` field MUST NOT appear in Provider manifests. If you need LLM-assisted classification, write a probabilistic Extractor that emits classification hints via `ctx.emitLink`. Distinct from the **hexagonal-architecture** 'adapter' (`RunnerPort.adapter`, `StoragePort.adapter`, etc.), which is an internal driven-adapter implementing a port — Providers live in the extension surface, hexagonal adapters live in `src/kernel/adapters/`. Stability: stable as of spec v1.0.0 except where noted.",
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ],
+  "type": "object",
+  "required": ["id", "kind", "version", "kinds", "explorationDir"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind": { "const": "provider" },
+    "explorationDir": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Filesystem directory (relative to user home or project root) where this Provider's content lives. Required. Examples: '~/.claude' for the Claude Provider; '~/.cursor' for a hypothetical Cursor Provider. The kernel walks this directory during boot/scan to discover nodes; the Provider's `globs` (if declared) refines what to match inside. `sm doctor` validates the directory exists; missing directory yields a non-blocking warning."
+    },
+    "roots": {
+      "type": "array",
+      "description": "Path globs (relative to scope root) that this Provider SHOULD be consulted for. Advisory — the kernel walks all roots and consults every Provider regardless, but this field lets `sm doctor` warn when no file matched a specific Provider (i.e. the Provider was loaded for a platform that isn't in this scope).",
+      "items": { "type": "string" }
+    },
+    "kinds": {
+      "type": "object",
+      "description": "Catalog of node kinds this Provider emits. Keyed by kind name (e.g. `skill`, `agent`, `note`). Each entry declares the relative path to the kind's frontmatter schema (the kernel resolves it against the Provider's package directory) and the qualified `defaultRefreshAction` id the UI dispatches when the user requests a probabilistic refresh on a node of that kind. The map MUST be non-empty: a Provider that emits no kinds is meaningless. Kind names follow camelCase / lowerCase convention; the spec does not constrain the value space (a Cursor Provider could declare `rule`, an Obsidian Provider could declare `daily`).",
+      "minProperties": 1,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-zA-Z0-9]*$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["schema", "defaultRefreshAction"],
+        "additionalProperties": false,
+        "properties": {
+          "schema": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Path to the kind's frontmatter JSON Schema, relative to the Provider's package directory. The schema MUST extend `frontmatter/base.schema.json` (declared in spec) via `allOf` + `$ref` to base's `$id`. The kernel resolves the path at boot time and registers the schema with AJV for validation during scan."
+          },
+          "defaultRefreshAction": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*/[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+            "description": "Qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The action MUST exist in the registry by the time the graph is queried; a dangling reference disables the Provider with status `invalid-manifest`."
+          }
+        }
+      }
+    }
+  }
+}

@@ -6,12 +6,17 @@
  * `kernel/i18n/orchestrator.texts.ts` header for rationale.
  *
  * Reasons split by failure mode (per `IDiscoveredPlugin.status`):
- *   - `invalid-manifest`  → manifest JSON unreadable / schema mismatch
+ *   - `invalid-manifest`  → manifest JSON unreadable / schema mismatch /
+ *                            directory name does not match manifest id
  *   - `incompatible-spec` → `manifest.specCompat` does not satisfy the
  *                            installed spec version
  *   - `load-error`        → extension file missing, import failure,
  *                            wrong export shape, kind mismatch, schema
  *                            mismatch, OR import timeout
+ *   - `id-collision`      → two plugins (any combination of roots, e.g.
+ *                            project + global) declared the same `id`.
+ *                            Both collided plugins are blocked; no
+ *                            precedence rule applies.
  */
 
 export const PLUGIN_LOADER_TEXTS = {
@@ -48,4 +53,34 @@ export const PLUGIN_LOADER_TEXTS = {
     'into the runtime methods (`detect` / `evaluate` / `render` / etc.).',
 
   disabledByConfig: 'disabled by config_plugins or settings.json',
+
+  invalidManifestDirMismatch:
+    "directory name '{{dirName}}' does not match manifest id '{{manifestId}}'. " +
+    'Rename the directory to match the id, or update the manifest id to match the directory.',
+
+  idCollision:
+    "Plugin '{{id}}' at {{pathA}} collides with the plugin at {{pathB}}. " +
+    'Rename one and rerun.',
+
+  loadErrorPluginIdMismatch:
+    "{{relEntry}}: extension declares pluginId '{{declared}}' but its plugin.json declares id '{{manifestId}}'. " +
+    "Remove the explicit pluginId from the extension — the loader injects it from plugin.json#/id.",
+
+  loadErrorStorageSchemaRead:
+    "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}} — {{errDescription}}",
+
+  loadErrorStorageSchemaCompile:
+    "plugin '{{pluginId}}' failed to compile schema for table '{{table}}': {{schemaPath}} — {{errDescription}}",
+
+  loadErrorStorageKvSchemaRead:
+    "plugin '{{pluginId}}' failed to load KV schema: {{schemaPath}} — {{errDescription}}",
+
+  loadErrorStorageKvSchemaCompile:
+    "plugin '{{pluginId}}' failed to compile KV schema: {{schemaPath}} — {{errDescription}}",
+
+  invalidManifestHookUnknownTrigger:
+    "Hook '{{hookId}}' declares unknown trigger '{{trigger}}'. Hookable triggers: {{hookableList}}.",
+
+  invalidManifestHookEmptyTriggers:
+    "Hook '{{hookId}}' declares no triggers. At least one entry from the curated set is required.",
 } as const;

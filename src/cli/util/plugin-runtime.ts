@@ -1,7 +1,6 @@
 /**
  * Plugin runtime loader — single source of truth for any read-side verb
- * that needs plugin extensions on the wire (`sm scan`, `sm graph`, future
- * `sm audit run`).
+ * that needs plugin extensions on the wire (`sm scan`, `sm graph`).
  *
  * Step 9.1: this is the path that turns "discovered" plugins into
  * "executing" plugins. Until now `PluginLoader` was only invoked by the
@@ -28,14 +27,18 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import type {
-  IAdapter,
-  IAudit,
-  IDetector,
-  IRenderer,
+  IProvider,
+  IExtractor,
+  IFormatter,
+  IHook,
   IRule,
 } from '../../kernel/extensions/index.js';
 import type { Extension } from '../../kernel/registry.js';
-import { builtIns } from '../../extensions/built-ins.js';
+import {
+  builtInBundles,
+  type IBuiltInBundle,
+  type TBuiltInExtension,
+} from '../../extensions/built-ins.js';
 import {
   PluginLoader,
   installedSpecVersion,
@@ -45,6 +48,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import { loadPluginOverrideMap } from '../../kernel/adapters/sqlite/plugins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
+import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type {
   IDiscoveredPlugin,
   ILoadedExtension,
@@ -64,11 +68,17 @@ export interface ILoadPluginRuntimeOptions {
 export interface IPluginRuntimeBundle {
   /** Bucketed runtime extensions keyed by kind, ready to merge with `builtIns()`. */
   extensions: {
-    adapters: IAdapter[];
-    detectors: IDetector[];
+    providers: IProvider[];
+    extractors: IExtractor[];
     rules: IRule[];
-    renderers: IRenderer[];
-    audits: IAudit[];
+    formatters: IFormatter[];
+    /**
+     * Loaded hook extensions (spec § A.11). Surfaced for the dispatcher
+     * the orchestrator threads through the scan pipeline; built-ins
+     * carry no hooks at this bump (the kind exists; concrete built-in
+     * hooks land separately when demand surfaces).
+     */
+    hooks: IHook[];
   };
   /** Manifest rows for the Registry. One per loaded plugin extension. */
   manifests: Extension[];
@@ -81,6 +91,16 @@ export interface IPluginRuntimeBundle {
   warnings: string[];
   /** Raw discovery output, for callers (`sm plugins doctor`) that need it. */
   discovered: IDiscoveredPlugin[];
+  /**
+   * Resolver used to layer `config_plugins` (DB) over `settings.json`.
+   * Surfaced so call sites that compose built-ins (`composeScanExtensions`,
+   * `composeFormatters`) can apply the same precedence to the
+   * `core/<ext-id>` keys without rebuilding the resolver. Returns `true`
+   * for any id that has no explicit override (the default-enabled
+   * fall-back). Always populated — `emptyPluginRuntime()` returns a
+   * resolver that says everything is enabled.
+   */
+  resolveEnabled: (id: string) => boolean;
 }
 
 /**
@@ -117,10 +137,11 @@ export async function loadPluginRuntime(
   const discovered = await loader.discoverAndLoadAll();
 
   const bundle: IPluginRuntimeBundle = {
-    extensions: { adapters: [], detectors: [], rules: [], renderers: [], audits: [] },
+    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
     manifests: [],
     warnings: [],
     discovered,
+    resolveEnabled: resolveEnabled ?? defaultResolveEnabled,
   };
 
   for (const plugin of discovered) {
@@ -142,11 +163,47 @@ export async function loadPluginRuntime(
  */
 export function emptyPluginRuntime(): IPluginRuntimeBundle {
   return {
-    extensions: { adapters: [], detectors: [], rules: [], renderers: [], audits: [] },
+    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
     manifests: [],
     warnings: [],
     discovered: [],
+    resolveEnabled: defaultResolveEnabled,
   };
+}
+
+/** Default-enabled fall-back: every id is enabled when no overrides exist. */
+function defaultResolveEnabled(_id: string): boolean {
+  return true;
+}
+
+/**
+ * Granularity-aware filter for built-in bundles. Honours the spec
+ * promise that "no extension is privileged" — every built-in is
+ * removable via `config_plugins` / `settings.json`.
+ *
+ * Resolution rules (mirror `kernel/config/plugin-resolver.ts`):
+ *
+ *   - bundle granularity (`claude`): the user toggles the namespace
+ *     once; the lookup key is `<bundle.id>` — every extension in the
+ *     bundle follows. A user-set DB / settings entry under
+ *     `<bundle.id>/<ext.id>` is silently ignored (the granularity says
+ *     "this bundle is one knob"); the validation that catches that as
+ *     a CLI input error happens upstream in `sm plugins enable/disable`.
+ *   - extension granularity (`core`): the lookup key is the qualified
+ *     id `<bundle.id>/<ext.id>`. Each extension is independently
+ *     toggle-able.
+ *
+ * Defaults to `true` for any id without an explicit override.
+ */
+export function isBuiltInExtensionEnabled(
+  bundle: IBuiltInBundle,
+  ext: TBuiltInExtension,
+  resolveEnabled: (id: string) => boolean,
+): boolean {
+  if (bundle.granularity === 'bundle') {
+    return resolveEnabled(bundle.id);
+  }
+  return resolveEnabled(qualifiedExtensionId(bundle.id, ext.id));
 }
 
 /**
@@ -157,48 +214,119 @@ export function emptyPluginRuntime(): IPluginRuntimeBundle {
  * pipeline (kernel-empty-boot) the caller passes both `--no-built-ins`
  * AND `--no-plugins`.
  *
+ * Built-ins are also gated by `pluginRuntime.resolveEnabled`: a user that
+ * disables `claude` (bundle granularity) drops the four Claude
+ * extensions; a user that disables `core/superseded` (extension
+ * granularity) drops only that rule. `--no-built-ins` is the macro
+ * override that wins when both layers say "skip".
+ *
  * Returns `undefined` when both halves are empty so the orchestrator
  * follows its zero-extension code path.
  */
 export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
   pluginRuntime: IPluginRuntimeBundle;
-}): { adapters: IAdapter[]; detectors: IDetector[]; rules: IRule[] } | undefined {
-  const adapters: IAdapter[] = [];
-  const detectors: IDetector[] = [];
+}): {
+  providers: IProvider[];
+  extractors: IExtractor[];
+  rules: IRule[];
+  hooks: IHook[];
+} | undefined {
+  const providers: IProvider[] = [];
+  const extractors: IExtractor[] = [];
   const rules: IRule[] = [];
+  const hooks: IHook[] = [];
 
   if (!opts.noBuiltIns) {
-    const set = builtIns();
-    adapters.push(...set.adapters);
-    detectors.push(...set.detectors);
-    rules.push(...set.rules);
+    for (const bundle of builtInBundles) {
+      for (const ext of bundle.extensions) {
+        if (!isBuiltInExtensionEnabled(bundle, ext, opts.pluginRuntime.resolveEnabled)) continue;
+        switch (ext.kind) {
+          case 'provider':
+            providers.push(ext);
+            break;
+          case 'extractor':
+            extractors.push(ext);
+            break;
+          case 'rule':
+            rules.push(ext);
+            break;
+          case 'hook':
+            hooks.push(ext);
+            break;
+          // formatters are not consumed by scan; skipped silently.
+          default:
+            break;
+        }
+      }
+    }
   }
-  adapters.push(...opts.pluginRuntime.extensions.adapters);
-  detectors.push(...opts.pluginRuntime.extensions.detectors);
+  providers.push(...opts.pluginRuntime.extensions.providers);
+  extractors.push(...opts.pluginRuntime.extensions.extractors);
   rules.push(...opts.pluginRuntime.extensions.rules);
+  hooks.push(...opts.pluginRuntime.extensions.hooks);
 
-  if (adapters.length === 0 && detectors.length === 0 && rules.length === 0) {
+  if (
+    providers.length === 0 &&
+    extractors.length === 0 &&
+    rules.length === 0 &&
+    hooks.length === 0
+  ) {
     return undefined;
   }
-  return { adapters, detectors, rules };
+  return { providers, extractors, rules, hooks };
 }
 
 /**
- * Same idea as `composeScanExtensions` but for renderers (consumed by
- * `sm graph`). Built-ins layer first, plugin renderers after — first
- * registration wins on a `format` collision, which keeps the kernel's
- * defaults predictable when a plugin claims an existing format.
+ * Same idea as `composeScanExtensions` but for formatters (consumed by
+ * `sm graph`). Built-ins layer first, plugin formatters after — first
+ * registration wins on a `formatId` collision, which keeps the kernel's
+ * defaults predictable when a plugin claims an existing format. Built-in
+ * formatters respect the same granularity filter as scan-side built-ins.
  */
-export function composeRenderers(opts: {
+export function composeFormatters(opts: {
   noBuiltIns?: boolean;
   pluginRuntime: IPluginRuntimeBundle;
-}): IRenderer[] {
+}): IFormatter[] {
   const noBuiltIns = opts.noBuiltIns ?? false;
-  const out: IRenderer[] = [];
-  if (!noBuiltIns) out.push(...builtIns().renderers);
-  out.push(...opts.pluginRuntime.extensions.renderers);
+  const out: IFormatter[] = [];
+  if (!noBuiltIns) {
+    for (const bundle of builtInBundles) {
+      for (const ext of bundle.extensions) {
+        if (ext.kind !== 'formatter') continue;
+        if (!isBuiltInExtensionEnabled(bundle, ext, opts.pluginRuntime.resolveEnabled)) continue;
+        out.push(ext);
+      }
+    }
+  }
+  out.push(...opts.pluginRuntime.extensions.formatters);
   return out;
+}
+
+/**
+ * Granularity-aware filter for built-in registry rows. Used by call
+ * sites (scan / scan-compare / watch) that register built-in manifests
+ * via `listBuiltIns()` BEFORE the orchestrator runs — without this
+ * filter a user-disabled built-in would appear in `sm help` /
+ * `sm plugins list` as if it were live, contradicting the granularity
+ * model.
+ */
+export function filterBuiltInManifests(
+  manifests: Extension[],
+  resolveEnabled: (id: string) => boolean,
+): Extension[] {
+  // Build a per-bundle index so the filter respects whichever granularity
+  // each built-in row's owning bundle declared. The index is rebuilt
+  // every call (cheap — two bundles, eleven extensions).
+  const bundleByPluginId = new Map<string, IBuiltInBundle>();
+  for (const bundle of builtInBundles) bundleByPluginId.set(bundle.id, bundle);
+
+  return manifests.filter((m) => {
+    const bundle = bundleByPluginId.get(m.pluginId);
+    if (!bundle) return true; // not a built-in row — leave it alone.
+    if (bundle.granularity === 'bundle') return resolveEnabled(bundle.id);
+    return resolveEnabled(qualifiedExtensionId(bundle.id, m.id));
+  });
 }
 
 /** Project + user search paths, or the explicit override. */
@@ -244,21 +372,34 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
   for (const ext of loaded) {
     const instance = extractDefault(ext.module);
     if (!isExtensionInstance(instance)) continue;
+    // Spec § A.6 — inject the qualified namespace into the runtime
+    // instance so the orchestrator and any consumer that reads
+    // `extension.pluginId` (e.g. `sm plugins list`, registry lookups)
+    // gets the same value the loader resolved from `plugin.json#/id`.
+    // The instance is a fresh object the kernel owns; mutating it in
+    // place is safe (the `module` namespace export is frozen by Node,
+    // but the default export object is not).
+    (instance as Record<string, unknown>)['pluginId'] = ext.pluginId;
     switch (ext.kind) {
-      case 'adapter':
-        bundle.extensions.adapters.push(instance as IAdapter);
+      case 'provider':
+        bundle.extensions.providers.push(instance as IProvider);
         break;
-      case 'detector':
-        bundle.extensions.detectors.push(instance as IDetector);
+      case 'extractor':
+        bundle.extensions.extractors.push(instance as IExtractor);
         break;
       case 'rule':
         bundle.extensions.rules.push(instance as IRule);
         break;
-      case 'renderer':
-        bundle.extensions.renderers.push(instance as IRenderer);
+      case 'formatter':
+        bundle.extensions.formatters.push(instance as IFormatter);
         break;
-      case 'audit':
-        bundle.extensions.audits.push(instance as IAudit);
+      case 'hook':
+        // Spec § A.11. Hooks subscribe to a curated set of lifecycle
+        // events. The orchestrator's dispatcher consumes the bucket
+        // during scan / job dispatch; probabilistic hooks are deferred
+        // to the job subsystem (Step 10) but still load here so they
+        // surface in `sm plugins list` and `sm plugins doctor`.
+        bundle.extensions.hooks.push(instance as IHook);
         break;
       case 'action':
         // Actions are runtime-only via the job subsystem (Step 10);
@@ -269,6 +410,7 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
     }
     bundle.manifests.push({
       id: ext.id,
+      pluginId: ext.pluginId,
       kind: ext.kind,
       version: ext.version,
       ...(ext.entryPath ? { entry: ext.entryPath } : {}),

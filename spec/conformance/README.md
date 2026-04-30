@@ -2,7 +2,22 @@
 
 Language-neutral test suite the specification demands. A conforming implementation passes every case; failing any case is a conformance bug.
 
-This directory is **stub-level** as of spec v0.1.0. Two cases ship (`basic-scan`, `kernel-empty-boot`) with a single shared fixture (`minimal-claude`). The shape below is normative; the case count expands before spec-v1.0.0 (see [`../versioning.md`](../versioning.md)). See [`coverage.md`](./coverage.md) for the full schema-to-case matrix.
+The suite splits across two ownership boundaries (Phase 5 / A.13 of spec 0.8.0):
+
+- **Spec-owned cases** — kernel-agnostic. They live in this directory and ship with `@skill-map/spec`. Today: `kernel-empty-boot` (boot invariant) and the `preamble-bitwise-match` deferred case. The universal preamble fixture (`preamble-v1.txt`) lives here too.
+- **Provider-owned cases** — exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite at [`src/extensions/providers/claude/conformance/`](../../src/extensions/providers/claude/conformance/) covering Claude's five kinds (`skill` / `agent` / `command` / `hook` / `note`) via cases `basic-scan`, `rename-high`, `orphan-detection`.
+
+The shape below is normative; the case count in either bucket expands before spec-v1.0.0 (see [`../versioning.md`](../versioning.md)). See [`coverage.md`](./coverage.md) for the spec-owned matrix and the Provider's own coverage file (e.g. `src/extensions/providers/claude/conformance/coverage.md`) for the matching Provider-owned matrix.
+
+The reference CLI exposes both buckets via `sm conformance run`:
+
+```
+sm conformance run --scope spec               # spec-owned cases only
+sm conformance run --scope provider:claude    # the Claude Provider's cases
+sm conformance run --scope all                # both (default)
+```
+
+External consumers (alt-impl authors, Provider authors validating their own work) can drive the suite without bespoke scripting — the verb provisions the same isolated tmp scope per case as the in-process reference runner does.
 
 ---
 
@@ -12,15 +27,18 @@ This directory is **stub-level** as of spec v0.1.0. Two cases ship (`basic-scan`
 spec/conformance/
 ├── README.md                 ← this file
 ├── fixtures/
-│   ├── minimal-claude/       ← controlled MD corpus (5 nodes, one per kind)
-│   │   ├── skills/hello.md
-│   │   ├── agents/reviewer.md
-│   │   ├── commands/status.md
-│   │   ├── hooks/pre-commit.md
-│   │   └── notes/architecture.md
 │   └── preamble-v1.txt       ← verbatim preamble text for bitwise-match checks
 └── cases/
-    └── basic-scan.json       ← declarative case (see "Case format" below)
+    └── kernel-empty-boot.json ← declarative case (see "Case format" below)
+```
+
+```
+src/extensions/providers/<id>/conformance/   ← Provider-owned, mirrors the layout
+├── coverage.md
+├── cases/
+│   └── *.json
+└── fixtures/
+    └── ...
 ```
 
 Fixtures are read-only inputs. Cases declare what to invoke and what to assert. A conformance runner is implementation-specific code that:
@@ -45,13 +63,13 @@ A case is a JSON document with this shape:
   "fixture": "string — folder under fixtures/ used as the scope root.",
 
   "setup": {
-    "disableAllAdapters": false,
+    "disableAllProviders": false,
     "disableAllDetectors": false,
     "disableAllRules": false
   },
 
   "invoke": {
-    "verb": "scan | list | show | check | findings | graph | export | audit | job | record | ...",
+    "verb": "scan | list | show | check | findings | graph | export | job | record | ...",
     "sub": "submit | run | ...",
     "args": ["positional", "args"],
     "flags": ["--json", "--all", "..."]
@@ -97,16 +115,25 @@ Assertion types beyond this list MAY be proposed via spec-vX.Y.Z minor bumps. Im
 
 ## Current case inventory
 
+### Spec-owned (this directory)
+
 | Id | Verifies |
 |---|---|
-| `basic-scan` | Scanning `minimal-claude` detects one node per kind with no issues. |
-| `kernel-empty-boot` | With every adapter/detector/rule disabled, scanning an empty scope returns a valid empty graph. |
+| `kernel-empty-boot` | With every Provider/Extractor/Rule disabled, scanning an empty scope returns a valid empty graph. |
 
 Cases explicitly referenced elsewhere in the spec (landing before v1.0):
 
 | Id | Source | Verifies |
 |---|---|---|
 | `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job files contain `preamble-v1.txt` byte-for-byte. Deferred to Step 10 (requires `sm job preview`). |
+
+### Provider-owned (per `<plugin-dir>/conformance/`)
+
+| Provider | Id | Verifies |
+|---|---|---|
+| `claude` | `basic-scan` | Scanning the `minimal-claude` corpus detects exactly five nodes (one per kind) with no issues. Implicitly validates each per-kind schema. |
+| `claude` | `rename-high` | High-confidence rename emits no issue; the new path is the sole node. |
+| `claude` | `orphan-detection` | Deletion with no replacement triggers exactly one `orphan` issue (severity `info`). |
 
 ---
 
@@ -128,7 +155,9 @@ for (const caseFile of await readdir('spec/conformance/cases')) {
 }
 ```
 
-The reference implementation's runner will ship under `src/conformance/` during Step 0b; until then, the spec treats this suite as a schema (shape contract) rather than an executable test target.
+A Provider-owned runner mirrors the loop with a different cases / fixtures root — `<plugin-dir>/conformance/cases/` and `<plugin-dir>/conformance/fixtures/`. The reference CLI ships both as `sm conformance run` (Phase 5 / A.13); the verb resolves the spec scope via `@skill-map/spec` and discovers Provider scopes by walking each built-in plugin's `conformance/` directory.
+
+The reference implementation's runner ships under `src/conformance/index.ts`; the verb lives at `src/cli/commands/conformance.ts` and uses the runner one case at a time.
 
 ---
 

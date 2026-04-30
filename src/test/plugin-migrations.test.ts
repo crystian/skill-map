@@ -103,7 +103,7 @@ interface IPlantPluginOpts {
   migrations?: Record<string, string>;
   /** Defaults to dedicated mode if migrations are present. */
   storage?: 'kv' | 'dedicated' | 'none';
-  /** Defaults to ['./extension.mjs'], a no-op detector. */
+  /** Defaults to ['./extension.mjs'], a no-op extractor. */
   extensions?: Record<string, string>;
 }
 
@@ -132,12 +132,12 @@ function plantPlugin(fixture: string, opts: IPlantPluginOpts): void {
   const exts = opts.extensions ?? {
     'extension.mjs': `
       export default {
-        id: '${opts.id}-detector',
-        kind: 'detector',
+        id: '${opts.id}-extractor',
+        kind: 'extractor',
         version: '1.0.0',
         emitsLinkKinds: ['references'],
         defaultConfidence: 'high',
-        detect() { return []; },
+        extract() {},
       };
     `,
   };

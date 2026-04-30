@@ -1,6 +1,6 @@
 /**
- * Step 9.3 integration tests for the `runDetectorOnFixture`,
- * `runRuleOnGraph`, and `runRendererOnGraph` helpers.
+ * Step 9.3 integration tests for the `runExtractorOnFixture`,
+ * `runRuleOnGraph`, and `runFormatterOnGraph` helpers.
  *
  * Each test plants a trivial extension instance, runs the helper, and
  * asserts on the output. The helpers have no DB / FS dependency — pure
@@ -10,41 +10,42 @@
 import { describe, it } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
-import type { IDetector, IRenderer, IRule } from '@skill-map/cli';
+import type { IExtractor, IFormatter, IRule } from '@skill-map/cli';
 
 import { issue, link, node } from '../src/builders.js';
 import {
-  runDetectorOnFixture,
-  runRendererOnGraph,
+  runExtractorOnFixture,
+  runFormatterOnGraph,
   runRuleOnGraph,
 } from '../src/run.js';
 
-describe('runDetectorOnFixture', () => {
-  it('runs a deterministic detector and returns its links', async () => {
-    const detector: IDetector = {
-      id: 'fixture-detector',
-      kind: 'detector',
+describe('runExtractorOnFixture', () => {
+  it('runs a deterministic extractor and returns links emitted via ctx.emitLink', async () => {
+    const extractor: IExtractor = {
+      id: 'fixture-extractor',
+      pluginId: 'testkit',
+      kind: 'extractor',
       version: '1.0.0',
       emitsLinkKinds: ['references'],
       defaultConfidence: 'high',
       scope: 'body',
-      detect(ctx) {
-        return [
+      extract(ctx) {
+        ctx.emitLink(
           link({
             source: ctx.node.path,
             target: 'target.md',
             kind: 'references',
-            sources: ['fixture-detector'],
+            sources: ['fixture-extractor'],
           }),
-        ];
+        );
       },
     };
-    const links = await runDetectorOnFixture(detector, {
+    const { links } = await runExtractorOnFixture(extractor, {
       body: 'see [target.md]',
     });
     strictEqual(links.length, 1);
     strictEqual(links[0]!.target, 'target.md');
-    deepStrictEqual(links[0]!.sources, ['fixture-detector']);
+    deepStrictEqual(links[0]!.sources, ['fixture-extractor']);
   });
 
   it('forwards body, frontmatter, and node overrides via context', async () => {
@@ -53,21 +54,21 @@ describe('runDetectorOnFixture', () => {
       frontmatter: {},
       nodePath: '',
     };
-    const detector: IDetector = {
+    const extractor: IExtractor = {
       id: 'spy',
-      kind: 'detector',
+      pluginId: 'testkit',
+      kind: 'extractor',
       version: '1.0.0',
       emitsLinkKinds: ['references'],
       defaultConfidence: 'low',
       scope: 'both',
-      detect(ctx) {
+      extract(ctx) {
         seen.body = ctx.body;
         seen.frontmatter = ctx.frontmatter;
         seen.nodePath = ctx.node.path;
-        return [];
       },
     };
-    await runDetectorOnFixture(detector, {
+    await runExtractorOnFixture(extractor, {
       body: 'inspect me',
       frontmatter: { tag: 'a' },
       context: { node: node({ path: 'overridden.md' }) },
@@ -76,12 +77,34 @@ describe('runDetectorOnFixture', () => {
     deepStrictEqual(seen.frontmatter, { tag: 'a' });
     strictEqual(seen.nodePath, 'overridden.md');
   });
+
+  it('captures ctx.enrichNode calls into the enrichments array', async () => {
+    const extractor: IExtractor = {
+      id: 'enricher',
+      pluginId: 'testkit',
+      kind: 'extractor',
+      version: '1.0.0',
+      emitsLinkKinds: ['references'],
+      defaultConfidence: 'low',
+      scope: 'both',
+      extract(ctx) {
+        ctx.enrichNode({ title: 'Computed title' });
+        ctx.enrichNode({ description: 'Computed description' });
+      },
+    };
+    const { links, enrichments } = await runExtractorOnFixture(extractor);
+    strictEqual(links.length, 0);
+    strictEqual(enrichments.length, 2);
+    strictEqual(enrichments[0]?.title, 'Computed title');
+    strictEqual(enrichments[1]?.description, 'Computed description');
+  });
 });
 
 describe('runRuleOnGraph', () => {
   it('runs a rule against a populated graph and returns its issues', async () => {
     const rule: IRule = {
       id: 'fixture-rule',
+      pluginId: 'testkit',
       kind: 'rule',
       version: '1.0.0',
       evaluate(ctx) {
@@ -107,6 +130,7 @@ describe('runRuleOnGraph', () => {
   it('runs against an empty graph by default', async () => {
     const rule: IRule = {
       id: 'noisy',
+      pluginId: 'testkit',
       kind: 'rule',
       version: '1.0.0',
       evaluate(ctx) {
@@ -119,18 +143,19 @@ describe('runRuleOnGraph', () => {
   });
 });
 
-describe('runRendererOnGraph', () => {
-  it('renders a graph and returns the string output', () => {
-    const renderer: IRenderer = {
-      id: 'fixture-renderer',
-      kind: 'renderer',
+describe('runFormatterOnGraph', () => {
+  it('formats a graph and returns the string output', () => {
+    const formatter: IFormatter = {
+      id: 'fixture-formatter',
+      pluginId: 'testkit',
+      kind: 'formatter',
       version: '1.0.0',
-      format: 'fixture',
-      render(ctx) {
+      formatId: 'fixture',
+      format(ctx) {
         return `nodes=${ctx.nodes.length} links=${ctx.links.length} issues=${ctx.issues.length}`;
       },
     };
-    const out = runRendererOnGraph(renderer, {
+    const out = runFormatterOnGraph(formatter, {
       context: {
         nodes: [node()],
         links: [link()],

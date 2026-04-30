@@ -163,6 +163,8 @@ Emitted when the runner is about to execute the job file.
 
 `command` is implementation-defined free-form; it is descriptive, not invokable.
 
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Plugins MAY subscribe a `hook` extension to this event for pre-flight checks or audit logging. Reactions only — hooks cannot block the spawn.
+
 ### `model.delta`
 
 Emitted in `stream-output` mode only. Carries incremental model output.
@@ -235,6 +237,8 @@ Emitted when a job transitions to `completed`.
 }
 ```
 
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). The most common hookable event: notification, billing, downstream dispatch.
+
 ### `job.failed`
 
 Emitted when a job transitions to `failed` by any path.
@@ -255,6 +259,8 @@ Emitted when a job transitions to `failed` by any path.
 ```
 
 `reason` enum matches [`execution-record.schema.json`](./schemas/execution-record.schema.json) `failureReason`. `message` is human-readable free-form; MAY be truncated for display.
+
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Hook subscribers commonly use this event for alerting and retry triggers. Filter by `data.reason` to narrow to a specific failure mode.
 
 ### `run.summary`
 
@@ -330,6 +336,8 @@ Emitted once when a scan begins (full, `--changed`, or `-n <node.path>`).
 }
 ```
 
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Pre-scan setup, telemetry init.
+
 #### `scan.progress`
 
 Emitted periodically during a scan (implementation-defined cadence; SHOULD throttle to ≥250 ms apart to keep WS traffic cheap).
@@ -366,6 +374,70 @@ Emitted once at scan end.
   }
 }
 ```
+
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Post-scan reaction (Slack notification, CI gate, summary email).
+
+#### `extractor.completed`
+
+Emitted once per registered Extractor, after the full walk completes. Aggregated, NOT per-node — per-node fan-out lives in `scan.progress`, which is intentionally not hookable.
+
+```json
+{
+  "type": "extractor.completed",
+  "timestamp": 1745159455900,
+  "runId": "...",
+  "jobId": null,
+  "data": {
+    "extractorId": "core/external-url-counter"
+  }
+}
+```
+
+`extractorId` is the qualified extension id (`<plugin-id>/<id>`).
+
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Extractor metrics, audit. Filter by `data.extractorId` to scope to a single Extractor.
+
+#### `rule.completed`
+
+Emitted once per registered Rule, after every issue has been validated.
+
+```json
+{
+  "type": "rule.completed",
+  "timestamp": 1745159455950,
+  "runId": "...",
+  "jobId": null,
+  "data": {
+    "ruleId": "core/superseded"
+  }
+}
+```
+
+`ruleId` is the qualified extension id.
+
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Rule alerting, downstream tooling. Filter by `data.ruleId`.
+
+#### `action.completed`
+
+Emitted once per Action invocation, after the report has been recorded.
+
+```json
+{
+  "type": "action.completed",
+  "timestamp": 1745159465500,
+  "runId": "...",
+  "jobId": "...",
+  "data": {
+    "actionId": "claude/skill-summarizer",
+    "node": { "path": "skills/my-skill.md", "kind": "skill" },
+    "jobResult": { "tokensIn": 2431, "tokensOut": 1072 }
+  }
+}
+```
+
+`actionId` is the qualified extension id; `node` carries the target node summary (full `Node` shape per [`schemas/node.schema.json`](./schemas/node.schema.json) is forward-compatible). Lands alongside the job subsystem at Step 10.
+
+> **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Per-Action notification, integration glue. Filter by `data.actionId`.
 
 ### Issue events
 
@@ -447,4 +519,6 @@ Consumers MUST ignore unknown fields (forward compatibility).
 
 The envelope (`type`, `timestamp`, `runId`, `jobId`, `data`) is stable. Adding an envelope field is a major bump because every consumer would need to handle it.
 
-The **non-job event families** (`scan.*`, `issue.*`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
+The **non-job event families** (`scan.*`, `issue.*`, `extractor.completed`, `rule.completed`, `action.completed`) are marked **experimental** across spec v0.x. They ship alongside the WebSocket broadcaster at Step 13 of the reference impl; shapes may tighten before a stable tag lands. Once promoted to `stable` (a minor spec bump), the same add/remove/rename semantics as the job events apply.
+
+The **Hook curated trigger set** (eight hookable lifecycle events; see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set)) is itself stable as of the same minor in which it lands: adding a hookable trigger is a minor bump, removing or renaming one is a major bump. The curation policy ("a hook subscribes only to a deliberately small set") is normative — surface noise reduction is the entire point.

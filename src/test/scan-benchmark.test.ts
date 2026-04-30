@@ -4,7 +4,7 @@
  * Generates 500 synthetic markdown files under
  * `<repo>/.tmp/scan-bench-<random>/.claude/{agents,commands,hooks,skills}/`
  * (+ a sibling `notes/` for the note kind) and runs `runScan` over them
- * with the full built-in pipeline (claude adapter + 4 detectors + 3
+ * with the full built-in pipeline (claude Provider + 4 detectors + 3
  * rules) and tokenization enabled. Asserts:
  *
  *   1. `runScan` completes within the perf budget.

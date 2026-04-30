@@ -55,12 +55,12 @@
         "path": "schemas/extensions/base.schema.json"
       },
       {
-        "id": "extensions/adapter",
-        "path": "schemas/extensions/adapter.schema.json"
+        "id": "extensions/provider",
+        "path": "schemas/extensions/provider.schema.json"
       },
       {
-        "id": "extensions/detector",
-        "path": "schemas/extensions/detector.schema.json"
+        "id": "extensions/extractor",
+        "path": "schemas/extensions/extractor.schema.json"
       },
       {
         "id": "extensions/rule",
@@ -71,38 +71,18 @@
         "path": "schemas/extensions/action.schema.json"
       },
       {
-        "id": "extensions/audit",
-        "path": "schemas/extensions/audit.schema.json"
+        "id": "extensions/formatter",
+        "path": "schemas/extensions/formatter.schema.json"
       },
       {
-        "id": "extensions/renderer",
-        "path": "schemas/extensions/renderer.schema.json"
+        "id": "extensions/hook",
+        "path": "schemas/extensions/hook.schema.json"
       }
     ],
     "frontmatter": [
       {
         "id": "frontmatter/base",
         "path": "schemas/frontmatter/base.schema.json"
-      },
-      {
-        "id": "frontmatter/skill",
-        "path": "schemas/frontmatter/skill.schema.json"
-      },
-      {
-        "id": "frontmatter/agent",
-        "path": "schemas/frontmatter/agent.schema.json"
-      },
-      {
-        "id": "frontmatter/command",
-        "path": "schemas/frontmatter/command.schema.json"
-      },
-      {
-        "id": "frontmatter/hook",
-        "path": "schemas/frontmatter/hook.schema.json"
-      },
-      {
-        "id": "frontmatter/note",
-        "path": "schemas/frontmatter/note.schema.json"
       }
     ],
     "summaries": [
@@ -181,71 +161,49 @@
     "fixturesDir": "conformance/fixtures",
     "cases": [
       {
-        "id": "basic-scan",
-        "file": "conformance/cases/basic-scan.json"
-      },
-      {
         "id": "kernel-empty-boot",
         "file": "conformance/cases/kernel-empty-boot.json"
       }
     ]
   },
-  "specPackageVersion": "0.7.0",
+  "specPackageVersion": "0.7.1",
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "4ed1c4063e4b9634a604b4cae5a170af2bab2671eabe8ead8177427ad9b64738",
-      "README.md": "8bd57e02d9a9d3f0a4efd18c0f0bd1f4bbe13eb206add0317659e48eab435e7e",
-      "architecture.md": "0ebaacef9e57206bc0dde27ff44a02e0a7def9ae9ceba2f27053b31ff708708b",
-      "cli-contract.md": "077dc28aaf8b966f8ee30cf9fafd0faf7a2f55f18c601e162d9c6447c37a4b8f",
-      "conformance/README.md": "79c5e63f18a368951dc9f3e31e9bf9574de3f8b97150b2d75365d4febd8eb6dc",
-      "conformance/cases/basic-scan.json": "24623da0cad8c8c54b3ff9b09820ea1276fe8b8f0fc680bf6e8abeb4edb8e424",
-      "conformance/cases/kernel-empty-boot.json": "175524674b14d993d29f10080d7697074b3a2eee25b359ff903344d73c6acc98",
-      "conformance/cases/orphan-detection.json": "7fea6e866d775d09cadb70ccd764f6c8317ca61316c6d187a97cb2466db4e19e",
-      "conformance/cases/rename-high.json": "f23513893e25fc4259db06a497906137de981da775d8ab2ef262554d54af5f27",
-      "conformance/coverage.md": "a9580457cd868638676a450ace478438f832d057ab9c3ad64c088366afc07b7a",
-      "conformance/fixtures/minimal-claude/agents/reviewer.md": "d0dd681ba63838301e480116aa09825329f01832b0116de5c5476fdd8a5dcf54",
-      "conformance/fixtures/minimal-claude/commands/status.md": "3f36e053fd1c059ffd902f84a55be8a458c26072f97cb37dd7e97314ae2a9bf5",
-      "conformance/fixtures/minimal-claude/hooks/pre-commit.md": "ec9cec8ac4ce34d40ec055ffd90e8f06ea3e5764d6ec3ee84e0d97de71b930c7",
-      "conformance/fixtures/minimal-claude/notes/architecture.md": "5a7e6fdbb1556733dacebad63758057dc1e19090b5a983292c0c65e90b98bcf1",
-      "conformance/fixtures/minimal-claude/skills/hello.md": "8598074020430f294ff1eac39876302448f004b6c48446d453092159319bcbee",
-      "conformance/fixtures/orphan-after/skills/keep.md": "a6fdc33104cb2e8092f386a427784685eee1c8d7cb8fddb934cf65984143c7fd",
-      "conformance/fixtures/orphan-before/skills/keep.md": "a6fdc33104cb2e8092f386a427784685eee1c8d7cb8fddb934cf65984143c7fd",
-      "conformance/fixtures/orphan-before/skills/lonely.md": "4ba2bb336fa46644d2b0dfef4c3b97879ecbf693b825a5348f032d1af049d80a",
+      "CHANGELOG.md": "a337a61d6abe1d3104f201ae54c68c2dddb905e537778d6482df2655e1f01653",
+      "README.md": "bd30780525e75379eaeb5f8a903bdc601daf3862f3ec69dffc96c437e8d476fc",
+      "architecture.md": "c69a50e3e9b7d091799bd19cd9efe854a924c83bc2c8e79e0fcb727196151f6c",
+      "cli-contract.md": "1d09d047e07fd8793968259660012ebf64ab136967afead2d2666a59a40a020a",
+      "conformance/README.md": "4a77b4251ebe708692f5c14d2420f740dd4f1743b6f080f0b6e0c1faac179a50",
+      "conformance/cases/kernel-empty-boot.json": "e56ed102f4ff745acb4ee4c3ebdea20a84b4bf17c8bec85eb1ef4bd471f2afbe",
+      "conformance/coverage.md": "317636edefeed5d6488bcc8f228a4c8bf72f02087a9afcfc142cd102c761c31b",
       "conformance/fixtures/preamble-v1.txt": "1e0aeef224b64477bdc13a949c3ad402e68249caf499ecdba1302371677c068b",
-      "conformance/fixtures/rename-high-after/skills/bar.md": "16f7678829c7702f8ebaeef920a891756da198466a1884badd8d8b4a7d1bab6a",
-      "conformance/fixtures/rename-high-before/skills/foo.md": "16f7678829c7702f8ebaeef920a891756da198466a1884badd8d8b4a7d1bab6a",
-      "db-schema.md": "002224f629403a247c0243d4b242c1e35e28bd93073ea53137ec1d30084d9bd7",
+      "db-schema.md": "f570b7ec123a1bbe8936e111a3e3b0597855b2aff0cac82b89fa88d4233a4d73",
       "interfaces/security-scanner.md": "e46d33d6e39b15672c8f7350f1cbd4755534510fe57c679c2b1d0be57577d818",
-      "job-events.md": "08796b7fbeb55e5b03cf3bc394224e70a23438a4d15a46ad1d70121c2c68b967",
+      "job-events.md": "831501bd696a2801e2d160b314eb49794d0ba553da4487e15c7dcc72a1c230f6",
       "job-lifecycle.md": "1fe88b1a2ed204e41bb41ac172fbb3e912dccd0dd8a1f8ea8e21a681b336d6ee",
-      "plugin-author-guide.md": "d8ddba9d47eed4ff973862cb3af5e22b693bb5bede3275df8817bbcebcd7689c",
+      "plugin-author-guide.md": "c2633043c423935ec45ef2e1f11dd153762b6b01b45820d9963ff68bd135b67a",
       "plugin-kv-api.md": "04b2178f46fb88adeae9240df9c9e1761b660396072001dac32cd402e11a2d7d",
       "prompt-preamble.md": "23a8eff0477fbbc46192a27781bc781bda4202bb9c669b7a7a002b0d668146b0",
-      "schemas/conformance-case.schema.json": "d69c501bbca079da0ca87685eb4cbdbc2e405334469fc937929ca9134e01a2b3",
-      "schemas/execution-record.schema.json": "ec0f3acf1d0ce099c059d73eb434936bfd1bcf12023693bd572efb2a7352faa6",
-      "schemas/extensions/action.schema.json": "63736f3efe33e35abcaa12de6d746c405e9bf0927b999bc0d49de3ba948d5831",
-      "schemas/extensions/adapter.schema.json": "819a696d4379262b8b1df96a16bc56bc46df60339ddddf4a9d92752dd008d682",
-      "schemas/extensions/audit.schema.json": "58b1895fd447cee7d5ed9e8c9139ecd6b0fe11d439903c30ec82f34ece14b24b",
-      "schemas/extensions/base.schema.json": "c832a8c9976a7ddc70b8f9226a54de14aa3e85d71bc77ed7a8671a77d599c0e4",
-      "schemas/extensions/detector.schema.json": "a693c17b7e75bcf37eb87f84eea30e89d7aae179b5b89ef5a1cff330c333c029",
-      "schemas/extensions/renderer.schema.json": "187e3498d0f3bddb49b9793bca9601fe461ff8d23625069e4c5c8ba18acbb81a",
-      "schemas/extensions/rule.schema.json": "75e5adababcf1f0c5c6aaf8009795d49e7a7e196cee13a58940a076429d0be5e",
-      "schemas/frontmatter/agent.schema.json": "0e63d7692efb29facccc69472fff48a25f44934618346bfc09738864c6917787",
-      "schemas/frontmatter/base.schema.json": "e68fbb85d3e873c4897af776eaf873860bd6e86b5abc1799e801d35c4f7937cf",
-      "schemas/frontmatter/command.schema.json": "7b8463ce9c83edd2e3073dd4cd1bbeec4b42e53b03b48bc9a59e540136c2de89",
-      "schemas/frontmatter/hook.schema.json": "4f935bb2a94c6b08795e7e10a473d5185e5abaa8c215152d41036291835b7aad",
-      "schemas/frontmatter/note.schema.json": "9806b371193c802803638682f9a625f8277152ad3ef68939eb5f05fff2ef65f4",
-      "schemas/frontmatter/skill.schema.json": "b99b8ab23bee01333b4a04946cd9fc13d373d827ef6ddfc7d058daf637f2f80b",
+      "schemas/conformance-case.schema.json": "ca35a1303c48043f60bbe5fc6c9d9bb88dac0f7fd381f42f596fc6dbb1d4a532",
+      "schemas/execution-record.schema.json": "607e939bfcac4e18385ef93e27bbe28987ba35d5a7c67f3d6e4377ca819a9425",
+      "schemas/extensions/action.schema.json": "ec4c2fd74b73a140744c195da91d287a88bfecac206d029910ae0dcb0ab9ce35",
+      "schemas/extensions/base.schema.json": "e5c3406b88b0496a89791890b05083929429319d96b1f8cea0bec3ec9e3de8af",
+      "schemas/extensions/extractor.schema.json": "122d3f81ef91edcde9798e7dc8fcbf442a2996deea65aa4b03c9d5cb01ba2519",
+      "schemas/extensions/formatter.schema.json": "2ab092aa37ae349c69b93071ed4f0e131affb7bb5799516ca82c721262631b36",
+      "schemas/extensions/hook.schema.json": "7465c38e0765edf23e49d4f96c539d04323f1cf564af1c60ee637c79a6d39239",
+      "schemas/extensions/provider.schema.json": "27c627151fb98cf60763aaa122d807bbf007317f06bd31e92a2fca43c100e4b8",
+      "schemas/extensions/rule.schema.json": "8ff420bde498f50db114c352305d487c71aef2dd746fd0c24976ff6a09865c22",
+      "schemas/frontmatter/base.schema.json": "dfee192458765b8cb872ef9e7145ec31b9e07ceb19ee44be48af2172329e7a38",
       "schemas/history-stats.schema.json": "23f472d1de06d23fc775aabba821f8375f347af4dc8d89ba567980d61a11f9de",
       "schemas/issue.schema.json": "40f6f8abadcce0fd8eac9df27ffcc20b2fc9fda6970142ddb8e7e56b1760b9b1",
       "schemas/job.schema.json": "582999899f8846f70c4d745d2813e53b97a4f5ccd3d8d163eeb68b201e7124e4",
-      "schemas/link.schema.json": "3e92f5c9def61a857a2c7b22846d82b988157de083463615144ddc92403a489e",
-      "schemas/node.schema.json": "14f345fac450f5728c895d1b878e0015eabb9d72ba9da4a8d2236c82933d3fcf",
-      "schemas/plugins-registry.schema.json": "92b2052bd06e366709dd6e1449d99408999e33707c4007afc7662980e73c3ef1",
-      "schemas/project-config.schema.json": "74f8f2ba2c4897ee47a5cc08e27ec3898dc0a938fe7e3823f33f6c5005724d1f",
+      "schemas/link.schema.json": "0a95a24849a38b9ef5bad5361519a9f9e012b5bc3001289fad29d0851fceff6b",
+      "schemas/node.schema.json": "ef80251524ed8a295eb7e98e4399b36cdd1daf3eacd605cacd1ba25edd6f39fc",
+      "schemas/plugins-registry.schema.json": "5ca1d4970ae64f064f05c237a649d9f82d5edbeb7c121ec50cb4aaca13f4bc51",
+      "schemas/project-config.schema.json": "4f5b1ce01446d78ebf524d11c36e0a3ae101e69008c922a2b3f53fccfd1cb87f",
       "schemas/report-base.schema.json": "a1021e9a59b4df9f99cd92454d797e88469766e7d49f52d231c4645ffdfdad8f",
-      "schemas/scan-result.schema.json": "5efe9b1954c5e729c4b55dbc4dd51263d97967d16c0b3cea398877ace74d37b7",
+      "schemas/scan-result.schema.json": "d1a8782e198bc9bb92dad247437aefa1b02f92ff8dca8562eaf2348fd7c5cf0c",
       "schemas/summaries/agent.schema.json": "3d22558eeb170e00c4fc32018a810d27333cc632c9e528ff386100cfdfded087",
       "schemas/summaries/command.schema.json": "2bffd606b24f7df9ccd13890af8725adfbfb8a2d7782fee1e0ac5250b9059117",
       "schemas/summaries/hook.schema.json": "36f876f3b1a60d45be97a0848c79fd18744b434dfdcefc366f033b253d56268c",

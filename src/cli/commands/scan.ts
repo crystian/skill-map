@@ -5,13 +5,18 @@ import { Command, Option } from 'clipanion';
 import type { Kysely } from 'kysely';
 
 import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
-import type { RenameOp, ScanResult } from '../../kernel/index.js';
+import type {
+  IEnrichmentRecord,
+  IExtractorRunRecord,
+  RenameOp,
+  ScanResult,
+} from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { listBuiltIns } from '../../extensions/built-ins.js';
 import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
-import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
+import { loadExtractorRuns, loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -21,6 +26,7 @@ import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
+  filterBuiltInManifests,
   loadPluginRuntime,
   type IPluginRuntimeBundle,
 } from '../util/plugin-runtime.js';
@@ -32,8 +38,8 @@ const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 /**
  * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
  *
- * Scans the given roots using the built-in extension set (claude adapter,
- * 4 detectors, 3 rules) plus any drop-in plugin extensions discovered
+ * Scans the given roots using the built-in extension set (claude Provider,
+ * 4 extractors, 3 rules) plus any drop-in plugin extensions discovered
  * under `.skill-map/plugins/` and `~/.skill-map/plugins/` (Step 9.1).
  * The registry is populated with manifest rows so introspection
  * (`sm help`, `sm plugins list`) sees what's active; the orchestrator
@@ -63,11 +69,11 @@ export class ScanCommand extends Command {
 
   static override usage = Command.Usage({
     category: 'Scan',
-    description: 'Scan roots for markdown nodes, run detectors and rules.',
+    description: 'Scan roots for markdown nodes, run extractors and rules.',
     details: `
-      Walks the given roots with the built-in claude adapter, runs the
+      Walks the given roots with the built-in claude Provider, runs the
       frontmatter / slash / at-directive / external-url-counter
-      detectors per node, then the trigger-collision / broken-ref /
+      extractors per node, then the trigger-collision / broken-ref /
       superseded rules over the full graph. Emits a ScanResult
       conforming to scan-result.schema.json.
 
@@ -175,7 +181,12 @@ export class ScanCommand extends Command {
       pluginRuntime,
     });
     if (!this.noBuiltIns) {
-      for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
+      // Granularity filter: a user-disabled built-in (whether bundle-
+      // level `claude` or extension-level `core/<id>`) is silenced from
+      // the registry too, so `sm help` / `sm plugins list` introspection
+      // does not advertise it as active.
+      const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);
+      for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
     }
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
@@ -215,7 +226,7 @@ export class ScanCommand extends Command {
     // cache reuse". The orchestrator uses `priorSnapshot` to fire the
     // rename heuristic (every scan that can detect deletes / additions),
     // and uses `enableCache` — independently — to decide whether to skip
-    // detectors on hash-matching nodes (`--changed` only).
+    // extractors on hash-matching nodes (`--changed` only).
     //
     // When `--changed` is set but no prior is found, we warn so the user
     // gets feedback that the incremental flag had nothing to act on.
@@ -248,10 +259,18 @@ export class ScanCommand extends Command {
     // --- run scan, given a prior --------------------------------------------
     // Closure so the path that persists (single open) and the path that
     // doesn't (ephemeral read open + standalone scan) share one runScan
-    // invocation.
+    // invocation. The optional `priorExtractorRuns` map drives the
+    // Phase 4 / A.9 fine-grained Extractor cache; the CLI loads it from
+    // `scan_extractor_runs` whenever the prior snapshot is hydrated.
     const runScanWith = async (
       prior: ScanResult | null,
-    ): Promise<{ result: ScanResult; renameOps: RenameOp[] }> => {
+      priorExtractorRuns?: Map<string, Map<string, string>>,
+    ): Promise<{
+      result: ScanResult;
+      renameOps: RenameOp[];
+      extractorRuns: IExtractorRunRecord[];
+      enrichments: IEnrichmentRecord[];
+    }> => {
       if (this.changed && prior === null) {
         this.context.stderr.write(SCAN_TEXTS.changedNoPriorWarning);
       }
@@ -271,9 +290,10 @@ export class ScanCommand extends Command {
         runOptions.priorSnapshot = prior;
         // Cache reuse is opt-in via `--changed`. With a prior loaded but
         // no `--changed`, the rename heuristic still fires but every
-        // file re-walks through detectors deterministically.
+        // file re-walks through extractors deterministically.
         runOptions.enableCache = this.changed;
       }
+      if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
       return await runScanWithRenames(kernel, runOptions);
     };
 
@@ -290,7 +310,13 @@ export class ScanCommand extends Command {
     // the caller can render the canonical "refusing to wipe ..."
     // line outside the DB scope.
     type IScanOutcome =
-      | { kind: 'ok'; result: ScanResult; renameOps: RenameOp[] }
+      | {
+          kind: 'ok';
+          result: ScanResult;
+          renameOps: RenameOp[];
+          extractorRuns: IExtractorRunRecord[];
+          enrichments: IEnrichmentRecord[];
+        }
       | { kind: 'scan-error'; message: string }
       | { kind: 'guard'; existing: number };
 
@@ -302,9 +328,20 @@ export class ScanCommand extends Command {
       try {
         outcome = await withSqlite({ databasePath: dbPath }, async (adapter) => {
           const prior = await loadPrior(adapter);
-          let scanned: { result: ScanResult; renameOps: RenameOp[] };
+          // Phase 4 / A.9 — load the fine-grained Extractor cache only
+          // when the prior snapshot is in play. Without a prior, the
+          // orchestrator never hits the cache path so the runs map is
+          // wasted I/O.
+          const priorExtractorRuns =
+            this.changed && prior ? await loadExtractorRuns(adapter.db) : undefined;
+          let scanned: {
+            result: ScanResult;
+            renameOps: RenameOp[];
+            extractorRuns: IExtractorRunRecord[];
+            enrichments: IEnrichmentRecord[];
+          };
           try {
-            scanned = await runScanWith(prior);
+            scanned = await runScanWith(prior, priorExtractorRuns);
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             return { kind: 'scan-error', message };
@@ -320,7 +357,13 @@ export class ScanCommand extends Command {
             const existing = await countExistingScanRows(adapter.db);
             if (existing > 0) return { kind: 'guard', existing };
           }
-          await persistScanResult(adapter.db, scanned.result, scanned.renameOps);
+          await persistScanResult(
+            adapter.db,
+            scanned.result,
+            scanned.renameOps,
+            scanned.extractorRuns,
+            scanned.enrichments,
+          );
           return { kind: 'ok', ...scanned };
         });
       } catch (err) {
@@ -380,7 +423,7 @@ export class ScanCommand extends Command {
       // H4 — under `--strict`, self-validate the ScanResult against
       // `scan-result.schema.json` before emitting it. The
       // orchestrator's per-link / per-issue guards (`validateLink`,
-      // `validateIssue`) only check shallow shape; a custom detector
+      // `validateIssue`) only check shallow shape; a custom extractor
       // could still produce a Link that fails the full schema and
       // would silently slip into stdout. Without this gate, a
       // downstream `sm scan compare-with <dump>` that loads the dump

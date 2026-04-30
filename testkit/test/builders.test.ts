@@ -13,7 +13,7 @@ describe('node()', () => {
     const n = node();
     strictEqual(typeof n.path, 'string');
     strictEqual(n.kind, 'skill');
-    strictEqual(n.adapter, 'claude');
+    strictEqual(n.provider, 'claude');
     deepStrictEqual(n.bytes, { frontmatter: 0, body: 0, total: 0 });
     strictEqual(n.linksOutCount, 0);
     strictEqual(n.linksInCount, 0);
@@ -85,7 +85,7 @@ describe('scanResult()', () => {
     strictEqual(sr.stats.linksCount, 1);
     strictEqual(sr.stats.issuesCount, 1);
     strictEqual(sr.scope, 'project');
-    deepStrictEqual(sr.adapters, ['claude']);
+    deepStrictEqual(sr.providers, ['claude']);
     ok(sr.scannedBy?.name.includes('testkit'));
   });
 

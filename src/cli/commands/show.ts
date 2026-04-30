@@ -126,7 +126,7 @@ function renderHuman(doc: IShowDocument): string {
   const { node, linksOut, linksIn, issues } = doc;
   const out: string[] = [];
 
-  out.push(`${node.path} [${node.kind}] (adapter: ${node.adapter})`);
+  out.push(`${node.path} [${node.kind}] (provider: ${node.provider})`);
   if (node.title) out.push(`title:        ${node.title}`);
   if (node.description) out.push(`description:  ${node.description}`);
   if (node.stability) out.push(`stability:    ${node.stability}`);

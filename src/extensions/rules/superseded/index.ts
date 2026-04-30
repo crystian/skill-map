@@ -17,6 +17,7 @@ const ID = 'superseded';
 
 export const supersededRule: IRule = {
   id: ID,
+  pluginId: 'core',
   kind: 'rule',
   version: '1.0.0',
   description: 'Surfaces nodes that declare a supersededBy replacement in their frontmatter.',

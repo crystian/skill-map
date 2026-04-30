@@ -25,11 +25,11 @@
  *      implements `StoragePort`).
  *
  *   3. **Runtime extension contracts** — what a plugin author
- *      implements: `IAdapter`, `IDetector`, `IRule`, `IRenderer`,
- *      `IAudit`, `IExtensionBase`. **`I` prefix.** The prefix flags
- *      "this is a contract you supply, not a value the kernel hands
- *      you" — same reading as the rest of TypeScript's plugin
- *      ecosystems where a shape is implementable.
+ *      implements: `IProvider`, `IDetector`, `IRule`, `IFormatter`,
+ *      `IExtensionBase`. **`I` prefix.** The prefix flags "this is a
+ *      contract you supply, not a value the kernel hands you" — same
+ *      reading as the rest of TypeScript's plugin ecosystems where a
+ *      shape is implementable.
  *
  *   4. **Internal shapes** — option bags, result records, config
  *      slices, anything passed across function boundaries inside the
@@ -68,15 +68,14 @@ export type Stability = 'experimental' | 'stable' | 'deprecated';
  * matrix in `spec/architecture.md` §Execution modes:
  *
  *   - `deterministic` — pure code, runs synchronously inside `sm scan` /
- *     `sm check` / `sm audit`. Same input → same output, every run.
+ *     `sm check`. Same input → same output, every run.
  *   - `probabilistic` — calls an LLM through `RunnerPort`, dispatches only
  *     as a queued job (`sm job submit <kind>:<id>`); never participates in
  *     scan-time pipelines.
  *
  * Detector / Rule / Action declare it directly (default `deterministic` when
- * omitted in the manifest). Audit forbids declaring it — the kernel derives
- * it from `composes[]` at load time. Adapter / Renderer are deterministic-only
- * and MUST NOT carry the field.
+ * omitted in the manifest). Provider / Formatter are deterministic-only and
+ * MUST NOT carry the field.
  */
 export type TExecutionMode = 'deterministic' | 'probabilistic';
 
@@ -100,7 +99,7 @@ export interface LinkLocation {
 export interface Node {
   path: string;
   kind: NodeKind;
-  adapter: string;
+  provider: string;
   bodyHash: string;
   frontmatterHash: string;
   bytes: TripleSplit;
@@ -152,16 +151,16 @@ export interface Issue {
 
 export interface ScanStats {
   /**
-   * Files visited by the adapter walkers. With a single adapter this
-   * matches `nodesCount`; with multiple adapters running on overlapping
+   * Files visited by the Provider walkers. With a single Provider this
+   * matches `nodesCount`; with multiple Providers running on overlapping
    * roots it can diverge (each yielded `IRawNode` is one walked file).
    */
   filesWalked: number;
   /**
-   * Files walked but not classified by any adapter. Today every walked
-   * file is classified by its adapter (the `claude` adapter falls back to
+   * Files walked but not classified by any Provider. Today every walked
+   * file is classified by its Provider (the `claude` Provider falls back to
    * `'note'`), so this is always 0; the field will matter once multiple
-   * adapters compete in Step 9+.
+   * Providers compete in Step 9+.
    */
   filesSkipped: number;
   nodesCount: number;
@@ -176,7 +175,7 @@ export interface ScanScannedBy {
   specVersion: string;
 }
 
-export type ExecutionKind = 'action' | 'audit';
+export type ExecutionKind = 'action';
 export type ExecutionStatus = 'completed' | 'failed' | 'cancelled';
 export type ExecutionFailureReason =
   | 'runner-error'
@@ -285,8 +284,8 @@ export interface ScanResult {
    * `minItems: 1` — `runScan` throws if `roots: []` is supplied.
    */
   roots: string[];
-  /** Adapter ids that participated in classification. Empty if no adapter matched. */
-  adapters: string[];
+  /** Provider ids that participated in classification. Empty if no Provider matched. */
+  providers: string[];
   /** Implementation metadata. Populated by `runScan` for self-describing output. */
   scannedBy?: ScanScannedBy;
   nodes: Node[];

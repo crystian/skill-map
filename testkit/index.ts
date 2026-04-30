@@ -2,19 +2,19 @@
  * `@skill-map/testkit` — kernel mocks + builders for plugin authors.
  *
  * Plugin authors install this alongside `@skill-map/cli` and use it to
- * unit-test their detectors, rules, renderers, and audits without
- * spinning up a real kernel + DB.
+ * unit-test their extractors, rules, and formatters without spinning up
+ * a real kernel + DB.
  *
  * The surface stays thin: builders for spec-aligned domain objects
  * (`Node` / `Link` / `Issue` / `ScanResult`), per-kind context
  * factories, in-memory storage / runner stand-ins, and high-level
- * `runDetectorOnFixture` / `runRuleOnGraph` / `runRendererOnGraph`
+ * `runExtractorOnFixture` / `runRuleOnGraph` / `runFormatterOnGraph`
  * helpers that wire everything up for the most common test shape.
  *
  * **Stability**: `experimental` while Step 9 is in flight. The runner
  * stand-in (`makeFakeRunner`) is the most likely surface to change,
- * because it tracks the Step 10 job subsystem contract. Detector /
- * rule / renderer helpers and the builders are intended to stay
+ * because it tracks the Step 10 job subsystem contract. Extractor /
+ * rule / formatter helpers and the builders are intended to stay
  * stable through v1.0.
  */
 
@@ -26,15 +26,15 @@ export {
 } from './src/builders.js';
 
 export {
-  makeDetectContext,
+  makeExtractorContext,
   makeRuleContext,
-  makeRenderContext,
-  detectContextFromBody,
+  makeFormatterContext,
+  extractorContextFromBody,
 } from './src/context.js';
 export type {
-  IDetectContext,
+  IExtractorContext,
   IRuleContext,
-  IRenderContext,
+  IFormatterContext,
 } from './src/context.js';
 
 export { makeFakeStorage } from './src/storage.js';
@@ -52,13 +52,14 @@ export type {
 } from './src/runner.js';
 
 export {
-  runDetectorOnFixture,
+  runExtractorOnFixture,
   runRuleOnGraph,
-  runRendererOnGraph,
+  runFormatterOnGraph,
 } from './src/run.js';
 export type {
-  IRunDetectorOptions,
-  IRunRendererOptions,
+  IRunExtractorOptions,
+  IRunExtractorResult,
+  IRunFormatterOptions,
   IRunRuleOptions,
 } from './src/run.js';
 
@@ -76,9 +77,8 @@ export type {
   Severity,
   Stability,
   TripleSplit,
-  IDetector,
+  IExtractor,
   IRule,
-  IRenderer,
-  IAdapter,
-  IAudit,
+  IFormatter,
+  IProvider,
 } from '@skill-map/cli';

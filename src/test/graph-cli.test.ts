@@ -154,7 +154,7 @@ describe('sm graph', () => {
     ok(out.includes('## command (1)'), `command section missing:\n${out}`);
     ok(out.includes('.claude/agents/architect.md'));
     ok(out.includes('.claude/commands/deploy.md'));
-    // Trailing newline normalisation: the verb appends \n if the renderer
+    // Trailing newline normalisation: the verb appends \n if the formatter
     // didn't, so output is always newline-terminated for safe piping.
     ok(out.endsWith('\n'), `output should end with \\n, got: ${JSON.stringify(out.slice(-3))}`);
   });
@@ -192,7 +192,7 @@ describe('sm graph', () => {
     const code = await cmd.execute();
 
     strictEqual(code, 5, `unexpected exit ${code}; stdout=${cap.stdout()}`);
-    match(cap.stderr(), /No renderer registered for format=mermaid/);
+    match(cap.stderr(), /No formatter registered for format=mermaid/);
     match(cap.stderr(), /Available: ascii/);
   });
 

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/extensions/hook.schema.json",
+  "title": "ExtensionHook",
+  "description": "Manifest shape for a `Hook` extension. Subscribes declaratively to a curated set of kernel lifecycle events. Dual-mode (deterministic / probabilistic). Hooks react to events; they cannot block or alter the main pipeline. Probabilistic hooks are deferred to the job subsystem and never run in-scan. The set of hookable triggers is intentionally small — eight events out of the full job-events catalog. Other events (per-node `scan.progress`, `model.delta`, `run.*`, internal job lifecycle) are deliberately not hookable: too verbose for a reactive surface, internal to the runner, or covered elsewhere. Declaring a trigger outside the hookable set yields `invalid-manifest` at load time. See `architecture.md` §Hook · curated trigger set for the per-trigger payload contracts.",
+  "type": "object",
+  "required": ["id", "kind", "version", "triggers"],
+  "unevaluatedProperties": false,
+  "properties": {
+    "kind": { "const": "hook" },
+    "mode": {
+      "type": "string",
+      "enum": ["deterministic", "probabilistic"],
+      "default": "deterministic",
+      "description": "`deterministic`: the hook's `on(ctx)` runs in-process during the dispatch of the matching event, synchronously between the event's emission and the next pipeline step. `probabilistic`: the hook is enqueued as a job (handled by the job subsystem; lands at Step 10). A probabilistic hook is loaded but not dispatched in-scan — the kernel surfaces a stderr advisory and skips it until the job subsystem ships."
+    },
+    "triggers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "List of lifecycle events this hook subscribes to. Each entry MUST be one of the hookable triggers below. Declaring an unknown event (e.g. `scan.progress`, `model.delta`) is rejected at load time with `invalid-manifest` — the curated set is the contract.",
+      "items": {
+        "type": "string",
+        "enum": [
+          "scan.started",
+          "scan.completed",
+          "extractor.completed",
+          "rule.completed",
+          "action.completed",
+          "job.spawning",
+          "job.completed",
+          "job.failed"
+        ]
+      }
+    },
+    "filter": {
+      "type": "object",
+      "description": "Optional declarative filter applied to the event payload before invoking `on(ctx)`. Keys are payload field paths (e.g. `extractorId`, `ruleId`, `actionId`); values are the literal expected match. Cross-field validation against the declared `triggers` is performed at load time when the host implementation supports it; an unknown field for every declared trigger yields `invalid-manifest`. Absence of `filter` means \"invoke on every event of every declared trigger\"."
+    }
+  },
+  "allOf": [
+    { "$ref": "base.schema.json" }
+  ]
+}

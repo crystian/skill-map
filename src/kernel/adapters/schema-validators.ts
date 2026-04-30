@@ -16,6 +16,15 @@
  * - **Lazy compilation** is NOT used: every validator compiles eagerly on
  *   `load()` so the kernel fails fast on a spec corruption instead of
  *   crashing the first time a plugin tries to register.
+ *
+ * **Phase 3 (spec 0.8.0).** Per-kind frontmatter schemas (`skill`,
+ * `agent`, `command`, `hook`, `note`) relocated from spec to the
+ * Provider that owns them. Spec-only validators no longer cover those
+ * five names. `buildProviderFrontmatterValidator(providers)` produces a
+ * dedicated AJV instance pre-loaded with `frontmatter/base` (from spec)
+ * plus every Provider's per-kind schemas — the kernel composes it once
+ * per scan and the orchestrator validates each node's frontmatter
+ * through it.
  */
 
 import { readFileSync } from 'node:fs';
@@ -24,6 +33,8 @@ import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
+
+import type { IProvider } from '../extensions/index.js';
 
 // ajv-formats ships CJS-first; the default export is the callable plugin
 // under ESM interop but TS sometimes types it as the namespace. Normalise.
@@ -44,19 +55,15 @@ export type TSchemaName =
   | 'report-base'
   | 'conformance-case'
   | 'history-stats'
-  | 'extension-adapter'
-  | 'extension-detector'
+  | 'extension-provider'
+  | 'extension-extractor'
   | 'extension-rule'
   | 'extension-action'
-  | 'extension-audit'
-  | 'extension-renderer'
-  | 'frontmatter-skill'
-  | 'frontmatter-agent'
-  | 'frontmatter-command'
-  | 'frontmatter-hook'
-  | 'frontmatter-note';
+  | 'extension-formatter'
+  | 'extension-hook'
+  | 'frontmatter-base';
 
-export type TExtensionKind = 'adapter' | 'detector' | 'rule' | 'action' | 'audit' | 'renderer';
+export type TExtensionKind = 'provider' | 'extractor' | 'rule' | 'action' | 'formatter' | 'hook';
 
 const SCHEMA_FILES: Record<TSchemaName, string> = {
   node: 'schemas/node.schema.json',
@@ -70,28 +77,19 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'report-base': 'schemas/report-base.schema.json',
   'conformance-case': 'schemas/conformance-case.schema.json',
   'history-stats': 'schemas/history-stats.schema.json',
-  'extension-adapter': 'schemas/extensions/adapter.schema.json',
-  'extension-detector': 'schemas/extensions/detector.schema.json',
+  'extension-provider': 'schemas/extensions/provider.schema.json',
+  'extension-extractor': 'schemas/extensions/extractor.schema.json',
   'extension-rule': 'schemas/extensions/rule.schema.json',
   'extension-action': 'schemas/extensions/action.schema.json',
-  'extension-audit': 'schemas/extensions/audit.schema.json',
-  'extension-renderer': 'schemas/extensions/renderer.schema.json',
-  'frontmatter-skill': 'schemas/frontmatter/skill.schema.json',
-  'frontmatter-agent': 'schemas/frontmatter/agent.schema.json',
-  'frontmatter-command': 'schemas/frontmatter/command.schema.json',
-  'frontmatter-hook': 'schemas/frontmatter/hook.schema.json',
-  'frontmatter-note': 'schemas/frontmatter/note.schema.json',
+  'extension-formatter': 'schemas/extensions/formatter.schema.json',
+  'extension-hook': 'schemas/extensions/hook.schema.json',
+  'frontmatter-base': 'schemas/frontmatter/base.schema.json',
 };
 
 /** Schemas that other schemas reference via $ref but aren't validated directly. */
 const SUPPORTING_SCHEMAS: string[] = [
   'schemas/extensions/base.schema.json',
   'schemas/frontmatter/base.schema.json',
-  'schemas/frontmatter/agent.schema.json',
-  'schemas/frontmatter/command.schema.json',
-  'schemas/frontmatter/hook.schema.json',
-  'schemas/frontmatter/note.schema.json',
-  'schemas/frontmatter/skill.schema.json',
   'schemas/summaries/security-scanner.schema.json',
 ];
 
@@ -106,8 +104,8 @@ export interface ISchemaValidators {
   validatePluginManifest<T = unknown>(data: unknown): { ok: true; data: T } | { ok: false; errors: string };
 }
 
-// Step 5.12 — module-level cache. The first call compiles 17 validators
-// (~29 schemas counting supporting refs) which is ~100 ms cold for a CLI
+// Step 5.12 — module-level cache. Cold load compiles ~17 validators
+// (~20 schemas counting supporting refs) which is ~100 ms cold for a CLI
 // startup. Subsequent calls in the same process return the same instance,
 // so future verbs that validate at multiple boundaries pay the cost once.
 // `null` means "not yet loaded"; we never expose a way to invalidate
@@ -153,12 +151,12 @@ function buildSchemaValidators(): ISchemaValidators {
   }
 
   const extensionByKind: Record<TExtensionKind, TSchemaName> = {
-    adapter: 'extension-adapter',
-    detector: 'extension-detector',
+    provider: 'extension-provider',
+    extractor: 'extension-extractor',
     rule: 'extension-rule',
     action: 'extension-action',
-    audit: 'extension-audit',
-    renderer: 'extension-renderer',
+    formatter: 'extension-formatter',
+    hook: 'extension-hook',
   };
 
   // Dedicated validator that targets PluginManifest inside the oneOf of
@@ -187,6 +185,81 @@ function buildSchemaValidators(): ISchemaValidators {
     validatePluginManifest<T = unknown>(data: unknown) {
       if (pluginManifestValidator(data)) return { ok: true as const, data: data as T };
       const errors = (pluginManifestValidator.errors ?? []).map(formatError).join('; ');
+      return { ok: false as const, errors };
+    },
+  };
+}
+
+/**
+ * Validator for Provider-owned per-kind frontmatter schemas. Built from
+ * the live set of registered Providers — each Provider declares its
+ * `kinds[<kind>].schemaJson` and the loader compiles them into a single
+ * AJV instance that also carries the spec's `frontmatter/base.schema.json`
+ * so cross-package `$ref`-by-`$id` resolves. The orchestrator builds
+ * one of these per scan via `buildProviderFrontmatterValidator`.
+ */
+export interface IProviderFrontmatterValidator {
+  /**
+   * Validate a node's frontmatter against the schema declared by
+   * `provider.kinds[kind]`. `kind` is the value `provider.classify`
+   * returned for the node, so the entry is guaranteed to exist for any
+   * Provider implemented per spec; an absent entry returns
+   * `{ ok: false, errors: 'no-schema' }` so the caller can emit a
+   * directed `frontmatter-invalid` issue without crashing.
+   */
+  validate(
+    provider: IProvider,
+    kind: string,
+    data: unknown,
+  ): { ok: true } | { ok: false; errors: string };
+}
+
+/**
+ * Build a Provider-frontmatter validator. Composes one AJV instance,
+ * pre-registers `frontmatter/base.schema.json` from spec so per-kind
+ * schemas can `$ref` it by `$id`, then compiles every Provider's
+ * `kinds[<kind>].schemaJson` keyed by `(providerId, kind)`. Idempotent
+ * across providers that share kinds (same `$id` → AJV's `addSchema`
+ * dedupes silently); the keying is by `providerId` first so two
+ * Providers exporting different schemas under the same kind name don't
+ * collide.
+ */
+export function buildProviderFrontmatterValidator(
+  providers: IProvider[],
+): IProviderFrontmatterValidator {
+  const specRoot = resolveSpecRoot();
+  const ajv: TAjv = new Ajv2020({
+    strict: false,
+    allErrors: true,
+    allowUnionTypes: true,
+  });
+  (addFormats as unknown as (a: TAjv) => void)(ajv);
+
+  // Register spec's frontmatter/base.schema.json so per-kind schemas can
+  // resolve `$ref: 'https://skill-map.dev/spec/v0/frontmatter/base.schema.json'`.
+  const baseFile = resolve(specRoot, 'schemas/frontmatter/base.schema.json');
+  const baseSchema = JSON.parse(readFileSync(baseFile, 'utf8'));
+  ajv.addSchema(baseSchema);
+
+  const compiled = new Map<string, ValidateFunction>();
+  for (const provider of providers) {
+    for (const [kind, entry] of Object.entries(provider.kinds)) {
+      const key = `${provider.id}::${kind}`;
+      // Reuse a previously-compiled schema (multiple Providers may legitimately
+      // share the same `$id` if they bundle a copy of another's schema).
+      const json = entry.schemaJson as { $id?: string };
+      const existing = typeof json.$id === 'string' ? ajv.getSchema(json.$id) : undefined;
+      compiled.set(key, existing ?? ajv.compile(entry.schemaJson as object));
+    }
+  }
+
+  return {
+    validate(provider, kind, data) {
+      const key = `${provider.id}::${kind}`;
+      const v = compiled.get(key);
+      if (!v) return { ok: false as const, errors: 'no-schema' };
+      if (v(data)) return { ok: true as const };
+      const errors = (v.errors ?? []).map(formatError).join('; ');
       return { ok: false as const, errors };
     },
   };

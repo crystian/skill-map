@@ -130,7 +130,7 @@ describe('persistScanResult', () => {
       strictEqual(architectRow!.linksInCount, architect!.linksInCount);
       strictEqual(architectRow!.externalRefsCount, architect!.externalRefsCount);
       strictEqual(architectRow!.kind, 'agent');
-      strictEqual(architectRow!.adapter, 'claude');
+      strictEqual(architectRow!.provider, 'claude');
       // frontmatterJson is the full YAML-derived object stringified.
       const frontmatter = JSON.parse(architectRow!.frontmatterJson) as Record<string, unknown>;
       strictEqual(frontmatter['name'], 'architect');
@@ -266,7 +266,7 @@ describe('persistScanResult', () => {
         scannedAt: Date.now(),
         scope: 'project',
         roots: ['.'],
-        adapters: [],
+        providers: [],
         nodes: [],
         links: [],
         issues: [],
@@ -378,7 +378,7 @@ describe('persistScanResult', () => {
       strictEqual(meta.scope, 'project');
       strictEqual(meta.scannedAt, result.scannedAt);
       deepStrictEqual(JSON.parse(meta.rootsJson), result.roots);
-      deepStrictEqual(JSON.parse(meta.adaptersJson), result.adapters);
+      deepStrictEqual(JSON.parse(meta.providersJson), result.providers);
       ok(meta.scannedByName.length > 0, 'scannedByName persisted');
       ok(meta.scannedByVersion.length > 0, 'scannedByVersion persisted');
       ok(meta.scannedBySpecVersion.length > 0, 'scannedBySpecVersion persisted');
@@ -391,7 +391,7 @@ describe('persistScanResult', () => {
       strictEqual(loaded.scannedAt, result.scannedAt);
       strictEqual(loaded.scope, result.scope);
       deepStrictEqual(loaded.roots, result.roots);
-      deepStrictEqual(loaded.adapters, result.adapters);
+      deepStrictEqual(loaded.providers, result.providers);
       ok(loaded.scannedBy, 'scannedBy round-trips');
       strictEqual(loaded.scannedBy!.name, result.scannedBy!.name);
       strictEqual(loaded.scannedBy!.version, result.scannedBy!.version);
@@ -441,7 +441,7 @@ describe('persistScanResult', () => {
       const loaded = await loadScanResult(adapter.db);
       strictEqual(loaded.scope, 'project', 'fallback scope');
       deepStrictEqual(loaded.roots, ['.'], 'fallback roots satisfy minItems: 1');
-      deepStrictEqual(loaded.adapters, []);
+      deepStrictEqual(loaded.providers, []);
       ok(Number.isInteger(loaded.scannedAt) && loaded.scannedAt > 0);
       strictEqual(loaded.stats.filesWalked, 0);
       strictEqual(loaded.stats.filesSkipped, 0);
@@ -466,7 +466,7 @@ describe('persistScanResult', () => {
         scannedAt: 'not-a-date' as unknown as number,
         scope: 'project' as const,
         roots: ['.'],
-        adapters: [],
+        providers: [],
         nodes: [],
         links: [],
         issues: [],

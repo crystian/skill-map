@@ -13,8 +13,8 @@
  *   5  DB missing OR unsupported format OR invalid query
  *
  * **Format support at v0.5.0**: `json` and `md` are real; `mermaid`
- * exits 5 with a clear pointer to Step 12, when the mermaid renderer
- * lands as a built-in. Wiring the format here ahead of the renderer
+ * exits 5 with a clear pointer to Step 12, when the mermaid formatter
+ * lands as a built-in. Wiring the format here ahead of the formatter
  * would require a synthesis layer this verb shouldn't carry.
  */
 
@@ -35,7 +35,7 @@ import { withSqlite } from '../util/with-sqlite.js';
 const KIND_ORDER: NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'];
 const SUPPORTED_FORMATS = ['json', 'md'] as const;
 const DEFERRED_FORMATS: Record<string, string> = {
-  mermaid: 'lands at Step 12 with the mermaid renderer',
+  mermaid: 'lands at Step 12 with the mermaid formatter',
 };
 
 export class ExportCommand extends Command {
@@ -164,7 +164,7 @@ function renderMarkdown(subset: IExportSubset): string {
   }
 
   // Group nodes by kind for readability — same ordering as the ascii
-  // renderer so a md export looks familiar to anyone who's seen `sm graph`.
+  // formatter so a md export looks familiar to anyone who's seen `sm graph`.
   const byKind = new Map<NodeKind, Node[]>();
   for (const node of subset.nodes) {
     if (!byKind.has(node.kind)) byKind.set(node.kind, []);

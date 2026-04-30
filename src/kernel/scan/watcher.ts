@@ -22,8 +22,8 @@
  * via chokidar's `ignored` predicate, which receives an absolute path.
  * We re-derive the path RELATIVE to the closest matching root before
  * passing it through `IIgnoreFilter.ignores`. This mirrors what the
- * scan walker does (`adapters/claude/walker.ts`) so both code paths
- * agree on what "ignored" means.
+ * scan walker does (`extensions/providers/claude/index.ts`) so both code
+ * paths agree on what "ignored" means.
  */
 
 import { resolve, relative, sep } from 'node:path';

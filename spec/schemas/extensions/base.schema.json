@@ -2,23 +2,23 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/base.schema.json",
   "title": "ExtensionBase",
-  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`adapter`, `detector`, `rule`, `action`, `audit`, `renderer`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition. Adding closure here too would force every kind schema to re-list every base key, which is the footgun the spec used to trip on before 2026-04-22.",
+  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`provider`, `extractor`, `rule`, `action`, `formatter`, `hook`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition. Adding closure here too would force every kind schema to re-list every base key, which is the footgun the spec used to trip on before 2026-04-22.",
   "type": "object",
   "required": ["id", "kind", "version"],
   "properties": {
     "id": {
       "type": "string",
       "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
-      "description": "Kebab-case identifier unique within the extension's kind across all loaded plugins. The built-in default set uses bare ids (`claude`, `frontmatter`, `trigger-collision`). Third-party extensions SHOULD namespace with their plugin id (`my-plugin/foo-detector`) to avoid collisions."
+      "description": "Kebab-case identifier unique within the extension's kind across the same plugin. The kernel registers every extension under the **qualified** id `<plugin-id>/<id>` (e.g. `core/frontmatter`, `claude/slash`, `hello-world/greet`) — see `architecture.md` §Extension kinds and `plugin-author-guide.md` §Qualified extension ids. Authors declare only the short id here; the qualifier is composed by the loader from the manifest's `id` (or, for built-ins, from the bundle declaration in `built-ins.ts`). The pattern is intentionally constrained to a single kebab-case segment without the `/` separator: the qualifier always lives in the plugin id, never in the extension id."
     },
     "kind": {
       "type": "string",
-      "enum": ["adapter", "detector", "rule", "action", "audit", "renderer"],
+      "enum": ["provider", "extractor", "rule", "action", "formatter", "hook"],
       "description": "Discriminant. MUST match the file exporting this manifest; kind mismatch → load-error."
     },
     "version": {
       "type": "string",
-      "description": "Extension semver. Bumped independently from the plugin version; frozen into `state_executions.extension_version` on every run for audit reproducibility."
+      "description": "Extension semver. Bumped independently from the plugin version; frozen into `state_executions.extension_version` on every run for reproducibility."
     },
     "description": {
       "type": "string",
@@ -32,7 +32,7 @@
     },
     "preconditions": {
       "type": "array",
-      "description": "Free-form predicates the kernel evaluates before offering this extension. Canonical keys: `kind=<node-kind>`, `adapter=<adapter-id>`, `frontmatter.<path>=<value>`. Unknown keys are skipped with a warning, not rejected.",
+      "description": "Free-form predicates the kernel evaluates before offering this extension. Canonical keys: `kind=<node-kind>`, `provider=<provider-id>`, `frontmatter.<path>=<value>`. Unknown keys are skipped with a warning, not rejected.",
       "items": { "type": "string" }
     },
     "entry": {

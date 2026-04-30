@@ -52,6 +52,7 @@ import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
+  filterBuiltInManifests,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
 
@@ -123,11 +124,12 @@ export class ScanCompareCommand extends Command {
     // 2. Run a fresh scan with the same wiring as the normal `sm scan`
     //    code path. Skip persistence — this verb is read-only.
     const kernel = createKernel();
-    for (const manifest of listBuiltIns()) kernel.registry.register(manifest);
     const pluginRuntime = this.noPlugins
       ? emptyPluginRuntime()
       : await loadPluginRuntime({ scope: 'project' });
     for (const warn of pluginRuntime.warnings) this.context.stderr.write(`${warn}\n`);
+    const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);
+    for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
     let cfg;

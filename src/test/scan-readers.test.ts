@@ -187,6 +187,11 @@ interface ICheckOverrides {
   db?: string | undefined;
   global?: boolean;
   json?: boolean;
+  node?: string | undefined;
+  rules?: string | undefined;
+  includeProb?: boolean;
+  async?: boolean;
+  noPlugins?: boolean;
 }
 
 function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
@@ -194,6 +199,11 @@ function buildCheck(overrides: ICheckOverrides = {}): CheckCommand {
   cmd.global = overrides.global ?? false;
   cmd.db = overrides.db;
   cmd.json = overrides.json ?? false;
+  cmd.node = overrides.node;
+  cmd.rules = overrides.rules;
+  cmd.includeProb = overrides.includeProb ?? false;
+  cmd.async = overrides.async ?? false;
+  cmd.noPlugins = overrides.noPlugins ?? false;
   return cmd;
 }
 

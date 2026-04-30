@@ -29,7 +29,7 @@
  * No "changed" bucket for links / issues — identity already captures
  * everything that matters there. Nodes get a "changed" bucket because
  * the path stays stable while the body / frontmatter rewrite, and that
- * change is meaningful (renderers, summarisers, downstream consumers
+ * change is meaningful (formatters, summarisers, downstream consumers
  * all care about it).
  *
  * Pure: no IO, no DB, no FS. Safe to run in-memory inside `sm scan`
@@ -126,7 +126,7 @@ function diffNodes(
 
   // Deterministic ordering — by path so two consumers comparing the same
   // pair of scans always see the same delta. Match the existing read-side
-  // sort (used by `sm list`, ASCII renderer, etc.).
+  // sort (used by `sm list`, ASCII formatter, etc.).
   added.sort(byPath);
   removed.sort(byPath);
   changed.sort((a, b) => byPath(a.after, b.after));

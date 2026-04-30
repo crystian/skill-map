@@ -4,8 +4,8 @@
 # skill-map
 
 [![npm](https://img.shields.io/npm/v/@skill-map/spec?color=cb3837&logo=npm&label=%40skill-map%2Fspec)](https://www.npmjs.com/package/@skill-map/spec)
-[![spec](https://img.shields.io/badge/spec-v0.7.0-8A2BE2)](./spec/)
-[![impl](https://img.shields.io/badge/impl-v0.4.0-5D3FD3)](./src/)
+[![spec](https://img.shields.io/badge/spec-v0.8.0-8A2BE2)](./spec/)
+[![impl](https://img.shields.io/badge/impl-v0.6.0-5D3FD3)](./src/)
 [![JSON Schema](https://img.shields.io/badge/JSON_Schema-2020--12-005571?logo=json)](https://json-schema.org/)
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
@@ -48,7 +48,7 @@ Ninguna herramienta oficial (Anthropic, Cursor, GitHub, skills.sh) cubre esto. O
 2. **Capa LLM opcional** consume esos datos y agrega inteligencia semántica: valida referencias ambiguas, clusteriza triggers equivalentes, compara nodos, responde preguntas.
 3. **CLI `sm`** expone todas las operaciones. Es la superficie primaria.
 4. **Web UI** (prototipo en Step 0c con datos mockeados; integración completa en `v1.0`) consume el mismo kernel y ofrece navegación visual, inspector y ejecución. El prototipo **no** se shipea en `v0.5.0`.
-5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen detectores, reglas, actions, adapters o renderers sin tocar el kernel.
+5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen detectores, reglas, actions, adapters o formatters sin tocar el kernel.
 
 ## Dos modos de ejecución — la meta-arquitectura
 
@@ -59,7 +59,7 @@ Cada extensión analítica declara uno de dos modos:
 - **`deterministic`** — código puro. Mismo input → mismo output, en cada corrida. Rápido, gratis, reproducible. Corre sincrónicamente dentro de `sm scan` / `sm check`. Apto para CI.
 - **`probabilistic`** — invoca un LLM a través del `RunnerPort` del kernel. La salida puede variar entre corridas. Costo y latencia no son triviales. Corre solo como job en cola (`sm job submit <kind>:<id>`), nunca durante el scan.
 
-Cuatro de los seis tipos de extensión soportan ambos modos (Detector, Rule, Action, Audit). Los dos restantes son solo deterministas (Adapter, Renderer) porque están en las **fronteras** del sistema — filesystem-a-grafo y grafo-a-string — donde la reproducibilidad es esencial.
+Cuatro de los seis tipos de extensión soportan ambos modos (Detector, Rule, Action, Audit). Los dos restantes son solo deterministas (Adapter, Formatter) porque están en las **fronteras** del sistema — filesystem-a-grafo y grafo-a-string — donde la reproducibilidad es esencial.
 
 Esto es lo que destraba el flujo:
 
@@ -101,7 +101,7 @@ Vocabulario completo (en inglés) en [ROADMAP §Glossary](./ROADMAP.md#glossary)
 - **Link** — relación dirigida entre dos nodos (`invokes` / `references` / `mentions` / `supersedes`).
 - **Issue** — problema determinista emitido por una rule.
 - **Finding** — resultado de análisis probabilístico (detección de injection, low confidence, summary stale).
-- **Extension kinds** (seis, estables) — **Adapter** (reconoce plataforma), **Detector** (extrae links), **Rule** (emite issues), **Action** (operación ejecutable), **Audit** (workflow determinista), **Renderer** (serializa el grafo).
+- **Extension kinds** (seis, estables) — **Adapter** (reconoce plataforma), **Detector** (extrae links), **Rule** (emite issues), **Action** (operación ejecutable), **Audit** (workflow determinista), **Formatter** (serializa el grafo).
 - **Kernel** — core de dominio puro; no importa conocimiento de plataforma.
 - **Port** — interfaz que declara el kernel (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`).
 - **Job** — instancia de ejecución de un Action sobre uno o más nodos; vive en `state_jobs`.

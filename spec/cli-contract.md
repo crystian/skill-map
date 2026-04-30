@@ -62,7 +62,7 @@ All verbs use this shared table. Additional codes MAY be defined per-verb (docum
 | Code | Meaning | When emitted |
 |---|---|---|
 | `0` | OK | Command completed, no issues at or above the configured severity threshold. |
-| `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`, `sm audit run`, `sm doctor`. |
+| `1` | Issues found | Command completed, but deterministic issues at `error` severity exist. Applies to `sm scan`, `sm check`, `sm doctor`. |
 | `2` | Operational error | Bad flags, missing DB, unreadable file, corrupt config, runtime / environment mismatch (e.g. wrong Node version, missing native dependency), unhandled exception. Accompanied by an error message on stderr. |
 | `3` | Duplicate conflict | Job submission refused because an active duplicate exists (same `action + version + node + contentHash`). Returned by `sm job submit`. |
 | `4` | Nonce mismatch | `sm record` called with an `id`/`nonce` pair that does not match. |
@@ -126,7 +126,7 @@ Diagnostic report:
 - Orphan job files (count).
 - Plugins in error state (list).
 - LLM runner availability (`claude` binary on PATH, version).
-- Detected platform adapters that matched nothing.
+- Detected Providers that matched nothing, or whose `explorationDir` does not exist on disk (non-blocking warning).
 
 Exit: 0 if all green, 1 if warnings, 2 if any `error`-level problem.
 
@@ -183,6 +183,8 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 | `sm scan --watch` | Long-running: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`. |
 | `sm scan compare-with <dump> [roots...]` | Delta report: run a fresh scan in memory and compare against the saved `ScanResult` dump at `<dump>`. Read-only — does not modify the DB. Exit `0` on empty delta, `1` on any drift, `2` on operational error (missing or malformed dump, schema violation). |
 | `sm watch [roots...]` | Long-running watcher. Same semantics as `sm scan --watch`, exposed as a top-level verb because the watcher is a loop, not a one-shot scan. |
+| `sm refresh <node.path>` | Re-run Extractors against a single node and upsert their outputs into the universal enrichment layer (`node_enrichments`, see [`db-schema.md`](./db-schema.md#node_enrichments)). Stub state until the job subsystem ships at Step 10: deterministic Extractors run for real and persist; probabilistic Extractors emit a stderr advisory and skip without touching their stale rows. Exit `0` on success (with possible stub advisory), `2` on failure, `5` if the node is not in the persisted scan. |
+| `sm refresh --stale` | Batch form of `sm refresh <node>` — refreshes every node carrying at least one stale probabilistic enrichment row. Same stub caveat: deterministic Extractors persist; probabilistic Extractors skip with a stderr advisory. Exit `0` (including when the stale set is empty — prints a "nothing to do" advisory). |
 
 `--json` output conforms to `schemas/scan-result.schema.json`. `sm watch` (and `sm scan --watch`) emit one ScanResult per batch — under `--json` this is an `ndjson` stream of ScanResult documents.
 
@@ -197,10 +199,10 @@ Exit: 0 on clean (or clean watcher shutdown), 1 if error-severity issues exist (
 | Command | Purpose |
 |---|---|
 | `sm list [--kind <k>] [--issue] [--sort-by ...] [--limit N]` | Tabular listing. `--json` emits an array conforming to `node.schema.json`. |
-| `sm show <node.path>` | Node detail: weight (bytes/tokens triple-split), frontmatter, links in/out, issues, findings, summary. `--json` emits a detail object with the raw link rows. Pretty output groups identical-shape links (same endpoint, kind, normalized trigger) onto one line and lists the union of detector ids in a `sources:` field; the section header reports both the raw row count and the unique-after-grouping count, e.g. `Links out (12, 9 unique)`. Storage keeps one row per detector (`scan_links` is unchanged) — the grouping is purely a read-time presentation choice. |
-| `sm check` | Print all current issues. Equivalent to `sm scan --json \| jq '.issues'` but faster (reads from DB). |
+| `sm show <node.path>` | Node detail: weight (bytes/tokens triple-split), frontmatter, links in/out, issues, findings, summary. `--json` emits a detail object with the raw link rows. Pretty output groups identical-shape links (same endpoint, kind, normalized trigger) onto one line and lists the union of extractor ids in a `sources:` field; the section header reports both the raw row count and the unique-after-grouping count, e.g. `Links out (12, 9 unique)`. Storage keeps one row per extractor (`scan_links` is unchanged) — the grouping is purely a read-time presentation choice. |
+| `sm check [-n <node.path>] [--rules <ids>] [--include-prob] [--async]` | Print all current issues. Equivalent to `sm scan --json \| jq '.issues'` but faster (reads from DB). `-n` restricts to issues whose `nodeIds` include the path; `--rules <ids>` accepts a comma-separated list of qualified or short rule ids and restricts the issue read accordingly. Default behaviour is deterministic-only (CI-safe, status quo). `--include-prob` is the opt-in flag for probabilistic Rule dispatch (spec § A.7): the verb loads the plugin runtime, finds Rules with `mode === 'probabilistic'` (filtered by `--rules` if set), and emits a stderr advisory naming the rule ids. Full prob dispatch requires the job subsystem (Step 10); until then `--include-prob` is a stub — prob rules never produce issues, never alter the exit code, and `--async` (reserved companion: returns job ids without waiting once jobs land) is a no-op the advisory simply mentions. The flag does NOT extend to `sm scan` or `sm list`. |
 | `sm findings [--kind ...] [--since ...] [--threshold <n>]` | Probabilistic findings (injection, stale summaries, low confidence). `--json` emits an array of finding objects. |
-| `sm graph [--format ascii\|mermaid\|dot]` | Render the full graph via the named renderer. |
+| `sm graph [--format ascii\|mermaid\|dot]` | Render the full graph via the named formatter. |
 | `sm export <query> --format json\|md\|mermaid` | Filtered export. Query syntax is implementation-defined pre-1.0. |
 | `sm orphans` | History rows whose target node is missing. |
 | `sm orphans reconcile <orphan.path> --to <new.path>` | Migrate history rows from the old path to the new one after a rename. Use case: the scan's rename heuristic missed a match (semantic-only rename, body rewrite) and the user wants to stitch history manually. |
@@ -291,17 +293,6 @@ Authentication: the nonce is the sole credential. An implementation MUST reject 
 
 ---
 
-### Audits
-
-| Command | Purpose |
-|---|---|
-| `sm audit list` | Registered audits. |
-| `sm audit run <id>` | Execute. `--json` emits the audit report per the audit's declared shape. |
-
-Exit: 0 if audit returns "pass"; 1 if audit returns "fail" with at least one error-severity finding; 2 on operational error.
-
----
-
 ### Database
 
 See `db-schema.md` for the table catalog.
@@ -336,6 +327,14 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 These two formats are NORMATIVE: any change to verbs, flags, or exit codes MUST reflect in `--format json` output immediately. Third-party consumers rely on this.
 
+### Conformance
+
+| Command | Purpose |
+|---|---|
+| `sm conformance run [--scope spec\|provider:<id>\|all]` | Run the conformance suite. `--scope spec` runs only the kernel-agnostic cases bundled with `@skill-map/spec` (default fixture: `preamble-v1.txt`, case: `kernel-empty-boot`). `--scope provider:<id>` runs only the named built-in Provider's suite (today: `provider:claude`). `--scope all` (default) runs every visible scope in registry order. Exit 0 on a clean sweep; exit 1 if any case failed; exit 2 on a configuration error (unknown scope, missing binary). |
+
+Per-Provider conformance suites live next to the Provider's manifest under `<plugin-dir>/conformance/{cases,fixtures}/`. The verb discovers them by walking the built-in Provider directory (and, post-job-subsystem, the plugin loader's discovery output). External consumers — alt-impl authors, Provider authors validating their own work — drive the same suite via this verb without reaching into bespoke scripts.
+
 ---
 
 ## Machine-readable output rules
@@ -368,7 +367,7 @@ Every verb that does non-trivial work MUST report its own wall-clock duration. C
 
 ### Scope
 
-**In scope**: any verb that walks the filesystem, hits the DB, spawns a subprocess, or renders a report. Examples: `sm scan`, `sm check`, `sm list`, `sm show`, `sm findings`, `sm history`, `sm history stats`, `sm graph`, `sm export`, `sm audit run`, `sm job submit`, `sm job run`, `sm job claim`, `sm job preview`, `sm record`, `sm doctor`, `sm db backup`, `sm db restore`, `sm db dump`, `sm db migrate`, `sm plugins list`, `sm plugins doctor`, `sm init`.
+**In scope**: any verb that walks the filesystem, hits the DB, spawns a subprocess, or renders a report. Examples: `sm scan`, `sm check`, `sm list`, `sm show`, `sm findings`, `sm history`, `sm history stats`, `sm graph`, `sm export`, `sm job submit`, `sm job run`, `sm job claim`, `sm job preview`, `sm record`, `sm doctor`, `sm db backup`, `sm db restore`, `sm db dump`, `sm db migrate`, `sm plugins list`, `sm plugins doctor`, `sm init`, `sm conformance run`.
 
 **Exempt**: informational verbs that return in well under a millisecond and would clutter the output — `sm --version`, `sm --help`, `sm version`, `sm help`, `sm config get`, `sm config list`, `sm config show`.
 
