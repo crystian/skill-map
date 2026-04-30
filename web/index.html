@@ -100,15 +100,6 @@
       </button>
 
       <div class="lp-nav__drawer" id="nav-drawer">
-        <div class="lp-nav__links">
-          <a href="#features" data-i18n="nav.features">Features</a>
-          <a href="#how"      data-i18n="nav.how">How it works</a>
-          <a href="#cli"      data-i18n="nav.cli">CLI</a>
-          <a href="#cases"    data-i18n="nav.cases">Use cases</a>
-          <a href="https://github.com/crystian/skill-map/tree/main/docs"
-             target="_blank" rel="noopener"
-             data-i18n="nav.docs">Docs</a>
-        </div>
 
         <div class="lp-nav__right">
           <div class="lp-lang" role="group" data-i18n-aria-label="lang.toggle.label">
@@ -144,7 +135,7 @@
           </h1>
 
           <p class="hero__sub" data-i18n="hero.sub">
-            Stop guessing. See collisions, orphans, and risky calls before your agents do.
+            Stop guessing. Find collisions, orphans, semantic duplicates, and optimization opportunities before your agents do — static and LLM analysis, on the same graph.
           </p>
 
           <div class="hero__ctas">
@@ -195,9 +186,9 @@
           <div class="hero__graph-legend">
             <div><i style="background:#00C853"></i><span data-i18n="graph.legend.skill">Skill</span></div>
             <div><i style="background:#7C3AED"></i><span data-i18n="graph.legend.agent">Agent</span></div>
-            <div><i style="background:#4C1D95"></i><span data-i18n="graph.legend.command">Command</span></div>
             <div><i style="background:#A78BFA"></i><span data-i18n="graph.legend.hook">Hook</span></div>
             <div><i style="background:#8A93A1"></i><span data-i18n="graph.legend.note">Note</span></div>
+            <div><i style="background:#4C1D95"></i><span data-i18n="graph.legend.command">Command</span></div>
             <div><i style="background:transparent;border:1px dashed #5A6472"></i><span data-i18n="graph.legend.orphan">Orphan</span></div>
           </div>
 
@@ -272,26 +263,6 @@
           <img src="/img/screenshot-1.png" alt="skill-map main screen" data-i18n-alt="shots.alt.1" loading="lazy">
         </figure>
       </div>
-    </section>
-
-    <hr class="section-divider" aria-hidden="true">
-
-    <!-- ============== ROADMAP ============== -->
-    <section class="roadmap" id="roadmap">
-      <div class="roadmap__head">
-        <div>
-          <h2 class="roadmap__title">
-            <span data-i18n="rm.title">Roadmap.</span><br>
-            <span class="roadmap__title-soft" data-i18n="rm.sub">A definition, three phases to 1.0, and what comes after.</span>
-          </h2>
-        </div>
-      </div>
-      <div id="roadmap-mount"></div>
-      <noscript>
-        <p style="text-align:center;color:rgba(255,255,255,.6);font-size:14px;margin-top:24px">
-          <span data-i18n="rm.noscript.before">Interactive timeline requires JavaScript. Read the full </span><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" style="color:var(--violet-400)">ROADMAP.md</a><span data-i18n="rm.noscript.after"> on GitHub.</span>
-        </p>
-      </noscript>
     </section>
 
     <hr class="section-divider" aria-hidden="true">
@@ -589,7 +560,7 @@
             </div>
             <h3 class="peco__brief-title" data-i18n="pe.provider.title">Provider</h3>
             <p class="peco__brief-one"   data-i18n="pe.provider.one">Defines an agent (Claude, Codex, etc)</p>
-            <p class="peco__brief-body"  data-i18n="pe.provider.brief">Declares the file kinds an agent exposes (skill / agent / hook / command / note for Claude) and how to classify them. The Claude provider ships built-in; write one for Cursor, Copilot, or your own runner.</p>
+            <p class="peco__brief-body"  data-i18n="pe.provider.brief">Declares the file kinds an agent exposes (skill / agent / hook / note / command for Claude) and how to classify them. The Claude provider ships built-in; write one for Cursor, Copilot, or your own runner.</p>
             <pre class="peco__brief-code"><code>export const claude: IProvider = {
   id: 'claude', kind: 'provider',
   globs: ['~/.claude/**/*.md'],
@@ -720,7 +691,7 @@
         <li class="howit-step">
           <div class="howit-step__num"><span>01</span></div>
           <h3 class="howit-step__title" data-i18n="how.s1.t">Point it at a folder.</h3>
-          <p class="howit-step__body" data-i18n="how.s1.b">Just give it a folder path. ~/.claude/skills, your repo root, or any directory with agent files inside.</p>
+          <p class="howit-step__body" data-i18n="how.s1.b">Run it from the repo root where your skills live — it picks up `.claude`, `.agents`, etc. — plus whatever's in your home folder, for the full map.</p>
           <div class="howit-step__code"><span class="prompt">$</span> sm scan</div>
         </li>
 
@@ -735,7 +706,7 @@
           <div class="howit-step__num"><span>03</span></div>
           <h3 class="howit-step__title" data-i18n="how.s3.t">Open the explorer.</h3>
           <p class="howit-step__body" data-i18n="how.s3.b">Explore from the terminal with sm list, sm show, sm check, or open the visual graph in your browser. Whichever you prefer.</p>
-          <div class="howit-step__code"><span class="prompt">$</span> sm open  &rarr;  http://localhost:7800</div>
+          <div class="howit-step__code"><span class="prompt">$</span> sm open</div>
         </li>
       </ol>
     </section>
@@ -744,41 +715,39 @@
 
     <!-- ============== USE CASES ============== -->
     <section class="section" id="cases">
-      <header class="section-header section-header--stacked">
-        <div class="section-eyebrow section-eyebrow--green" data-i18n="cases.eyebrow">Use cases</div>
-        <h2 class="section-title" data-i18n="cases.title">Built for people who live in Markdown.</h2>
-        <p class="section-sub" data-i18n="cases.sub">No promises, no magic. Just a graph over the files you already have.</p>
+      <header class="section-header section-header--center">
+        <div>
+          <div class="section-badge" data-i18n="cases.eyebrow">Use cases</div>
+          <h2 class="section-title" data-i18n="cases.title">Built for people who live in Markdown.</h2>
+          <p class="section-sub" data-i18n="cases.sub">No promises, no magic. Just a graph over the files you already have.</p>
+        </div>
       </header>
 
       <div class="cases-grid">
         <article class="case case--green">
-          <div class="case__tag" data-i18n="cases.c1.tag">For skill authors</div>
-          <h3 class="case__title" data-i18n="cases.c1.t">Measure the blast radius before you publish.</h3>
-          <p class="case__body" data-i18n="cases.c1.b">A skill is never alone; it touches the ones that invoke it, the ones it invokes, and the ones that share a trigger. Before publishing a change, see what it affects.</p>
+          <div class="case__tag" data-i18n="cases.c1.tag">For authors</div>
+          <h3 class="case__title" data-i18n="cases.c1.t">Optimize before you publish.</h3>
+          <p class="case__body" data-i18n="cases.c1.b">Skill, agent, or note — all your Markdown lives connected to the rest. skill-map shows duplicates, redundancies, and optimization opportunities before you publish.</p>
         </article>
 
         <article class="case case--violet">
-          <div class="case__tag" data-i18n="cases.c2.tag">For platform teams</div>
-          <h3 class="case__title" data-i18n="cases.c2.t">Knows what's running in your fleet.</h3>
-          <p class="case__body" data-i18n="cases.c2.b">Multiple projects, multiple agents, divergent copies of the same skill. One scan puts them all in the same graph.</p>
+          <div class="case__tag" data-i18n="cases.c2.tag">For AI architects & platform teams</div>
+          <h3 class="case__title" data-i18n="cases.c2.t">Knows what's running in your arsenal.</h3>
+          <p class="case__body" data-i18n="cases.c2.b">Multiple projects, multiple agents, divergent copies of the same skill. One scan puts the whole hive in the same graph.</p>
         </article>
 
         <article class="case case--amber">
           <div class="case__tag" data-i18n="cases.c3.tag">For agent debuggers</div>
           <h3 class="case__title" data-i18n="cases.c3.t">Trace a misfire to its source.</h3>
-          <p class="case__body" data-i18n="cases.c3.b">The agent picked the wrong invocation. What triggered it? skill-map follows the full path — from the trigger phrase to the skill that won the match.</p>
-          <div class="case__stat">
-            <span class="case__stat-num">&lt; 300ms</span>
-            <span class="case__stat-label" data-i18n="cases.c3.s">graph rebuild</span>
-          </div>
+          <p class="case__body" data-i18n="cases.c3.b">The agent picked the wrong invocation. What triggered it? skill-map follows the full path — from the trigger phrase to the skill that won the match. All in real time.</p>
         </article>
       </div>
     </section>
 
-    <hr class="section-divider" aria-hidden="true">
+    <hr class="section-divider" aria-hidden="true" hidden>
 
     <!-- ============== CLI ============== -->
-    <section class="section" id="cli">
+    <section class="section" id="cli" hidden>
       <div class="cli-grid">
         <div class="cli-copy">
           <div class="section-eyebrow section-eyebrow--green" data-i18n="cli.eyebrow">CLI first</div>
@@ -837,13 +806,15 @@
       </div>
     </section>
 
-    <hr class="section-divider" aria-hidden="true">
+    <hr class="section-divider" aria-hidden="true" hidden>
 
     <!-- ============== QUOTES ============== -->
-    <section class="section" id="quotes">
-      <header class="section-header section-header--stacked">
-        <div class="section-eyebrow" data-i18n="quotes.eyebrow">Quotes</div>
-        <h2 class="section-title" data-i18n="quotes.title">What people who use it say.</h2>
+    <section class="section" id="quotes" hidden>
+      <header class="section-header section-header--center">
+        <div>
+          <div class="section-badge" data-i18n="quotes.eyebrow">Quotes</div>
+          <h2 class="section-title" data-i18n="quotes.title">What people who use it say.</h2>
+        </div>
       </header>
 
       <div class="quotes-grid">
@@ -913,7 +884,7 @@
           <span data-i18n="cta.title.1">Stop reading dirs.</span><br>
           <span data-i18n="cta.title.2">Start reading graphs.</span>
         </h2>
-        <p class="cta-bar__sub" data-i18n="cta.sub">One command. No config. MIT licensed. Built for the people who never closed iTerm.</p>
+        <p class="cta-bar__sub" data-i18n="cta.sub">See your entire agent ecosystem at a glance. No config, no server, no LLM required.</p>
 
         <div class="cta-bar__ctas">
           <button type="button" class="btn btn--accent btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">
@@ -931,8 +902,28 @@
           </a>
         </div>
 
-        <div class="cta-bar__fineprint" data-i18n="cta.fineprint">Works offline · Zero telemetry · Apache + MIT skills welcome</div>
+        <div class="cta-bar__fineprint" data-i18n="cta.fineprint" hidden>Works offline · Zero telemetry · Apache + MIT skills welcome</div>
       </div>
+    </section>
+
+    <hr class="section-divider" aria-hidden="true">
+
+    <!-- ============== ROADMAP ============== -->
+    <section class="roadmap" id="roadmap">
+      <div class="roadmap__head">
+        <div>
+          <h2 class="roadmap__title">
+            <span data-i18n="rm.title">Roadmap.</span><br>
+            <span class="roadmap__title-soft" data-i18n="rm.sub">A definition, three phases to 1.0, and what comes after.</span>
+          </h2>
+        </div>
+      </div>
+      <div id="roadmap-mount"></div>
+      <noscript>
+        <p style="text-align:center;color:rgba(255,255,255,.6);font-size:14px;margin-top:24px">
+          <span data-i18n="rm.noscript.before">Interactive timeline requires JavaScript. Read the full </span><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" style="color:var(--violet-400)">ROADMAP.md</a><span data-i18n="rm.noscript.after"> on GitHub.</span>
+        </p>
+      </noscript>
     </section>
 
     <!-- ============== FOOTER ============== -->
@@ -943,21 +934,20 @@
             <span class="lp-nav__logo-mark"><img src="/img/skill-map-mark-light.svg" alt=""></span>
             skill-map
           </a>
-          <p class="lp-footer__tagline" data-i18n="foot.tagline">A graph explorer for Markdown-based AI-agent ecosystems.</p>
+          <p class="lp-footer__tagline" data-i18n="foot.tagline">An explorer for Markdown-based AI-agent ecosystems.</p>
           <div class="lp-footer__tags">
             <span class="code-tag">v {{SPEC_VERSION}}</span>
-            <span class="code-tag lp-footer__online">● <span data-i18n="foot.online">online</span></span>
           </div>
         </div>
 
         <div class="lp-footer__col">
           <h4 class="lp-footer__h" data-i18n="foot.h.product">Product</h4>
           <ul>
-            <li><a href="#features" data-i18n="nav.features">Features</a></li>
-            <li><a href="#how"      data-i18n="nav.how">How it works</a></li>
-            <li><a href="#cli"      data-i18n="nav.cli">CLI</a></li>
-            <li><a href="#cases"    data-i18n="nav.cases">Use cases</a></li>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/ROADMAP.md" target="_blank" rel="noopener" data-i18n="rm.eyebrow">Roadmap</a></li>
+            <li><a href="#features"  data-i18n="nav.features">Features</a></li>
+            <li><a href="#ecosystem" data-i18n="pe.eyebrow">Ecosystem</a></li>
+            <li><a href="#how"       data-i18n="nav.how">How it works</a></li>
+            <li><a href="#cases"     data-i18n="nav.cases">Use cases</a></li>
+            <li><a href="#roadmap"   data-i18n="rm.eyebrow">Roadmap</a></li>
           </ul>
         </div>
 
@@ -976,29 +966,17 @@
           <ul>
             <li><a href="https://github.com/crystian/skill-map" target="_blank" rel="noopener">GitHub</a></li>
             <li><a href="https://github.com/crystian/skill-map/issues" target="_blank" rel="noopener">Issues</a></li>
-            <li><a href="https://github.com/crystian/skill-map/discussions" target="_blank" rel="noopener">Discussions</a></li>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Contributing</a></li>
-          </ul>
-        </div>
-
-        <div class="lp-footer__col">
-          <h4 class="lp-footer__h" data-i18n="foot.h.company">Company</h4>
-          <ul>
-            <li><a href="https://github.com/crystian/skill-map/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a></li>
-            <li><a href="https://www.npmjs.com/package/@skill-map/spec" target="_blank" rel="noopener">npm: spec</a></li>
-            <li><a href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener">npm: cli</a></li>
-            <li><a href="https://www.npmjs.com/package/@skill-map/testkit" target="_blank" rel="noopener">npm: testkit</a></li>
           </ul>
         </div>
       </div>
 
       <div class="lp-footer__bottom">
-        <div data-i18n="foot.copy">© 2026 skill-map · MIT licensed · Built for people who read source code for fun.</div>
-        <button type="button" class="lp-footer__cmd js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">npm i -g @skill-map/cli</button>
-      </div>
-
-      <div class="lp-footer__powered">
-        <span data-i18n="foot.powered.pre">A </span><a href="https://www.makersia.com" target="_blank" rel="noopener">Makersia</a><span data-i18n="foot.powered.post"> project</span>
+        <div>
+          <span data-i18n="foot.copy.pre">© 2026 skill-map · MIT licensed · Made with &lt;3 by </span><a href="https://www.linkedin.com/in/crystian/" target="_blank" rel="noopener">Crystian</a>
+        </div>
+        <div class="lp-footer__powered">
+          <span data-i18n="foot.powered.pre">A </span><a href="https://www.makersia.com" target="_blank" rel="noopener">Makersia</a><span data-i18n="foot.powered.post"> project</span>
+        </div>
       </div>
     </footer>
 
