@@ -65,4 +65,22 @@ export const PLUGIN_LOADER_TEXTS = {
   loadErrorPluginIdMismatch:
     "{{relEntry}}: extension declares pluginId '{{declared}}' but its plugin.json declares id '{{manifestId}}'. " +
     "Remove the explicit pluginId from the extension — the loader injects it from plugin.json#/id.",
+
+  loadErrorStorageSchemaRead:
+    "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}} — {{errDescription}}",
+
+  loadErrorStorageSchemaCompile:
+    "plugin '{{pluginId}}' failed to compile schema for table '{{table}}': {{schemaPath}} — {{errDescription}}",
+
+  loadErrorStorageKvSchemaRead:
+    "plugin '{{pluginId}}' failed to load KV schema: {{schemaPath}} — {{errDescription}}",
+
+  loadErrorStorageKvSchemaCompile:
+    "plugin '{{pluginId}}' failed to compile KV schema: {{schemaPath}} — {{errDescription}}",
+
+  invalidManifestHookUnknownTrigger:
+    "Hook '{{hookId}}' declares unknown trigger '{{trigger}}'. Hookable triggers: {{hookableList}}.",
+
+  invalidManifestHookEmptyTriggers:
+    "Hook '{{hookId}}' declares no triggers. At least one entry from the curated set is required.",
 } as const;

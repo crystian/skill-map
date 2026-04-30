@@ -50,7 +50,11 @@
               "required": ["mode"],
               "additionalProperties": false,
               "properties": {
-                "mode": { "const": "kv", "description": "Shared `state_plugin_kvs` table, scoped by plugin id." }
+                "mode": { "const": "kv", "description": "Shared `state_plugin_kvs` table, scoped by plugin id." },
+                "schema": {
+                  "type": "string",
+                  "description": "Optional. JSON Schema (path relative to plugin root) that validates the value on every `ctx.store.set(key, value)`. Absent = permissive (no validation, status quo). The kernel AJV-compiles the schema at load time; a missing or unparseable schema file surfaces as `load-error`."
+                }
               }
             },
             {
@@ -59,7 +63,12 @@
               "properties": {
                 "mode": { "const": "dedicated", "description": "Plugin-owned tables, prefixed `plugin_<normalizedId>_`." },
                 "tables": { "type": "array", "minItems": 1, "items": { "type": "string" } },
-                "migrations": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Relative paths to `.sql` migration files." }
+                "migrations": { "type": "array", "minItems": 1, "items": { "type": "string" }, "description": "Relative paths to `.sql` migration files." },
+                "schemas": {
+                  "type": "object",
+                  "description": "Optional. Maps each declared table to a JSON Schema (path relative to plugin root) that validates rows on write. Tables not present here accept any shape (permissive, status quo). The kernel AJV-validates `ctx.store.write(table, row)` against the declared schema and throws on shape violation. A missing or unparseable schema file surfaces as `load-error`.",
+                  "additionalProperties": { "type": "string" }
+                }
               }
             }
           ]

@@ -1,6 +1,6 @@
 # Plugin author guide
 
-How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the five extension kinds, storage choice, version compatibility, dual-mode posture, and how to test the result with `@skill-map/testkit`.
+How to ship a third-party `skill-map` plugin: directory layout, manifest fields, the six extension kinds, storage choice, version compatibility, dual-mode posture, and how to test the result with `@skill-map/testkit`.
 
 This guide is **descriptive prose**, not the normative contract. The normative pieces live in the schemas and the architecture document — every claim here is cross-linked to its source. When the two disagree, [`architecture.md`](./architecture.md) wins.
 
@@ -242,9 +242,9 @@ Authors who explicitly review each minor's changelog **MAY** widen across the ne
 
 ---
 
-## The five extension kinds
+## The six extension kinds
 
-The kernel knows five categories. Three are dual-mode (deterministic or probabilistic per [`architecture.md` §Execution modes](./architecture.md)); two are deterministic-only because they sit at the system boundaries.
+The kernel knows six categories. Four are dual-mode (deterministic or probabilistic per [`architecture.md` §Execution modes](./architecture.md)); two are deterministic-only because they sit at the system boundaries.
 
 | Kind | Method | Receives | Returns | Mode |
 |---|---|---|---|---|
@@ -253,6 +253,7 @@ The kernel knows five categories. Three are dual-mode (deterministic or probabil
 | `rule` | `evaluate(ctx)` | full graph | `Issue[]` | dual-mode |
 | `action` | `run(ctx)` | one or more nodes | execution record | dual-mode |
 | `formatter` | `format(ctx)` | full graph | `string` | deterministic only |
+| `hook` | `on(ctx)` | a curated lifecycle event payload | `void` (reactions are side effects) | dual-mode |
 
 The runtime instance you `export default` from an extension file MUST include both the manifest fields (id, kind, version, plus kind-specific metadata) AND the runtime method. The kernel strips function-typed properties before AJV-validating the manifest shape, so `extract` / `evaluate` / etc. live alongside metadata without confusing the schema.
 
@@ -263,7 +264,7 @@ Pure single-node analysis. **Never** read another node, the graph, or the databa
 The runtime method is `extract(ctx) → void`. Output flows through three callbacks the kernel binds onto the context:
 
 - **`ctx.emitLink(link)`** — append a `Link` to the kernel's `links` table. The kernel validates against the extractor's declared `emitsLinkKinds` before persistence; off-contract kinds are dropped and surface as `extension.error` events. URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted.
-- **`ctx.enrichNode(partial)`** — merge canonical, kernel-curated properties onto the node. **Strictly separate from the author-supplied frontmatter** — the latter remains immutable. Use this for facts the author did not write but the extractor inferred (computed titles, summaries, signals from probabilistic extractors).
+- **`ctx.enrichNode(partial)`** — merge canonical, kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments` per `db-schema.md`). **Strictly separate from the author-supplied frontmatter** — the latter is IMMUTABLE from any Extractor. Use the enrichment layer for facts the author did not write but the extractor inferred (computed titles, summaries, signals from probabilistic extractors). Probabilistic enrichments track `body_hash_at_enrichment`; when the scan loop sees a body change, those rows are flagged `stale = 1` (NOT deleted, preserving the LLM cost paid to produce them) and surface for refresh via `sm refresh <node>` or `sm refresh --stale`. Deterministic enrichments simply pisar via PRIMARY KEY conflict on the next re-extract through the A.9 cache and are never stale-flagged.
 - **`ctx.store`** — plugin-scoped persistence. Optional, only present when your `plugin.json` declares `storage.mode`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md).
 
 A probabilistic extractor additionally receives `ctx.runner` (the `RunnerPort`) for LLM dispatch.
@@ -304,6 +305,8 @@ export default {
 ### Rules
 
 Cross-node reasoning over the merged graph. Run after every Provider and extractor has completed. Spec at [`schemas/extensions/rule.schema.json`](./schemas/extensions/rule.schema.json).
+
+Rules are dual-mode (`deterministic` default; `probabilistic` opt-in via the manifest). Deterministic rules run synchronously inside `sm scan` / `sm check` — same CI-safe baseline as today. Probabilistic rules are dispatched as queued jobs via the kernel's `RunnerPort`; they NEVER participate in the deterministic scan-time pipeline. Until the job subsystem ships at Step 10 the dispatch is stubbed: `sm scan` always skips probabilistic rules silently, and `sm check` exposes them via the opt-in `--include-prob` flag — the verb loads the plugin runtime, finds the registered prob rules (filtered by `--rules` and `-n` if set), and emits a stderr advisory naming them. The flag default is unchanged: deterministic-only, CI-safe. The `--async` companion is reserved for the future encoding (returns job ids without waiting once jobs land); today it is a no-op the advisory simply mentions. The flag does NOT extend to `sm scan` or `sm list`.
 
 ```javascript
 export default {
@@ -350,6 +353,53 @@ export default {
   },
 };
 ```
+
+### Hooks
+
+Declarative subscribers to a curated set of kernel lifecycle events. Use case: notification (Slack on `job.completed`), integration glue (CI webhook on `job.failed`), and bookkeeping (per-extractor metrics). Spec at [`schemas/extensions/hook.schema.json`](./schemas/extensions/hook.schema.json) and the trigger semantics at [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set).
+
+The runtime method is `on(ctx) → void`. The hook reacts to events; it cannot mutate the pipeline or alter outputs. Errors are caught by the kernel's dispatcher (logged as `extension.error` with `kind: 'hook-error'`) and NEVER block the main flow — a buggy hook degrades gracefully.
+
+The eight hookable triggers (declaring any other event yields `invalid-manifest` at load time):
+
+1. `scan.started` — pre-scan setup (one per scan).
+2. `scan.completed` — post-scan reaction (one per scan).
+3. `extractor.completed` — aggregated per-Extractor outputs.
+4. `rule.completed` — aggregated per-Rule outputs.
+5. `action.completed` — Action executed on a node.
+6. `job.spawning` — pre-spawn of runner subprocess (Step 10).
+7. `job.completed` — most common trigger (Step 10).
+8. `job.failed` — alerts, retry triggers (Step 10).
+
+```javascript
+export default {
+  id: 'slack-notifier',
+  kind: 'hook',
+  version: '1.0.0',
+  description: 'Posts to Slack when a scan completes with issues.',
+  triggers: ['scan.completed'],
+  // Optional: only fire when the scan actually surfaced issues.
+  // Filter keys are top-level event.data fields; values are literal matches.
+  // filter: { issuesCount: 0 } — example only; this hook fires on every scan.
+  async on(ctx) {
+    const stats = ctx.event.data?.stats;
+    if (!stats || stats.issuesCount === 0) return;
+    await fetch(process.env.SLACK_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        text: `skill-map scan finished with ${stats.issuesCount} issue(s) in ${stats.durationMs} ms.`,
+      }),
+    });
+  },
+};
+```
+
+> **Filter narrows fan-out, not the trigger enum.** `filter` is a runtime predicate over the event payload — it does NOT extend the hookable trigger set. Declaring `triggers: ['scan.progress']` is rejected at load time regardless of any filter, because `scan.progress` is intentionally non-hookable (per-node fan-out is too verbose for a reactive surface).
+
+> **Mode semantics.** Default `mode: 'deterministic'` runs `on(ctx)` in-process during the dispatch of the matching event, synchronously between the event's emission and the next pipeline step. `mode: 'probabilistic'` enqueues the hook as a job; until the job subsystem ships at Step 10, probabilistic hooks load but skip dispatch with a stderr advisory.
+
+> **What hooks CANNOT do.** Hooks REACT to events; they cannot block emission, mutate the graph, alter Extractor / Rule output, or enrich nodes. For graph mutations use `extractor.enrichNode`; for graph reasoning use a Rule; for periodic background work use a probabilistic Action wrapped in a hook that submits the job. The single-responsibility split keeps the kernel's deterministic baseline stable.
 
 ### Providers / Actions
 
@@ -494,6 +544,51 @@ Every DDL or DML object a plugin migration creates / alters / drops MUST live in
 3. **Catalog assertion (Layer 3)**: `sqlite_master` is swept after each plugin's batch commits; any new object outside the prefix is reported as an intrusion (exit 2).
 
 Forbidden in plugin migrations: `BEGIN` / `COMMIT` / `ROLLBACK` / `SAVEPOINT` / `PRAGMA` / `ATTACH` / `DETACH` / `VACUUM` / `REINDEX` / `ANALYZE`. The runner wraps each migration in its own transaction. Schema qualifiers other than `main.` are also rejected.
+
+### `outputSchema` — opt-in correctness for custom storage writes
+
+`emitLink` and `enrichNode` are universally validated by the kernel — every link goes through `link.schema.json` and every enrichment partial through `node.schema.json` before it persists. `ctx.store` writes are different: by default the kernel accepts any shape, because the plugin author owns the table layout and the kernel doesn't know the row shape ahead of time.
+
+Plugin authors who want correctness for their own writes opt in by declaring JSON Schemas in the manifest. The kernel then AJV-validates each `set` / `write` call before persisting.
+
+**Mode A (`kv`) — single value-shape schema.**
+
+```jsonc
+{
+  "storage": {
+    "mode": "kv",
+    "schema": "./schemas/kv-value.schema.json"
+  }
+}
+```
+
+The kernel validates the value passed to `ctx.store.set(key, value)` against `kv-value.schema.json` on every call. The schema is single-shape — every key in the namespace stores a value of the same shape. Plugins that need heterogeneous values per key MUST switch to Mode B (or skip validation).
+
+**Mode B (`dedicated`) — per-table schemas.**
+
+```jsonc
+{
+  "storage": {
+    "mode": "dedicated",
+    "tables": ["items", "history"],
+    "migrations": ["./migrations/001_init.sql"],
+    "schemas": {
+      "items": "./schemas/items-row.schema.json"
+    }
+  }
+}
+```
+
+The kernel validates the row passed to `ctx.store.write(table, row)` against the schema declared for that table. Tables present in `tables` but absent from `schemas` (here, `history`) accept any shape — the map is sparse on purpose, so authors can validate the columns they care about without writing schemas for cache / log tables.
+
+**Failure modes.**
+
+- A schema file missing on disk OR unparseable as JSON OR rejected by AJV's compiler at load time → the plugin's status flips to `load-error` and its extensions are NOT registered. The diagnostic names the offending plugin, table (Mode B), and schema path.
+- A `set` / `write` call whose value violates the declared schema → the kernel throws synchronously from inside the wrapper. The throw message names the plugin id, the schema path, and the AJV errors.
+
+**When to use.** Opt in for tables / KV namespaces whose shape is part of the plugin's contract with downstream consumers (e.g. another extension that joins on the row, the UI inspector that renders the value). Skip for tables with free-form payloads (cache rows, observability counters) where validation is friction with no payoff.
+
+`emitLink` and `enrichNode` keep their universal validation regardless of the `outputSchema` opt-in — those go through the kernel's own `link.schema.json` / `node.schema.json` validators, not the per-plugin map.
 
 ---
 

@@ -63,8 +63,19 @@ export type {
 } from './types.js';
 
 // --- orchestrator (./orchestrator.ts) ---------------------------------
-export { runScan, runScanWithRenames, detectRenamesAndOrphans } from './orchestrator.js';
-export type { RunScanOptions, RenameOp } from './orchestrator.js';
+export {
+  runScan,
+  runScanWithRenames,
+  detectRenamesAndOrphans,
+  mergeNodeWithEnrichments,
+} from './orchestrator.js';
+export type {
+  RunScanOptions,
+  RenameOp,
+  IExtractorRunRecord,
+  IEnrichmentRecord,
+  IPersistedEnrichment,
+} from './orchestrator.js';
 
 // --- adapters (./adapters/...) -----------------------------------------
 export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
@@ -110,5 +121,10 @@ export type {
   IRuleContext,
   IFormatter,
   IFormatterContext,
+  IHook,
+  IHookContext,
+  THookTrigger,
+  THookFilter,
   IExtensionBase,
 } from './extensions/index.js';
+export { HOOK_TRIGGERS } from './extensions/index.js';

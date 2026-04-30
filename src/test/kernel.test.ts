@@ -15,7 +15,7 @@ import {
 import type { ProgressEvent } from '../kernel/ports/progress-emitter.js';
 
 describe('Registry', () => {
-  it('boots empty with all five kinds', () => {
+  it('boots empty with all six kinds', () => {
     const r = new Registry();
     assert.equal(r.totalCount(), 0);
     for (const kind of EXTENSION_KINDS) {

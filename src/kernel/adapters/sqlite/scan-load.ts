@@ -44,6 +44,7 @@
 
 import type { Kysely } from 'kysely';
 
+import type { IPersistedEnrichment } from '../../orchestrator.js';
 import type {
   Confidence,
   Issue,
@@ -232,6 +233,81 @@ export function rowToIssue(row: Selectable<IScanIssuesTable>): Issue {
     issue.data = JSON.parse(row.dataJson) as Record<string, unknown>;
   }
   return issue;
+}
+
+/**
+ * Phase 4 / A.9 — load the fine-grained Extractor cache as a per-node map
+ * from qualified extractor id (`<pluginId>/<id>`) to the body hash that
+ * extractor saw on its last run. Empty map is the default when the table
+ * is empty (fresh DB, never-scanned scope, or every extractor has been
+ * uninstalled since the last scan).
+ *
+ * Returned shape: `Map<nodePath, Map<extractorId, bodyHashAtRun>>`. The
+ * orchestrator consults it during the walk to decide per-(node, extractor)
+ * whether a fresh `extract()` is needed.
+ */
+export async function loadExtractorRuns(
+  db: Kysely<IDatabase>,
+): Promise<Map<string, Map<string, string>>> {
+  const rows = await db
+    .selectFrom('scan_extractor_runs')
+    .select(['nodePath', 'extractorId', 'bodyHashAtRun'])
+    .execute();
+  const result = new Map<string, Map<string, string>>();
+  for (const row of rows) {
+    let perNode = result.get(row.nodePath);
+    if (!perNode) {
+      perNode = new Map<string, string>();
+      result.set(row.nodePath, perNode);
+    }
+    perNode.set(row.extractorId, row.bodyHashAtRun);
+  }
+  return result;
+}
+
+/**
+ * Phase 4 / A.8 — load enrichment rows from `node_enrichments`.
+ *
+ * Returned in the order required by `mergeNodeWithEnrichments` callers:
+ * grouped by `nodePath`, then sorted by `enrichedAt` ASC so a spread
+ * merge yields last-write-wins per field. Stale rows are included by
+ * default — the read-time merge filters them out (the helper takes
+ * `includeStale` for the rare UI case that wants to display them).
+ *
+ * Pass `nodePath` to filter to a single node's enrichments — used by
+ * `sm refresh <node>` to read only the rows it intends to refresh, and
+ * by `sm show` to render a single node's overlay.
+ */
+export async function loadNodeEnrichments(
+  db: Kysely<IDatabase>,
+  nodePath?: string,
+): Promise<IPersistedEnrichment[]> {
+  let query = db
+    .selectFrom('node_enrichments')
+    .select([
+      'nodePath',
+      'extractorId',
+      'bodyHashAtEnrichment',
+      'valueJson',
+      'stale',
+      'enrichedAt',
+      'isProbabilistic',
+    ])
+    .orderBy('nodePath', 'asc')
+    .orderBy('enrichedAt', 'asc');
+  if (nodePath !== undefined) {
+    query = query.where('nodePath', '=', nodePath);
+  }
+  const rows = await query.execute();
+  return rows.map((row) => ({
+    nodePath: row.nodePath,
+    extractorId: row.extractorId,
+    bodyHashAtEnrichment: row.bodyHashAtEnrichment,
+    value: parseJsonObject(row.valueJson) as Partial<Node>,
+    stale: row.stale === 1,
+    enrichedAt: row.enrichedAt,
+    isProbabilistic: row.isProbabilistic === 1,
+  }));
 }
 
 function parseJsonObject(s: string): Record<string, unknown> {

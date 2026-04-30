@@ -238,6 +238,8 @@ async function runFirstScan(
 
   let result;
   let renameOps;
+  let extractorRuns;
+  let enrichments;
   try {
     const ran = await runScanWithRenames(kernel, {
       roots: [scopeRoot],
@@ -250,6 +252,8 @@ async function runFirstScan(
     });
     result = ran.result;
     renameOps = ran.renameOps;
+    extractorRuns = ran.extractorRuns;
+    enrichments = ran.enrichments;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     stderr.write(tx(INIT_TEXTS.scanFailed, { message }));
@@ -257,7 +261,7 @@ async function runFirstScan(
   }
 
   await withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
-    persistScanResult(adapter.db, result, renameOps),
+    persistScanResult(adapter.db, result, renameOps, extractorRuns, enrichments),
   );
 
   stdout.write(

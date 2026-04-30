@@ -1,10 +1,10 @@
 /**
- * Extension registry — five kinds, first-class, loaded through a single API.
+ * Extension registry — six kinds, first-class, loaded through a single API.
  *
  * The `Extension` shape is aligned with `spec/schemas/extensions/base.schema.json`.
- * Kind-specific manifests (provider / extractor / rule / action / formatter)
- * extend this base structurally; the registry stores the base view and each
- * kind's code carries its own fuller type where needed.
+ * Kind-specific manifests (provider / extractor / rule / action / formatter /
+ * hook) extend this base structurally; the registry stores the base view
+ * and each kind's code carries its own fuller type where needed.
  *
  * **Spec § A.6 — qualified ids.** Every extension is keyed in the registry
  * by `<pluginId>/<id>` (e.g. `core/frontmatter`, `claude/slash`,
@@ -25,7 +25,8 @@ export type ExtensionKind =
   | 'extractor'
   | 'rule'
   | 'action'
-  | 'formatter';
+  | 'formatter'
+  | 'hook';
 
 export const EXTENSION_KINDS: readonly ExtensionKind[] = Object.freeze([
   'provider',
@@ -33,6 +34,7 @@ export const EXTENSION_KINDS: readonly ExtensionKind[] = Object.freeze([
   'rule',
   'action',
   'formatter',
+  'hook',
 ] as const);
 
 export interface Extension {

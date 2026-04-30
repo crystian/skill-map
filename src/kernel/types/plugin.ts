@@ -20,10 +20,22 @@ export type { TExtensionKind } from '../adapters/schema-validators.js';
  * either shared `state_plugin_kvs` (mode `kv`) or dedicated plugin-owned
  * tables with explicit migrations (mode `dedicated`). Absent = the plugin
  * does not persist state at all.
+ *
+ * Optional output-schema declarations (spec § A.12 — opt-in correctness
+ * for plugin custom storage):
+ *   - Mode `kv` → `schema` (single relative path). Validates the value
+ *     written by `ctx.store.set(key, value)`.
+ *   - Mode `dedicated` → `schemas` (per-table relative paths). Validates
+ *     each row written by `ctx.store.write(table, row)` whose table has
+ *     a declared schema; tables absent from the map accept any shape.
+ *
+ * Absent in both cases = permissive (status quo, no validation). Schema
+ * load failures surface as `load-error`. `emitLink` and `enrichNode`
+ * keep their universal kernel validation regardless of these fields.
  */
 export type TPluginStorage =
-  | { mode: 'kv' }
-  | { mode: 'dedicated'; tables: string[]; migrations: string[] };
+  | { mode: 'kv'; schema?: string }
+  | { mode: 'dedicated'; tables: string[]; migrations: string[]; schemas?: Record<string, string> };
 
 /**
  * Toggle granularity for a plugin / built-in bundle.
@@ -138,6 +150,47 @@ export interface IDiscoveredPlugin {
    * absent for `invalid-manifest` paths where the manifest never validated.
    */
   granularity?: TGranularity;
+  /**
+   * Runtime-only — never persisted, never spec-modeled.
+   *
+   * Spec § A.12 — opt-in JSON Schema validation for plugin custom storage.
+   * Populated by the loader when `manifest.storage.schemas` (Mode B) or
+   * `manifest.storage.schema` (Mode A) declares schema paths the loader
+   * successfully read and AJV-compiled. Consumed by the runtime store
+   * wrapper to validate `ctx.store.write(table, row)` (Mode B) and
+   * `ctx.store.set(key, value)` (Mode A) before persisting.
+   *
+   * Mode B layout — keyed by logical table name (without the
+   * `plugin_<normalizedId>_` prefix), matching the manifest's `schemas`
+   * map. Tables not present in the map accept any shape (permissive).
+   *
+   * Mode A layout — uses the sentinel key `__kv__` for the single
+   * value-shape schema. The sentinel survives the runtime contract change
+   * if Mode A ever grows multiple namespaces.
+   *
+   * Absent (`undefined`) when no schemas were declared OR when the load
+   * surfaced a `load-error` (the discovered plugin keeps its failure
+   * status; consumers must check `status === 'loaded'`).
+   */
+  storageSchemas?: Record<string, IPluginStorageSchema>;
   /** Human-readable diagnostic shown by `sm plugins list/show`. */
   reason?: string;
+}
+
+/**
+ * Runtime-only — a single AJV-compiled storage schema attached to a
+ * loaded plugin. The schema path (relative to the plugin directory) is
+ * preserved so error messages can name the offending file. `validate`
+ * is the AJV `ValidateFunction` itself: it returns `true` on shape
+ * match, otherwise `false` with `validate.errors` populated. Typed
+ * loosely here (no `ajv/dist/2020.js` import) to keep the shared type
+ * module free of Ajv at compile time; the runtime adapter narrows.
+ */
+export interface IPluginStorageSchema {
+  /** Plugin-relative path to the schema file (`storage.schemas[<table>]` or `storage.schema`). */
+  schemaPath: string;
+  /** AJV-compiled validator. `errors` is populated after a failed call. */
+  validate: ((row: unknown) => boolean) & {
+    errors?: { instancePath: string; message?: string; keyword: string }[] | null;
+  };
 }

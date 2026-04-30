@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/extensions/base.schema.json",
   "title": "ExtensionBase",
-  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`provider`, `extractor`, `rule`, `action`, `formatter`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition. Adding closure here too would force every kind schema to re-list every base key, which is the footgun the spec used to trip on before 2026-04-22.",
+  "description": "Base manifest shape common to every extension kind. Kind-specific schemas (`provider`, `extractor`, `rule`, `action`, `formatter`, `hook`) extend this via `allOf` and add a discriminant `kind` literal plus kind-specific fields. camelCase keys throughout. Closed-content enforcement (unknown keys = bug) lives on the kind schemas via `unevaluatedProperties: false`; those see base's evaluated keys through the `allOf` composition. Adding closure here too would force every kind schema to re-list every base key, which is the footgun the spec used to trip on before 2026-04-22.",
   "type": "object",
   "required": ["id", "kind", "version"],
   "properties": {
@@ -13,7 +13,7 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["provider", "extractor", "rule", "action", "formatter"],
+      "enum": ["provider", "extractor", "rule", "action", "formatter", "hook"],
       "description": "Discriminant. MUST match the file exporting this manifest; kind mismatch → load-error."
     },
     "version": {

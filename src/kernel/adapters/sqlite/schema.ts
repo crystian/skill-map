@@ -119,6 +119,67 @@ export interface IScanMetaTable {
   statsDurationMs: number;
 }
 
+/**
+ * Phase 4 / A.9 — fine-grained Extractor cache.
+ *
+ * One row per `(node_path, extractor_id)` recording the body hash the
+ * extractor saw when it last ran. The orchestrator consults this table on
+ * incremental scans: a node-level cache hit (body+frontmatter unchanged)
+ * is upgraded to a full skip ONLY when every currently-registered
+ * extractor already has a row matching the prior body hash. A new
+ * extractor registered between scans is detected by the absence of its
+ * row and runs over the cached node without invalidating the rest of
+ * the cache. Replace-all on every persist drops rows for extractors that
+ * were uninstalled since the last scan.
+ *
+ * `extractor_id` is the qualified form `<pluginId>/<id>` per spec § A.6;
+ * link `sources_json` carries the author-supplied short id (extractor
+ * authors write `sources: ['slash']`, not `'claude/slash'`), so the
+ * orchestrator builds a short→qualified map from the live extractor set
+ * when filtering cached links by source.
+ */
+export interface IScanExtractorRunsTable {
+  nodePath: string;
+  extractorId: string;
+  bodyHashAtRun: string;
+  ranAt: number;
+}
+
+/**
+ * Phase 4 / A.8 — universal enrichment layer.
+ *
+ * One row per `(node_path, extractor_id)` capturing the partial Node fields
+ * a single Extractor merged onto the enrichment layer via `ctx.enrichNode`.
+ * The author-supplied frontmatter on `scan_nodes.frontmatter_json` stays
+ * immutable; this table is the kernel-curated overlay.
+ *
+ *   - `body_hash_at_enrichment` — the `node.body_hash` the Extractor saw
+ *     when it produced this enrichment. Used by the scan loop to flag
+ *     probabilistic rows as `stale = 1` when the body changes (NOT
+ *     deleted, preserving LLM cost).
+ *   - `value_json` — JSON-serialised `Partial<Node>` bag the Extractor
+ *     emitted (potentially the cumulative merge across multiple
+ *     `enrichNode` calls within the same scan).
+ *   - `stale` — `0` for fresh rows; `1` for prob rows whose body hash no
+ *     longer matches the live node (refresh required to re-run). Det rows
+ *     are never marked stale — they regenerate via the A.9 fine-grained
+ *     cache and pisar prior rows on the next scan.
+ *   - `is_probabilistic` — denormalised on the row so stale flagging is a
+ *     single-table query without joining the manifest registry. `1` for
+ *     `mode: 'probabilistic'` Extractors, `0` for the default deterministic.
+ *   - `enriched_at` — wall-clock ms; drives the deterministic merge order
+ *     (`ASC` → last-write-wins per field) inside `mergeNodeWithEnrichments`.
+ */
+export interface INodeEnrichmentsTable {
+  nodePath: string;
+  extractorId: string;
+  bodyHashAtEnrichment: string;
+  valueJson: string;
+  stale: Generated<number>;
+  enrichedAt: number;
+  isProbabilistic: Generated<number>;
+}
+
 // --- State zone ------------------------------------------------------------
 
 export interface IStateJobsTable {
@@ -218,6 +279,8 @@ export interface IDatabase {
   scan_links: IScanLinksTable;
   scan_issues: IScanIssuesTable;
   scan_meta: IScanMetaTable;
+  scan_extractor_runs: IScanExtractorRunsTable;
+  node_enrichments: INodeEnrichmentsTable;
 
   state_jobs: IStateJobsTable;
   state_executions: IStateExecutionsTable;

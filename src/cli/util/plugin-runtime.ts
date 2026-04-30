@@ -30,6 +30,7 @@ import type {
   IProvider,
   IExtractor,
   IFormatter,
+  IHook,
   IRule,
 } from '../../kernel/extensions/index.js';
 import type { Extension } from '../../kernel/registry.js';
@@ -71,6 +72,13 @@ export interface IPluginRuntimeBundle {
     extractors: IExtractor[];
     rules: IRule[];
     formatters: IFormatter[];
+    /**
+     * Loaded hook extensions (spec § A.11). Surfaced for the dispatcher
+     * the orchestrator threads through the scan pipeline; built-ins
+     * carry no hooks at this bump (the kind exists; concrete built-in
+     * hooks land separately when demand surfaces).
+     */
+    hooks: IHook[];
   };
   /** Manifest rows for the Registry. One per loaded plugin extension. */
   manifests: Extension[];
@@ -129,7 +137,7 @@ export async function loadPluginRuntime(
   const discovered = await loader.discoverAndLoadAll();
 
   const bundle: IPluginRuntimeBundle = {
-    extensions: { providers: [], extractors: [], rules: [], formatters: [] },
+    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
     manifests: [],
     warnings: [],
     discovered,
@@ -155,7 +163,7 @@ export async function loadPluginRuntime(
  */
 export function emptyPluginRuntime(): IPluginRuntimeBundle {
   return {
-    extensions: { providers: [], extractors: [], rules: [], formatters: [] },
+    extensions: { providers: [], extractors: [], rules: [], formatters: [], hooks: [] },
     manifests: [],
     warnings: [],
     discovered: [],
@@ -218,10 +226,16 @@ export function isBuiltInExtensionEnabled(
 export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
   pluginRuntime: IPluginRuntimeBundle;
-}): { providers: IProvider[]; extractors: IExtractor[]; rules: IRule[] } | undefined {
+}): {
+  providers: IProvider[];
+  extractors: IExtractor[];
+  rules: IRule[];
+  hooks: IHook[];
+} | undefined {
   const providers: IProvider[] = [];
   const extractors: IExtractor[] = [];
   const rules: IRule[] = [];
+  const hooks: IHook[] = [];
 
   if (!opts.noBuiltIns) {
     for (const bundle of builtInBundles) {
@@ -237,6 +251,9 @@ export function composeScanExtensions(opts: {
           case 'rule':
             rules.push(ext);
             break;
+          case 'hook':
+            hooks.push(ext);
+            break;
           // formatters are not consumed by scan; skipped silently.
           default:
             break;
@@ -247,11 +264,17 @@ export function composeScanExtensions(opts: {
   providers.push(...opts.pluginRuntime.extensions.providers);
   extractors.push(...opts.pluginRuntime.extensions.extractors);
   rules.push(...opts.pluginRuntime.extensions.rules);
+  hooks.push(...opts.pluginRuntime.extensions.hooks);
 
-  if (providers.length === 0 && extractors.length === 0 && rules.length === 0) {
+  if (
+    providers.length === 0 &&
+    extractors.length === 0 &&
+    rules.length === 0 &&
+    hooks.length === 0
+  ) {
     return undefined;
   }
-  return { providers, extractors, rules };
+  return { providers, extractors, rules, hooks };
 }
 
 /**
@@ -369,6 +392,14 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
         break;
       case 'formatter':
         bundle.extensions.formatters.push(instance as IFormatter);
+        break;
+      case 'hook':
+        // Spec § A.11. Hooks subscribe to a curated set of lifecycle
+        // events. The orchestrator's dispatcher consumes the bucket
+        // during scan / job dispatch; probabilistic hooks are deferred
+        // to the job subsystem (Step 10) but still load here so they
+        // surface in `sm plugins list` and `sm plugins doctor`.
+        bundle.extensions.hooks.push(instance as IHook);
         break;
       case 'action':
         // Actions are runtime-only via the job subsystem (Step 10);

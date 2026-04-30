@@ -7,7 +7,7 @@ This document is the **source of truth**. The reference implementation under `..
 ## What this spec defines
 
 - The **domain model**: nodes, links, issues, scan results.
-- The **extension contract**: five extension kinds (provider, extractor, rule, action, formatter) with their input/output shapes.
+- The **extension contract**: six extension kinds (provider, extractor, rule, action, formatter, hook) with their input/output shapes.
 - The **CLI contract**: verb set, flags, exit codes, JSON introspection.
 - The **persistence contract**: table catalog owned by the kernel, plugin key-value API.
 - The **job contract**: lifecycle states, event stream, prompt preamble, submit/claim/record semantics.

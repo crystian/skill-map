@@ -60,9 +60,10 @@ export type TSchemaName =
   | 'extension-rule'
   | 'extension-action'
   | 'extension-formatter'
+  | 'extension-hook'
   | 'frontmatter-base';
 
-export type TExtensionKind = 'provider' | 'extractor' | 'rule' | 'action' | 'formatter';
+export type TExtensionKind = 'provider' | 'extractor' | 'rule' | 'action' | 'formatter' | 'hook';
 
 const SCHEMA_FILES: Record<TSchemaName, string> = {
   node: 'schemas/node.schema.json',
@@ -81,6 +82,7 @@ const SCHEMA_FILES: Record<TSchemaName, string> = {
   'extension-rule': 'schemas/extensions/rule.schema.json',
   'extension-action': 'schemas/extensions/action.schema.json',
   'extension-formatter': 'schemas/extensions/formatter.schema.json',
+  'extension-hook': 'schemas/extensions/hook.schema.json',
   'frontmatter-base': 'schemas/frontmatter/base.schema.json',
 };
 
@@ -154,6 +156,7 @@ function buildSchemaValidators(): ISchemaValidators {
     rule: 'extension-rule',
     action: 'extension-action',
     formatter: 'extension-formatter',
+    hook: 'extension-hook',
   };
 
   // Dedicated validator that targets PluginManifest inside the oneOf of

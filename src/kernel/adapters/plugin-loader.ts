@@ -33,18 +33,30 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
+import addFormatsModule from 'ajv-formats';
 import semver from 'semver';
 
 import type {
   IDiscoveredPlugin,
   ILoadedExtension,
   IPluginManifest,
+  IPluginStorageSchema,
   TPluginLoadStatus,
 } from '../types/plugin.js';
 import { PLUGIN_LOADER_TEXTS } from '../i18n/plugin-loader.texts.js';
 import { tx } from '../util/tx.js';
+import { KV_SCHEMA_KEY } from './plugin-store.js';
 import type { TExtensionKind } from './schema-validators.js';
 import type { ISchemaValidators } from './schema-validators.js';
+
+// ajv-formats ships CJS-first; the default export is the callable plugin
+// under ESM interop but TS sometimes types it as the namespace. Match
+// the normalisation `schema-validators.ts` does for the same reason.
+const addFormats = (addFormatsModule as unknown as { default?: typeof addFormatsModule })
+  .default ?? addFormatsModule;
+
+type TAjv = InstanceType<typeof Ajv2020>;
 
 /**
  * Default per-extension dynamic-import timeout. Generous on purpose —
@@ -358,6 +370,46 @@ export class PluginLoader {
       // tolerated; stripping prevents `unevaluatedProperties: false` from
       // raising on an authored-but-equal field.
       const manifestView = stripFunctionsAndPluginId(exported);
+
+      // Spec § A.11 — Hook triggers validation runs BEFORE AJV so the
+      // user gets a directed `invalid-manifest` reason (with the offending
+      // trigger and full hookable list) rather than a generic AJV enum
+      // error string under `load-error`. AJV's enum check would also
+      // catch unknown triggers, but its message would be opaque to a
+      // first-time author.
+      if (kind === 'hook') {
+        const triggers = (manifestView as Record<string, unknown>)['triggers'];
+        const hookId = (exported['id'] as string) ?? '?';
+        if (!Array.isArray(triggers) || triggers.length === 0) {
+          return {
+            ...fail(
+              pluginPath,
+              manifest.id,
+              'invalid-manifest',
+              tx(PLUGIN_LOADER_TEXTS.invalidManifestHookEmptyTriggers, { hookId }),
+            ),
+            manifest,
+          };
+        }
+        for (const trig of triggers) {
+          if (typeof trig !== 'string' || !HOOKABLE_TRIGGERS.includes(trig)) {
+            return {
+              ...fail(
+                pluginPath,
+                manifest.id,
+                'invalid-manifest',
+                tx(PLUGIN_LOADER_TEXTS.invalidManifestHookUnknownTrigger, {
+                  hookId,
+                  trigger: String(trig),
+                  hookableList: HOOKABLE_TRIGGERS_LIST,
+                }),
+              ),
+              manifest,
+            };
+          }
+        }
+      }
+
       const extValidator = this.#options.validators.validatorForExtension(kind);
       if (!extValidator(manifestView)) {
         const errors = (extValidator.errors ?? [])
@@ -384,6 +436,22 @@ export class PluginLoader {
       });
     }
 
+    // --- storage output schemas (spec § A.12) -----------------------------
+    // Opt-in: only plugins that declare `storage.schemas` (Mode B) or
+    // `storage.schema` (Mode A) trigger the read+compile pass. A schema
+    // file missing on disk OR failing AJV compile blocks the load with
+    // `load-error` so the user sees the typo or syntax error at boot
+    // instead of at first write. Storage modes without any schema
+    // declaration stay permissive (status quo) — `storageSchemas` is
+    // simply omitted from the discovered plugin row.
+    const storageSchemasResult = loadStorageSchemas(pluginPath, manifest);
+    if (!storageSchemasResult.ok) {
+      return {
+        ...fail(pluginPath, manifest.id, 'load-error', storageSchemasResult.reason),
+        manifest,
+      };
+    }
+
     return {
       path: pluginPath,
       id: manifest.id,
@@ -391,14 +459,37 @@ export class PluginLoader {
       manifest,
       granularity: manifest.granularity ?? 'bundle',
       extensions: loaded,
+      ...(storageSchemasResult.schemas
+        ? { storageSchemas: storageSchemasResult.schemas }
+        : {}),
     };
   }
 }
 
 // --- helpers ---------------------------------------------------------------
 
-const KNOWN_KINDS = new Set<TExtensionKind>(['provider', 'extractor', 'rule', 'action', 'formatter']);
+const KNOWN_KINDS = new Set<TExtensionKind>(['provider', 'extractor', 'rule', 'action', 'formatter', 'hook']);
 const KNOWN_KINDS_LIST = [...KNOWN_KINDS].join(' / ');
+
+/**
+ * Spec § A.11 — curated hookable trigger set. Mirrors the enum in
+ * `spec/schemas/extensions/hook.schema.json` and `kernel/extensions/hook.ts`.
+ * Kept duplicated here on purpose: the loader runs in the kernel package
+ * with no dependency back into `kernel/extensions/*` (those carry runtime
+ * contracts; the loader is data-only). A test asserts the two stay in
+ * lock-step.
+ */
+const HOOKABLE_TRIGGERS: readonly string[] = Object.freeze([
+  'scan.started',
+  'scan.completed',
+  'extractor.completed',
+  'rule.completed',
+  'action.completed',
+  'job.spawning',
+  'job.completed',
+  'job.failed',
+] as const);
+const HOOKABLE_TRIGGERS_LIST = HOOKABLE_TRIGGERS.join(', ');
 
 /**
  * Race the dynamic import against a timer. When the timer wins we throw
@@ -577,6 +668,129 @@ function applyIdCollisions(plugins: IDiscoveredPlugin[]): IDiscoveredPlugin[] {
     delete next.extensions;
     return next;
   });
+}
+
+/**
+ * Spec § A.12 — read and AJV-compile the storage output schemas a
+ * plugin declares in its manifest. Returns either:
+ *
+ *   - `{ ok: true, schemas: undefined }` — the plugin declared no
+ *     schemas (Mode A without `schema`, Mode B without `schemas`, or
+ *     no storage at all). Permissive — `storageSchemas` is omitted
+ *     from the discovered row and the runtime store wrapper skips
+ *     validation.
+ *   - `{ ok: true, schemas }` — every declared schema was read and
+ *     compiled. Mode A's single value-shape lives under the sentinel
+ *     `KV_SCHEMA_KEY`; Mode B's per-table schemas live under their
+ *     logical table name (matching the manifest map).
+ *   - `{ ok: false, reason }` — at least one schema file was missing,
+ *     unparseable as JSON, or rejected by AJV's compiler. The caller
+ *     surfaces the reason as `load-error`.
+ *
+ * One fresh Ajv instance per plugin keeps schema `$id` collisions from
+ * leaking across plugins (and from polluting the kernel's spec
+ * validators, which live on a separate cached instance — see
+ * `schema-validators.ts`).
+ */
+function loadStorageSchemas(
+  pluginPath: string,
+  manifest: IPluginManifest,
+):
+  | { ok: true; schemas?: Record<string, IPluginStorageSchema> }
+  | { ok: false; reason: string } {
+  const storage = manifest.storage;
+  if (!storage) return { ok: true };
+
+  // Mode A — single optional `schema`.
+  if (storage.mode === 'kv') {
+    if (!storage.schema) return { ok: true };
+    const compiled = compilePluginSchema(pluginPath, storage.schema);
+    if (!compiled.ok) {
+      const reason = tx(
+        compiled.phase === 'read'
+          ? PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaRead
+          : PLUGIN_LOADER_TEXTS.loadErrorStorageKvSchemaCompile,
+        {
+          pluginId: manifest.id,
+          schemaPath: storage.schema,
+          errDescription: compiled.errDescription,
+        },
+      );
+      return { ok: false, reason };
+    }
+    return {
+      ok: true,
+      schemas: {
+        [KV_SCHEMA_KEY]: {
+          schemaPath: storage.schema,
+          validate: compiled.validate,
+        },
+      },
+    };
+  }
+
+  // Mode B — optional `schemas` map keyed by logical table name.
+  if (!storage.schemas || Object.keys(storage.schemas).length === 0) {
+    return { ok: true };
+  }
+  const out: Record<string, IPluginStorageSchema> = {};
+  for (const [table, relPath] of Object.entries(storage.schemas)) {
+    const compiled = compilePluginSchema(pluginPath, relPath);
+    if (!compiled.ok) {
+      const reason = tx(
+        compiled.phase === 'read'
+          ? PLUGIN_LOADER_TEXTS.loadErrorStorageSchemaRead
+          : PLUGIN_LOADER_TEXTS.loadErrorStorageSchemaCompile,
+        {
+          pluginId: manifest.id,
+          table,
+          schemaPath: relPath,
+          errDescription: compiled.errDescription,
+        },
+      );
+      return { ok: false, reason };
+    }
+    out[table] = { schemaPath: relPath, validate: compiled.validate };
+  }
+  return { ok: true, schemas: out };
+}
+
+/**
+ * Read a single JSON Schema file relative to the plugin directory and
+ * compile it with a fresh Ajv2020 instance. Two failure modes:
+ *   - `phase: 'read'`  — file missing, unreadable, or not JSON.
+ *   - `phase: 'compile'` — JSON parsed but AJV rejected it.
+ * Both surface to the caller as `load-error` with a phase-specific
+ * template message.
+ */
+function compilePluginSchema(
+  pluginPath: string,
+  relPath: string,
+):
+  | {
+      ok: true;
+      validate: ValidateFunction & {
+        errors?: { instancePath: string; message?: string; keyword: string }[] | null;
+      };
+    }
+  | { ok: false; phase: 'read' | 'compile'; errDescription: string } {
+  const abs = resolve(pluginPath, relPath);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(abs, 'utf8'));
+  } catch (err) {
+    return { ok: false, phase: 'read', errDescription: describe(err) };
+  }
+  try {
+    const ajv: TAjv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
+    (addFormats as unknown as (a: TAjv) => void)(ajv);
+    const compiled = ajv.compile(raw as object) as ValidateFunction & {
+      errors?: { instancePath: string; message?: string; keyword: string }[] | null;
+    };
+    return { ok: true, validate: compiled };
+  } catch (err) {
+    return { ok: false, phase: 'compile', errDescription: describe(err) };
+  }
 }
 
 /**

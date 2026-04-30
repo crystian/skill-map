@@ -139,6 +139,7 @@ describe('plugin-runtime — branch coverage', () => {
       extractors: [],
       rules: [],
       formatters: [],
+      hooks: [],
     });
     assert.deepEqual(empty.manifests, []);
     assert.deepEqual(empty.warnings, []);

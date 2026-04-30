@@ -31,11 +31,16 @@ import {
   createKernel,
   runScanWithRenames,
 } from '../../kernel/index.js';
-import type { RenameOp, ScanResult } from '../../kernel/index.js';
+import type {
+  IEnrichmentRecord,
+  IExtractorRunRecord,
+  RenameOp,
+  ScanResult,
+} from '../../kernel/index.js';
 import { listBuiltIns } from '../../extensions/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
-import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
+import { loadExtractorRuns, loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -111,7 +116,11 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     for (const manifest of enabledBuiltIns) kernel.registry.register(manifest);
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
-    const priorSnapshot = await tryWithSqlite(
+    // Read prior snapshot AND prior `scan_extractor_runs` in a single
+    // ephemeral open. Both feed the orchestrator's incremental path —
+    // splitting them into two opens would re-run migration discovery
+    // for nothing.
+    const priorState = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (reader) => {
         const loaded = await loadScanResult(reader.db);
@@ -128,9 +137,12 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
             throw new Error(tx(WATCH_TEXTS.priorSchemaValidationFailed, { errors: result.errors }));
           }
         }
-        return loaded;
+        const extractorRuns = await loadExtractorRuns(reader.db);
+        return { snapshot: loaded, extractorRuns };
       },
     );
+    const priorSnapshot = priorState?.snapshot ?? null;
+    const priorExtractorRuns = priorState?.extractorRuns;
 
     const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime });
     const runOptions: Parameters<typeof runScanWithRenames>[1] = {
@@ -148,13 +160,18 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       // files on every batch defeats the point of debouncing.
       runOptions.enableCache = true;
     }
+    if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
 
     let result: ScanResult;
     let renameOps: RenameOp[];
+    let extractorRuns: IExtractorRunRecord[];
+    let enrichments: IEnrichmentRecord[];
     try {
       const ran = await runScanWithRenames(kernel, runOptions);
       result = ran.result;
       renameOps = ran.renameOps;
+      extractorRuns = ran.extractorRuns;
+      enrichments = ran.enrichments;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       context.stderr.write(tx(WATCH_TEXTS.scanFailed, { message }));
@@ -162,7 +179,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     }
 
     await withSqlite({ databasePath: dbPath }, (writer) =>
-      persistScanResult(writer.db, result, renameOps),
+      persistScanResult(writer.db, result, renameOps, extractorRuns, enrichments),
     );
 
     if (opts.json) {

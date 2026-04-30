@@ -5,13 +5,18 @@ import { Command, Option } from 'clipanion';
 import type { Kysely } from 'kysely';
 
 import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
-import type { RenameOp, ScanResult } from '../../kernel/index.js';
+import type {
+  IEnrichmentRecord,
+  IExtractorRunRecord,
+  RenameOp,
+  ScanResult,
+} from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { listBuiltIns } from '../../extensions/built-ins.js';
 import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
-import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
+import { loadExtractorRuns, loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -254,10 +259,18 @@ export class ScanCommand extends Command {
     // --- run scan, given a prior --------------------------------------------
     // Closure so the path that persists (single open) and the path that
     // doesn't (ephemeral read open + standalone scan) share one runScan
-    // invocation.
+    // invocation. The optional `priorExtractorRuns` map drives the
+    // Phase 4 / A.9 fine-grained Extractor cache; the CLI loads it from
+    // `scan_extractor_runs` whenever the prior snapshot is hydrated.
     const runScanWith = async (
       prior: ScanResult | null,
-    ): Promise<{ result: ScanResult; renameOps: RenameOp[] }> => {
+      priorExtractorRuns?: Map<string, Map<string, string>>,
+    ): Promise<{
+      result: ScanResult;
+      renameOps: RenameOp[];
+      extractorRuns: IExtractorRunRecord[];
+      enrichments: IEnrichmentRecord[];
+    }> => {
       if (this.changed && prior === null) {
         this.context.stderr.write(SCAN_TEXTS.changedNoPriorWarning);
       }
@@ -280,6 +293,7 @@ export class ScanCommand extends Command {
         // file re-walks through extractors deterministically.
         runOptions.enableCache = this.changed;
       }
+      if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
       return await runScanWithRenames(kernel, runOptions);
     };
 
@@ -296,7 +310,13 @@ export class ScanCommand extends Command {
     // the caller can render the canonical "refusing to wipe ..."
     // line outside the DB scope.
     type IScanOutcome =
-      | { kind: 'ok'; result: ScanResult; renameOps: RenameOp[] }
+      | {
+          kind: 'ok';
+          result: ScanResult;
+          renameOps: RenameOp[];
+          extractorRuns: IExtractorRunRecord[];
+          enrichments: IEnrichmentRecord[];
+        }
       | { kind: 'scan-error'; message: string }
       | { kind: 'guard'; existing: number };
 
@@ -308,9 +328,20 @@ export class ScanCommand extends Command {
       try {
         outcome = await withSqlite({ databasePath: dbPath }, async (adapter) => {
           const prior = await loadPrior(adapter);
-          let scanned: { result: ScanResult; renameOps: RenameOp[] };
+          // Phase 4 / A.9 — load the fine-grained Extractor cache only
+          // when the prior snapshot is in play. Without a prior, the
+          // orchestrator never hits the cache path so the runs map is
+          // wasted I/O.
+          const priorExtractorRuns =
+            this.changed && prior ? await loadExtractorRuns(adapter.db) : undefined;
+          let scanned: {
+            result: ScanResult;
+            renameOps: RenameOp[];
+            extractorRuns: IExtractorRunRecord[];
+            enrichments: IEnrichmentRecord[];
+          };
           try {
-            scanned = await runScanWith(prior);
+            scanned = await runScanWith(prior, priorExtractorRuns);
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             return { kind: 'scan-error', message };
@@ -326,7 +357,13 @@ export class ScanCommand extends Command {
             const existing = await countExistingScanRows(adapter.db);
             if (existing > 0) return { kind: 'guard', existing };
           }
-          await persistScanResult(adapter.db, scanned.result, scanned.renameOps);
+          await persistScanResult(
+            adapter.db,
+            scanned.result,
+            scanned.renameOps,
+            scanned.extractorRuns,
+            scanned.enrichments,
+          );
           return { kind: 'ok', ...scanned };
         });
       } catch (err) {

@@ -42,6 +42,7 @@ import type {
   IProvider,
   IExtractor,
   IFormatter,
+  IHook,
   IRule,
 } from '../kernel/extensions/index.js';
 import type { Extension } from '../kernel/registry.js';
@@ -63,15 +64,23 @@ export interface IBuiltIns {
   extractors: IExtractor[];
   rules: IRule[];
   formatters: IFormatter[];
+  /**
+   * Hooks bundled with the reference impl. Empty in this bump (A.11
+   * adds the kind itself; concrete built-in hooks land separately if
+   * the demand surfaces — bookkeeping / metrics hooks are the obvious
+   * future candidates). Carried as a typed field so call sites can
+   * iterate `bundle.hooks` without conditional checks.
+   */
+  hooks: IHook[];
 }
 
 /**
  * Concrete runtime instance of any extension kind a built-in can carry.
  * Mirrors what the orchestrator actually invokes (`walk` / `extract` /
- * `evaluate` / `format`); composed into the `IBuiltIns` buckets
+ * `evaluate` / `format` / `on`); composed into the `IBuiltIns` buckets
  * by `builtIns()`.
  */
-export type TBuiltInExtension = IProvider | IExtractor | IRule | IFormatter;
+export type TBuiltInExtension = IProvider | IExtractor | IRule | IFormatter | IHook;
 
 /**
  * One bundle of built-in extensions. The bundle's `id` is the plugin id
@@ -133,6 +142,7 @@ export function builtIns(): IBuiltIns {
     extractors: [],
     rules: [],
     formatters: [],
+    hooks: [],
   };
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
@@ -172,6 +182,9 @@ function bucketBuiltIn(ext: TBuiltInExtension, out: IBuiltIns): void {
       break;
     case 'formatter':
       out.formatters.push(ext);
+      break;
+    case 'hook':
+      out.hooks.push(ext);
       break;
   }
 }

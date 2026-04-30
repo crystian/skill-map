@@ -25,6 +25,7 @@ import { JobPruneCommand } from './commands/jobs.js';
 import { ListCommand } from './commands/list.js';
 import { ORPHANS_COMMANDS } from './commands/orphans.js';
 import { PLUGIN_COMMANDS } from './commands/plugins.js';
+import { REFRESH_COMMANDS } from './commands/refresh.js';
 import { ScanCommand } from './commands/scan.js';
 import { ScanCompareCommand } from './commands/scan-compare.js';
 import { ShowCommand } from './commands/show.js';
@@ -60,6 +61,7 @@ for (const cmd of CONFIG_COMMANDS) cli.register(cmd);
 for (const cmd of DB_COMMANDS) cli.register(cmd);
 for (const cmd of PLUGIN_COMMANDS) cli.register(cmd);
 for (const cmd of ORPHANS_COMMANDS) cli.register(cmd);
+for (const cmd of REFRESH_COMMANDS) cli.register(cmd);
 for (const cmd of STUB_COMMANDS) cli.register(cmd);
 
 const args = process.argv.slice(2);
