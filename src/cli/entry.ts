@@ -15,6 +15,7 @@ import { Builtins, Cli } from 'clipanion';
 
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
+import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
 import { DB_COMMANDS } from './commands/db.js';
 import { ExportCommand } from './commands/export.js';
 import { GraphCommand } from './commands/graph.js';
@@ -58,6 +59,7 @@ cli.register(HistoryCommand);
 cli.register(HistoryStatsCommand);
 cli.register(JobPruneCommand);
 for (const cmd of CONFIG_COMMANDS) cli.register(cmd);
+for (const cmd of CONFORMANCE_COMMANDS) cli.register(cmd);
 for (const cmd of DB_COMMANDS) cli.register(cmd);
 for (const cmd of PLUGIN_COMMANDS) cli.register(cmd);
 for (const cmd of ORPHANS_COMMANDS) cli.register(cmd);

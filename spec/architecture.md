@@ -2,7 +2,7 @@
 
 Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the five **extension kinds** that live outside the kernel.
 
-Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces them.
+Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces the kernel-agnostic invariants; per-Provider suites (e.g. `src/extensions/providers/claude/conformance/` for the reference impl's Claude Provider) enforce the kind-catalog cases. Both are driven via `sm conformance run`.
 
 ---
 
