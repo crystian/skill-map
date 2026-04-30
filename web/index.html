@@ -746,35 +746,27 @@
     <section class="section" id="cases">
       <header class="section-header section-header--stacked">
         <div class="section-eyebrow section-eyebrow--green" data-i18n="cases.eyebrow">Use cases</div>
-        <h2 class="section-title" data-i18n="cases.title">For people who read code for fun.</h2>
-        <p class="section-sub" data-i18n="cases.sub">No promises. No "magic". Just a graph and the data already in your repo.</p>
+        <h2 class="section-title" data-i18n="cases.title">Built for people who live in Markdown.</h2>
+        <p class="section-sub" data-i18n="cases.sub">No promises, no magic. Just a graph over the files you already have.</p>
       </header>
 
       <div class="cases-grid">
         <article class="case case--green">
           <div class="case__tag" data-i18n="cases.c1.tag">For skill authors</div>
-          <h3 class="case__title" data-i18n="cases.c1.t">Audit before you ship.</h3>
-          <p class="case__body" data-i18n="cases.c1.b">Every skill touches dozens of others. skill-map shows you the blast radius of any change before you push it.</p>
-          <div class="case__stat">
-            <span class="case__stat-num">127</span>
-            <span class="case__stat-label" data-i18n="cases.c1.s">avg refs per skill</span>
-          </div>
+          <h3 class="case__title" data-i18n="cases.c1.t">Measure the blast radius before you publish.</h3>
+          <p class="case__body" data-i18n="cases.c1.b">A skill is never alone; it touches the ones that invoke it, the ones it invokes, and the ones that share a trigger. Before publishing a change, see what it affects.</p>
         </article>
 
         <article class="case case--violet">
           <div class="case__tag" data-i18n="cases.c2.tag">For platform teams</div>
-          <h3 class="case__title" data-i18n="cases.c2.t">Know what your fleet runs.</h3>
-          <p class="case__body" data-i18n="cases.c2.b">Map every agent across every project. Find duplicates, deprecated forks, and the orphan skills nobody owns anymore.</p>
-          <div class="case__stat">
-            <span class="case__stat-num">12&times;</span>
-            <span class="case__stat-label" data-i18n="cases.c2.s">fewer trigger collisions</span>
-          </div>
+          <h3 class="case__title" data-i18n="cases.c2.t">Knows what's running in your fleet.</h3>
+          <p class="case__body" data-i18n="cases.c2.b">Multiple projects, multiple agents, divergent copies of the same skill. One scan puts them all in the same graph.</p>
         </article>
 
         <article class="case case--amber">
           <div class="case__tag" data-i18n="cases.c3.tag">For agent debuggers</div>
           <h3 class="case__title" data-i18n="cases.c3.t">Trace a misfire to its source.</h3>
-          <p class="case__body" data-i18n="cases.c3.b">Agent picked the wrong skill? Trace the invocation back through hooks, commands, and trigger phrases in seconds.</p>
+          <p class="case__body" data-i18n="cases.c3.b">The agent picked the wrong invocation. What triggered it? skill-map follows the full path — from the trigger phrase to the skill that won the match.</p>
           <div class="case__stat">
             <span class="case__stat-num">&lt; 300ms</span>
             <span class="case__stat-label" data-i18n="cases.c3.s">graph rebuild</span>
