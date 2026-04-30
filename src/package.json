@@ -21,8 +21,8 @@
     "graph"
   ],
   "bin": {
-    "sm": "bin/sm.mjs",
-    "skill-map": "bin/sm.mjs"
+    "sm": "bin/sm.js",
+    "skill-map": "bin/sm.js"
   },
   "exports": {
     ".": {

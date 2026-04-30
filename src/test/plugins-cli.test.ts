@@ -23,7 +23,7 @@ import { getPluginEnabled } from '../kernel/adapters/sqlite/plugins.js';
 import { installedSpecVersion } from '../kernel/adapters/plugin-loader.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BIN = resolve(HERE, '..', 'bin', 'sm.mjs');
+const BIN = resolve(HERE, '..', 'bin', 'sm.js');
 
 let root: string;
 let counter = 0;

@@ -126,7 +126,7 @@ El spec vive en [`spec/`](./spec/) y es la fuente de verdad. Está separado de l
 skill-map/                     raíz de npm workspaces (privada)
 ├── spec/                      spec — publicado como @skill-map/spec
 ├── src/                       implementación de referencia — publicada como skill-map (binarios: sm, skill-map)
-├── scripts/                   build-site.mjs · build-spec-index.mjs · check-changeset.mjs · check-coverage.mjs
+├── scripts/                   build-site.js · build-spec-index.js · check-changeset.js · check-coverage.js
 ├── site/                      sitio público generado (servido por Caddy en Railway)
 ├── .changeset/                config de changesets + release notes pendientes (un archivo por cambio)
 ├── .github/workflows/         ci.yml (spec validate + build-test) · release.yml

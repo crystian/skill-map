@@ -602,7 +602,7 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
 // --- (f) sm refresh stub ---------------------------------------------------
 
 const REPO_ROOT = process.cwd();
-const SM_BIN = join(REPO_ROOT, 'bin', 'sm.mjs');
+const SM_BIN = join(REPO_ROOT, 'bin', 'sm.js');
 
 interface ICliResult {
   status: number;

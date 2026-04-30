@@ -7,7 +7,7 @@ import { dirname, join, resolve } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BIN = resolve(HERE, '..', 'bin', 'sm.mjs');
+const BIN = resolve(HERE, '..', 'bin', 'sm.js');
 const EMPTY_DIR = resolve(HERE, '..', '.tmp', 'empty-scan-test');
 
 function sm(args: string[], cwd?: string): { status: number; stdout: string; stderr: string } {

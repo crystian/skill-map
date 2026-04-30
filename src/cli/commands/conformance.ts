@@ -14,7 +14,7 @@
  *      grand total.
  *
  * Why dispatch to a child `sm` instead of calling the orchestrator
- * directly: the runner already exec's `bin/sm.mjs` for assertion
+ * directly: the runner already exec's `bin/sm.js` for assertion
  * symmetry — it is the contract every conforming impl must satisfy.
  * Reusing it keeps `sm conformance run` honest (the verb passes the
  * same gate any third-party reviewer would run).
@@ -55,25 +55,25 @@ import {
 } from '../util/conformance-scopes.js';
 
 /**
- * Resolve the absolute path to `bin/sm.mjs` relative to this module's
+ * Resolve the absolute path to `bin/sm.js` relative to this module's
  * location. Works in both the source-tree layout
- * (`src/cli/commands/conformance.ts` → `src/bin/sm.mjs`) and the bundled
- * dist layout (`dist/cli.js` → `dist/../bin/sm.mjs`). The dev flow runs
+ * (`src/cli/commands/conformance.ts` → `src/bin/sm.js`) and the bundled
+ * dist layout (`dist/cli.js` → `dist/../bin/sm.js`). The dev flow runs
  * `tsx` directly so module identity is fine; the build flow re-exports
  * via `dist/cli.js`, also next to `bin/`.
  */
 function resolveBinary(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  // walk up looking for a sibling `bin/sm.mjs`
+  // walk up looking for a sibling `bin/sm.js`
   let cursor = here;
   for (let depth = 0; depth < 6; depth += 1) {
-    const candidate = resolve(cursor, 'bin', 'sm.mjs');
+    const candidate = resolve(cursor, 'bin', 'sm.js');
     if (existsSync(candidate)) return candidate;
     const parent = dirname(cursor);
     if (parent === cursor) break;
     cursor = parent;
   }
-  return resolve(here, '..', '..', 'bin', 'sm.mjs');
+  return resolve(here, '..', '..', 'bin', 'sm.js');
 }
 
 export class ConformanceRunCommand extends Command {

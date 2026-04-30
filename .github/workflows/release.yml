@@ -32,7 +32,7 @@ jobs:
         run: npm ci --ignore-scripts
 
       - name: Verify spec index is up to date
-        run: node scripts/build-spec-index.mjs --check
+        run: node scripts/build-spec-index.js --check
 
       - name: Changesets — version PR or publish
         uses: changesets/action@v1

@@ -227,7 +227,7 @@ export interface INodeStats {
 }
 
 /**
- * Mock-collection manifest shape, produced by ui/scripts/build-mock-index.mjs.
+ * Mock-collection manifest shape, produced by ui/scripts/build-mock-index.js.
  */
 export interface IMockIndex {
   generatedAt: string;

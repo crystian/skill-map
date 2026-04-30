@@ -126,7 +126,7 @@ The specification lives in [`spec/`](./spec/) and is the source of truth. It is 
 skill-map/                     npm workspaces root (private)
 ├── spec/                      specification — published as @skill-map/spec
 ├── src/                       reference implementation — published as skill-map (bins: sm, skill-map)
-├── scripts/                   build-site.mjs · build-spec-index.mjs · check-changeset.mjs · check-coverage.mjs
+├── scripts/                   build-site.js · build-spec-index.js · check-changeset.js · check-coverage.js
 ├── site/                      generated public site output (served by Caddy on Railway)
 ├── .changeset/                changesets config + pending release notes (one file per change)
 ├── .github/workflows/         ci.yml (spec validate + build-test) · release.yml

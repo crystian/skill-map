@@ -70,7 +70,7 @@ const dbPath = positionals[0]
 if (!existsSync(dbPath)) {
   process.stderr.write(
     `DB not found: ${dbPath}\n` +
-      `Run \`sm scan\` first (or \`node src/bin/sm.mjs scan\` from the repo root).\n`,
+      `Run \`sm scan\` first (or \`node src/bin/sm.js scan\` from the repo root).\n`,
   );
   process.exit(5);
 }

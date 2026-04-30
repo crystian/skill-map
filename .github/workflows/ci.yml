@@ -39,13 +39,13 @@ jobs:
           exit $fail
 
       - name: Verify spec index integrity (sha256 per file)
-        run: node scripts/build-spec-index.mjs --check
+        run: node scripts/build-spec-index.js --check
 
       - name: Verify coverage matrix ↔ schemas sync
-        run: node scripts/check-coverage.mjs
+        run: node scripts/check-coverage.js
 
       - name: Build site + validate $id alignment
-        run: node scripts/build-site.mjs
+        run: node scripts/build-site.js
 
   build-test:
     name: build + test
@@ -94,4 +94,4 @@ jobs:
       - name: Check for changeset
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: node scripts/check-changeset.mjs "origin/${BASE_REF}"
+        run: node scripts/check-changeset.js "origin/${BASE_REF}"

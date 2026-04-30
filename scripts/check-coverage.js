@@ -8,7 +8,7 @@
  * without a row slips past review silently; a row that outlives its schema
  * wastes reviewer attention. Both are caught here at CI time.
  *
- * Usage: node scripts/check-coverage.mjs
+ * Usage: node scripts/check-coverage.js
  * Exit:  0 in sync · 1 drift · 2 operational error.
  */
 

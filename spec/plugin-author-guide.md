@@ -14,7 +14,7 @@ This guide is **descriptive prose**, not the normative contract. The normative p
 my-plugin/
 ├── plugin.json            ← manifest (required)
 └── extensions/
-    └── extractor.mjs      ← one file per declared extension
+    └── extractor.js      ← one file per declared extension
 ```
 
 ```jsonc
@@ -23,12 +23,12 @@ my-plugin/
   "id": "my-plugin",
   "version": "1.0.0",
   "specCompat": "^1.0.0",
-  "extensions": ["./extensions/extractor.mjs"]
+  "extensions": ["./extensions/extractor.js"]
 }
 ```
 
 ```javascript
-// my-plugin/extensions/extractor.mjs
+// my-plugin/extensions/extractor.js
 export default {
   id: 'my-extractor',
   kind: 'extractor',
@@ -150,8 +150,8 @@ In your own plugin's `plugin.json`, set `granularity` only when you opt into the
   "specCompat": "^1.0.0",
   "granularity": "extension",
   "extensions": [
-    "./extensions/orphan-skill-rule.mjs",
-    "./extensions/csv-formatter.mjs"
+    "./extensions/orphan-skill-rule.js",
+    "./extensions/csv-formatter.js"
   ]
 }
 ```
@@ -625,7 +625,7 @@ import { test } from 'node:test';
 import { strictEqual } from 'node:assert';
 import { runExtractorOnFixture, node } from '@skill-map/testkit';
 
-import extractor from '../extensions/extractor.mjs';
+import extractor from '../extensions/extractor.js';
 
 test('emits one reference per [[ref:<name>]] token', async () => {
   const { links } = await runExtractorOnFixture(extractor, {

@@ -2,8 +2,8 @@
 /**
  * Regenerate context/cli-reference.md from `sm help --format md`.
  *
- *   node scripts/build-cli-reference.mjs           → write the file
- *   node scripts/build-cli-reference.mjs --check   → fail if drift
+ *   node scripts/build-cli-reference.js           → write the file
+ *   node scripts/build-cli-reference.js --check   → fail if drift
  *
  * --check is what CI runs: it captures the current output, compares to
  * context/cli-reference.md, and exits 1 with a diff pointer on mismatch.
@@ -37,14 +37,14 @@ const generated = runHelp();
 
 if (CHECK) {
   if (!existsSync(TARGET)) {
-    console.error(`cli-reference.md missing at ${TARGET}. Run: node scripts/build-cli-reference.mjs`);
+    console.error(`cli-reference.md missing at ${TARGET}. Run: node scripts/build-cli-reference.js`);
     process.exit(1);
   }
   const current = readFileSync(TARGET, 'utf8');
   if (current !== generated) {
     console.error(
       'context/cli-reference.md is out of sync with `sm help --format md`.\n' +
-        'Run: node scripts/build-cli-reference.mjs',
+        'Run: node scripts/build-cli-reference.js',
     );
     process.exit(1);
   }

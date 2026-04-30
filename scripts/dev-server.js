@@ -2,7 +2,7 @@
 /**
  * Local dev server for the public landing.
  *
- * - Initial build via scripts/build-site.mjs.
+ * - Initial build via scripts/build-site.js.
  * - Watches web/, spec/ and scripts/ recursively.
  * - On change: debounced rebuild, then push a reload event over SSE.
  * - Injects a tiny EventSource client into served HTML so the browser
@@ -21,7 +21,7 @@ const ROOT = '.tmp/site';
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || 'localhost';
 const WATCH_DIRS = ['web', 'spec', 'scripts'];
-const BUILD_CMD = ['node', 'scripts/build-site.mjs'];
+const BUILD_CMD = ['node', 'scripts/build-site.js'];
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',

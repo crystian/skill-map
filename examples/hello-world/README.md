@@ -27,10 +27,10 @@ hello-world/
 ├── plugin.json
 ├── README.md
 └── extensions/
-    └── greet-detector.mjs
+    └── greet-detector.js
 ```
 
-`plugin.json` declares one extension and pins to `^1.0.0` of the spec. `extensions/greet-detector.mjs` is the runtime instance — its `default` export carries both the manifest fields and the `detect` method.
+`plugin.json` declares one extension and pins to `^1.0.0` of the spec. `extensions/greet-detector.js` is the runtime instance — its `default` export carries both the manifest fields and the `detect` method.
 
 ## Try it locally
 
@@ -65,13 +65,13 @@ The `test/` folder contains a Node test that drives the detector through `runDet
 ```bash
 # In a real plugin:
 npm install --save-dev @skill-map/testkit
-node --test test/greet-detector.test.mjs
+node --test test/greet-detector.test.js
 
 # Inside this monorepo (where @skill-map/testkit is a workspace):
 mkdir -p node_modules/@skill-map
 ln -sfn ../../testkit node_modules/@skill-map/testkit
 ln -sfn ../../src     node_modules/@skill-map/cli
-node --test test/greet-detector.test.mjs
+node --test test/greet-detector.test.js
 ```
 
 For a real plugin you would normally:

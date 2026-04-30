@@ -28,7 +28,7 @@ Example manifest:
   "id": "security-snyk",
   "version": "1.0.0",
   "specCompat": "^1.0.0",
-  "extensions": ["extensions/snyk.action.mjs"],
+  "extensions": ["extensions/snyk.action.js"],
   "tags": ["kind:scanner", "vendor:snyk"]
 }
 ```

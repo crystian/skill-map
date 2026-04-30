@@ -1,5 +1,5 @@
 /**
- * CLI entry — composed by `bin/sm.mjs`. Registers every command and hands off
+ * CLI entry — composed by `bin/sm.js`. Registers every command and hands off
  * to Clipanion. Exit codes are defined once in `src/cli/util/exit-codes.ts`
  * (the `ExitCode` object) and follow `spec/cli-contract.md`:
  *

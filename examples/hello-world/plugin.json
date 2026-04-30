@@ -7,6 +7,6 @@
   "license": "MIT",
   "homepage": "https://skill-map.dev",
   "extensions": [
-    "./extensions/greet-detector.mjs"
+    "./extensions/greet-detector.js"
   ]
 }

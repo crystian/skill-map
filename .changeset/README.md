@@ -104,7 +104,7 @@ git checkout package.json */package.json spec/CHANGELOG.md
 
 ## 5. The `changeset-release/*` branch
 
-When the bot opens the Version Packages PR, it pushes to a branch named `changeset-release/main`. `scripts/check-changeset.mjs` **exempts** this branch from the "changeset required" gate — the Version Packages PR consumes changesets, it doesn't add new ones.
+When the bot opens the Version Packages PR, it pushes to a branch named `changeset-release/main`. `scripts/check-changeset.js` **exempts** this branch from the "changeset required" gate — the Version Packages PR consumes changesets, it doesn't add new ones.
 
 Don't manually create branches with that prefix.
 

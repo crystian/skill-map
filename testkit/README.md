@@ -20,7 +20,7 @@ A plugin is a directory with one manifest and one extension file:
 my-plugin/
 ├── plugin.json
 └── extensions/
-    └── my-detector.mjs
+    └── my-detector.js
 ```
 
 `plugin.json`:
@@ -30,13 +30,13 @@ my-plugin/
   "id": "my-plugin",
   "version": "1.0.0",
   "specCompat": "^1.0.0",
-  "extensions": ["./extensions/my-detector.mjs"]
+  "extensions": ["./extensions/my-detector.js"]
 }
 ```
 
 The directory name MUST equal `id`. Cross-root id collisions block both plugins.
 
-`extensions/my-detector.mjs` — a detector that emits one `references` link per `[[ref:<name>]]` token in the body:
+`extensions/my-detector.js` — a detector that emits one `references` link per `[[ref:<name>]]` token in the body:
 
 ```javascript
 export default {
@@ -70,11 +70,11 @@ The four other extension kinds (`provider`, `rule`, `formatter`, `action`) follo
 ## Test it
 
 ```javascript
-// test/my-detector.test.mjs
+// test/my-detector.test.js
 import { test } from 'node:test';
 import { strictEqual } from 'node:assert';
 import { node, runDetectorOnFixture } from '@skill-map/testkit';
-import detector from '../extensions/my-detector.mjs';
+import detector from '../extensions/my-detector.js';
 
 test('emits one link per [[ref:<name>]]', async () => {
   const links = await runDetectorOnFixture(detector, {
@@ -87,7 +87,7 @@ test('emits one link per [[ref:<name>]]', async () => {
 ```
 
 ```bash
-node --test test/my-detector.test.mjs
+node --test test/my-detector.test.js
 ```
 
 The testkit also ships `runRuleOnGraph` (rules), `runFormatterOnGraph` (formatters), `makeFakeStorage` (KV storage), and `makeFakeRunner` (probabilistic mode). Full surface in [`index.ts`](./index.ts).

@@ -7,8 +7,8 @@
  * raw bytes, and writes a deterministic listing (lexicographically sorted).
  *
  * Modes:
- *   node scripts/build-spec-index.mjs            → write spec/index.json
- *   node scripts/build-spec-index.mjs --check    → exit 1 on drift
+ *   node scripts/build-spec-index.js            → write spec/index.json
+ *   node scripts/build-spec-index.js --check    → exit 1 on drift
  */
 
 import { createHash } from 'node:crypto';
@@ -116,7 +116,7 @@ async function main() {
     const onDisk = await readFile(INDEX_PATH, 'utf8');
     if (onDisk !== serialized) {
       console.error('spec/index.json is out of date.');
-      console.error('Run: node scripts/build-spec-index.mjs');
+      console.error('Run: node scripts/build-spec-index.js');
       if (existing) {
         const existingKeys = Object.keys(existing.files ?? {});
         const freshKeys = Object.keys(fresh.files);

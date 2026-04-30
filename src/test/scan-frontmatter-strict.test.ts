@@ -31,7 +31,7 @@ import { createKernel, runScan } from '../kernel/index.js';
 import { builtIns } from '../extensions/built-ins.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const BIN = resolve(HERE, '..', 'bin', 'sm.mjs');
+const BIN = resolve(HERE, '..', 'bin', 'sm.js');
 
 let root: string;
 let counter = 0;

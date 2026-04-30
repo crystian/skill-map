@@ -34,7 +34,7 @@ COPY scripts/ ./scripts/
 COPY spec/ ./spec/
 COPY web/ ./web/
 
-RUN node scripts/build-site.mjs
+RUN node scripts/build-site.js
 
 # ------------ serve stage ------------
 FROM caddy:2-alpine

@@ -11,7 +11,7 @@ import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { node, runDetectorOnFixture } from '@skill-map/testkit';
 
-import detector from '../extensions/greet-detector.mjs';
+import detector from '../extensions/greet-detector.js';
 
 test('emits one link per distinct [[greet:<name>]] token', async () => {
   const links = await runDetectorOnFixture(detector, {

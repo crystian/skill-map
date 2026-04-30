@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "scripts": {
     "ng": "ng",
-    "mock:index": "node scripts/build-mock-index.mjs",
+    "mock:index": "node scripts/build-mock-index.js",
     "prestart": "npm run mock:index",
     "prebuild": "npm run mock:index",
     "start": "ng serve",

@@ -30,7 +30,7 @@ export interface RunCaseResult {
 }
 
 export interface RunCaseOptions {
-  /** Absolute path to the binary wrapper (e.g. `bin/sm.mjs`). */
+  /** Absolute path to the binary wrapper (e.g. `bin/sm.js`). */
   binary: string;
   /** Absolute path to the `@skill-map/spec` root. */
   specRoot: string;

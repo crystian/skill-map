@@ -2,7 +2,7 @@
 /**
  * PR gate: fail if workspace code changed without a changeset.
  *
- * Usage:  node scripts/check-changeset.mjs <baseRef>
+ * Usage:  node scripts/check-changeset.js <baseRef>
  *
  * Rules:
  *  - If the PR modifies files inside any declared workspace and does NOT
@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 
 const baseRef = process.argv[2];
 if (!baseRef) {
-  console.error('usage: check-changeset.mjs <baseRef>');
+  console.error('usage: check-changeset.js <baseRef>');
   process.exit(2);
 }
 

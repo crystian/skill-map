@@ -39,7 +39,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const WORKSPACE = resolve(HERE, '..');
 const REPO_ROOT = resolve(WORKSPACE, '..');
 const SPEC_ROOT = resolve(REPO_ROOT, 'spec');
-const BIN = resolve(WORKSPACE, 'bin', 'sm.mjs');
+const BIN = resolve(WORKSPACE, 'bin', 'sm.js');
 
 const CLAUDE_FIXTURES_DIR = resolve(
   WORKSPACE,
