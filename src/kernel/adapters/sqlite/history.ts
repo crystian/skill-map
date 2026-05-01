@@ -396,7 +396,12 @@ interface IPerActionAcc {
  * counts, per-action rollup, per-period bucket, per-node rollup. Pure
  * mutation of the supplied containers — caller iterates rows and emits
  * the final stats from the same containers afterward.
+ *
+ * Cyclomatic count comes from folding into 5 distinct accumulators in
+ * one pass; per-accumulator helpers would split state mutation across
+ * more files without making the algorithm clearer.
  */
+// eslint-disable-next-line complexity
 function accumulateExecutionRow(
   row: Selectable<IStateExecutionsTable>,
   totals: IExecutionRowTotals,

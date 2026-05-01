@@ -212,42 +212,42 @@ export class PluginsListCommand extends Command {
       return ExitCode.Ok;
     }
 
-    // Built-ins first — they are always present. The renderer mirrors a
-    // user-facing tree: bundle line, then one indented line per extension
-    // when the bundle is granularity=extension (the per-extension toggle
-    // status matters); a single inline list when the bundle is
-    // granularity=bundle (everything follows the bundle).
-    for (const bundle of builtIns) {
-      const head = `${bundle.enabled ? 'ok' : 'off'}     ${bundle.id}@built-in (granularity=${bundle.granularity})`;
-      this.context.stdout.write(head + '\n');
-      if (bundle.granularity === 'bundle') {
-        const kinds = bundle.extensions
-          .map((e) => `${e.kind}:${qualifiedExtensionId(bundle.id, e.id)}`)
-          .join(', ');
-        this.context.stdout.write(`        ${kinds}\n`);
-      } else {
-        for (const ext of bundle.extensions) {
-          const stat = ext.enabled ? 'ok' : 'off';
-          this.context.stdout.write(
-            `  ${stat.padEnd(4)} ${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}\n`,
-          );
-        }
-      }
-    }
-
-    for (const p of plugins) {
-      // Show extensions with their qualified id (`<pluginId>/<id>`) so
-      // the listing matches the registry key. Authors / users referencing
-      // an extension cross-extension always see the same form here.
-      const kinds = p.extensions?.map((e) => `${e.kind}:${e.pluginId}/${e.id}`).join(', ') ?? '';
-      const granularitySuffix =
-        p.granularity ? ` (granularity=${p.granularity})` : '';
-      const head = `${statusIcon(p.status).padEnd(6)} ${p.id}@${p.manifest?.version ?? '?'}${granularitySuffix}`;
-      const tail = p.status === 'enabled' ? ` · ${kinds}` : ` · ${p.reason ?? ''}`;
-      this.context.stdout.write(head + tail + '\n');
-    }
+    // Built-ins first; then user plugins.
+    for (const bundle of builtIns) this.context.stdout.write(renderBuiltInBundleRow(bundle));
+    for (const p of plugins) this.context.stdout.write(renderPluginRow(p));
     return ExitCode.Ok;
   }
+}
+
+/**
+ * Render the multi-line block for one built-in bundle: header line plus
+ * either a single inline kinds line (granularity=bundle) or one
+ * indented status line per extension (granularity=extension).
+ */
+function renderBuiltInBundleRow(bundle: IBuiltInBundleRow): string {
+  const lines: string[] = [];
+  lines.push(`${bundle.enabled ? 'ok' : 'off'}     ${bundle.id}@built-in (granularity=${bundle.granularity})`);
+  if (bundle.granularity === 'bundle') {
+    const kinds = bundle.extensions
+      .map((e) => `${e.kind}:${qualifiedExtensionId(bundle.id, e.id)}`)
+      .join(', ');
+    lines.push(`        ${kinds}`);
+  } else {
+    for (const ext of bundle.extensions) {
+      const stat = ext.enabled ? 'ok' : 'off';
+      lines.push(`  ${stat.padEnd(4)} ${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`);
+    }
+  }
+  return lines.join('\n') + '\n';
+}
+
+/** Render the single-line status row for one user plugin. */
+function renderPluginRow(p: IDiscoveredPlugin): string {
+  const kinds = p.extensions?.map((e) => `${e.kind}:${e.pluginId}/${e.id}`).join(', ') ?? '';
+  const granularitySuffix = p.granularity ? ` (granularity=${p.granularity})` : '';
+  const head = `${statusIcon(p.status).padEnd(6)} ${p.id}@${p.manifest?.version ?? '?'}${granularitySuffix}`;
+  const tail = p.status === 'enabled' ? ` · ${kinds}` : ` · ${p.reason ?? ''}`;
+  return head + tail + '\n';
 }
 
 // --- show -----------------------------------------------------------------
@@ -368,27 +368,49 @@ function extensionInstance(ext: ILoadedExtension): Record<string, unknown> | nul
  */
 function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
   const known = new Set<string>();
-  // Built-in Providers first.
+  forEachProviderInstance(plugins, ({ instance }) => {
+    const map = instance['kinds'];
+    if (map === null || typeof map !== 'object') return;
+    for (const k of Object.keys(map)) known.add(k);
+  });
+  return known;
+}
+
+/**
+ * Iterate every Provider instance reachable from this run — built-in
+ * bundles first, then user plugins (enabled only). Centralises the
+ * "if (ext.kind !== 'provider') continue; cast/extract instance"
+ * guard so doctor-style helpers (collect known kinds, collect missing
+ * exploration dirs, …) can stay focused on per-Provider logic.
+ *
+ * The `instance` field uses `Record<string, unknown>` so user-plugin
+ * Providers (whose runtime shape is not type-checked) and built-in
+ * Providers share the same callback signature.
+ */
+function forEachProviderInstance(
+  plugins: IDiscoveredPlugin[],
+  callback: (entry: { id: string; pluginId: string; instance: Record<string, unknown> }) => void,
+): void {
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
       if (ext.kind !== 'provider') continue;
       const provider = ext as IProvider;
-      for (const k of Object.keys(provider.kinds)) known.add(k);
+      callback({
+        id: provider.id,
+        pluginId: bundle.id,
+        instance: provider as unknown as Record<string, unknown>,
+      });
     }
   }
-  // User-plugin Providers.
   for (const p of plugins) {
     if (p.status !== 'enabled' || !p.extensions) continue;
     for (const ext of p.extensions) {
       if (ext.kind !== 'provider') continue;
       const inst = extensionInstance(ext);
       if (!inst) continue;
-      const map = inst['kinds'];
-      if (map === null || typeof map !== 'object') continue;
-      for (const k of Object.keys(map)) known.add(k);
+      callback({ id: ext.id, pluginId: ext.pluginId, instance: inst });
     }
   }
-  return known;
 }
 
 /**
@@ -403,23 +425,23 @@ function collectApplicableKindWarnings(
   knownKinds: Set<string>,
 ): IApplicableKindWarning[] {
   const out: IApplicableKindWarning[] = [];
-  // Built-in extractors.
+
+  // Built-in extractors (typed).
   for (const bundle of builtInBundles) {
     for (const ext of bundle.extensions) {
       if (ext.kind !== 'extractor') continue;
       const extractor = ext as IExtractor;
       if (!extractor.applicableKinds) continue;
-      for (const k of extractor.applicableKinds) {
-        if (!knownKinds.has(k)) {
-          out.push({
-            extractorQualifiedId: qualifiedExtensionId(bundle.id, extractor.id),
-            unknownKind: k,
-          });
-        }
-      }
+      appendUnknownKindWarnings(
+        out,
+        qualifiedExtensionId(bundle.id, extractor.id),
+        extractor.applicableKinds,
+        knownKinds,
+      );
     }
   }
-  // User-plugin extractors.
+
+  // User-plugin extractors (untyped — applicableKinds may be any value).
   for (const p of plugins) {
     if (p.status !== 'enabled' || !p.extensions) continue;
     for (const ext of p.extensions) {
@@ -428,18 +450,33 @@ function collectApplicableKindWarnings(
       if (!inst) continue;
       const ak = inst['applicableKinds'];
       if (!Array.isArray(ak)) continue;
-      for (const k of ak) {
-        if (typeof k !== 'string') continue;
-        if (!knownKinds.has(k)) {
-          out.push({
-            extractorQualifiedId: qualifiedExtensionId(ext.pluginId, ext.id),
-            unknownKind: k,
-          });
-        }
-      }
+      appendUnknownKindWarnings(
+        out,
+        qualifiedExtensionId(ext.pluginId, ext.id),
+        ak,
+        knownKinds,
+      );
     }
   }
   return out;
+}
+
+/**
+ * Push one warning for every kind in `applicableKinds` that the
+ * Provider catalog does not recognise. Tolerates `unknown[]` so the
+ * user-plugin path (where the array shape is not type-checked) can
+ * filter non-string entries silently.
+ */
+function appendUnknownKindWarnings(
+  out: IApplicableKindWarning[],
+  extractorQualifiedId: string,
+  applicableKinds: readonly unknown[],
+  knownKinds: Set<string>,
+): void {
+  for (const k of applicableKinds) {
+    if (typeof k !== 'string') continue;
+    if (!knownKinds.has(k)) out.push({ extractorQualifiedId, unknownKind: k });
+  }
 }
 
 // --- explorationDir doctor warnings (Provider §) -------------------------
@@ -479,40 +516,18 @@ function collectExplorationDirWarnings(
   plugins: IDiscoveredPlugin[],
 ): IProviderExplorationDirWarning[] {
   const out: IProviderExplorationDirWarning[] = [];
-  // Built-in Providers first.
-  for (const bundle of builtInBundles) {
-    for (const ext of bundle.extensions) {
-      if (ext.kind !== 'provider') continue;
-      const provider = ext as IProvider;
-      const resolved = expandHome(provider.explorationDir);
-      if (!existsSync(resolved)) {
-        out.push({
-          providerQualifiedId: qualifiedExtensionId(bundle.id, provider.id),
-          explorationDir: provider.explorationDir,
-          resolvedPath: resolved,
-        });
-      }
+  forEachProviderInstance(plugins, ({ id, pluginId, instance }) => {
+    const dir = instance['explorationDir'];
+    if (typeof dir !== 'string' || dir.length === 0) return;
+    const resolved = expandHome(dir);
+    if (!existsSync(resolved)) {
+      out.push({
+        providerQualifiedId: qualifiedExtensionId(pluginId, id),
+        explorationDir: dir,
+        resolvedPath: resolved,
+      });
     }
-  }
-  // User-plugin Providers.
-  for (const p of plugins) {
-    if (p.status !== 'enabled' || !p.extensions) continue;
-    for (const ext of p.extensions) {
-      if (ext.kind !== 'provider') continue;
-      const inst = extensionInstance(ext);
-      if (!inst) continue;
-      const dir = inst['explorationDir'];
-      if (typeof dir !== 'string' || dir.length === 0) continue;
-      const resolved = expandHome(dir);
-      if (!existsSync(resolved)) {
-        out.push({
-          providerQualifiedId: qualifiedExtensionId(ext.pluginId, ext.id),
-          explorationDir: dir,
-          resolvedPath: resolved,
-        });
-      }
-    }
-  }
+  });
   return out;
 }
 

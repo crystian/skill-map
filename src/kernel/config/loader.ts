@@ -209,27 +209,42 @@ function validateAndStrip(
   const validator = validators.getValidator('project-config');
   if (validator(cloned)) return cloned;
 
-  const errors = validator.errors ?? [];
-  for (const err of errors) {
-    const path = err.instancePath ?? '';
-    if (err.keyword === 'additionalProperties') {
-      const extra = (err.params as { additionalProperty: string }).additionalProperty;
-      deleteAtPath(cloned, path, extra);
-      const msg = `[config:${layer}] unknown key ${joinSegments(path, extra)} ignored`;
-      if (strict) throw new Error(msg);
-      warnings.push(msg);
-    } else {
-      const segments = path.split('/').filter(Boolean);
-      if (segments.length > 0) {
-        const last = segments.pop() as string;
-        deleteAtPath(cloned, '/' + segments.join('/'), last);
-      }
-      const msg = `[config:${layer}] invalid value at ${path || '(root)'}: ${err.message ?? err.keyword}`;
-      if (strict) throw new Error(msg);
-      warnings.push(msg);
-    }
+  for (const err of validator.errors ?? []) {
+    applyValidationError(cloned, err, layer, warnings, strict);
   }
   return cloned;
+}
+
+/**
+ * Apply one AJV error to the cloned config object: drop the offending
+ * key (additionalProperties or invalid-value), then either throw (in
+ * strict mode) or push a human-readable warning. Mutates `cloned` and
+ * `warnings` in place.
+ */
+function applyValidationError(
+  cloned: Record<string, unknown>,
+  err: { instancePath?: string; keyword: string; message?: string; params?: unknown },
+  layer: TConfigLayer,
+  warnings: string[],
+  strict: boolean,
+): void {
+  const path = err.instancePath ?? '';
+  if (err.keyword === 'additionalProperties') {
+    const extra = (err.params as { additionalProperty: string }).additionalProperty;
+    deleteAtPath(cloned, path, extra);
+    const msg = `[config:${layer}] unknown key ${joinSegments(path, extra)} ignored`;
+    if (strict) throw new Error(msg);
+    warnings.push(msg);
+    return;
+  }
+  const segments = path.split('/').filter(Boolean);
+  if (segments.length > 0) {
+    const last = segments.pop() as string;
+    deleteAtPath(cloned, '/' + segments.join('/'), last);
+  }
+  const msg = `[config:${layer}] invalid value at ${path || '(root)'}: ${err.message ?? err.keyword}`;
+  if (strict) throw new Error(msg);
+  warnings.push(msg);
 }
 
 function describeJsonType(v: unknown): string {

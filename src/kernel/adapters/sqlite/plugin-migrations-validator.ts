@@ -238,6 +238,10 @@ export function objectName(token: string): { name: string; schema: string | null
  * Trailing empty / whitespace-only statements are dropped so the caller
  * can iterate without filtering.
  */
+// Char-by-char state machine (5 quoting modes + ';' splitting). Each
+// branch is a single state transition; splitting per mode would make
+// the state machine harder to read, not easier.
+// eslint-disable-next-line complexity
 export function splitStatements(sql: string): string[] {
   const out: string[] = [];
   let current = '';
