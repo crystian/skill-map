@@ -40,7 +40,7 @@ import {
   type TBuiltInExtension,
 } from '../../extensions/built-ins.js';
 import {
-  PluginLoader,
+  createPluginLoader,
   installedSpecVersion,
   type IPluginLoaderOptions,
 } from '../../kernel/adapters/plugin-loader.js';
@@ -133,7 +133,7 @@ export async function loadPluginRuntime(
     specVersion: installedSpecVersion(),
   };
   if (resolveEnabled) loaderOpts.resolveEnabled = resolveEnabled;
-  const loader = new PluginLoader(loaderOpts);
+  const loader = createPluginLoader(loaderOpts);
   const discovered = await loader.discoverAndLoadAll();
 
   const bundle: IPluginRuntimeBundle = {

@@ -44,7 +44,7 @@ import type {
 } from '../../kernel/extensions/index.js';
 import type { ILoadedExtension } from '../../kernel/types/plugin.js';
 import {
-  PluginLoader,
+  createPluginLoader,
   installedSpecVersion,
   type IPluginLoaderOptions,
 } from '../../kernel/adapters/plugin-loader.js';
@@ -112,7 +112,7 @@ async function loadAll(opts: IScopeOptions): Promise<IDiscoveredPlugin[]> {
     specVersion: installedSpecVersion(),
     resolveEnabled: await buildResolver(opts.global),
   };
-  const loader = new PluginLoader(loaderOpts);
+  const loader = createPluginLoader(loaderOpts);
   return loader.discoverAndLoadAll();
 }
 

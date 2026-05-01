@@ -1,42 +1,56 @@
 /**
- * `PluginLoaderPort` — discovers plugin directories and imports extensions.
+ * `PluginLoaderPort` — discovers plugin directories and loads their
+ * extensions. The shape mirrors what the concrete loader actually
+ * exposes (see `kernel/adapters/plugin-loader.ts`); the port exists so
+ * the CLI consumes the abstract contract via `createPluginLoader(...)`
+ * instead of `new PluginLoader(...)` and so the concrete adapter is
+ * structurally pinned to the port (`implements PluginLoaderPort` makes
+ * any drift a compile error).
  *
- * `PluginManifest` matches `spec/schemas/plugins-registry.schema.json#/$defs/PluginManifest`.
- * Storage modes follow the normative `oneOf`: a plugin declares either `kv`
- * (shared `state_plugin_kvs`) or `dedicated` (plugin-owned prefixed tables + SQL migrations),
- * never both. Absent = plugin does not persist state.
- *
- * Step 0b: shape-only. Drop-in discovery (`.skill-map/plugins/`,
- * `~/.skill-map/plugins/`) lands with Step 9 (plugin author UX).
+ * Domain types (`IPluginManifest`, `ILoadedExtension`, `IDiscoveredPlugin`,
+ * `TPluginStorage`, `TPluginLoadStatus`, `TGranularity`) live in
+ * `kernel/types/plugin.ts` because they are spec-mirroring DTOs, not
+ * port-shape types. The port re-exports them for callers that import
+ * from the ports barrel.
  */
 
-import type { ExtensionKind } from '../registry.js';
+import type {
+  IDiscoveredPlugin,
+  ILoadedExtension,
+  IPluginManifest,
+  IPluginStorageSchema,
+  TGranularity,
+  TPluginLoadStatus,
+  TPluginStorage,
+} from '../types/plugin.js';
 
-export type PluginStorage =
-  | { mode: 'kv' }
-  | { mode: 'dedicated'; tables: string[]; migrations: string[] };
-
-export interface PluginManifest {
-  id: string;
-  version: string;
-  specCompat: string;
-  extensions: string[];
-  description?: string;
-  storage?: PluginStorage;
-  author?: string;
-  license?: string;
-  homepage?: string;
-  repository?: string;
-}
-
-export interface LoadedExtension {
-  kind: ExtensionKind;
-  id: string;
-  module: unknown;
-}
+export type {
+  IDiscoveredPlugin,
+  ILoadedExtension,
+  IPluginManifest,
+  IPluginStorageSchema,
+  TGranularity,
+  TPluginLoadStatus,
+  TPluginStorage,
+};
 
 export interface PluginLoaderPort {
-  discover(scopes: string[]): Promise<string[]>;
-  load(pluginPath: string): Promise<LoadedExtension[]>;
-  validateManifest(raw: unknown): PluginManifest;
+  /**
+   * Synchronously enumerate every directory containing a `plugin.json`
+   * across the configured search paths. Non-existent paths are skipped.
+   */
+  discoverPaths(): string[];
+
+  /**
+   * Discover every plugin, attempt to load each, then apply the
+   * cross-root id-collision pass. Never throws — failures are reported
+   * via `IDiscoveredPlugin.status`.
+   */
+  discoverAndLoadAll(): Promise<IDiscoveredPlugin[]>;
+
+  /**
+   * Load a single plugin from its directory. Never throws — failure is
+   * reported via the returned `status`.
+   */
+  loadOne(pluginPath: string): Promise<IDiscoveredPlugin>;
 }

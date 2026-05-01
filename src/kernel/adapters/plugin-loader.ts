@@ -44,6 +44,7 @@ import type {
   IPluginStorageSchema,
   TPluginLoadStatus,
 } from '../types/plugin.js';
+import type { PluginLoaderPort } from '../ports/plugin-loader.js';
 import { PLUGIN_LOADER_TEXTS } from '../i18n/plugin-loader.texts.js';
 import { tx } from '../util/tx.js';
 import { KV_SCHEMA_KEY } from './plugin-store.js';
@@ -100,7 +101,17 @@ export interface IPluginLoaderOptions {
   loadTimeoutMs?: number;
 }
 
-export class PluginLoader {
+/**
+ * Factory — preferred entry point for production callers (CLI). Returns
+ * the port shape so the consumer is pinned to the abstract contract,
+ * not the concrete class. Tests that need to access internals continue
+ * to use `new PluginLoader(...)` directly.
+ */
+export function createPluginLoader(options: IPluginLoaderOptions): PluginLoaderPort {
+  return new PluginLoader(options);
+}
+
+export class PluginLoader implements PluginLoaderPort {
   readonly #options: IPluginLoaderOptions;
   readonly #loadTimeoutMs: number;
 
