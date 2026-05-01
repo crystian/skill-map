@@ -57,6 +57,7 @@ import {
 import { loadConfig } from '../../kernel/config/loader.js';
 import { assertDbExists } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const PROJECT_DB_REL = '.skill-map/skill-map.db';
@@ -128,7 +129,7 @@ export class JobPruneCommand extends Command {
 
     let cfg;
     try {
-      cfg = loadConfig({ scope: 'project' }).effective;
+      cfg = loadConfig({ scope: 'project', ...defaultRuntimeContext() }).effective;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.context.stderr.write(`sm job prune: ${message}\n`);

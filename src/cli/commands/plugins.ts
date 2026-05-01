@@ -65,6 +65,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../i18n/plugins.texts.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 const PLUGINS_DIR = '.skill-map/plugins';
@@ -94,7 +95,10 @@ function resolveDbPath(global: boolean): string {
  * settings.json, no DB) — both fall through gracefully.
  */
 async function buildResolver(global: boolean): Promise<(id: string) => boolean> {
-  const { effective: cfg } = loadConfig({ scope: global ? 'global' : 'project' });
+  const { effective: cfg } = loadConfig({
+    scope: global ? 'global' : 'project',
+    ...defaultRuntimeContext(),
+  });
   const dbPath = resolveDbPath(global);
   const dbOverrides =
     (await tryWithSqlite(

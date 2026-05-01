@@ -3,15 +3,26 @@
  * (`sm db restore`, `sm db reset --state`, `sm db reset --hard`,
  * `sm orphans undo-rename`).
  *
- * Writes the question + `[y/N] ` suffix to stderr. Returns true only
- * for inputs that match `/^y(es)?$/i` (trim, case-insensitive). Any
- * other answer (including empty) returns false.
+ * Writes the question + `[y/N] ` suffix to the supplied `stderr`.
+ * Returns true only for inputs that match `/^y(es)?$/i` (trim,
+ * case-insensitive). Any other answer (including empty) returns false.
+ *
+ * Streams are supplied by the caller (typically `this.context.stdin` /
+ * `this.context.stderr` from Clipanion) so commands can be tested with
+ * captured streams instead of monkey-patching `process.*`.
  */
 
 import { createInterface } from 'node:readline';
 
-export async function confirm(question: string): Promise<boolean> {
-  const rl = createInterface({ input: process.stdin, output: process.stderr });
+import type { Readable, Writable } from 'node:stream';
+
+export interface IConfirmStreams {
+  stdin: Readable;
+  stderr: Writable;
+}
+
+export async function confirm(question: string, streams: IConfirmStreams): Promise<boolean> {
+  const rl = createInterface({ input: streams.stdin, output: streams.stderr });
   try {
     const answer = await new Promise<string>((resolveP) =>
       rl.question(`${question} [y/N] `, resolveP),

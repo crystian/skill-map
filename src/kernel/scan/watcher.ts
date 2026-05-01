@@ -62,8 +62,8 @@ export interface IFsWatcher {
 export interface ICreateFsWatcherOptions {
   /** Roots to watch. Resolved relative to `cwd` if relative paths are passed. */
   roots: string[];
-  /** Override `process.cwd()` for the relative-path resolution and ignore-filter root. */
-  cwd?: string;
+  /** Working directory used to resolve relative roots and the ignore-filter root. */
+  cwd: string;
   /** Debounce window in milliseconds. `0` triggers `onBatch` synchronously per event. */
   debounceMs: number;
   /** Optional ignore filter — same instance the scan walker uses. */
@@ -92,13 +92,7 @@ export interface ICreateFsWatcherOptions {
  * would be redundant churn.
  */
 export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
-  // TODO(V5 audit): make `opts.cwd` mandatory and migrate callers (CLI
-  // already passes it in `cli/commands/watch.ts:215`). The fallback
-  // here lets test fixtures stay terse — remove together with the
-  // option being made required.
-  // eslint-disable-next-line no-restricted-syntax
-  const cwd = opts.cwd ?? process.cwd();
-  const absRoots = opts.roots.map((r) => resolve(cwd, r));
+  const absRoots = opts.roots.map((r) => resolve(opts.cwd, r));
   const ignoreFilter = opts.ignoreFilter;
 
   const ignored = ignoreFilter

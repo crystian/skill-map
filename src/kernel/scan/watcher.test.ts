@@ -70,6 +70,7 @@ describe('createChokidarWatcher', () => {
     const dir = freshScope('debounce');
     const { collector, onBatch } = makeCollector();
     const watcher: IFsWatcher = createChokidarWatcher({
+      cwd: root,
       roots: [dir],
       debounceMs: 80,
       onBatch,
@@ -97,6 +98,7 @@ describe('createChokidarWatcher', () => {
     const dir = freshScope('multi-batch');
     const { collector, onBatch } = makeCollector();
     const watcher = createChokidarWatcher({
+      cwd: root,
       roots: [dir],
       debounceMs: 60,
       onBatch,
@@ -124,6 +126,7 @@ describe('createChokidarWatcher', () => {
     });
     const { collector, onBatch } = makeCollector();
     const watcher = createChokidarWatcher({
+      cwd: root,
       roots: [dir],
       debounceMs: 60,
       ignoreFilter,
@@ -148,6 +151,7 @@ describe('createChokidarWatcher', () => {
     const dir = freshScope('dedupe');
     const { collector, onBatch } = makeCollector();
     const watcher = createChokidarWatcher({
+      cwd: root,
       roots: [dir],
       debounceMs: 80,
       onBatch,
@@ -171,6 +175,7 @@ describe('createChokidarWatcher', () => {
     const dir = freshScope('unlink');
     const { collector, onBatch } = makeCollector();
     const watcher = createChokidarWatcher({
+      cwd: root,
       roots: [dir],
       debounceMs: 60,
       onBatch,
@@ -199,6 +204,7 @@ describe('createChokidarWatcher', () => {
     const dir = freshScope('close-pending');
     const { collector, onBatch } = makeCollector();
     const watcher = createChokidarWatcher({
+      cwd: root,
       roots: [dir],
       debounceMs: 200,
       onBatch,
@@ -215,6 +221,7 @@ describe('createChokidarWatcher', () => {
     const dir = freshScope('zero-debounce');
     const { collector, onBatch } = makeCollector();
     const watcher = createChokidarWatcher({
+      cwd: root,
       roots: [dir],
       debounceMs: 0,
       onBatch,

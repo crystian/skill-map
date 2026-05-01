@@ -47,6 +47,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
@@ -78,11 +79,12 @@ export interface IRunWatchOptions {
  */
 export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const { context } = opts;
-  const cwd = process.cwd();
+  const runtimeCtx = defaultRuntimeContext();
+  const { cwd } = runtimeCtx;
 
   let cfg;
   try {
-    cfg = loadConfig({ scope: 'project', strict: opts.strict }).effective;
+    cfg = loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     context.stderr.write(tx(WATCH_TEXTS.configLoadFailure, { message }));

@@ -26,7 +26,6 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { homedir as osHomedir } from 'node:os';
 import { join } from 'node:path';
 
 import { loadSchemaValidators, type ISchemaValidators } from '../adapters/schema-validators.js';
@@ -93,10 +92,10 @@ export type TConfigLayer =
 export interface ILoadConfigOptions {
   /** Determines whether project-scoped layers are walked (`project`) or skipped (`global`). */
   scope: 'project' | 'global';
-  /** Override `process.cwd()` — primarily for tests. */
-  cwd?: string;
-  /** Override `os.homedir()` — primarily for tests. */
-  homedir?: string;
+  /** Working directory used to resolve project-scoped config files. */
+  cwd: string;
+  /** User home directory used to resolve user-scoped config files. */
+  homedir: string;
   /** Top layer applied after every file layer. Translates env vars / CLI flags into config keys. */
   overrides?: Record<string, unknown>;
   /** When true, every warning is thrown as an `Error` instead of being collected. */
@@ -118,13 +117,8 @@ export interface ILoadedConfig {
 const DEFAULTS = DEFAULTS_RAW as unknown as IEffectiveConfig;
 
 export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
-  // TODO(V5 audit): make `cwd` and `homedir` mandatory in
-  // `ILoadConfigOptions` and migrate the 7 CLI callers. The fallbacks
-  // here keep tests + library use terse but break the kernel-isolation
-  // invariant the linter enforces elsewhere.
-  // eslint-disable-next-line no-restricted-syntax
-  const cwd = opts.cwd ?? process.cwd();
-  const home = opts.homedir ?? osHomedir();
+  const cwd = opts.cwd;
+  const home = opts.homedir;
   const strict = opts.strict ?? false;
   const warnings: string[] = [];
   const sources = new Map<string, TConfigLayer>();

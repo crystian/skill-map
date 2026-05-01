@@ -23,6 +23,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
@@ -203,7 +204,7 @@ export class ScanCommand extends Command {
     // emitting a `frontmatter-invalid` issue trips exit 1).
     let cfg;
     try {
-      cfg = loadConfig({ scope: 'project', strict: this.strict }).effective;
+      cfg = loadConfig({ scope: 'project', strict: this.strict, ...defaultRuntimeContext() }).effective;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));

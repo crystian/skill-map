@@ -132,7 +132,19 @@ export interface ILoadedExtension {
   pluginId: string;
   version: string;
   entryPath: string;
+  /** Raw module namespace as returned by the dynamic `import()`. */
   module: unknown;
+  /**
+   * Runtime extension instance ready for the registry / orchestrator —
+   * the `default` export of `module` (or the module itself when no
+   * default), shallow-cloned with `pluginId` injected per spec § A.6.
+   *
+   * The clone is essential: ESM caches the imported module, so two
+   * plugins importing the same file would otherwise share a single
+   * mutable instance and overwrite each other's `pluginId`. The loader
+   * owns the clone so consumers (CLI, tests) never need to mutate.
+   */
+  instance: unknown;
 }
 
 export interface IDiscoveredPlugin {

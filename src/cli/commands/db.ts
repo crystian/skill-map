@@ -137,7 +137,10 @@ export class DbRestoreCommand extends Command {
     }
 
     if (!this.yes) {
-      const ok = await confirm(tx(DB_TEXTS.restoreConfirm, { sourcePath, target }));
+      const ok = await confirm(tx(DB_TEXTS.restoreConfirm, { sourcePath, target }), {
+        stdin: this.context.stdin,
+        stderr: this.context.stderr,
+      });
       if (!ok) {
         this.context.stderr.write(DB_TEXTS.aborted);
         return ExitCode.Error;
@@ -205,7 +208,10 @@ export class DbResetCommand extends Command {
         return ExitCode.Ok;
       }
       if (!this.yes) {
-        const ok = await confirm(tx(DB_TEXTS.resetHardConfirm, { path }));
+        const ok = await confirm(tx(DB_TEXTS.resetHardConfirm, { path }), {
+          stdin: this.context.stdin,
+          stderr: this.context.stderr,
+        });
         if (!ok) {
           this.context.stderr.write(DB_TEXTS.aborted);
           return ExitCode.Error;
@@ -222,7 +228,10 @@ export class DbResetCommand extends Command {
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     if (this.state && !this.yes && !this.dryRun) {
-      const ok = await confirm(tx(DB_TEXTS.resetStateConfirm, { path }));
+      const ok = await confirm(tx(DB_TEXTS.resetStateConfirm, { path }), {
+        stdin: this.context.stdin,
+        stderr: this.context.stderr,
+      });
       if (!ok) {
         this.context.stderr.write(DB_TEXTS.aborted);
         return ExitCode.Error;

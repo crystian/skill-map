@@ -320,6 +320,7 @@ export class OrphansUndoRenameCommand extends Command {
       if (!this.force) {
         const ok = await confirm(
           `Undo auto-rename: migrate state_* FKs from ${this.newPath} back to ${resolvedFrom}?`,
+          { stdin: this.context.stdin, stderr: this.context.stderr },
         );
         if (!ok) {
           this.context.stderr.write('Aborted.\n');

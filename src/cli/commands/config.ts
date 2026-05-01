@@ -49,6 +49,7 @@ import {
 } from '../../kernel/config/loader.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 
 // -----------------------------------------------------------------------------
 // shared helpers
@@ -223,7 +224,7 @@ export class ConfigListCommand extends Command {
 
   async execute(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strict },
+      { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;
@@ -261,7 +262,7 @@ export class ConfigGetCommand extends Command {
 
   async execute(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strict },
+      { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;
@@ -302,7 +303,7 @@ export class ConfigShowCommand extends Command {
 
   async execute(): Promise<number> {
     const result = tryLoadConfig(
-      { scope: this.global ? 'global' : 'project', strict: this.strict },
+      { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
     );
     if (!result.ok) return result.exitCode;

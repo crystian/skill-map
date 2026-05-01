@@ -437,6 +437,14 @@ export class PluginLoader implements PluginLoaderPort {
         };
       }
 
+      // Shallow-clone the runtime instance and inject `pluginId` here
+      // (rather than letting the consumer mutate it). Two plugins that
+      // dynamically import the same file would otherwise share the
+      // ESM-cached object and stomp each other's `pluginId`.
+      const instance = isRecord(exported)
+        ? { ...exported, pluginId: manifest.id }
+        : exported;
+
       loaded.push({
         kind,
         id: exported['id'] as string,
@@ -444,6 +452,7 @@ export class PluginLoader implements PluginLoaderPort {
         version: exported['version'] as string,
         entryPath: abs,
         module: mod,
+        instance,
       });
     }
 

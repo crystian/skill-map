@@ -224,7 +224,7 @@ async function runFirstScan(
 
   let cfg;
   try {
-    cfg = loadConfig({ scope: 'project', cwd: scopeRoot, strict }).effective;
+    cfg = loadConfig({ scope: 'project', cwd: scopeRoot, homedir: osHomedir(), strict }).effective;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     stderr.write(tx(INIT_TEXTS.configLoadFailure, { message }));

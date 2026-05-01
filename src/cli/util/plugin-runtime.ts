@@ -53,6 +53,7 @@ import type {
   IDiscoveredPlugin,
   ILoadedExtension,
 } from '../../kernel/types/plugin.js';
+import { defaultRuntimeContext } from './runtime-context.js';
 import { tryWithSqlite } from './with-sqlite.js';
 
 const PLUGINS_DIR = '.skill-map/plugins';
@@ -200,10 +201,25 @@ export function isBuiltInExtensionEnabled(
   ext: TBuiltInExtension,
   resolveEnabled: (id: string) => boolean,
 ): boolean {
+  return isBundleEntryEnabled(bundle, ext.id, resolveEnabled);
+}
+
+/**
+ * Underlying primitive — works on the plain extension `id` rather than
+ * a typed extension instance, so it can be reused from manifest-side
+ * filters (`filterBuiltInManifests`) where the value is `IPluginManifest`,
+ * not `TBuiltInExtension`. Same toggle semantics as
+ * `isBuiltInExtensionEnabled`.
+ */
+function isBundleEntryEnabled(
+  bundle: IBuiltInBundle,
+  extId: string,
+  resolveEnabled: (id: string) => boolean,
+): boolean {
   if (bundle.granularity === 'bundle') {
     return resolveEnabled(bundle.id);
   }
-  return resolveEnabled(qualifiedExtensionId(bundle.id, ext.id));
+  return resolveEnabled(qualifiedExtensionId(bundle.id, extId));
 }
 
 /**
@@ -366,8 +382,7 @@ export function filterBuiltInManifests(
   return manifests.filter((m) => {
     const bundle = bundleByPluginId.get(m.pluginId);
     if (!bundle) return true; // not a built-in row — leave it alone.
-    if (bundle.granularity === 'bundle') return resolveEnabled(bundle.id);
-    return resolveEnabled(qualifiedExtensionId(bundle.id, m.id));
+    return isBundleEntryEnabled(bundle, m.id, resolveEnabled);
   });
 }
 
@@ -394,7 +409,7 @@ function dbPathForScope(scope: 'project' | 'global'): string {
 async function buildEnabledResolver(
   scope: 'project' | 'global',
 ): Promise<(id: string) => boolean> {
-  const { effective: cfg } = loadConfig({ scope });
+  const { effective: cfg } = loadConfig({ scope, ...defaultRuntimeContext() });
   const dbPath = dbPathForScope(scope);
   const dbOverrides =
     (await tryWithSqlite(
@@ -405,23 +420,14 @@ async function buildEnabledResolver(
 }
 
 /**
- * Drop a plugin's loaded extensions into the per-kind buckets. The
- * `module` field carries the imported namespace; the runtime instance
- * is its `default` export (or the namespace itself if no default —
- * matches the loader's `extractDefault` heuristic).
+ * Drop a plugin's loaded extensions into the per-kind buckets. Each
+ * `ext.instance` arrives from the loader already cloned with
+ * `pluginId` injected (spec § A.6), so this function never mutates.
  */
 function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle): void {
   for (const ext of loaded) {
-    const instance = extractDefault(ext.module);
+    const instance = ext.instance;
     if (!isExtensionInstance(instance)) continue;
-    // Spec § A.6 — inject the qualified namespace into the runtime
-    // instance so the orchestrator and any consumer that reads
-    // `extension.pluginId` (e.g. `sm plugins list`, registry lookups)
-    // gets the same value the loader resolved from `plugin.json#/id`.
-    // The instance is a fresh object the kernel owns; mutating it in
-    // place is safe (the `module` namespace export is frozen by Node,
-    // but the default export object is not).
-    (instance as Record<string, unknown>)['pluginId'] = ext.pluginId;
     switch (ext.kind) {
       case 'provider':
         bundle.extensions.providers.push(instance as IProvider);
@@ -460,11 +466,6 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
   }
 }
 
-function extractDefault(mod: unknown): unknown {
-  if (mod === null || typeof mod !== 'object' || Array.isArray(mod)) return mod;
-  const rec = mod as Record<string, unknown>;
-  return 'default' in rec ? rec['default'] : rec;
-}
 
 function isExtensionInstance(v: unknown): v is { id: string; kind: string; version: string } {
   return (
