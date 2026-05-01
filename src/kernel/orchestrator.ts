@@ -1220,6 +1220,162 @@ function originatingNodeOf(link: Link, priorNodePaths: Set<string>): string {
 }
 
 /**
+ * Step 1 of `detectRenamesAndOrphans` — pair every `deletedPath` with a
+ * `newPath` whose body hash matches. Greedy by sorted order; on first
+ * hit the deletion is claimed and we move on. Mutates the supplied
+ * `claimedDeleted` / `claimedNew` sets in place.
+ */
+function findHighConfidenceRenames(opts: {
+  deletedPaths: string[];
+  newPaths: string[];
+  priorByPath: Map<string, Node>;
+  currentByPath: Map<string, Node>;
+  claimedDeleted: Set<string>;
+  claimedNew: Set<string>;
+}): RenameOp[] {
+  const ops: RenameOp[] = [];
+  for (const fromPath of opts.deletedPaths) {
+    if (opts.claimedDeleted.has(fromPath)) continue;
+    const fromNode = opts.priorByPath.get(fromPath)!;
+    for (const toPath of opts.newPaths) {
+      if (opts.claimedNew.has(toPath)) continue;
+      const toNode = opts.currentByPath.get(toPath)!;
+      if (toNode.bodyHash === fromNode.bodyHash) {
+        ops.push({ from: fromPath, to: toPath, confidence: 'high' });
+        opts.claimedDeleted.add(fromPath);
+        opts.claimedNew.add(toPath);
+        break;
+      }
+    }
+  }
+  return ops;
+}
+
+/**
+ * Step 2 of `detectRenamesAndOrphans` — bucket every still-unclaimed
+ * `newPath` by the set of still-unclaimed `deletedPath`s that share its
+ * `frontmatterHash`. The map drives both the medium-confidence claim
+ * pass and the ambiguous-flag pass.
+ */
+function buildFrontmatterRenameCandidates(opts: {
+  deletedPaths: string[];
+  newPaths: string[];
+  priorByPath: Map<string, Node>;
+  currentByPath: Map<string, Node>;
+  claimedDeleted: Set<string>;
+  claimedNew: Set<string>;
+}): Map<string, string[]> {
+  const candidatesByNew = new Map<string, string[]>();
+  for (const toPath of opts.newPaths) {
+    if (opts.claimedNew.has(toPath)) continue;
+    const toNode = opts.currentByPath.get(toPath)!;
+    const matches: string[] = [];
+    for (const fromPath of opts.deletedPaths) {
+      if (opts.claimedDeleted.has(fromPath)) continue;
+      const fromNode = opts.priorByPath.get(fromPath)!;
+      if (toNode.frontmatterHash === fromNode.frontmatterHash) {
+        matches.push(fromPath);
+      }
+    }
+    if (matches.length > 0) candidatesByNew.set(toPath, matches);
+  }
+  return candidatesByNew;
+}
+
+/**
+ * Step 3a of `detectRenamesAndOrphans` — first pass over the candidate
+ * map: a `newPath` whose surviving candidate set is a singleton wins
+ * the deletion, with `auto-rename-medium`. Greedy by sorted `newPath`
+ * order so a deletion claimed by an earlier singleton drops out of
+ * later candidate filters. Mutates `claimedDeleted` / `claimedNew` /
+ * `issues` in place.
+ */
+function claimSingletonRenames(opts: {
+  newPaths: string[];
+  candidatesByNew: Map<string, string[]>;
+  claimedDeleted: Set<string>;
+  claimedNew: Set<string>;
+  issues: Issue[];
+}): RenameOp[] {
+  const ops: RenameOp[] = [];
+  for (const toPath of opts.newPaths) {
+    if (opts.claimedNew.has(toPath)) continue;
+    const candidates = opts.candidatesByNew.get(toPath);
+    if (!candidates) continue;
+    const remaining = candidates.filter((p) => !opts.claimedDeleted.has(p));
+    if (remaining.length === 1) {
+      const fromPath = remaining[0]!;
+      ops.push({ from: fromPath, to: toPath, confidence: 'medium' });
+      opts.issues.push({
+        ruleId: 'auto-rename-medium',
+        severity: 'warn',
+        nodeIds: [toPath],
+        message: `Auto-rename (medium confidence): ${fromPath} → ${toPath}`,
+        data: { from: fromPath, to: toPath, confidence: 'medium' },
+      });
+      opts.claimedDeleted.add(fromPath);
+      opts.claimedNew.add(toPath);
+    }
+  }
+  return ops;
+}
+
+/**
+ * Step 3b of `detectRenamesAndOrphans` — any `newPath` left with more
+ * than one viable candidate after singletons settled is ambiguous.
+ * Emits one `auto-rename-ambiguous` per `newPath`. Candidates are NOT
+ * claimed; they fall through to the orphan step so the user can
+ * reconcile manually with `sm orphans undo-rename`.
+ */
+function flagAmbiguousRenames(opts: {
+  newPaths: string[];
+  candidatesByNew: Map<string, string[]>;
+  claimedDeleted: Set<string>;
+  claimedNew: Set<string>;
+  issues: Issue[];
+}): void {
+  for (const toPath of opts.newPaths) {
+    if (opts.claimedNew.has(toPath)) continue;
+    const candidates = opts.candidatesByNew.get(toPath);
+    if (!candidates) continue;
+    const remaining = candidates.filter((p) => !opts.claimedDeleted.has(p));
+    if (remaining.length > 1) {
+      opts.issues.push({
+        ruleId: 'auto-rename-ambiguous',
+        severity: 'warn',
+        nodeIds: [toPath],
+        message:
+          `Auto-rename ambiguous: ${toPath} matches ${remaining.length} ` +
+          `prior frontmatters — pick one with \`sm orphans undo-rename ` +
+          `${toPath} --from <old.path>\`.`,
+        data: { to: toPath, candidates: remaining },
+      });
+    }
+  }
+}
+
+/**
+ * Step 4 of `detectRenamesAndOrphans` — every deletion left unclaimed
+ * after steps 1-3 yields one `orphan` issue (info severity).
+ */
+function flagOrphans(opts: {
+  deletedPaths: string[];
+  claimedDeleted: Set<string>;
+  issues: Issue[];
+}): void {
+  for (const fromPath of opts.deletedPaths) {
+    if (opts.claimedDeleted.has(fromPath)) continue;
+    opts.issues.push({
+      ruleId: 'orphan',
+      severity: 'info',
+      nodeIds: [fromPath],
+      message: `Orphan history: ${fromPath} was deleted; no rename match found.`,
+      data: { path: fromPath },
+    });
+  }
+}
+
+/**
  * Pure rename / orphan classification per `spec/db-schema.md` §Rename
  * detection. Mutates `issues` in place — caller passes the in-progress
  * issue list; returns the `RenameOp[]` for the persistence layer to
@@ -1268,103 +1424,27 @@ export function detectRenamesAndOrphans(
   const claimedNew = new Set<string>();
   const ops: RenameOp[] = [];
 
-  // 1. high-confidence — body hash match.
-  for (const fromPath of deletedPaths) {
-    if (claimedDeleted.has(fromPath)) continue;
-    const fromNode = priorByPath.get(fromPath)!;
-    for (const toPath of newPaths) {
-      if (claimedNew.has(toPath)) continue;
-      const toNode = currentByPath.get(toPath)!;
-      if (toNode.bodyHash === fromNode.bodyHash) {
-        ops.push({ from: fromPath, to: toPath, confidence: 'high' });
-        claimedDeleted.add(fromPath);
-        claimedNew.add(toPath);
-        break;
-      }
-    }
-  }
+  // Step 1 — high confidence (body hash match).
+  ops.push(...findHighConfidenceRenames({
+    deletedPaths, newPaths, priorByPath, currentByPath, claimedDeleted, claimedNew,
+  }));
 
-  // 2/3. frontmatter classification — bucket every newPath by the set
-  //      of remaining deletions that share its frontmatterHash.
-  const candidatesByNew = new Map<string, string[]>();
-  for (const toPath of newPaths) {
-    if (claimedNew.has(toPath)) continue;
-    const toNode = currentByPath.get(toPath)!;
-    const matches: string[] = [];
-    for (const fromPath of deletedPaths) {
-      if (claimedDeleted.has(fromPath)) continue;
-      const fromNode = priorByPath.get(fromPath)!;
-      if (toNode.frontmatterHash === fromNode.frontmatterHash) {
-        matches.push(fromPath);
-      }
-    }
-    if (matches.length > 0) candidatesByNew.set(toPath, matches);
-  }
+  // Step 2 — bucket every `newPath` by the deletions that share its
+  // frontmatterHash, used by both medium-confidence and ambiguous passes.
+  const candidatesByNew = buildFrontmatterRenameCandidates({
+    deletedPaths, newPaths, priorByPath, currentByPath, claimedDeleted, claimedNew,
+  });
 
-  // First pass: claim every `newPath` whose candidate set is a
-  // singleton AND whose lone candidate is not already promised
-  // elsewhere as a singleton candidate — i.e. mutual exclusivity.
-  // Because each candidate path is iterated under at most one
-  // surviving `newPath` (the deletion is "shared" only by virtue of
-  // distinct newPaths matching it), we resolve singletons greedily by
-  // sorted newPath order; a deletion claimed by an earlier singleton
-  // is removed from later candidate lists.
-  for (const toPath of newPaths) {
-    if (claimedNew.has(toPath)) continue;
-    const candidates = candidatesByNew.get(toPath);
-    if (!candidates) continue;
-    const remaining = candidates.filter((p) => !claimedDeleted.has(p));
-    if (remaining.length === 1) {
-      const fromPath = remaining[0]!;
-      ops.push({ from: fromPath, to: toPath, confidence: 'medium' });
-      issues.push({
-        ruleId: 'auto-rename-medium',
-        severity: 'warn',
-        nodeIds: [toPath],
-        message: `Auto-rename (medium confidence): ${fromPath} → ${toPath}`,
-        data: { from: fromPath, to: toPath, confidence: 'medium' },
-      });
-      claimedDeleted.add(fromPath);
-      claimedNew.add(toPath);
-    }
-  }
+  // Step 3a — singleton candidates → medium-confidence renames.
+  ops.push(...claimSingletonRenames({
+    newPaths, candidatesByNew, claimedDeleted, claimedNew, issues,
+  }));
 
-  // Second pass: any remaining `newPath` with more than one viable
-  // candidate after singletons settled is ambiguous. Emit one
-  // `auto-rename-ambiguous` issue listing every candidate; no
-  // migration is applied.
-  for (const toPath of newPaths) {
-    if (claimedNew.has(toPath)) continue;
-    const candidates = candidatesByNew.get(toPath);
-    if (!candidates) continue;
-    const remaining = candidates.filter((p) => !claimedDeleted.has(p));
-    if (remaining.length > 1) {
-      issues.push({
-        ruleId: 'auto-rename-ambiguous',
-        severity: 'warn',
-        nodeIds: [toPath],
-        message:
-          `Auto-rename ambiguous: ${toPath} matches ${remaining.length} ` +
-          `prior frontmatters — pick one with \`sm orphans undo-rename ` +
-          `${toPath} --from <old.path>\`.`,
-        data: { to: toPath, candidates: remaining },
-      });
-      // Note: the candidate deletions are NOT claimed — they remain as
-      // orphans below so the user can reconcile them manually.
-    }
-  }
+  // Step 3b — multi-candidate `newPath`s left after singletons settled.
+  flagAmbiguousRenames({ newPaths, candidatesByNew, claimedDeleted, claimedNew, issues });
 
-  // 4. orphan — every unclaimed deletion.
-  for (const fromPath of deletedPaths) {
-    if (claimedDeleted.has(fromPath)) continue;
-    issues.push({
-      ruleId: 'orphan',
-      severity: 'info',
-      nodeIds: [fromPath],
-      message: `Orphan history: ${fromPath} was deleted; no rename match found.`,
-      data: { path: fromPath },
-    });
-  }
+  // Step 4 — every unclaimed deletion is an orphan.
+  flagOrphans({ deletedPaths, claimedDeleted, issues });
 
   return ops;
 }

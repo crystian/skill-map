@@ -21,7 +21,7 @@
  * DBs) and there are no concurrent readers to contend with.
  */
 
-import { sql, type Insertable, type Kysely } from 'kysely';
+import { sql, type Insertable, type Kysely, type Transaction } from 'kysely';
 
 import type {
   IEnrichmentRecord,
@@ -105,44 +105,7 @@ export async function persistScanResult(
     // reflects what's actually persisted.
     result.stats.issuesCount = result.issues.length;
 
-    // Order matters only inasmuch as the scan zone has no FKs across its
-    // four tables today; deleting in one fixed order keeps query plans
-    // identical run-to-run.
-    await trx.deleteFrom('scan_issues').execute();
-    await trx.deleteFrom('scan_links').execute();
-    await trx.deleteFrom('scan_nodes').execute();
-    await trx.deleteFrom('scan_meta').execute();
-    // Phase 4 / A.9 — replace-all on the fine-grained Extractor cache
-    // so rows for extractors uninstalled since the last scan disappear
-    // automatically. Insert below carries forward only the pairs the
-    // orchestrator decided to keep (cached) or freshly ran.
-    await trx.deleteFrom('scan_extractor_runs').execute();
-
-    if (result.nodes.length > 0) {
-      await trx
-        .insertInto('scan_nodes')
-        .values(result.nodes.map((n) => nodeToRow(n, scannedAt)))
-        .execute();
-    }
-    if (result.links.length > 0) {
-      await trx
-        .insertInto('scan_links')
-        .values(result.links.map(linkToRow))
-        .execute();
-    }
-    if (result.issues.length > 0) {
-      await trx
-        .insertInto('scan_issues')
-        .values(result.issues.map(issueToRow))
-        .execute();
-    }
-    await trx.insertInto('scan_meta').values(metaToRow(result)).execute();
-    if (extractorRuns.length > 0) {
-      await trx
-        .insertInto('scan_extractor_runs')
-        .values(extractorRuns.map(extractorRunToRow))
-        .execute();
-    }
+    await replaceAllScanZone(trx, result, scannedAt, extractorRuns);
 
     // --- A.8 enrichment layer -----------------------------------------------
     // Universal enrichment table is NOT replace-all — probabilistic rows
@@ -161,87 +124,8 @@ export async function persistScanResult(
     //      `body_hash` AND was NOT just upserted → flag `stale = 1`.
     //      Deterministic rows are never stale-flagged: they regenerate
     //      via the A.9 cache on the next scan and pisar via PK conflict.
-    const enrichmentLivePaths = new Set(result.nodes.map((n) => n.path));
-    // Step 1 — drop enrichments whose node disappeared. Renames at step 2
-    // re-attach the row to the new path before this step would delete it.
-    // To enforce that ordering, do step 2 first.
-    for (const op of renameOps) {
-      await trx
-        .updateTable('node_enrichments')
-        .set({ nodePath: op.to })
-        .where('nodePath', '=', op.from)
-        // If a row already exists at the destination (rare — a rename onto
-        // a previously-enriched path), the migration would violate the PK.
-        // Pre-purge the destination so the migrate proceeds cleanly; the
-        // newer-path enrichments (if any) will be re-upserted at step 3.
-        .execute();
-    }
-    if (enrichmentLivePaths.size > 0) {
-      const liveList = [...enrichmentLivePaths];
-      await trx
-        .deleteFrom('node_enrichments')
-        .where('nodePath', 'not in', liveList)
-        .execute();
-    } else {
-      // No live nodes — drop everything.
-      await trx.deleteFrom('node_enrichments').execute();
-    }
-    // Step 3 — upsert fresh enrichments. Kysely's `onConflict` on a
-    // composite PK accepts a column list and a column-wise update set;
-    // we list every non-key column so the row fully refreshes.
-    if (enrichments.length > 0) {
-      for (const enrichment of enrichments) {
-        const row = enrichmentToRow(enrichment);
-        await trx
-          .insertInto('node_enrichments')
-          .values(row)
-          .onConflict((oc) =>
-            oc.columns(['nodePath', 'extractorId']).doUpdateSet({
-              bodyHashAtEnrichment: row.bodyHashAtEnrichment,
-              valueJson: row.valueJson,
-              stale: row.stale,
-              enrichedAt: row.enrichedAt,
-              isProbabilistic: row.isProbabilistic,
-            }),
-          )
-          .execute();
-      }
-    }
-    // Step 4 — flag stale prob rows. Build the set of (path, extractorId)
-    // pairs we just upserted so we don't re-flag rows the current scan
-    // already refreshed (a prob extractor invoked via `sm refresh` would
-    // upsert with the new body hash and stale=0).
-    const refreshedKeys = new Set<string>();
-    for (const e of enrichments) {
-      refreshedKeys.add(`${e.nodePath}\x00${e.extractorId}`);
-    }
-    // Live body hashes keyed by node path so the SQL stays simple — fetch
-    // every prob row, decide in JS, update the few that need it. Probs
-    // are sparse (one per LLM-extractor per node) so the back-and-forth
-    // is cheap at any practical project size.
-    const probRows = await trx
-      .selectFrom('node_enrichments')
-      .select(['nodePath', 'extractorId', 'bodyHashAtEnrichment', 'stale'])
-      .where('isProbabilistic', '=', 1)
-      .execute();
-    const liveBodyHashByPath = new Map<string, string>();
-    for (const node of result.nodes) liveBodyHashByPath.set(node.path, node.bodyHash);
-    for (const row of probRows) {
-      if (refreshedKeys.has(`${row.nodePath}\x00${row.extractorId}`)) continue;
-      const liveBody = liveBodyHashByPath.get(row.nodePath);
-      // No live body → row was already swept at step 1. Defensive guard.
-      if (liveBody === undefined) continue;
-      const shouldBeStale = liveBody !== row.bodyHashAtEnrichment;
-      const alreadyStale = row.stale === 1;
-      if (shouldBeStale && !alreadyStale) {
-        await trx
-          .updateTable('node_enrichments')
-          .set({ stale: 1 })
-          .where('nodePath', '=', row.nodePath)
-          .where('extractorId', '=', row.extractorId)
-          .execute();
-      }
-    }
+    await upsertEnrichmentLayer(trx, result, renameOps, enrichments);
+    await flagStaleProbabilisticEnrichments(trx, result, enrichments);
   });
 
   // Force the WAL into the main `.db` file so external read-only tools
@@ -253,6 +137,160 @@ export async function persistScanResult(
   return { renames };
 }
 
+/**
+ * Replace-all on the four `scan_*` tables — issues, links, nodes, meta
+ * — plus the fine-grained `scan_extractor_runs` cache. Order: deletes
+ * in a fixed sequence (no FKs across these tables today, so the order
+ * is just for stable query plans), then inserts. `scan_extractor_runs`
+ * is reset together so rows for extractors uninstalled since the last
+ * scan disappear automatically; the insert below carries forward only
+ * the pairs the orchestrator decided to keep (cached) or freshly ran.
+ */
+async function replaceAllScanZone(
+  trx: Transaction<IDatabase>,
+  result: ScanResult,
+  scannedAt: number,
+  extractorRuns: IExtractorRunRecord[],
+): Promise<void> {
+  await trx.deleteFrom('scan_issues').execute();
+  await trx.deleteFrom('scan_links').execute();
+  await trx.deleteFrom('scan_nodes').execute();
+  await trx.deleteFrom('scan_meta').execute();
+  await trx.deleteFrom('scan_extractor_runs').execute();
+
+  if (result.nodes.length > 0) {
+    await trx
+      .insertInto('scan_nodes')
+      .values(result.nodes.map((n) => nodeToRow(n, scannedAt)))
+      .execute();
+  }
+  if (result.links.length > 0) {
+    await trx
+      .insertInto('scan_links')
+      .values(result.links.map(linkToRow))
+      .execute();
+  }
+  if (result.issues.length > 0) {
+    await trx
+      .insertInto('scan_issues')
+      .values(result.issues.map(issueToRow))
+      .execute();
+  }
+  await trx.insertInto('scan_meta').values(metaToRow(result)).execute();
+  if (extractorRuns.length > 0) {
+    await trx
+      .insertInto('scan_extractor_runs')
+      .values(extractorRuns.map(extractorRunToRow))
+      .execute();
+  }
+}
+
+/**
+ * Steps 2 + 1 + 3 of the A.8 enrichment layer: migrate `node_path` for
+ * renames first (so step 1 doesn't delete what step 2 would have
+ * preserved), then drop enrichments whose node disappeared, then upsert
+ * the fresh enrichment records carried by this scan.
+ *
+ * Stale-flagging of probabilistic rows is deliberately a separate
+ * helper so this function stays focused on the pisar-the-row path.
+ */
+async function upsertEnrichmentLayer(
+  trx: Transaction<IDatabase>,
+  result: ScanResult,
+  renameOps: RenameOp[],
+  enrichments: IEnrichmentRecord[],
+): Promise<void> {
+  const enrichmentLivePaths = new Set(result.nodes.map((n) => n.path));
+
+  // Step 2 — migrate renames before step 1 would delete them.
+  for (const op of renameOps) {
+    await trx
+      .updateTable('node_enrichments')
+      .set({ nodePath: op.to })
+      .where('nodePath', '=', op.from)
+      .execute();
+  }
+
+  // Step 1 — drop enrichments whose node disappeared.
+  if (enrichmentLivePaths.size > 0) {
+    const liveList = [...enrichmentLivePaths];
+    await trx
+      .deleteFrom('node_enrichments')
+      .where('nodePath', 'not in', liveList)
+      .execute();
+  } else {
+    await trx.deleteFrom('node_enrichments').execute();
+  }
+
+  // Step 3 — upsert fresh enrichments. Composite-PK conflict refreshes
+  // every non-key column.
+  for (const enrichment of enrichments) {
+    const row = enrichmentToRow(enrichment);
+    await trx
+      .insertInto('node_enrichments')
+      .values(row)
+      .onConflict((oc) =>
+        oc.columns(['nodePath', 'extractorId']).doUpdateSet({
+          bodyHashAtEnrichment: row.bodyHashAtEnrichment,
+          valueJson: row.valueJson,
+          stale: row.stale,
+          enrichedAt: row.enrichedAt,
+          isProbabilistic: row.isProbabilistic,
+        }),
+      )
+      .execute();
+  }
+}
+
+/**
+ * Step 4 of the A.8 enrichment layer — flag every probabilistic row
+ * whose `body_hash_at_enrichment` no longer matches the live node body
+ * AND was NOT just upserted by `upsertEnrichmentLayer`. Deterministic
+ * rows are never stale-flagged (they regenerate via the A.9 cache on
+ * the next scan).
+ */
+async function flagStaleProbabilisticEnrichments(
+  trx: Transaction<IDatabase>,
+  result: ScanResult,
+  enrichments: IEnrichmentRecord[],
+): Promise<void> {
+  const refreshedKeys = new Set<string>();
+  for (const e of enrichments) {
+    refreshedKeys.add(`${e.nodePath}\x00${e.extractorId}`);
+  }
+
+  // Probs are sparse (one per LLM-extractor per node), so fetch all
+  // and decide in JS — cheap at any practical project size.
+  const probRows = await trx
+    .selectFrom('node_enrichments')
+    .select(['nodePath', 'extractorId', 'bodyHashAtEnrichment', 'stale'])
+    .where('isProbabilistic', '=', 1)
+    .execute();
+  const liveBodyHashByPath = new Map<string, string>();
+  for (const node of result.nodes) liveBodyHashByPath.set(node.path, node.bodyHash);
+
+  for (const row of probRows) {
+    if (refreshedKeys.has(`${row.nodePath}\x00${row.extractorId}`)) continue;
+    const liveBody = liveBodyHashByPath.get(row.nodePath);
+    // No live body → already swept by upsertEnrichmentLayer step 1.
+    if (liveBody === undefined) continue;
+    const shouldBeStale = liveBody !== row.bodyHashAtEnrichment;
+    const alreadyStale = row.stale === 1;
+    if (shouldBeStale && !alreadyStale) {
+      await trx
+        .updateTable('node_enrichments')
+        .set({ stale: 1 })
+        .where('nodePath', '=', row.nodePath)
+        .where('extractorId', '=', row.extractorId)
+        .execute();
+    }
+  }
+}
+
+// Pure column mapping: every `??` adds one to the cyclomatic count, so
+// the limit reads as 13 here despite there being zero branching logic.
+// Splitting would replace clarity with ceremony.
+// eslint-disable-next-line complexity
 function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
   return {
     path: node.path,
@@ -279,6 +317,8 @@ function nodeToRow(node: Node, scannedAt: number): Insertable<IScanNodesTable> {
   };
 }
 
+// Same rationale as `nodeToRow` — pure column mapping, no branches.
+// eslint-disable-next-line complexity
 function linkToRow(link: Link): Insertable<IScanLinksTable> {
   return {
     sourcePath: link.source,
