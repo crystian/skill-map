@@ -154,37 +154,8 @@ function renderMarkdown(subset: IExportSubset): string {
   );
   out.push('');
 
-  // Issues per node, indexed for the per-kind section. We only count
-  // here; full issue detail goes into its own section below.
-  const issuesPerNode = new Map<string, number>();
-  for (const issue of subset.issues) {
-    for (const id of issue.nodeIds) {
-      issuesPerNode.set(id, (issuesPerNode.get(id) ?? 0) + 1);
-    }
-  }
-
-  // Group nodes by kind for readability — same ordering as the ascii
-  // formatter so a md export looks familiar to anyone who's seen `sm graph`.
-  const byKind = new Map<NodeKind, Node[]>();
-  for (const node of subset.nodes) {
-    if (!byKind.has(node.kind)) byKind.set(node.kind, []);
-    byKind.get(node.kind)!.push(node);
-  }
-
-  for (const kind of KIND_ORDER) {
-    const group = byKind.get(kind);
-    if (!group || group.length === 0) continue;
-    const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
-    out.push(`## ${kind} (${sorted.length})`);
-    out.push('');
-    for (const node of sorted) {
-      const title = pickTitle(node);
-      const issueCount = issuesPerNode.get(node.path) ?? 0;
-      const issueSuffix = issueCount > 0 ? ` — ${issueCount} issue${issueCount === 1 ? '' : 's'}` : '';
-      out.push(`- \`${node.path}\`${title ? ` — "${title}"` : ''}${issueSuffix}`);
-    }
-    out.push('');
-  }
+  const issuesPerNode = countIssuesPerNode(subset.issues);
+  out.push(...renderNodesByKindSection(subset.nodes, issuesPerNode));
 
   if (subset.links.length > 0) {
     out.push(`## links (${subset.links.length})`);
@@ -210,6 +181,51 @@ function renderMarkdown(subset: IExportSubset): string {
   }
 
   return out.join('\n');
+}
+
+/** Index issues by node path so the per-kind renderer can show issue counts. */
+function countIssuesPerNode(issues: Issue[]): Map<string, number> {
+  const issuesPerNode = new Map<string, number>();
+  for (const issue of issues) {
+    for (const id of issue.nodeIds) {
+      issuesPerNode.set(id, (issuesPerNode.get(id) ?? 0) + 1);
+    }
+  }
+  return issuesPerNode;
+}
+
+/**
+ * Render the nodes-by-kind sections of the markdown export. Groups
+ * nodes per kind in `KIND_ORDER`, sorts each group by path, and emits
+ * `## <kind> (N)` headers followed by `- \`<path>\` — "<title>" — N
+ * issues` bullets.
+ */
+function renderNodesByKindSection(
+  nodes: Node[],
+  issuesPerNode: Map<string, number>,
+): string[] {
+  const byKind = new Map<NodeKind, Node[]>();
+  for (const node of nodes) {
+    if (!byKind.has(node.kind)) byKind.set(node.kind, []);
+    byKind.get(node.kind)!.push(node);
+  }
+
+  const lines: string[] = [];
+  for (const kind of KIND_ORDER) {
+    const group = byKind.get(kind);
+    if (!group || group.length === 0) continue;
+    const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
+    lines.push(`## ${kind} (${sorted.length})`);
+    lines.push('');
+    for (const node of sorted) {
+      const title = pickTitle(node);
+      const issueCount = issuesPerNode.get(node.path) ?? 0;
+      const issueSuffix = issueCount > 0 ? ` — ${issueCount} issue${issueCount === 1 ? '' : 's'}` : '';
+      lines.push(`- \`${node.path}\`${title ? ` — "${title}"` : ''}${issueSuffix}`);
+    }
+    lines.push('');
+  }
+  return lines;
 }
 
 function pickTitle(node: Node): string | null {
