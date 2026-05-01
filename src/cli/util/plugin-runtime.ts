@@ -323,6 +323,11 @@ export function composeScanExtensions(opts: {
  * Formatters are consumed by `composeFormatters`, not scan, so they
  * are skipped here even if the bundle ships them.
  */
+// Discriminated-union dispatcher — one branch per `ext.kind` plus the
+// disabled-guard up front. Cyclomatic count comes from the six-kind
+// switch + the per-bundle iteration; splitting per kind would scatter
+// the dispatch table without making the algorithm clearer.
+// eslint-disable-next-line complexity
 function accumulateBuiltInScanExtensions(
   buckets: { providers: IProvider[]; extractors: IExtractor[]; rules: IRule[]; hooks: IHook[] },
   resolveEnabled: (id: string) => boolean,
@@ -343,8 +348,17 @@ function accumulateBuiltInScanExtensions(
         case 'hook':
           buckets.hooks.push(ext);
           break;
-        default:
+        case 'action':
+          // Actions dispatch via the job subsystem (Step 10), not the
+          // scan pipeline. Skip here; their manifests still register.
           break;
+        case 'formatter':
+          // Formatters are consumed by `composeFormatters`, not scan.
+          break;
+        default: {
+          const _exhaustive: never = ext;
+          throw new Error(`Unhandled built-in extension kind: ${String((_exhaustive as { kind?: string }).kind)}`);
+        }
       }
     }
   }
@@ -471,6 +485,10 @@ function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle):
         // so we don't bucket them here. Their manifests still surface
         // through the Registry below for `sm actions list`.
         break;
+      default: {
+        const _exhaustive: never = ext.kind;
+        throw new Error(`Unhandled loaded extension kind: ${String(_exhaustive)}`);
+      }
     }
     bundle.manifests.push({
       id: ext.id,

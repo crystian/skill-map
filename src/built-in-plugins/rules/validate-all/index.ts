@@ -23,26 +23,10 @@
  */
 
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
-import type { Issue, Link, Node, NodeKind } from '../../../kernel/types.js';
-import { loadSchemaValidators, type ISchemaValidators, type TSchemaName } from '../../../kernel/adapters/schema-validators.js';
+import type { Issue, Link, Node } from '../../../kernel/types.js';
+import { loadSchemaValidators, type ISchemaValidators } from '../../../kernel/adapters/schema-validators.js';
 
 const ID = 'validate-all';
-
-const FRONTMATTER_BY_KIND: Record<NodeKind, TSchemaName | null> = {
-  // Frontmatter schemas ship under frontmatter/<kind>.schema.json but
-  // they are not top-level (they're referenced from node.schema.json).
-  // The schema-validators loader pre-registers them as supporting
-  // schemas, so AJV resolves $refs — but the loader doesn't expose them
-  // as stand-alone named validators. We validate against `node` for the
-  // body of the node record; the per-kind frontmatter schema is reached
-  // transitively. Keeping this map in place so the wire for per-kind
-  // strictness lands cleanly when the loader surfaces frontmatter keys.
-  skill: null,
-  agent: null,
-  command: null,
-  hook: null,
-  note: null,
-};
 
 export const validateAllRule: IRule = {
   id: ID,
@@ -78,9 +62,6 @@ function collectNodeFindings(v: ISchemaValidators, node: Node, out: Issue[]): vo
     message: `Node ${node.path} failed schema validation: ${result.errors}`,
     data: { target: 'node', path: node.path },
   });
-  // Suppress-unused warning. The per-kind routing lands when the
-  // validators expose frontmatter schemas as top-level names.
-  void FRONTMATTER_BY_KIND;
 }
 
 function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): void {

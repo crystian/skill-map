@@ -15,6 +15,13 @@
 export const CHECK_TEXTS = {
   noIssues: 'No issues.\n',
 
+  /**
+   * One row of the grouped issue listing. Severity / ruleId / message /
+   * comma-separated nodeIds compose the line used by `sm check` pretty
+   * output.
+   */
+  issueRow: '[{{severity}}] {{ruleId}}: {{message}} — {{nodeIds}}',
+
   // --- prob stub advisory ---------------------------------------------------
   probStubAdvisory:
     'sm check --include-prob: probabilistic Rule dispatch requires the job ' +

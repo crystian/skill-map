@@ -17,10 +17,12 @@
 
 import { Command, Option } from 'clipanion';
 
-import type { IMigrateNodeFksReport } from '../../kernel/adapters/sqlite/history.js';
-import type { StoragePort } from '../../kernel/ports/storage.js';
-import type { ITransactionalStorage } from '../../kernel/ports/storage.js';
-import type { IIssueRow } from '../../kernel/types/storage.js';
+import type {
+  IIssueRow,
+  IMigrateNodeFksReport,
+  ITransactionalStorage,
+  StoragePort,
+} from '../../kernel/ports/storage.js';
 import type { Issue } from '../../kernel/types.js';
 import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
@@ -481,10 +483,16 @@ function summaryTotal(s: IMigrateNodeFksReport): number {
 
 function renderOrphans(issues: Issue[]): string {
   const lines: string[] = [];
-  lines.push('Active orphan / auto-rename issues:');
+  lines.push(ORPHANS_TEXTS.activeIssuesHeader);
   for (const issue of issues) {
-    const subject = issue.nodeIds[0] ?? '(no node)';
-    lines.push(`  [${issue.ruleId}] ${subject} — ${issue.message}`);
+    const subject = issue.nodeIds[0] ?? ORPHANS_TEXTS.noNodePlaceholder;
+    lines.push(
+      tx(ORPHANS_TEXTS.activeIssueRow, {
+        ruleId: issue.ruleId,
+        subject,
+        message: issue.message,
+      }),
+    );
   }
   lines.push('');
   return lines.join('\n');

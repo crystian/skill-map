@@ -46,18 +46,14 @@ import type { Kysely } from 'kysely';
 
 import type { IPersistedEnrichment } from '../../orchestrator.js';
 import type {
-  Confidence,
   Issue,
   IssueFix,
   Link,
-  LinkKind,
   LinkLocation,
   LinkTrigger,
   Node,
   ScanResult,
   ScanScannedBy,
-  Severity,
-  Stability,
   TripleSplit,
 } from '../../types.js';
 import type {
@@ -69,6 +65,13 @@ import type {
   TScanScope,
 } from './schema.js';
 import type { Selectable } from 'kysely';
+import {
+  isStability,
+  parseConfidence,
+  parseLinkKind,
+  parseSeverity,
+  parseStability,
+} from '../../util/enum-parsers.js';
 
 export async function loadScanResult(
   db: Kysely<IDatabase>,
@@ -150,6 +153,11 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     body: row.bytesBody,
     total: row.bytesTotal,
   };
+  const stability = row.stability === null
+    ? null
+    : isStability(row.stability)
+      ? row.stability
+      : parseStability(row.stability, `scan_nodes.path=${row.path}.stability`);
   const node: Node = {
     path: row.path,
     kind: row.kind,
@@ -162,7 +170,7 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
     externalRefsCount: row.externalRefsCount,
     title: row.title,
     description: row.description,
-    stability: (row.stability as Stability | null) ?? null,
+    stability,
     version: row.version,
     author: row.author,
     frontmatter: parseJsonObject(row.frontmatterJson),
@@ -186,11 +194,12 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
  * read-side reuse (`sm show` lists in/out edges).
  */
 export function rowToLink(row: Selectable<IScanLinksTable>): Link {
+  const ctx = `scan_links source=${row.sourcePath} target=${row.targetPath}`;
   const link: Link = {
     source: row.sourcePath,
     target: row.targetPath,
-    kind: row.kind as LinkKind,
-    confidence: row.confidence as Confidence,
+    kind: parseLinkKind(row.kind, `${ctx}.kind`),
+    confidence: parseConfidence(row.confidence, `${ctx}.confidence`),
     sources: parseJsonArray<string>(row.sourcesJson),
   };
   if (row.originalTrigger !== null && row.normalizedTrigger !== null) {
@@ -217,7 +226,7 @@ export function rowToLink(row: Selectable<IScanLinksTable>): Link {
 export function rowToIssue(row: Selectable<IScanIssuesTable>): Issue {
   const issue: Issue = {
     ruleId: row.ruleId,
-    severity: row.severity as Severity,
+    severity: parseSeverity(row.severity, `scan_issues ruleId=${row.ruleId}.severity`),
     nodeIds: parseJsonArray<string>(row.nodeIdsJson),
     message: row.message,
   };

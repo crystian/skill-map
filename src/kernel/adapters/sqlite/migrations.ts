@@ -18,37 +18,23 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
+import type {
+  IApplyOptions,
+  IApplyResult,
+  IMigrationFile,
+  IMigrationPlan,
+  IMigrationRecord,
+} from '../../types/storage.js';
+
+export type {
+  IApplyOptions,
+  IApplyResult,
+  IMigrationFile,
+  IMigrationPlan,
+  IMigrationRecord,
+} from '../../types/storage.js';
+
 const FILE_RE = /^(\d{3})_([a-z0-9_]+)\.sql$/;
-
-export interface IMigrationFile {
-  version: number;
-  description: string;
-  filePath: string;
-}
-
-export interface IMigrationRecord {
-  scope: string;
-  ownerId: string;
-  version: number;
-  description: string;
-  appliedAt: number;
-}
-
-export interface IMigrationPlan {
-  applied: IMigrationRecord[];
-  pending: IMigrationFile[];
-}
-
-export interface IApplyOptions {
-  backup?: boolean;
-  dryRun?: boolean;
-  to?: number;
-}
-
-export interface IApplyResult {
-  applied: IMigrationFile[];
-  backupPath: string | null;
-}
 
 /**
  * Default migrations directory — resolves the bundled `migrations/` folder

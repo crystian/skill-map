@@ -11,15 +11,11 @@
 import type { Kysely, Transaction } from 'kysely';
 
 import type { IDatabase } from './schema.js';
+import type { IPluginConfigRow } from '../../types/storage.js';
+
+export type { IPluginConfigRow } from '../../types/storage.js';
 
 type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
-
-export interface IPluginConfigRow {
-  pluginId: string;
-  enabled: boolean;
-  configJson: string | null;
-  updatedAt: number;
-}
 
 /**
  * Upsert a single `config_plugins` row. `now` defaults to `Date.now()`

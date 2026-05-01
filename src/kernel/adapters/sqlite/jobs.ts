@@ -1,19 +1,22 @@
 /**
  * Storage helpers for `state_jobs` retention GC. Powers `sm job prune`.
  *
- * Two operations:
+ * Two operations, both DB-only — the storage layer never touches the
+ * filesystem (kept portable across runner backends; the FS walk that
+ * pairs with `selectReferencedJobFilePaths` lives in
+ * `kernel/jobs/orphan-files.ts`):
  *
  *   1. **Retention GC** — delete `state_jobs` rows whose `status` is
  *      terminal (`completed` or `failed`) and whose `finishedAt` is
  *      older than the supplied cutoff. The matching MD job files in
  *      `.skill-map/jobs/` are deleted by the CLI command using the
- *      `filePath` returned by this helper. We do NOT touch the FS
- *      from the storage layer — the helper stays portable across
- *      runner backends.
+ *      `filePath` returned by this helper.
  *
- *   2. **Orphan file detection** — list MD files in `.skill-map/jobs/`
- *      whose `filePath` is not referenced by any `state_jobs` row.
- *      `sm job prune --orphan-files` deletes them.
+ *   2. **Referenced job-file paths** — return every `state_jobs.filePath`
+ *      that points at a real MD file, normalized through `resolve()`.
+ *      The CLI's `sm job prune --orphan-files` flow combines this set
+ *      with a directory walk (`findOrphanJobFiles`) to compute the
+ *      MD files on disk that no row references.
  *
  * Per `spec/job-lifecycle.md` §Retention and GC, this MUST NOT run
  * implicitly during normal verb execution. The helpers themselves are
@@ -25,21 +28,16 @@
  * still work after a job's audit trail in `state_jobs` is gone.
  */
 
-import { readdirSync, statSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import type { Kysely, Transaction } from 'kysely';
 
 import type { IDatabase, TJobStatus } from './schema.js';
+import type { IPruneResult } from '../../types/storage.js';
+
+export type { IPruneResult } from '../../types/storage.js';
 
 type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
-
-export interface IPruneResult {
-  /** How many `state_jobs` rows were deleted. */
-  deletedCount: number;
-  /** Job-file paths from the deleted rows; the CLI unlinks these from disk. `null` `filePath` rows contribute nothing here. */
-  filePaths: string[];
-}
 
 /**
  * Delete `state_jobs` rows in terminal `status` whose `finishedAt` is
@@ -86,55 +84,24 @@ export async function pruneTerminalJobs(
   return { deletedCount: rows.length, filePaths };
 }
 
-export interface IOrphanFilesResult {
-  /** Absolute paths of MD files in `jobsDir` that have no matching DB row. */
-  orphanFilePaths: string[];
-  /** All `state_jobs.filePath` values currently referenced (absolute paths). Useful for the JSON output. */
-  referencedCount: number;
-}
-
 /**
- * Enumerate MD files in `jobsDir` and return the ones that no
- * `state_jobs.filePath` references. The walk is shallow — job files
- * live directly under `.skill-map/jobs/` per the lifecycle spec, no
- * subdirectories. Symlinks are NOT followed.
- *
- * If `jobsDir` does not exist or is not a directory, returns an empty
- * result instead of throwing — `sm job prune --orphan-files` on a
- * fresh scope (no jobs ever submitted) is a valid no-op.
+ * Read every `state_jobs.filePath` currently set, normalized through
+ * `resolve()`. The CLI pairs this set with `findOrphanJobFiles` (in
+ * `kernel/jobs/orphan-files.ts`) to compute the MD files on disk that
+ * no row references — the storage layer stays FS-free so a future
+ * Postgres / in-memory adapter inherits no `node:fs` dependency.
  */
-export async function listOrphanJobFiles(
+export async function selectReferencedJobFilePaths(
   db: DbOrTx,
-  jobsDir: string,
-): Promise<IOrphanFilesResult> {
-  const referencedPaths = new Set<string>();
+): Promise<Set<string>> {
   const rows = await db
     .selectFrom('state_jobs')
     .select(['filePath'])
     .where('filePath', 'is not', null)
     .execute();
+  const out = new Set<string>();
   for (const row of rows) {
-    if (row.filePath !== null) referencedPaths.add(resolve(row.filePath));
+    if (row.filePath !== null) out.add(resolve(row.filePath));
   }
-
-  let entries: string[];
-  try {
-    const stat = statSync(jobsDir);
-    if (!stat.isDirectory()) {
-      return { orphanFilePaths: [], referencedCount: referencedPaths.size };
-    }
-    entries = readdirSync(jobsDir);
-  } catch {
-    // ENOENT / permission errors → no orphans we can see.
-    return { orphanFilePaths: [], referencedCount: referencedPaths.size };
-  }
-
-  const orphans: string[] = [];
-  for (const name of entries) {
-    if (!name.endsWith('.md')) continue;
-    const abs = resolve(join(jobsDir, name));
-    if (!referencedPaths.has(abs)) orphans.push(abs);
-  }
-  orphans.sort();
-  return { orphanFilePaths: orphans, referencedCount: referencedPaths.size };
+  return out;
 }

@@ -65,4 +65,12 @@ export const ORPHANS_TEXTS = {
   // --- shared ------------------------------------------------------------
   invalidKind:
     '--kind: invalid value "{{kind}}". Allowed: orphan, medium, ambiguous.\n',
+
+  // --- renderOrphans (pretty listing) ------------------------------------
+  /** Header line for the active orphan / auto-rename issues block. */
+  activeIssuesHeader: 'Active orphan / auto-rename issues:',
+  /** One row per issue. `{{subject}}` is the first nodeId (or the no-node placeholder). */
+  activeIssueRow: '  [{{ruleId}}] {{subject}} — {{message}}',
+  /** Placeholder used when an issue has no associated node id. */
+  noNodePlaceholder: '(no node)',
 } as const;

@@ -35,6 +35,7 @@ import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
 
 import type { IProvider } from '../extensions/index.js';
+import type { ExtensionKind } from '../registry.js';
 
 // ajv-formats ships CJS-first; the default export is the callable plugin
 // under ESM interop but TS sometimes types it as the namespace. Normalise.
@@ -63,7 +64,13 @@ export type TSchemaName =
   | 'extension-hook'
   | 'frontmatter-base';
 
-export type TExtensionKind = 'provider' | 'extractor' | 'rule' | 'action' | 'formatter' | 'hook';
+/**
+ * Re-export of `ExtensionKind` (canonical declaration in `kernel/registry.ts`)
+ * for callers that already depend on this module for related schema names.
+ * Single source of truth keeps the extension-kind set in lock-step with
+ * `EXTENSION_KINDS`.
+ */
+export type { ExtensionKind } from '../registry.js';
 
 const SCHEMA_FILES: Record<TSchemaName, string> = {
   node: 'schemas/node.schema.json',
@@ -96,7 +103,7 @@ const SUPPORTING_SCHEMAS: string[] = [
 export interface ISchemaValidators {
   validate<T = unknown>(name: TSchemaName, data: unknown): { ok: true; data: T } | { ok: false; errors: string };
   getValidator(name: TSchemaName): ValidateFunction;
-  validatorForExtension(kind: TExtensionKind): ValidateFunction;
+  validatorForExtension(kind: ExtensionKind): ValidateFunction;
   /**
    * Validate raw plugin.json against `$defs/PluginManifest` inside
    * plugins-registry.schema.json. Returns the typed manifest on success.
@@ -150,7 +157,7 @@ function buildSchemaValidators(): ISchemaValidators {
     validators.set(name, byId ?? ajv.compile(schema));
   }
 
-  const extensionByKind: Record<TExtensionKind, TSchemaName> = {
+  const extensionByKind: Record<ExtensionKind, TSchemaName> = {
     provider: 'extension-provider',
     extractor: 'extension-extractor',
     rule: 'extension-rule',

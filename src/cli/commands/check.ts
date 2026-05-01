@@ -258,7 +258,12 @@ function renderHuman(issues: Issue[]): string {
     const bucket = grouped.get(sev) ?? [];
     for (const issue of bucket) {
       lines.push(
-        `[${issue.severity}] ${issue.ruleId}: ${issue.message} — ${issue.nodeIds.join(', ')}`,
+        tx(CHECK_TEXTS.issueRow, {
+          severity: issue.severity,
+          ruleId: issue.ruleId,
+          message: issue.message,
+          nodeIds: issue.nodeIds.join(', '),
+        }),
       );
     }
   }

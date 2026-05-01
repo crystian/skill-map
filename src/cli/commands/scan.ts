@@ -196,7 +196,8 @@ export class ScanCommand extends Command {
     }
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
-    const dbPath = resolve(process.cwd(), DEFAULT_PROJECT_DB);
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolve(ctx.cwd, DEFAULT_PROJECT_DB);
 
     // --- config + ignore filter (no DB needed) -----------------------------
     // Loaded BEFORE we touch SQLite so a malformed config fails fast
@@ -209,13 +210,13 @@ export class ScanCommand extends Command {
     // emitting a `frontmatter-invalid` issue trips exit 1).
     let cfg;
     try {
-      cfg = loadConfig({ scope: 'project', strict: this.strict, ...defaultRuntimeContext() }).effective;
+      cfg = loadConfig({ scope: 'project', strict: this.strict, ...ctx }).effective;
     } catch (err) {
       const message = formatErrorMessage(err);
       this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
       return ExitCode.Error;
     }
-    const ignoreFileText = readIgnoreFileText(process.cwd());
+    const ignoreFileText = readIgnoreFileText(ctx.cwd);
     const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
     if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
     if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;

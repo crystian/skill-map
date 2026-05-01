@@ -32,36 +32,27 @@ import type {
   IExtractorRunRecord,
   IPersistedEnrichment,
 } from '../orchestrator.js';
-import type {
-  IHistoryStatsRange,
-  IListExecutionsFilter,
-  IMigrateNodeFksReport,
-  THistoryStatsPeriod,
-} from '../adapters/sqlite/history.js';
-import type {
-  IOrphanFilesResult,
-  IPruneResult,
-} from '../adapters/sqlite/jobs.js';
-import type { IPluginConfigRow } from '../adapters/sqlite/plugins.js';
+import type { IDiscoveredPlugin } from './plugin-loader.js';
 import type {
   IApplyOptions,
   IApplyResult,
+  IHistoryStatsRange,
+  IIssueRow,
+  IListExecutionsFilter,
+  IMigrateNodeFksReport,
   IMigrationFile,
   IMigrationPlan,
-} from '../adapters/sqlite/migrations.js';
-import type {
-  IPluginApplyOptions,
-  IPluginApplyResult,
-  IPluginMigrationFile,
-  IPluginMigrationPlan,
-} from '../adapters/sqlite/plugin-migrations.js';
-import type { IDiscoveredPlugin } from './plugin-loader.js';
-import type {
-  IIssueRow,
   INodeBundle,
   INodeCounts,
   INodeFilter,
   IPersistOptions,
+  IPluginApplyOptions,
+  IPluginApplyResult,
+  IPluginConfigRow,
+  IPluginMigrationFile,
+  IPluginMigrationPlan,
+  IPruneResult,
+  THistoryStatsPeriod,
 } from '../types/storage.js';
 
 /**
@@ -212,12 +203,13 @@ export interface StoragePort {
       cutoffMs: number,
     ): Promise<IPruneResult>;
     /**
-     * Enumerate MD files in `jobsDir` whose path no `state_jobs` row
-     * references. `sm job prune --orphan-files` consumes this. The
-     * walk is shallow (job files live directly under `.skill-map/
-     * jobs/`); symlinks are NOT followed.
+     * Read every `state_jobs.filePath` currently set, normalized through
+     * `path.resolve()`. The CLI's `sm job prune --orphan-files` flow
+     * pairs this set with `kernel/jobs/orphan-files.ts:findOrphanJobFiles`
+     * (which walks the directory) to compute the MD files on disk that
+     * no row references — keeps the storage layer FS-free.
      */
-    listOrphanFiles(jobsDir: string): Promise<IOrphanFilesResult>;
+    listReferencedFilePaths(): Promise<Set<string>>;
   };
 
   // --- history namespace -------------------------------------------------
@@ -302,9 +294,25 @@ export interface StoragePort {
 }
 
 export type {
+  IApplyOptions,
+  IApplyResult,
+  IHistoryStatsRange,
   IIssueRow,
+  IListExecutionsFilter,
+  IMigrateNodeFksReport,
+  IMigrationFile,
+  IMigrationPlan,
+  IMigrationRecord,
   INodeBundle,
   INodeCounts,
   INodeFilter,
   IPersistOptions,
+  IPluginApplyOptions,
+  IPluginApplyResult,
+  IPluginConfigRow,
+  IPluginMigrationFile,
+  IPluginMigrationPlan,
+  IPluginMigrationRecord,
+  IPruneResult,
+  THistoryStatsPeriod,
 } from '../types/storage.js';

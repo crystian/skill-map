@@ -39,6 +39,7 @@
  */
 
 import type {
+  IAction,
   IProvider,
   IExtractor,
   IFormatter,
@@ -63,6 +64,13 @@ export interface IBuiltIns {
   providers: IProvider[];
   extractors: IExtractor[];
   rules: IRule[];
+  /**
+   * Built-in actions. Empty until the job subsystem ships (Decision
+   * #114 — `IAction` is manifest-only today, runtime invocation is
+   * deferred). Carried as a typed field so the bucketing covers all
+   * six kinds without conditional checks at call sites.
+   */
+  actions: IAction[];
   formatters: IFormatter[];
   /**
    * Hooks bundled with the reference impl. Empty in this bump (A.11
@@ -78,9 +86,11 @@ export interface IBuiltIns {
  * Concrete runtime instance of any extension kind a built-in can carry.
  * Mirrors what the orchestrator actually invokes (`walk` / `extract` /
  * `evaluate` / `format` / `on`); composed into the `IBuiltIns` buckets
- * by `builtIns()`.
+ * by `builtIns()`. `IAction` is manifest-only today (runtime entry
+ * point lands with the job subsystem); kept in the union so the
+ * bucketing is structurally exhaustive.
  */
-export type TBuiltInExtension = IProvider | IExtractor | IRule | IFormatter | IHook;
+export type TBuiltInExtension = IProvider | IExtractor | IRule | IAction | IFormatter | IHook;
 
 /**
  * One bundle of built-in extensions. The bundle's `id` is the plugin id
@@ -141,6 +151,7 @@ export function builtIns(): IBuiltIns {
     providers: [],
     extractors: [],
     rules: [],
+    actions: [],
     formatters: [],
     hooks: [],
   };
@@ -180,12 +191,23 @@ function bucketBuiltIn(ext: TBuiltInExtension, out: IBuiltIns): void {
     case 'rule':
       out.rules.push(ext);
       break;
+    case 'action':
+      out.actions.push(ext);
+      break;
     case 'formatter':
       out.formatters.push(ext);
       break;
     case 'hook':
       out.hooks.push(ext);
       break;
+    default: {
+      // Exhaustive guard: a new extension kind added to `TBuiltInExtension`
+      // must extend this switch. The `_exhaustive: never` binding triggers
+      // a compile error if the discriminant is not exhausted; the runtime
+      // throw is defensive in case TS is silenced via `as never`.
+      const _exhaustive: never = ext;
+      throw new Error(`Unhandled built-in extension kind: ${String((_exhaustive as { kind?: string }).kind)}`);
+    }
   }
 }
 

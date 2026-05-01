@@ -18,6 +18,19 @@ export const SHOW_TEXTS = {
   issuesHeader: 'Issues ({{count}}):',
   issueRow: '  - [{{severity}}] {{ruleId}}: {{message}}',
 
+  // --- formatGroupedLink ------------------------------------------------
+  /**
+   * Bullet line for one grouped link in the in/out lists. `{{kind}}` and
+   * `{{endpoint}}` are pre-sanitized by the caller; `{{dup}}` is the
+   * `(×N)` count when the row collapses multiple identical edges, empty
+   * otherwise; `{{sources}}` is the trailing `  sources: a, b` segment
+   * (empty when the link has no sources).
+   */
+  groupedLinkHead:
+    '  - [{{kind}}/{{confidence}}] {{arrow}} {{endpoint}}{{dup}}{{sources}}',
+  groupedLinkDup: ' (×{{count}})',
+  groupedLinkSources: '  sources: {{values}}',
+
   // --- renderNodeHeader labels ------------------------------------------
   nodeIdentity: '{{path}} [{{kind}}] (provider: {{provider}})',
   nodeFieldTitle: 'title:        {{value}}',

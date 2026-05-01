@@ -51,6 +51,8 @@ import type {
   IPersistOptions,
 } from '../../types/storage.js';
 import type { Issue, Node, ScanResult } from '../../types.js';
+import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
+import { tx } from '../../util/tx.js';
 import { NodeSqliteDialect } from './dialect.js';
 import {
   aggregateHistoryStats,
@@ -62,7 +64,7 @@ import type {
   IListExecutionsFilter,
   THistoryStatsPeriod,
 } from './history.js';
-import { listOrphanJobFiles, pruneTerminalJobs } from './jobs.js';
+import { pruneTerminalJobs, selectReferencedJobFilePaths } from './jobs.js';
 import {
   applyMigrations,
   discoverMigrations,
@@ -268,7 +270,7 @@ export class SqliteStorageAdapter implements StoragePort {
         pruneTerminalJobs(this.db, status, cutoffMs),
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
-      listOrphanFiles: (jobsDir) => listOrphanJobFiles(this.db, jobsDir),
+      listReferencedFilePaths: () => selectReferencedJobFilePaths(this.db),
     };
 
     this.pluginConfig = {
@@ -371,7 +373,10 @@ function resolveSortAndLimit(filter: INodeFilter): {
   if (filter.sortBy !== undefined) {
     if (!SORT_BY_COLUMNS.has(filter.sortBy)) {
       throw new Error(
-        `findNodes: invalid sortBy "${filter.sortBy}". Allowed: ${[...SORT_BY_COLUMNS].join(', ')}.`,
+        tx(STORAGE_TEXTS.findNodesInvalidSortBy, {
+          sortBy: filter.sortBy,
+          allowed: [...SORT_BY_COLUMNS].join(', '),
+        }),
       );
     }
     sortBy = filter.sortBy;
@@ -382,7 +387,7 @@ function resolveSortAndLimit(filter: INodeFilter): {
   if (filter.limit !== undefined) {
     if (!Number.isInteger(filter.limit) || filter.limit <= 0) {
       throw new Error(
-        `findNodes: invalid limit ${filter.limit}; expected positive integer.`,
+        tx(STORAGE_TEXTS.findNodesInvalidLimit, { value: filter.limit }),
       );
     }
     limit = filter.limit;

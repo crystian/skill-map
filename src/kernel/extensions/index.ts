@@ -1,8 +1,14 @@
 /**
- * Runtime contracts for the six extension kinds. Each module below declares
+ * Runtime contracts for the six extension kinds: `IProvider`, `IExtractor`,
+ * `IRule`, `IAction`, `IFormatter`, `IHook`. Each module below declares
  * (a) the manifest shape — structurally mirrors the corresponding schema in
  * `@skill-map/spec/schemas/extensions/` — and (b) the runtime method(s) the
  * kernel calls on an instance of the extension.
+ *
+ * `IAction` is manifest-only at present; the runtime invocation surface
+ * (deterministic in-process call vs probabilistic runner dispatch) lands
+ * with the job subsystem. See `kernel/extensions/action.ts` for the
+ * detailed deferral note.
  *
  * A plugin's default export IS the runtime instance: an extractor exports
  * `{ ...manifest, extract: (ctx) => void }`, not a class. This keeps ESM
@@ -19,6 +25,7 @@
 export type { IProvider, IRawNode } from './provider.js';
 export type { IExtractor, IExtractorContext, IExtractorCallbacks } from './extractor.js';
 export type { IRule, IRuleContext } from './rule.js';
+export type { IAction, IActionPrecondition } from './action.js';
 export type { IFormatter, IFormatterContext } from './formatter.js';
 export type { IHook, IHookContext, THookTrigger, THookFilter } from './hook.js';
 export { HOOK_TRIGGERS } from './hook.js';

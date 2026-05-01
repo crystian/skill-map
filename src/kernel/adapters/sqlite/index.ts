@@ -18,28 +18,15 @@ export function createSqliteStorage(options: ISqliteStorageAdapterOptions): Stor
   return new SqliteStorageAdapter(options);
 }
 
-export type {
-  IDatabase,
-  IScanNodesTable,
-  IScanLinksTable,
-  IScanIssuesTable,
-  IStateJobsTable,
-  IStateExecutionsTable,
-  IStateSummariesTable,
-  IStateEnrichmentsTable,
-  IStatePluginKvsTable,
-  IConfigPluginsTable,
-  IConfigPreferencesTable,
-  IConfigSchemaVersionsTable,
-  TNodeKind,
-  TStability,
-  TLinkKind,
-  TConfidence,
-  TIssueSeverity,
-  TJobStatus,
-  TJobFailureReason,
-  TJobRunner,
-  TExecutionKind,
-  TExecutionStatus,
-  TSchemaVersionScope,
-} from './schema.js';
+/**
+ * Adapter-internal Kysely schema types. Re-exported here only for
+ * test scaffolding that asserts against raw rows / pragma values
+ * (`src/test/storage.test.ts`). CLI consumers MUST go through the
+ * `StoragePort` shape — reaching for these is a boundary leak. Tests
+ * keep the explicit exception per `AGENTS.md` § Kernel boundaries.
+ *
+ * Per-table interfaces and the column unions ship from `./schema.ts`
+ * directly; test files that need more than `IDatabase` import them
+ * from the schema module.
+ */
+export type { IDatabase } from './schema.js';

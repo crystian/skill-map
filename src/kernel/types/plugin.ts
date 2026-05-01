@@ -11,9 +11,9 @@
  * this scale (17 schemas) and flagged in the roadmap.
  */
 
-import type { TExtensionKind } from '../adapters/schema-validators.js';
+import type { ExtensionKind } from '../registry.js';
 
-export type { TExtensionKind } from '../adapters/schema-validators.js';
+export type { ExtensionKind } from '../registry.js';
 
 /**
  * Plugin storage mode. Matches the `oneOf` in the plugin manifest schema:
@@ -120,7 +120,7 @@ export type TPluginLoadStatus =
   | 'id-collision';
 
 export interface ILoadedExtension {
-  kind: TExtensionKind;
+  kind: ExtensionKind;
   id: string;
   /**
    * Owning plugin namespace — `manifest.id` of the `plugin.json` that

@@ -157,11 +157,19 @@ function serialiseSubset(subset: IExportSubset): {
 
 function renderMarkdown(subset: IExportSubset): string {
   const out: string[] = [];
-  out.push(`# skill-map export`);
+  out.push(EXPORT_TEXTS.mdTitle);
   out.push('');
-  out.push(`Query: \`${subset.query.raw || '(empty — all nodes)'}\``);
   out.push(
-    `Counts: ${subset.nodes.length} nodes, ${subset.links.length} links, ${subset.issues.length} issues.`,
+    tx(EXPORT_TEXTS.mdQueryLine, {
+      query: subset.query.raw || EXPORT_TEXTS.mdQueryEmpty,
+    }),
+  );
+  out.push(
+    tx(EXPORT_TEXTS.mdCounts, {
+      nodes: subset.nodes.length,
+      links: subset.links.length,
+      issues: subset.issues.length,
+    }),
   );
   out.push('');
 
@@ -169,7 +177,7 @@ function renderMarkdown(subset: IExportSubset): string {
   out.push(...renderNodesByKindSection(subset.nodes, issuesPerNode));
 
   if (subset.links.length > 0) {
-    out.push(`## links (${subset.links.length})`);
+    out.push(tx(EXPORT_TEXTS.mdLinksSectionHeader, { count: subset.links.length }));
     out.push('');
     const sorted = [...subset.links].sort((a, b) => {
       const aKey = `${a.source}\x00${a.kind}\x00${a.target}`;
@@ -177,16 +185,29 @@ function renderMarkdown(subset: IExportSubset): string {
       return aKey.localeCompare(bKey);
     });
     for (const link of sorted) {
-      out.push(`- \`${sanitizeForTerminal(link.source)}\` --${sanitizeForTerminal(link.kind)}--> \`${sanitizeForTerminal(link.target)}\` _[${link.confidence}]_`);
+      out.push(
+        tx(EXPORT_TEXTS.mdLinkBullet, {
+          source: sanitizeForTerminal(link.source),
+          kind: sanitizeForTerminal(link.kind),
+          target: sanitizeForTerminal(link.target),
+          confidence: link.confidence,
+        }),
+      );
     }
     out.push('');
   }
 
   if (subset.issues.length > 0) {
-    out.push(`## issues (${subset.issues.length})`);
+    out.push(tx(EXPORT_TEXTS.mdIssuesSectionHeader, { count: subset.issues.length }));
     out.push('');
     for (const issue of subset.issues) {
-      out.push(`- **[${issue.severity}]** \`${sanitizeForTerminal(issue.ruleId)}\`: ${sanitizeForTerminal(issue.message)}`);
+      out.push(
+        tx(EXPORT_TEXTS.mdIssueBullet, {
+          severity: issue.severity,
+          ruleId: sanitizeForTerminal(issue.ruleId),
+          message: sanitizeForTerminal(issue.message),
+        }),
+      );
     }
     out.push('');
   }
@@ -247,7 +268,12 @@ function appendKindSection(
   issuesPerNode: Map<string, number>,
 ): void {
   const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
-  lines.push(`## ${sanitizeForTerminal(kind)} (${sorted.length})`);
+  lines.push(
+    tx(EXPORT_TEXTS.mdKindSectionHeader, {
+      kind: sanitizeForTerminal(kind),
+      count: sorted.length,
+    }),
+  );
   lines.push('');
   for (const node of sorted) lines.push(renderNodeBullet(node, issuesPerNode));
   lines.push('');
@@ -257,8 +283,22 @@ function appendKindSection(
 function renderNodeBullet(node: Node, issuesPerNode: Map<string, number>): string {
   const title = pickTitle(node);
   const issueCount = issuesPerNode.get(node.path) ?? 0;
-  const issueSuffix = issueCount > 0 ? ` — ${issueCount} issue${issueCount === 1 ? '' : 's'}` : '';
-  return `- \`${sanitizeForTerminal(node.path)}\`${title ? ` — "${sanitizeForTerminal(title)}"` : ''}${issueSuffix}`;
+  const titleSegment = title
+    ? tx(EXPORT_TEXTS.mdNodeTitleSuffix, { title: sanitizeForTerminal(title) })
+    : '';
+  const issuesSegment = issueCount > 0
+    ? tx(EXPORT_TEXTS.mdNodeIssueSuffix, {
+        count: issueCount,
+        label: issueCount === 1
+          ? EXPORT_TEXTS.mdNodeIssueLabelSingular
+          : EXPORT_TEXTS.mdNodeIssueLabelPlural,
+      })
+    : '';
+  return tx(EXPORT_TEXTS.mdNodeBullet, {
+    path: sanitizeForTerminal(node.path),
+    title: titleSegment,
+    issues: issuesSegment,
+  });
 }
 
 function pickTitle(node: Node): string | null {

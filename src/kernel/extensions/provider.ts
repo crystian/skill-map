@@ -25,7 +25,6 @@
 
 import type { IExtensionBase } from './base.js';
 import type { IIgnoreFilter } from '../scan/ignore.js';
-import type { NodeKind } from '../types.js';
 
 export interface IRawNode {
   /** Path relative to the scan root that produced this node. */

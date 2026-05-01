@@ -48,8 +48,9 @@ import type { PluginLoaderPort } from '../ports/plugin-loader.js';
 import { PLUGIN_LOADER_TEXTS } from '../i18n/plugin-loader.texts.js';
 import { tx } from '../util/tx.js';
 import { KV_SCHEMA_KEY } from './plugin-store.js';
-import type { TExtensionKind } from './schema-validators.js';
+import type { ExtensionKind } from '../registry.js';
 import type { ISchemaValidators } from './schema-validators.js';
+import { HOOK_TRIGGERS } from '../extensions/hook.js';
 
 // ajv-formats ships CJS-first; the default export is the callable plugin
 // under ESM interop but TS sometimes types it as the namespace. Match
@@ -397,7 +398,7 @@ export class PluginLoader implements PluginLoaderPort {
       }};
     }
 
-    const kind = exported['kind'] as TExtensionKind;
+    const kind = exported['kind'] as ExtensionKind;
     if (!KNOWN_KINDS.has(kind)) {
       return { ok: false, failure: {
         ...fail(
@@ -506,7 +507,7 @@ function validateHookTriggers(
     };
   }
   for (const trig of triggers) {
-    if (typeof trig !== 'string' || !HOOKABLE_TRIGGERS.includes(trig)) {
+    if (typeof trig !== 'string' || !(HOOK_TRIGGERS as readonly string[]).includes(trig)) {
       return {
         ...fail(
           pluginPath,
@@ -527,28 +528,15 @@ function validateHookTriggers(
 
 // --- helpers ---------------------------------------------------------------
 
-const KNOWN_KINDS = new Set<TExtensionKind>(['provider', 'extractor', 'rule', 'action', 'formatter', 'hook']);
+const KNOWN_KINDS = new Set<ExtensionKind>(['provider', 'extractor', 'rule', 'action', 'formatter', 'hook']);
 const KNOWN_KINDS_LIST = [...KNOWN_KINDS].join(' / ');
 
 /**
- * Spec § A.11 — curated hookable trigger set. Mirrors the enum in
- * `spec/schemas/extensions/hook.schema.json` and `kernel/extensions/hook.ts`.
- * Kept duplicated here on purpose: the loader runs in the kernel package
- * with no dependency back into `kernel/extensions/*` (those carry runtime
- * contracts; the loader is data-only). A test asserts the two stay in
- * lock-step.
+ * Spec § A.11 — curated hookable trigger set. Single source of truth lives
+ * in `kernel/extensions/hook.ts` (`HOOK_TRIGGERS`); the loader imports it
+ * directly so the loader and the runtime contract cannot drift apart.
  */
-const HOOKABLE_TRIGGERS: readonly string[] = Object.freeze([
-  'scan.started',
-  'scan.completed',
-  'extractor.completed',
-  'rule.completed',
-  'action.completed',
-  'job.spawning',
-  'job.completed',
-  'job.failed',
-] as const);
-const HOOKABLE_TRIGGERS_LIST = HOOKABLE_TRIGGERS.join(', ');
+const HOOKABLE_TRIGGERS_LIST = HOOK_TRIGGERS.join(', ');
 
 /**
  * Race the dynamic import against a timer. When the timer wins we throw

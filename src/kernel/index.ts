@@ -158,6 +158,8 @@ export type {
   IExtractorCallbacks,
   IRule,
   IRuleContext,
+  IAction,
+  IActionPrecondition,
   IFormatter,
   IFormatterContext,
   IHook,

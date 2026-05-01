@@ -18,7 +18,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import type {
   IListExecutionsFilter,
   THistoryStatsPeriod,
-} from '../../kernel/adapters/sqlite/history.js';
+} from '../../kernel/ports/storage.js';
 import type {
   ExecutionRecord,
   ExecutionStatus,
@@ -344,7 +344,7 @@ function renderTable(rows: ExecutionRecord[]): string {
     //   failed                          (reason missing — defensive)
     const status =
       r.failureReason !== null && r.failureReason !== undefined && r.failureReason.length > 0
-        ? `${r.status} (${r.failureReason})`
+        ? tx(HISTORY_TEXTS.statusWithReason, { status: r.status, reason: r.failureReason })
         : r.status;
     lines.push(
       formatRow(

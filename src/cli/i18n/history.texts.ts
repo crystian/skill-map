@@ -31,6 +31,13 @@ export const HISTORY_TEXTS = {
   statsFailuresByReasonHeader: 'Failures by reason:\n',
   statsFailuresByReasonRow: '  {{reason}}: {{count}}\n',
 
+  /**
+   * Status cell composition: `<status> (<failureReason>)` when a failure
+   * reason is present, plain `<status>` otherwise. Caller picks the
+   * variant.
+   */
+  statusWithReason: '{{status}} ({{reason}})',
+
   // --- renderTable labels ------------------------------------------------
   tableHeaderId: 'ID',
   tableHeaderStarted: 'STARTED',

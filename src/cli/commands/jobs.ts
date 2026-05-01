@@ -48,8 +48,8 @@ import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import type { IPruneResult } from '../../kernel/adapters/sqlite/jobs.js';
-import type { StoragePort } from '../../kernel/ports/storage.js';
+import type { IPruneResult, StoragePort } from '../../kernel/ports/storage.js';
+import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { assertDbExists } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -167,13 +167,14 @@ export class JobPruneCommand extends Command {
         }
 
         // --- orphan-files pass ---------------------------------------------
-        // Runs AFTER retention so freshly-pruned files are seen by
-        // listOrphanJobFiles only if their state_jobs row was already gone
+        // Runs AFTER retention so freshly-pruned files are seen by the
+        // FS scan only if their `state_jobs` row was already gone
         // (which it isn't, after we just deleted it — they would qualify).
         // We don't double-count: retention unlinked them, the FS scan
         // won't find them anymore.
         if (this.orphanFiles && out.orphanFiles.scanned) {
-          const orphans = await adapter.jobs.listOrphanFiles(jobsDir);
+          const referenced = await adapter.jobs.listReferencedFilePaths();
+          const orphans = findOrphanJobFiles(jobsDir, referenced);
           const removed = await this.unlinkFiles(orphans.orphanFilePaths, this.dryRun);
           out.orphanFiles = { scanned: true, deleted: removed };
         }

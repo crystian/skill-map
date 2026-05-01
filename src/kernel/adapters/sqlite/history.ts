@@ -26,32 +26,28 @@ import { sql, type Insertable, type Kysely, type Selectable, type Transaction } 
 import type {
   ExecutionFailureReason,
   ExecutionRecord,
-  ExecutionStatus,
   HistoryStats,
   HistoryStatsExecutionsPerPeriod,
   HistoryStatsPerActionRate,
   HistoryStatsTokensPerAction,
   HistoryStatsTopNode,
 } from '../../types.js';
+import type {
+  IHistoryStatsRange,
+  IListExecutionsFilter,
+  IMigrateNodeFksReport,
+  THistoryStatsPeriod,
+} from '../../types/storage.js';
 import type { IDatabase, IStateExecutionsTable } from './schema.js';
 
-type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
+export type {
+  IHistoryStatsRange,
+  IListExecutionsFilter,
+  IMigrateNodeFksReport,
+  THistoryStatsPeriod,
+} from '../../types/storage.js';
 
-/** Filter shape for `listExecutions`. All fields optional. */
-export interface IListExecutionsFilter {
-  /** Restrict to executions whose `nodeIds` array contains this path. */
-  nodePath?: string;
-  /** Exact match on `extension_id`. */
-  actionId?: string;
-  /** Subset of {`completed`,`failed`,`cancelled`}. */
-  statuses?: ExecutionStatus[];
-  /** Lower bound (inclusive) on `started_at`. Unix ms. */
-  sinceMs?: number;
-  /** Upper bound (exclusive) on `started_at`. Unix ms. */
-  untilMs?: number;
-  /** Cap result count. No default. */
-  limit?: number;
-}
+type DbOrTx = Kysely<IDatabase> | Transaction<IDatabase>;
 
 const FAILURE_REASONS: readonly ExecutionFailureReason[] = [
   'runner-error',
@@ -185,15 +181,6 @@ function parseStringArray(s: string): string[] {
 }
 
 // --- Aggregations ----------------------------------------------------------
-
-export interface IHistoryStatsRange {
-  /** Inclusive lower bound. `null` = all-time. */
-  sinceMs: number | null;
-  /** Exclusive upper bound. */
-  untilMs: number;
-}
-
-export type THistoryStatsPeriod = 'day' | 'week' | 'month';
 
 /**
  * Compute the bucketed aggregations that back `sm history stats --json`.
@@ -568,28 +555,6 @@ export async function findStrandedStateOrphans(
 }
 
 // --- FK migration ---------------------------------------------------------
-
-export interface IMigrateNodeFksReport {
-  jobs: number;
-  executions: number;
-  summaries: number;
-  enrichments: number;
-  pluginKvs: number;
-  /**
-   * Composite-PK collisions encountered when migrating
-   * `state_summaries` / `state_enrichments` / `state_plugin_kvs` because a
-   * row already existed at the destination PK. The pre-existing rows are
-   * preserved — the migrating rows are dropped (deleted from `fromPath`
-   * without a corresponding INSERT). One entry per dropped row, with the
-   * affected PK fields included for diagnostic output.
-   */
-  collisions: Array<{
-    table: 'state_summaries' | 'state_enrichments' | 'state_plugin_kvs';
-    fromPath: string;
-    toPath: string;
-    keys: Record<string, string>;
-  }>;
-}
 
 /**
  * Migrate every `state_*` reference to `fromPath` over to `toPath`. Runs

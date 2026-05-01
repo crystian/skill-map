@@ -250,10 +250,22 @@ function aggregateLinks(links: Link[], endpointSide: 'target' | 'source'): IGrou
 }
 
 function formatGroupedLink(arrow: '→' | '←', grp: IGroupedLink): string {
-  const head = `  - [${sanitizeForTerminal(grp.kind)}/${grp.confidence}] ${arrow} ${sanitizeForTerminal(grp.endpoint)}`;
-  const sources = grp.sources.length > 0 ? `  sources: ${grp.sources.map(sanitizeForTerminal).join(', ')}` : '';
-  const dup = grp.rowCount > 1 ? ` (×${grp.rowCount})` : '';
-  return `${head}${dup}${sources}`;
+  const dup = grp.rowCount > 1
+    ? tx(SHOW_TEXTS.groupedLinkDup, { count: grp.rowCount })
+    : '';
+  const sources = grp.sources.length > 0
+    ? tx(SHOW_TEXTS.groupedLinkSources, {
+        values: grp.sources.map(sanitizeForTerminal).join(', '),
+      })
+    : '';
+  return tx(SHOW_TEXTS.groupedLinkHead, {
+    kind: sanitizeForTerminal(grp.kind),
+    confidence: grp.confidence,
+    arrow,
+    endpoint: sanitizeForTerminal(grp.endpoint),
+    dup,
+    sources,
+  });
 }
 
 const CONFIDENCE_RANK: Record<Link['confidence'], number> = {

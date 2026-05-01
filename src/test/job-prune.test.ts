@@ -4,8 +4,9 @@
  * Covers:
  *   1. `pruneTerminalJobs` — only deletes terminal jobs older than the
  *      cutoff; preserves running/queued; returns the right file paths.
- *   2. `listOrphanJobFiles` — finds MD files in `.skill-map/jobs/` not
- *      referenced by any `state_jobs` row; tolerates missing dirs.
+ *   2. `selectReferencedJobFilePaths` + `findOrphanJobFiles` — DB
+ *      returns the referenced set; the FS helper finds MD files in
+ *      `.skill-map/jobs/` not referenced; tolerates missing dirs.
  *   3. `JobPruneCommand` — end-to-end with seeded DB + jobs dir:
  *      • empty DB → exit 0, zero counts.
  *      • retention policy applied — terminal jobs and files removed.
@@ -22,9 +23,10 @@ import { after, before, describe, it } from 'node:test';
 
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import {
-  listOrphanJobFiles,
   pruneTerminalJobs,
+  selectReferencedJobFilePaths,
 } from '../kernel/adapters/sqlite/jobs.js';
+import { findOrphanJobFiles } from '../kernel/jobs/orphan-files.js';
 import { JobPruneCommand } from '../cli/commands/jobs.js';
 
 let tempRoot: string;
@@ -185,15 +187,19 @@ describe('pruneTerminalJobs', () => {
 });
 
 // ---------------------------------------------------------------------------
-// listOrphanJobFiles
+// orphan job files (selectReferencedJobFilePaths + findOrphanJobFiles)
 // ---------------------------------------------------------------------------
 
-describe('listOrphanJobFiles', () => {
+describe('orphan job files', () => {
   it('returns no orphans when the directory is missing', async () => {
     const scope = freshScope('orphans-no-dir');
     const adapter = await initDb(scope);
     try {
-      const result = await listOrphanJobFiles(adapter.db, join(scope, '.skill-map', 'jobs', 'missing-subdir'));
+      const referenced = await selectReferencedJobFilePaths(adapter.db);
+      const result = findOrphanJobFiles(
+        join(scope, '.skill-map', 'jobs', 'missing-subdir'),
+        referenced,
+      );
       strictEqual(result.orphanFilePaths.length, 0);
       strictEqual(result.referencedCount, 0);
     } finally {
@@ -216,7 +222,8 @@ describe('listOrphanJobFiles', () => {
 
       await seedJob(adapter, { id: 'd-referenced', status: 'queued', filePath: referencedPath });
 
-      const result = await listOrphanJobFiles(adapter.db, jobsDir);
+      const referenced = await selectReferencedJobFilePaths(adapter.db);
+      const result = findOrphanJobFiles(jobsDir, referenced);
       strictEqual(result.referencedCount, 1);
       deepStrictEqual(result.orphanFilePaths, [orphanPath]);
     } finally {
@@ -420,6 +427,6 @@ describe('JobPruneCommand', () => {
   });
 });
 
-// `readdirSync` is referenced by listOrphanJobFiles — keep the import
+// `readdirSync` is referenced by `findOrphanJobFiles` — keep the import
 // alive in case future tests need to inspect the raw entries.
 void readdirSync;

@@ -29,6 +29,8 @@ import type {
   RenameOp,
 } from '../../orchestrator.js';
 import type { Issue, Link, Node, ScanResult } from '../../types.js';
+import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
+import { tx } from '../../util/tx.js';
 import {
   findStrandedStateOrphans,
   migrateNodeFks,
@@ -57,7 +59,7 @@ export async function persistScanResult(
   const scannedAt = result.scannedAt;
   if (!Number.isInteger(scannedAt) || scannedAt < 0) {
     throw new Error(
-      `persistScanResult: invalid scannedAt ${JSON.stringify(scannedAt)} (expected non-negative integer ms)`,
+      tx(STORAGE_TEXTS.scanPersistInvalidScannedAt, { value: JSON.stringify(scannedAt) }),
     );
   }
 

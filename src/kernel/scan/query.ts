@@ -43,6 +43,8 @@
  */
 
 import type { Issue, Link, Node } from '../types.js';
+import { QUERY_TEXTS } from '../i18n/storage.texts.js';
+import { tx } from '../util/tx.js';
 
 const HAS_VALUES = new Set(['issues']);
 
@@ -92,21 +94,21 @@ export function parseExportQuery(raw: string): IExportQuery {
     const eq = token.indexOf('=');
     if (eq <= 0 || eq === token.length - 1) {
       throw new ExportQueryError(
-        `invalid token "${token}": expected key=value (e.g. kind=skill, has=issues, path=foo/*).`,
+        tx(QUERY_TEXTS.exportQueryInvalidToken, { token }),
       );
     }
     const key = token.slice(0, eq).toLowerCase();
     const valuePart = token.slice(eq + 1);
     if (seen.has(key)) {
       throw new ExportQueryError(
-        `key "${key}" appears more than once; combine values with a comma instead (e.g. kind=skill,agent).`,
+        tx(QUERY_TEXTS.exportQueryDuplicateKey, { key }),
       );
     }
     seen.add(key);
 
     const values = valuePart.split(',').map((v) => v.trim()).filter((v) => v.length > 0);
     if (values.length === 0) {
-      throw new ExportQueryError(`key "${key}" has no values.`);
+      throw new ExportQueryError(tx(QUERY_TEXTS.exportQueryEmptyValues, { key }));
     }
 
     switch (key) {
@@ -121,7 +123,7 @@ export function parseExportQuery(raw: string): IExportQuery {
         break;
       default:
         throw new ExportQueryError(
-          `unknown key "${key}". Valid keys: kind, has, path.`,
+          tx(QUERY_TEXTS.exportQueryUnknownKey, { key }),
         );
     }
   }
@@ -139,7 +141,7 @@ export function parseExportQuery(raw: string): IExportQuery {
 function parseKindValues(values: string[]): string[] {
   for (const v of values) {
     if (v.length === 0) {
-      throw new ExportQueryError('kind="" is not a valid node kind (empty).');
+      throw new ExportQueryError(QUERY_TEXTS.exportQueryEmptyKind);
     }
   }
   return values;
@@ -150,7 +152,10 @@ function parseHasValues(values: string[]): boolean {
   for (const v of values) {
     if (!HAS_VALUES.has(v)) {
       throw new ExportQueryError(
-        `has="${v}" is not supported. Valid: ${[...HAS_VALUES].join(', ')}. (findings / summary land at Steps 10 / 11.)`,
+        tx(QUERY_TEXTS.exportQueryUnsupportedHas, {
+          value: v,
+          allowed: [...HAS_VALUES].join(', '),
+        }),
       );
     }
   }

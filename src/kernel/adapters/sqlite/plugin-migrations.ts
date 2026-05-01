@@ -18,6 +18,13 @@ import { join } from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
 
 import type { IDiscoveredPlugin } from '../../types/plugin.js';
+import type {
+  IPluginApplyOptions,
+  IPluginApplyResult,
+  IPluginMigrationFile,
+  IPluginMigrationPlan,
+  IPluginMigrationRecord,
+} from '../../types/storage.js';
 import {
   detectCatalogIntrusion,
   normalizePluginId,
@@ -25,32 +32,15 @@ import {
   validatePluginMigrationSql,
 } from './plugin-migrations-validator.js';
 
+export type {
+  IPluginApplyOptions,
+  IPluginApplyResult,
+  IPluginMigrationFile,
+  IPluginMigrationPlan,
+  IPluginMigrationRecord,
+} from '../../types/storage.js';
+
 const FILE_RE = /^(\d{3})_([a-z0-9_]+)\.sql$/;
-
-export interface IPluginMigrationFile {
-  version: number;
-  description: string;
-  filePath: string;
-}
-
-export interface IPluginMigrationRecord {
-  version: number;
-  description: string;
-  appliedAt: number;
-}
-
-export interface IPluginMigrationPlan {
-  pluginId: string;
-  applied: IPluginMigrationRecord[];
-  pending: IPluginMigrationFile[];
-}
-
-export interface IPluginApplyResult {
-  pluginId: string;
-  applied: IPluginMigrationFile[];
-  /** Catalog intrusions caught by Layer 3 (post-apply sweep). Empty when clean. */
-  intrusions: string[];
-}
 
 /**
  * Resolve the absolute migrations directory for a discovered plugin.
@@ -145,11 +135,6 @@ export function planPluginMigrations(
   const appliedVersions = new Set(applied.map((r) => r.version));
   const pending = files.filter((f) => !appliedVersions.has(f.version));
   return { pluginId: plugin.id, applied, pending };
-}
-
-export interface IPluginApplyOptions {
-  /** No actual writes; surfaces what would run. Default false. */
-  dryRun?: boolean;
 }
 
 /**
