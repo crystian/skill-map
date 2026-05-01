@@ -48,6 +48,8 @@
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
     "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
     "test:coverage": "tsc --noEmit && SKILL_MAP_SKIP_BENCHMARK=1 node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts' 'extensions/**/*.test.ts' 'kernel/**/*.test.ts'",
@@ -68,13 +70,18 @@
     "typanion": "3.14.0"
   },
   "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@stylistic/eslint-plugin": "5.10.0",
     "@types/js-yaml": "4.0.9",
     "@types/node": "24.12.2",
     "@types/semver": "7.7.1",
     "c8": "11.0.0",
+    "eslint": "10.2.1",
+    "eslint-plugin-import-x": "4.16.2",
     "tsup": "8.5.1",
     "tsx": "4.21.0",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.59.1"
   },
   "engines": {
     "node": ">=24.0"

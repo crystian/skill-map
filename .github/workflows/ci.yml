@@ -67,6 +67,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck --workspace=@skill-map/cli
 
+      - name: Validate (lint every workspace)
+        run: npm run validate
+
       - name: Build (tsup)
         run: npm run build --workspace=@skill-map/cli
 

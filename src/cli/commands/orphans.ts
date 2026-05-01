@@ -33,7 +33,7 @@ type OrphanRuleId = typeof ORPHAN_RULE_IDS[number];
 
 // --- shared helpers -------------------------------------------------------
 
-interface IIssueRow extends Selectable<IScanIssuesTable> {}
+type IIssueRow = Selectable<IScanIssuesTable>;
 
 async function findActiveIssues(
   db: Kysely<IDatabase>,

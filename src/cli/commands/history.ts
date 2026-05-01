@@ -307,7 +307,7 @@ const COL_ACTION = 24;
 // to 30 to fit `cancelled (user-cancelled)` and the longest enum
 // `failed (job-file-missing)` (25 chars + 2 padding rounded up).
 //                          ID      STARTED  ACTION         STATUS  DUR.   TOKENS  NODES
-const COL_WIDTHS: number[] = [COL_ID + 2, 22, COL_ACTION + 2, 30,     10,    14,     6];
+const COL_WIDTHS: number[] = [COL_ID + 2, 22, COL_ACTION + 2, 30, 10, 14, 6];
 
 function toExecutionRecord(r: ExecutionRecord): ExecutionRecord {
   // listExecutions already returns the camelCased domain shape; we just
@@ -333,7 +333,7 @@ function renderTable(rows: ExecutionRecord[]): string {
     //   cancelled (user-cancelled)      (reason populated)
     //   failed                          (reason missing — defensive)
     const status =
-      r.failureReason != null && r.failureReason.length > 0
+      r.failureReason !== null && r.failureReason !== undefined && r.failureReason.length > 0
         ? `${r.status} (${r.failureReason})`
         : r.status;
     lines.push(

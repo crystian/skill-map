@@ -363,7 +363,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
           (b as Record<string, unknown>)[k],
         )
       )
-        return false;
+        {return false;}
     }
     return true;
   }

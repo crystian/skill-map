@@ -92,6 +92,11 @@ export interface ICreateFsWatcherOptions {
  * would be redundant churn.
  */
 export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
+  // TODO(V5 audit): make `opts.cwd` mandatory and migrate callers (CLI
+  // already passes it in `cli/commands/watch.ts:215`). The fallback
+  // here lets test fixtures stay terse — remove together with the
+  // option being made required.
+  // eslint-disable-next-line no-restricted-syntax
   const cwd = opts.cwd ?? process.cwd();
   const absRoots = opts.roots.map((r) => resolve(cwd, r));
   const ignoreFilter = opts.ignoreFilter;

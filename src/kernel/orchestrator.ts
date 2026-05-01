@@ -48,7 +48,12 @@
 import { createHash } from 'node:crypto';
 import { existsSync, statSync } from 'node:fs';
 
+// js-tiktoken ships CJS subpaths without explicit `.cjs` in the import
+// specifier — the lint rule's hard-coded extension matrix doesn't model
+// dual-package CJS subpath exports.
+// eslint-disable-next-line import-x/extensions
 import { Tiktoken } from 'js-tiktoken/lite';
+// eslint-disable-next-line import-x/extensions
 import cl100k_base from 'js-tiktoken/ranks/cl100k_base';
 import yaml from 'js-yaml';
 

@@ -138,8 +138,8 @@ export function _resetDefaultsCacheForTests(): void {
 function readDefaultsFromDisk(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    resolve(here, '../../config/defaults/skill-mapignore'),  // src/kernel/scan/ → src/config/defaults/
-    resolve(here, '../config/defaults/skill-mapignore'),     // dist/cli.js → dist/config/defaults/ (siblings)
+    resolve(here, '../../config/defaults/skill-mapignore'), // src/kernel/scan/ → src/config/defaults/
+    resolve(here, '../config/defaults/skill-mapignore'), // dist/cli.js → dist/config/defaults/ (siblings)
     resolve(here, 'config/defaults/skill-mapignore'),
   ];
   for (const candidate of candidates) {

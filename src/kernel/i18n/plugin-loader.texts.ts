@@ -64,7 +64,7 @@ export const PLUGIN_LOADER_TEXTS = {
 
   loadErrorPluginIdMismatch:
     "{{relEntry}}: extension declares pluginId '{{declared}}' but its plugin.json declares id '{{manifestId}}'. " +
-    "Remove the explicit pluginId from the extension — the loader injects it from plugin.json#/id.",
+    'Remove the explicit pluginId from the extension — the loader injects it from plugin.json#/id.',
 
   loadErrorStorageSchemaRead:
     "plugin '{{pluginId}}' failed to load schema for table '{{table}}': {{schemaPath}} — {{errDescription}}",

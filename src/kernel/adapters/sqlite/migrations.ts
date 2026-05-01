@@ -214,7 +214,7 @@ export function writeBackup(dbPath: string, targetVersion: number): string | nul
   // without needing to also copy the `-wal` / `-shm` sidecars.
   const db = new DatabaseSync(absolute);
   try {
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   } finally {
     db.close();
   }

@@ -118,6 +118,11 @@ export interface ILoadedConfig {
 const DEFAULTS = DEFAULTS_RAW as unknown as IEffectiveConfig;
 
 export function loadConfig(opts: ILoadConfigOptions): ILoadedConfig {
+  // TODO(V5 audit): make `cwd` and `homedir` mandatory in
+  // `ILoadConfigOptions` and migrate the 7 CLI callers. The fallbacks
+  // here keep tests + library use terse but break the kernel-isolation
+  // invariant the linter enforces elsewhere.
+  // eslint-disable-next-line no-restricted-syntax
   const cwd = opts.cwd ?? process.cwd();
   const home = opts.homedir ?? osHomedir();
   const strict = opts.strict ?? false;
