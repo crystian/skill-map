@@ -73,6 +73,7 @@ import type {
   ProgressEvent,
 } from './ports/progress-emitter.js';
 import { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
+import { log } from './util/logger.js';
 import { installedSpecVersion } from './adapters/plugin-loader.js';
 import {
   buildProviderFrontmatterValidator,
@@ -1277,12 +1278,12 @@ function makeHookDispatcher(hooks: IHook[], emitter: ProgressEmitterPort): IHook
     if (hook.mode === 'probabilistic') {
       // Probabilistic hooks defer to the job subsystem (Step 10). Log
       // once per hook at composition time — not per-event — so a noisy
-      // scan doesn't spam stderr. The hook still surfaces in
+      // scan doesn't flood the logger. The hook still surfaces in
       // `sm plugins list`; it just doesn't fire today.
       const qualifiedId = qualifiedExtensionId(hook.pluginId, hook.id);
-      // eslint-disable-next-line no-console
-      console.error(
+      log.warn(
         `Probabilistic hook ${qualifiedId} deferred to job subsystem (Step 10). The hook is registered but will not dispatch in-scan.`,
+        { hookId: qualifiedId, mode: 'probabilistic' },
       );
       continue;
     }

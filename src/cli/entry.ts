@@ -13,6 +13,13 @@
 
 import { Builtins, Cli } from 'clipanion';
 
+import { configureLogger } from '../kernel/util/logger.js';
+import {
+  Logger,
+  extractLogLevelFlag,
+  resolveLogLevel,
+  LOGGER_ENV_VAR,
+} from './util/logger.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
 import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
@@ -66,6 +73,18 @@ for (const cmd of ORPHANS_COMMANDS) cli.register(cmd);
 for (const cmd of REFRESH_COMMANDS) cli.register(cmd);
 for (const cmd of STUB_COMMANDS) cli.register(cmd);
 
-const args = process.argv.slice(2);
-const exitCode = await cli.run(args, { stdin: process.stdin, stdout: process.stdout, stderr: process.stderr });
+const { value: logLevelFlag, rest: args } = extractLogLevelFlag(process.argv.slice(2));
+const logLevel = resolveLogLevel({
+  flag: logLevelFlag,
+  env: process.env[LOGGER_ENV_VAR] ?? null,
+  fallback: 'warn',
+  errStream: process.stderr,
+});
+configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
+
+const exitCode = await cli.run(args, {
+  stdin: process.stdin,
+  stdout: process.stdout,
+  stderr: process.stderr,
+});
 process.exit(exitCode);

@@ -12,7 +12,7 @@
  *       per scan with the event payload threaded through ctx.
  *   (d) Hook with filter — only invoked when event.data matches.
  *   (e) Hook that throws → extension.error meta-event, scan continues OK.
- *   (f) Probabilistic hook → skipped with stderr advisory until job
+ *   (f) Probabilistic hook → skipped with logger.warn advisory until job
  *       subsystem ships at Step 10.
  */
 
@@ -23,6 +23,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createKernel, runScan } from '../kernel/index.js';
+import { configureLogger, resetLogger } from '../kernel/util/logger.js';
+import type { LoggerPort } from '../kernel/ports/logger.js';
 import { builtIns } from '../extensions/built-ins.js';
 import {
   PluginLoader,
@@ -269,7 +271,7 @@ describe('Hook extension kind (spec § A.11)', () => {
     );
   });
 
-  it('(f) probabilistic hook is skipped with a stderr advisory', async () => {
+  it('(f) probabilistic hook is skipped with a logger.warn advisory', async () => {
     let fired = false;
     const hook: IHook = {
       kind: 'hook',
@@ -283,13 +285,21 @@ describe('Hook extension kind (spec § A.11)', () => {
       },
     };
 
-    // Capture stderr — the hook dispatcher logs a one-shot advisory
-    // when it indexes the probabilistic hook.
-    const stderrChunks: string[] = [];
-    const originalError = console.error;
-    console.error = (...args: unknown[]): void => {
-      stderrChunks.push(args.map(String).join(' '));
+    // Capture warnings via an in-test logger installed as the kernel
+    // singleton. The hook dispatcher emits a one-shot advisory through
+    // `log.warn` when it indexes the probabilistic hook (no longer
+    // console.error, no longer threaded as a `runScan` option).
+    const warnings: Array<{ message: string; context?: Record<string, unknown> }> = [];
+    const captureLogger: LoggerPort = {
+      trace() {},
+      debug() {},
+      info() {},
+      warn(message, context) {
+        warnings.push({ message, ...(context !== undefined ? { context } : {}) });
+      },
+      error() {},
     };
+    configureLogger(captureLogger);
 
     try {
       const kernel = createKernel();
@@ -304,14 +314,16 @@ describe('Hook extension kind (spec § A.11)', () => {
         },
       });
     } finally {
-      console.error = originalError;
+      resetLogger();
     }
 
     strictEqual(fired, false, 'probabilistic hook must not dispatch in-scan');
-    const advisory = stderrChunks.find((s) => s.includes('test/prob'));
+    const advisory = warnings.find((w) => w.message.includes('test/prob'));
     ok(
-      advisory && advisory.includes('Step 10'),
-      'stderr advisory mentions the probabilistic deferral and Step 10',
+      advisory && advisory.message.includes('Step 10'),
+      'logger.warn advisory mentions the probabilistic deferral and Step 10',
     );
+    strictEqual(advisory?.context?.['hookId'], 'test/prob');
+    strictEqual(advisory?.context?.['mode'], 'probabilistic');
   });
 });

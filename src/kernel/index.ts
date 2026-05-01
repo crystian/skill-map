@@ -99,9 +99,13 @@ export type { StoragePort } from './ports/storage.js';
 export type { FilesystemPort, NodeStat, WalkOptions } from './ports/filesystem.js';
 export type {
   PluginLoaderPort,
-  PluginManifest,
-  PluginStorage,
-  LoadedExtension,
+  IDiscoveredPlugin,
+  ILoadedExtension,
+  IPluginManifest,
+  IPluginStorageSchema,
+  TGranularity,
+  TPluginLoadStatus,
+  TPluginStorage,
 } from './ports/plugin-loader.js';
 export type { RunnerPort, RunOptions, RunResult } from './ports/runner.js';
 export type {
@@ -109,6 +113,20 @@ export type {
   ProgressEvent,
   ProgressListener,
 } from './ports/progress-emitter.js';
+export type {
+  LoggerPort,
+  LogLevel,
+  LogMethodLevel,
+  LogRecord,
+} from './ports/logger.js';
+export {
+  LOG_LEVELS,
+  isLogLevel,
+  logLevelRank,
+  parseLogLevel,
+} from './ports/logger.js';
+export { SilentLogger } from './adapters/silent-logger.js';
+export { log, configureLogger, resetLogger, getActiveLogger } from './util/logger.js';
 
 // --- extension kinds (./extensions/...) --------------------------------
 export type {
