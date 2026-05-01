@@ -166,85 +166,9 @@ export class PluginLoader implements PluginLoaderPort {
    * reported via the returned status.
    */
   async loadOne(pluginPath: string): Promise<IDiscoveredPlugin> {
-    const manifestPath = join(pluginPath, 'plugin.json');
-
-    // --- manifest parse + shape validation --------------------------------
-    let raw: unknown;
-    try {
-      raw = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    } catch (err) {
-      return fail(
-        pluginPath,
-        pathId(pluginPath),
-        'invalid-manifest',
-        tx(PLUGIN_LOADER_TEXTS.invalidManifestJsonParse, {
-          manifestPath,
-          errDescription: describe(err),
-        }),
-      );
-    }
-
-    const manifestResult = this.#options.validators.validatePluginManifest<IPluginManifest>(raw);
-    if (!manifestResult.ok) {
-      return fail(
-        pluginPath,
-        pathId(pluginPath),
-        'invalid-manifest',
-        tx(PLUGIN_LOADER_TEXTS.invalidManifestAjv, {
-          manifestPath,
-          errors: manifestResult.errors,
-        }),
-      );
-    }
-    const manifest = manifestResult.data;
-
-    // --- directory name == manifest id ------------------------------------
-    // Cheap structural rule (spec § A.5 — plugin id global uniqueness).
-    // Two siblings on the same filesystem cannot share a name, so making
-    // the directory match the id eliminates same-root collisions by
-    // construction. Cross-root collisions are caught afterwards by
-    // `applyIdCollisions` over the full discovery result.
-    const dirName = pathId(pluginPath);
-    if (dirName !== manifest.id) {
-      return {
-        ...fail(
-          pluginPath,
-          manifest.id,
-          'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.invalidManifestDirMismatch, {
-            dirName,
-            manifestId: manifest.id,
-          }),
-        ),
-        manifest,
-      };
-    }
-
-    // --- spec compat ------------------------------------------------------
-    if (!semver.validRange(manifest.specCompat)) {
-      return {
-        ...fail(
-          pluginPath,
-          manifest.id,
-          'invalid-manifest',
-          tx(PLUGIN_LOADER_TEXTS.invalidSpecCompat, { specCompat: manifest.specCompat }),
-        ),
-        manifest,
-      };
-    }
-    if (!semver.satisfies(this.#options.specVersion, manifest.specCompat, { includePrerelease: true })) {
-      return {
-        path: pluginPath,
-        id: manifest.id,
-        status: 'incompatible-spec',
-        manifest,
-        granularity: manifest.granularity ?? 'bundle',
-        reason: tx(PLUGIN_LOADER_TEXTS.incompatibleSpec, {
-          installedSpecVersion: this.#options.specVersion,
-          specCompat: manifest.specCompat,
-        }),
-      };
-    }
+    const manifestResult = this.#parseAndValidateManifest(pluginPath);
+    if (!manifestResult.ok) return manifestResult.failure;
+    const manifest = manifestResult.manifest;
 
     // --- enabled resolution ----------------------------------------------
     // Only check after manifest + specCompat pass: a `disabled` status
@@ -252,9 +176,8 @@ export class PluginLoader implements PluginLoaderPort {
     // not to run it". An invalid or incompatible plugin gets its own
     // status and never reaches this branch.
     //
-    // Spec § A.7 — granularity. User plugins always opt into one of two
-    // toggle modes. The loader's pre-import resolveEnabled() check uses
-    // the plugin id (the bundle-level key). Plugins with
+    // Spec § A.7 — granularity. The loader's pre-import resolveEnabled()
+    // check uses the plugin id (the bundle-level key). Plugins with
     // granularity='extension' that want to gate individual extensions
     // need a richer policy at the runtime composer (see
     // `cli/util/plugin-runtime.ts`); the loader stage is intentionally
@@ -274,186 +197,9 @@ export class PluginLoader implements PluginLoaderPort {
     // --- extension imports + kind validation ------------------------------
     const loaded: ILoadedExtension[] = [];
     for (const relEntry of manifest.extensions) {
-      const abs = resolve(pluginPath, relEntry);
-      if (!existsSync(abs)) {
-        return {
-          ...fail(
-            pluginPath,
-            manifest.id,
-            'load-error',
-            tx(PLUGIN_LOADER_TEXTS.loadErrorFileNotFound, { relEntry, abs }),
-          ),
-          manifest,
-        };
-      }
-
-      let mod: unknown;
-      try {
-        mod = await importWithTimeout(pathToFileURL(abs).href, this.#loadTimeoutMs);
-      } catch (err) {
-        return {
-          ...fail(
-            pluginPath,
-            manifest.id,
-            'load-error',
-            tx(PLUGIN_LOADER_TEXTS.loadErrorImportFailed, {
-              relEntry,
-              errDescription: describe(err),
-            }),
-          ),
-          manifest,
-        };
-      }
-
-      const exported = extractDefault(mod);
-      if (!isRecord(exported) || typeof exported['kind'] !== 'string') {
-        return {
-          ...fail(
-            pluginPath,
-            manifest.id,
-            'load-error',
-            tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
-              relEntry,
-              knownKindsList: KNOWN_KINDS_LIST,
-            }),
-          ),
-          manifest,
-        };
-      }
-
-      const kind = exported['kind'] as TExtensionKind;
-      if (!KNOWN_KINDS.has(kind)) {
-        return {
-          ...fail(
-            pluginPath,
-            manifest.id,
-            'load-error',
-            tx(PLUGIN_LOADER_TEXTS.loadErrorUnknownKind, {
-              relEntry,
-              kindReceived: String(exported['kind']),
-              knownKindsList: KNOWN_KINDS_LIST,
-            }),
-          ),
-          manifest,
-        };
-      }
-
-      // Spec § A.6 — qualified ids. The loader injects `pluginId =
-      // manifest.id` so the registry can key extensions by
-      // `<pluginId>/<id>`. If the author hand-declared `pluginId` AND it
-      // disagrees with `plugin.json#/id`, that is a hard load error: there
-      // can only be one source of truth for the namespace, and it lives in
-      // the manifest. A matching declaration is tolerated (no-op);
-      // we strip it before AJV validation since the spec deliberately
-      // doesn't model `pluginId` (it's a runtime concern).
-      const declaredPluginId = exported['pluginId'];
-      if (typeof declaredPluginId === 'string' && declaredPluginId !== manifest.id) {
-        return {
-          ...fail(
-            pluginPath,
-            manifest.id,
-            'invalid-manifest',
-            tx(PLUGIN_LOADER_TEXTS.loadErrorPluginIdMismatch, {
-              relEntry,
-              declared: declaredPluginId,
-              manifestId: manifest.id,
-            }),
-          ),
-          manifest,
-        };
-      }
-
-      // The runtime export carries both manifest fields (id, kind,
-      // version, kind-specific metadata) AND runtime methods (extract /
-      // evaluate / format / walk / parse / run). The
-      // extension-kind schemas are strict (`unevaluatedProperties: false`)
-      // because they describe the *manifest* shape — functions are not
-      // representable in JSON Schema and would always fail the strict
-      // check. Strip them before validation; the runtime methods are
-      // covered by the TypeScript `IExtractor` / `IFormatter` / ... interfaces
-      // at the call site (the orchestrator invokes `.extract()`,
-      // `.format()`, etc. and crashes loudly if absent).
-      //
-      // Also strip `pluginId`: per spec § A.6 it's a runtime concern that
-      // the loader injects from `plugin.json#/id`; the schemas
-      // deliberately do not model it. A user export that includes a
-      // matching `pluginId` (the mismatching case was rejected above) is
-      // tolerated; stripping prevents `unevaluatedProperties: false` from
-      // raising on an authored-but-equal field.
-      const manifestView = stripFunctionsAndPluginId(exported);
-
-      // Spec § A.11 — Hook triggers validation runs BEFORE AJV so the
-      // user gets a directed `invalid-manifest` reason (with the offending
-      // trigger and full hookable list) rather than a generic AJV enum
-      // error string under `load-error`. AJV's enum check would also
-      // catch unknown triggers, but its message would be opaque to a
-      // first-time author.
-      if (kind === 'hook') {
-        const triggers = (manifestView as Record<string, unknown>)['triggers'];
-        const hookId = (exported['id'] as string) ?? '?';
-        if (!Array.isArray(triggers) || triggers.length === 0) {
-          return {
-            ...fail(
-              pluginPath,
-              manifest.id,
-              'invalid-manifest',
-              tx(PLUGIN_LOADER_TEXTS.invalidManifestHookEmptyTriggers, { hookId }),
-            ),
-            manifest,
-          };
-        }
-        for (const trig of triggers) {
-          if (typeof trig !== 'string' || !HOOKABLE_TRIGGERS.includes(trig)) {
-            return {
-              ...fail(
-                pluginPath,
-                manifest.id,
-                'invalid-manifest',
-                tx(PLUGIN_LOADER_TEXTS.invalidManifestHookUnknownTrigger, {
-                  hookId,
-                  trigger: String(trig),
-                  hookableList: HOOKABLE_TRIGGERS_LIST,
-                }),
-              ),
-              manifest,
-            };
-          }
-        }
-      }
-
-      const extValidator = this.#options.validators.validatorForExtension(kind);
-      if (!extValidator(manifestView)) {
-        const errors = (extValidator.errors ?? [])
-          .map((e) => `${e.instancePath || '(root)'} ${e.message ?? e.keyword}`)
-          .join('; ');
-        return {
-          ...fail(
-            pluginPath,
-            manifest.id,
-            'load-error',
-            tx(PLUGIN_LOADER_TEXTS.loadErrorManifestInvalid, { relEntry, kind, errors }),
-          ),
-          manifest,
-        };
-      }
-
-      // Shallow-clone the runtime instance and inject `pluginId` here
-      // (rather than letting the consumer mutate it). Two plugins that
-      // dynamically import the same file would otherwise share the
-      // ESM-cached object and stomp each other's `pluginId`.
-      const instance = isRecord(exported)
-        ? { ...exported, pluginId: manifest.id }
-        : exported;
-
-      loaded.push({
-        kind,
-        id: exported['id'] as string,
-        pluginId: manifest.id,
-        version: exported['version'] as string,
-        entryPath: abs,
-        module: mod,
-        instance,
-      });
+      const result = await this.#loadAndValidateExtensionEntry(pluginPath, manifest, relEntry);
+      if (!result.ok) return result.failure;
+      loaded.push(result.extension);
     }
 
     // --- storage output schemas (spec § A.12) -----------------------------
@@ -484,6 +230,281 @@ export class PluginLoader implements PluginLoaderPort {
         : {}),
     };
   }
+
+  /**
+   * Phase 1 of `loadOne` — read `plugin.json`, AJV-validate the manifest,
+   * enforce the directory-name == manifest.id structural rule, and check
+   * specCompat (range syntax + satisfies the installed spec version).
+   * Returns either the validated manifest or an `IDiscoveredPlugin` with
+   * the appropriate failure status.
+   */
+  #parseAndValidateManifest(
+    pluginPath: string,
+  ): { ok: true; manifest: IPluginManifest } | { ok: false; failure: IDiscoveredPlugin } {
+    const manifestPath = join(pluginPath, 'plugin.json');
+
+    let raw: unknown;
+    try {
+      raw = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    } catch (err) {
+      return { ok: false, failure: fail(
+        pluginPath,
+        pathId(pluginPath),
+        'invalid-manifest',
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestJsonParse, {
+          manifestPath,
+          errDescription: describe(err),
+        }),
+      )};
+    }
+
+    const manifestResult = this.#options.validators.validatePluginManifest<IPluginManifest>(raw);
+    if (!manifestResult.ok) {
+      return { ok: false, failure: fail(
+        pluginPath,
+        pathId(pluginPath),
+        'invalid-manifest',
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestAjv, {
+          manifestPath,
+          errors: manifestResult.errors,
+        }),
+      )};
+    }
+    const manifest = manifestResult.data;
+
+    // Cheap structural rule (spec § A.5 — plugin id global uniqueness).
+    // Two siblings on the same filesystem cannot share a name; matching
+    // the directory to the id rules out same-root collisions by construction.
+    const dirName = pathId(pluginPath);
+    if (dirName !== manifest.id) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestDirMismatch, {
+            dirName,
+            manifestId: manifest.id,
+          }),
+        ),
+        manifest,
+      }};
+    }
+
+    if (!semver.validRange(manifest.specCompat)) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidSpecCompat, { specCompat: manifest.specCompat }),
+        ),
+        manifest,
+      }};
+    }
+    if (!semver.satisfies(this.#options.specVersion, manifest.specCompat, { includePrerelease: true })) {
+      return { ok: false, failure: {
+        path: pluginPath,
+        id: manifest.id,
+        status: 'incompatible-spec',
+        manifest,
+        granularity: manifest.granularity ?? 'bundle',
+        reason: tx(PLUGIN_LOADER_TEXTS.incompatibleSpec, {
+          installedSpecVersion: this.#options.specVersion,
+          specCompat: manifest.specCompat,
+        }),
+      }};
+    }
+
+    return { ok: true, manifest };
+  }
+
+  /**
+   * Phase 3 of `loadOne` — load and validate one extension entry. Six
+   * sub-checks (file exists, dynamic import, has kind, kind known,
+   * pluginId match, kind-specific manifest validation including hook
+   * trigger pre-check). On success returns the `ILoadedExtension` with
+   * `pluginId` injected; on failure returns the `IDiscoveredPlugin`
+   * with the appropriate status (`load-error` or `invalid-manifest`).
+   */
+  async #loadAndValidateExtensionEntry(
+    pluginPath: string,
+    manifest: IPluginManifest,
+    relEntry: string,
+  ): Promise<{ ok: true; extension: ILoadedExtension } | { ok: false; failure: IDiscoveredPlugin }> {
+    const abs = resolve(pluginPath, relEntry);
+    if (!existsSync(abs)) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'load-error',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorFileNotFound, { relEntry, abs }),
+        ),
+        manifest,
+      }};
+    }
+
+    let mod: unknown;
+    try {
+      mod = await importWithTimeout(pathToFileURL(abs).href, this.#loadTimeoutMs);
+    } catch (err) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'load-error',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorImportFailed, {
+            relEntry,
+            errDescription: describe(err),
+          }),
+        ),
+        manifest,
+      }};
+    }
+
+    const exported = extractDefault(mod);
+    if (!isRecord(exported) || typeof exported['kind'] !== 'string') {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'load-error',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorMissingKind, {
+            relEntry,
+            knownKindsList: KNOWN_KINDS_LIST,
+          }),
+        ),
+        manifest,
+      }};
+    }
+
+    const kind = exported['kind'] as TExtensionKind;
+    if (!KNOWN_KINDS.has(kind)) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'load-error',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorUnknownKind, {
+            relEntry,
+            kindReceived: String(exported['kind']),
+            knownKindsList: KNOWN_KINDS_LIST,
+          }),
+        ),
+        manifest,
+      }};
+    }
+
+    // Spec § A.6 — `pluginId` is loader-injected. A hand-declared
+    // mismatch is a hard load error; a matching declaration is tolerated
+    // (stripped before AJV).
+    const declaredPluginId = exported['pluginId'];
+    if (typeof declaredPluginId === 'string' && declaredPluginId !== manifest.id) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorPluginIdMismatch, {
+            relEntry,
+            declared: declaredPluginId,
+            manifestId: manifest.id,
+          }),
+        ),
+        manifest,
+      }};
+    }
+
+    // Strip runtime methods + `pluginId` so AJV's strict
+    // `unevaluatedProperties: false` doesn't reject the export.
+    const manifestView = stripFunctionsAndPluginId(exported);
+
+    if (kind === 'hook') {
+      const hookFailure = validateHookTriggers(pluginPath, manifest, relEntry, exported, manifestView);
+      if (hookFailure) return { ok: false, failure: hookFailure };
+    }
+
+    const extValidator = this.#options.validators.validatorForExtension(kind);
+    if (!extValidator(manifestView)) {
+      const errors = (extValidator.errors ?? [])
+        .map((e) => `${e.instancePath || '(root)'} ${e.message ?? e.keyword}`)
+        .join('; ');
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'load-error',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorManifestInvalid, { relEntry, kind, errors }),
+        ),
+        manifest,
+      }};
+    }
+
+    // Shallow-clone the runtime instance + inject `pluginId` so two
+    // plugins importing the same ESM-cached file don't stomp each
+    // other's `pluginId`.
+    const instance = isRecord(exported)
+      ? { ...exported, pluginId: manifest.id }
+      : exported;
+
+    return { ok: true, extension: {
+      kind,
+      id: exported['id'] as string,
+      pluginId: manifest.id,
+      version: exported['version'] as string,
+      entryPath: abs,
+      module: mod,
+      instance,
+    }};
+  }
+}
+
+/**
+ * Spec § A.11 — Hook triggers validation. Runs BEFORE AJV so the user
+ * gets a directed `invalid-manifest` reason (with offending trigger and
+ * full hookable list) rather than a generic AJV enum error string under
+ * `load-error`. Returns an `IDiscoveredPlugin` failure or `null` if the
+ * triggers are valid.
+ */
+function validateHookTriggers(
+  pluginPath: string,
+  manifest: IPluginManifest,
+  relEntry: string,
+  exported: Record<string, unknown>,
+  manifestView: unknown,
+): IDiscoveredPlugin | null {
+  const triggers = (manifestView as Record<string, unknown>)['triggers'];
+  const hookId = (exported['id'] as string) ?? '?';
+  if (!Array.isArray(triggers) || triggers.length === 0) {
+    return {
+      ...fail(
+        pluginPath,
+        manifest.id,
+        'invalid-manifest',
+        tx(PLUGIN_LOADER_TEXTS.invalidManifestHookEmptyTriggers, { hookId }),
+      ),
+      manifest,
+    };
+  }
+  for (const trig of triggers) {
+    if (typeof trig !== 'string' || !HOOKABLE_TRIGGERS.includes(trig)) {
+      return {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.invalidManifestHookUnknownTrigger, {
+            hookId,
+            trigger: String(trig),
+            hookableList: HOOKABLE_TRIGGERS_LIST,
+          }),
+        ),
+        manifest,
+      };
+    }
+  }
+  return null;
 }
 
 // --- helpers ---------------------------------------------------------------
