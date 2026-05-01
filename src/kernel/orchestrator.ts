@@ -89,6 +89,7 @@ import { qualifiedExtensionId } from './registry.js';
 import { tx } from './util/tx.js';
 import type {
   IProvider,
+  IRawNode,
   IExtractorContext,
   IExtractor,
   IHook,
@@ -803,6 +804,58 @@ function reusePriorNode(opts: {
   return { node, internalLinks, frontmatterIssues, extractorRuns };
 }
 
+/**
+ * Build a brand-new `Node` row from raw provider output and validate
+ * its frontmatter. Used by the "no cache hit" branch of
+ * `walkAndExtract`. Two frontmatter issue paths:
+ *   - With a frontmatter fence: AJV-validate against the Provider's
+ *     per-kind schema (Step 6.7).
+ *   - Without a fence but a body that opens with malformed `---`:
+ *     emit `frontmatter-malformed` (Step 9.4 follow-up).
+ *
+ * Severity defaults to `warn`; `strict` promotes everything to `error`.
+ */
+function buildFreshNodeAndValidateFrontmatter(opts: {
+  raw: IRawNode;
+  kind: NodeKind;
+  provider: IProvider;
+  bodyHash: string;
+  frontmatterHash: string;
+  encoder: Tiktoken | null;
+  providerFrontmatter: IProviderFrontmatterValidator;
+  strict: boolean;
+}): { node: Node; frontmatterIssues: Issue[] } {
+  const node = buildNode({
+    path: opts.raw.path,
+    kind: opts.kind,
+    providerId: opts.provider.id,
+    frontmatterRaw: opts.raw.frontmatterRaw,
+    body: opts.raw.body,
+    frontmatter: opts.raw.frontmatter,
+    bodyHash: opts.bodyHash,
+    frontmatterHash: opts.frontmatterHash,
+    encoder: opts.encoder,
+  });
+
+  const frontmatterIssues: Issue[] = [];
+  if (opts.raw.frontmatterRaw.length > 0) {
+    const fmIssue = validateFrontmatter(
+      opts.providerFrontmatter,
+      opts.provider,
+      opts.kind,
+      opts.raw.frontmatter,
+      opts.raw.path,
+      opts.strict,
+    );
+    if (fmIssue) frontmatterIssues.push(fmIssue);
+  } else {
+    const malformed = detectMalformedFrontmatter(opts.raw.body, opts.raw.path, opts.strict);
+    if (malformed) frontmatterIssues.push(malformed);
+  }
+
+  return { node, frontmatterIssues };
+}
+
 async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExtractResult> {
   const {
     providers,
@@ -985,42 +1038,13 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         }
         nodes.push(node);
       } else {
-        node = buildNode({
-          path: raw.path,
-          kind,
-          providerId: provider.id,
-          frontmatterRaw: raw.frontmatterRaw,
-          body: raw.body,
-          frontmatter: raw.frontmatter,
-          bodyHash,
-          frontmatterHash,
-          encoder,
+        const fresh = buildFreshNodeAndValidateFrontmatter({
+          raw, kind, provider, bodyHash, frontmatterHash, encoder,
+          providerFrontmatter, strict,
         });
+        node = fresh.node;
         nodes.push(node);
-
-        // Step 6.7 — frontmatter strict validation. Only validate when the
-        // file actually declared a frontmatter fence (an absent fence
-        // produces `frontmatterRaw === ''`); empty `{}` from a missing
-        // fence is not a violation. Severity defaults to `warn`; the CLI
-        // promotes it to `error` via `--strict` or `scan.strict: true`.
-        if (raw.frontmatterRaw.length > 0) {
-          const fmIssue = validateFrontmatter(
-            providerFrontmatter,
-            provider,
-            kind,
-            raw.frontmatter,
-            raw.path,
-            strict,
-          );
-          if (fmIssue) frontmatterIssues.push(fmIssue);
-        } else {
-          // Step 9.4 follow-up — `frontmatter-malformed`: the Provider
-          // could not recognise a frontmatter fence, but the body opens
-          // with an indented `---` (or BOM, or unclosed fence). Emit a
-          // `warn` so the author sees it; `--strict` promotes to `error`.
-          const malformed = detectMalformedFrontmatter(raw.body, raw.path, strict);
-          if (malformed) frontmatterIssues.push(malformed);
-        }
+        for (const issue of fresh.frontmatterIssues) frontmatterIssues.push(issue);
       }
       emitter.emit(makeEvent('scan.progress', {
         index,
