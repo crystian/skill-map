@@ -39,3 +39,21 @@ Thumbs.db
 .skill-map/
 
 .codex
+
+# Claude Code / sandbox dotfile mounts. The sandbox virtualises certain
+# host dotfiles as /dev/null character devices in the repo root so the
+# tool's process cannot read user-level config (shell rc, git identity,
+# MCP servers, ripgrep config). They surface as untracked entries in
+# `git status` forever; ignoring them keeps the working tree clean.
+.bashrc
+.bash_profile
+.profile
+.zshrc
+.zprofile
+.gitconfig
+.gitmodules
+.mcp.json
+.ripgreprc
+.vscode
+.claude/commands
+.claude/settings.json
