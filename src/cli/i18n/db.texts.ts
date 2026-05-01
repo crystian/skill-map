@@ -41,6 +41,14 @@ export const DB_TEXTS = {
   migrateStatusApplied: '  applied  {{name}}\n',
   migrateInvalidTo: '--to expects an integer, got {{to}}\n',
 
+  // --- migrate kernel apply / dry-run output ---------------------------
+  migrateKernelDryNothing: 'kernel · Nothing to apply.\n',
+  migrateKernelDryHeader: 'kernel · Would apply {{count}} migration(s):\n{{lines}}\n',
+  migrateKernelUpToDate: 'kernel · Already up to date.\n',
+  migrateKernelApplied: 'kernel · Applied {{count}} migration(s)\n',
+  migrateKernelAppliedWithBackup:
+    'kernel · Applied {{count}} migration(s) · backup: {{backupPath}}\n',
+
   // --- shell / dump (system sqlite3 binary required) ------------------
   shellSqlite3NotFound:
     'sqlite3 binary not found on PATH. Install it (macOS: brew install sqlite; Debian/Ubuntu: apt install sqlite3) or use `sm db dump` for read-only inspection.\n',

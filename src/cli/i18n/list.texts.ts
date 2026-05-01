@@ -12,4 +12,13 @@ export const LIST_TEXTS = {
   invalidLimit: '--limit: expected a positive integer, got "{{value}}".\n',
 
   noNodesFound: 'No nodes found.\n',
+
+  // --- renderTable column headers ----------------------------------------
+  tableHeaderPath: 'PATH',
+  tableHeaderKind: 'KIND',
+  tableHeaderOut: 'OUT',
+  tableHeaderIn: 'IN',
+  tableHeaderExt: 'EXT',
+  tableHeaderIssues: 'ISSUES',
+  tableHeaderBytes: 'BYTES',
 } as const;

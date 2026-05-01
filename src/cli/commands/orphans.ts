@@ -359,7 +359,7 @@ export class OrphansUndoRenameCommand extends Command {
               ruleId: 'orphan',
               severity: 'info',
               nodeIds: [toPath],
-              message: `Orphan history: ${toPath} (was reverted from auto-rename to ${newPath}).`,
+              message: tx(ORPHANS_TEXTS.undoRenameOrphanMessage, { toPath, newPath }).trimEnd(),
               data: { path: toPath },
             });
           }

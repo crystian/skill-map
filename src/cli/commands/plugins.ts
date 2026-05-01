@@ -49,8 +49,6 @@ import {
   type IPluginLoaderOptions,
 } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import {
-} from '../../kernel/adapters/sqlite/plugins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -223,16 +221,28 @@ export class PluginsListCommand extends Command {
  */
 function renderBuiltInBundleRow(bundle: IBuiltInBundleRow): string {
   const lines: string[] = [];
-  lines.push(`${bundle.enabled ? 'ok' : 'off'}     ${bundle.id}@built-in (granularity=${bundle.granularity})`);
+  lines.push(
+    tx(PLUGINS_TEXTS.builtInBundleHeader, {
+      status: bundle.enabled ? PLUGINS_TEXTS.rowStatusOk : PLUGINS_TEXTS.rowStatusOff,
+      id: bundle.id,
+      granularity: bundle.granularity,
+    }),
+  );
   if (bundle.granularity === 'bundle') {
     const kinds = bundle.extensions
       .map((e) => `${e.kind}:${qualifiedExtensionId(bundle.id, e.id)}`)
       .join(', ');
-    lines.push(`        ${kinds}`);
+    lines.push(tx(PLUGINS_TEXTS.builtInBundleKindsLine, { kinds }));
   } else {
     for (const ext of bundle.extensions) {
-      const stat = ext.enabled ? 'ok' : 'off';
-      lines.push(`  ${stat.padEnd(4)} ${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`);
+      lines.push(
+        tx(PLUGINS_TEXTS.builtInExtensionRow, {
+          stat: ext.enabled ? PLUGINS_TEXTS.rowStatusOkPad : PLUGINS_TEXTS.rowStatusOffPad,
+          kind: ext.kind,
+          qualifiedId: qualifiedExtensionId(bundle.id, ext.id),
+          version: ext.version,
+        }),
+      );
     }
   }
   return lines.join('\n') + '\n';
@@ -241,10 +251,22 @@ function renderBuiltInBundleRow(bundle: IBuiltInBundleRow): string {
 /** Render the single-line status row for one user plugin. */
 function renderPluginRow(p: IDiscoveredPlugin): string {
   const kinds = p.extensions?.map((e) => `${e.kind}:${e.pluginId}/${e.id}`).join(', ') ?? '';
-  const granularitySuffix = p.granularity ? ` (granularity=${p.granularity})` : '';
-  const head = `${statusIcon(p.status).padEnd(6)} ${p.id}@${p.manifest?.version ?? '?'}${granularitySuffix}`;
-  const tail = p.status === 'enabled' ? ` · ${kinds}` : ` · ${p.reason ?? ''}`;
-  return head + tail + '\n';
+  const granularitySuffix = p.granularity
+    ? tx(PLUGINS_TEXTS.pluginRowGranularitySuffix, { granularity: p.granularity })
+    : '';
+  const tail =
+    p.status === 'enabled'
+      ? tx(PLUGINS_TEXTS.pluginRowTailEnabled, { kinds })
+      : tx(PLUGINS_TEXTS.pluginRowTailDisabled, { reason: p.reason ?? '' });
+  return (
+    tx(PLUGINS_TEXTS.pluginRow, {
+      statusIcon: statusIcon(p.status).padEnd(6),
+      id: p.id,
+      version: p.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown,
+      granularitySuffix,
+      tail,
+    }) + '\n'
+  );
 }
 
 // --- show -----------------------------------------------------------------
@@ -290,17 +312,29 @@ export class PluginsShowCommand extends Command {
 /** Detail rendering for one built-in bundle (header + extensions list). */
 function renderBuiltInDetail(builtIn: IBuiltInBundleRow): string[] {
   const lines = [
-    `id:           ${builtIn.id}`,
-    `path:         (built-in)`,
-    `status:       ${builtIn.enabled ? 'enabled' : 'disabled'}`,
-    `granularity:  ${builtIn.granularity}`,
-    'extensions:',
+    tx(PLUGINS_TEXTS.detailIdRow, { id: builtIn.id }),
+    PLUGINS_TEXTS.detailPathBuiltIn,
+    tx(PLUGINS_TEXTS.detailStatusRow, {
+      status: builtIn.enabled ? PLUGINS_TEXTS.detailStatusEnabled : PLUGINS_TEXTS.detailStatusDisabled,
+    }),
+    tx(PLUGINS_TEXTS.detailGranularityRow, { granularity: builtIn.granularity }),
+    PLUGINS_TEXTS.detailExtensionsHeader,
   ];
   for (const ext of builtIn.extensions) {
-    const tag = builtIn.granularity === 'extension'
-      ? ` [${ext.enabled ? 'on' : 'off'}]`
-      : '';
-    lines.push(`  - ${ext.kind}:${qualifiedExtensionId(builtIn.id, ext.id)}@${ext.version}${tag}`);
+    const tag =
+      builtIn.granularity === 'extension'
+        ? tx(PLUGINS_TEXTS.detailExtensionTag, {
+            state: ext.enabled ? PLUGINS_TEXTS.detailExtensionTagOn : PLUGINS_TEXTS.detailExtensionTagOff,
+          })
+        : '';
+    lines.push(
+      tx(PLUGINS_TEXTS.detailExtensionRow, {
+        kind: ext.kind,
+        qualifiedId: qualifiedExtensionId(builtIn.id, ext.id),
+        version: ext.version,
+        tag,
+      }),
+    );
   }
   return lines;
 }
@@ -311,15 +345,23 @@ function renderBuiltInDetail(builtIn: IBuiltInBundleRow): string[] {
 // eslint-disable-next-line complexity
 function renderPluginDetail(match: IDiscoveredPlugin): string[] {
   const lines = [
-    `id:           ${match.id}`,
-    `path:         ${match.path}`,
-    `status:       ${match.status}`,
-    `version:      ${match.manifest?.version ?? '?'}`,
-    `compat:       ${match.manifest?.specCompat ?? '?'}`,
-    `granularity:  ${match.granularity ?? '(unknown — manifest invalid)'}`,
+    tx(PLUGINS_TEXTS.detailIdRow, { id: match.id }),
+    tx(PLUGINS_TEXTS.detailPathRow, { path: match.path }),
+    tx(PLUGINS_TEXTS.detailStatusRow, { status: match.status }),
+    tx(PLUGINS_TEXTS.detailVersionRow, {
+      version: match.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown,
+    }),
+    tx(PLUGINS_TEXTS.detailCompatRow, {
+      compat: match.manifest?.specCompat ?? PLUGINS_TEXTS.detailCompatUnknown,
+    }),
+    tx(PLUGINS_TEXTS.detailGranularityRow, {
+      granularity: match.granularity ?? PLUGINS_TEXTS.detailGranularityUnknown,
+    }),
   ];
-  if (match.manifest?.description) lines.push(`summary:      ${match.manifest.description}`);
-  if (match.reason) lines.push(`reason:       ${match.reason}`);
+  if (match.manifest?.description) {
+    lines.push(tx(PLUGINS_TEXTS.detailSummaryRow, { description: match.manifest.description }));
+  }
+  if (match.reason) lines.push(tx(PLUGINS_TEXTS.detailReasonRow, { reason: match.reason }));
   if (match.extensions && match.extensions.length > 0) {
     lines.push(...renderExtensionsList(match.extensions));
   }
@@ -328,8 +370,17 @@ function renderPluginDetail(match: IDiscoveredPlugin): string[] {
 
 /** Indented `extensions:` block listing one bullet per loaded extension. */
 function renderExtensionsList(exts: ILoadedExtension[]): string[] {
-  const lines: string[] = ['extensions:'];
-  for (const ext of exts) lines.push(`  - ${ext.kind}:${ext.pluginId}/${ext.id}@${ext.version}`);
+  const lines: string[] = [PLUGINS_TEXTS.detailExtensionsHeader];
+  for (const ext of exts) {
+    lines.push(
+      tx(PLUGINS_TEXTS.detailExtensionRow, {
+        kind: ext.kind,
+        qualifiedId: `${ext.pluginId}/${ext.id}`,
+        version: ext.version,
+        tag: '',
+      }),
+    );
+  }
   return lines;
 }
 

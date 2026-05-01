@@ -221,10 +221,11 @@ export class SqliteStorageAdapter implements StoragePort {
   /**
    * Access the underlying Kysely instance.
    *
-   * **Pre-Phase F:** kept exported so existing CLI commands and tests
-   * that reach into raw Kysely can keep building. Once Phase F lands,
-   * this getter becomes adapter-internal and the only consumers are
-   * the namespace bodies on this class.
+   * Test-only escape hatch (per AGENTS.md § Kernel boundaries — tests
+   * are the documented exception). CLI commands MUST consume the
+   * adapter through the namespaced port surfaces (`port.<namespace>.*`
+   * or `port.transaction(...)`); reaching for this getter from a
+   * command file is a layering violation.
    */
   get db(): Kysely<IDatabase> {
     if (!this.#db) throw new Error('SqliteStorageAdapter: init() not called');
@@ -289,6 +290,14 @@ export class SqliteStorageAdapter implements StoragePort {
           return applyMigrations(raw, path, options, files);
         }),
       writeBackup: (targetVersion) => writeBackup(path, targetVersion),
+      currentSchemaVersion: () =>
+        withRawDb(path, (raw) => {
+          const row = raw.prepare('PRAGMA user_version').get() as
+            | { user_version?: number }
+            | undefined;
+          const v = row?.user_version;
+          return typeof v === 'number' && Number.isFinite(v) ? v : null;
+        }),
     };
 
     this.pluginMigrations = {

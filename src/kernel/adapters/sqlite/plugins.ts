@@ -8,7 +8,7 @@
  * `src/migrations/001_initial.sql`). This module only adds the helpers.
  */
 
-import { sql, type Kysely, type Transaction } from 'kysely';
+import type { Kysely, Transaction } from 'kysely';
 
 import type { IDatabase } from './schema.js';
 
@@ -109,6 +109,3 @@ export async function loadPluginOverrideMap(
   for (const row of rows) out.set(row.pluginId, row.enabled);
   return out;
 }
-
-/* sql import retained for future extension (transactional batch ops). */
-void sql;

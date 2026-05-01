@@ -14,6 +14,9 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
+import { tx } from '../../kernel/util/tx.js';
+import { UTIL_TEXTS } from '../i18n/util.texts.js';
+
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 const DEFAULT_GLOBAL_DB = '.skill-map/skill-map.db';
 
@@ -45,6 +48,6 @@ export function resolveDbPath(options: IDbLocationOptions): string {
  */
 export function assertDbExists(path: string, stderr: NodeJS.WritableStream): boolean {
   if (path === ':memory:' || existsSync(path)) return true;
-  stderr.write(`DB not found at ${path}; run \`sm scan\` first.\n`);
+  stderr.write(tx(UTIL_TEXTS.dbNotFound, { path }));
   return false;
 }

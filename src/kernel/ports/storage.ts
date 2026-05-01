@@ -259,6 +259,14 @@ export interface StoragePort {
     apply(options?: IApplyOptions, files?: IMigrationFile[]): IApplyResult;
     /** WAL-checkpoint + file copy of the DB to `backups/`; returns the path. */
     writeBackup(targetVersion: number): string | null;
+    /**
+     * Read `PRAGMA user_version` from the underlying DB. The migrations
+     * runner keeps that pragma in sync with the latest applied kernel
+     * migration, so this is the canonical "current schema version"
+     * read for `sm version --json`'s `dbSchema` field. Returns `null`
+     * on engine quirks (non-numeric / null pragma).
+     */
+    currentSchemaVersion(): number | null;
   };
 
   // --- pluginMigrations namespace (sm db verb, per-plugin) --------------

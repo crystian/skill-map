@@ -44,7 +44,7 @@
  */
 
 import { unlinkSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
@@ -220,31 +220,45 @@ export class JobPruneCommand extends Command {
   }
 
   private printPretty(out: IPruneOutput): void {
-    const tag = out.dryRun ? 'sm job prune (dry-run)' : 'sm job prune';
+    const tag = out.dryRun ? JOBS_TEXTS.pruneTagDryRun : JOBS_TEXTS.pruneTagApply;
     const c = out.retention.completed;
     const f = out.retention.failed;
+    const rowsVerb = out.dryRun ? JOBS_TEXTS.pruneRowsVerbDryRun : JOBS_TEXTS.pruneRowsVerbApply;
+    const filesVerb = out.dryRun ? JOBS_TEXTS.pruneFilesVerbDryRun : JOBS_TEXTS.pruneFilesVerbApply;
     this.context.stdout.write(
       `${tag}\n` +
-        `  completed: policy ${formatPolicy(c.policySeconds)}, ${c.deleted} row(s) ${out.dryRun ? 'would be deleted' : 'deleted'}, ${c.files} file(s) ${out.dryRun ? 'would be unlinked' : 'unlinked'}\n` +
-        `  failed:    policy ${formatPolicy(f.policySeconds)}, ${f.deleted} row(s) ${out.dryRun ? 'would be deleted' : 'deleted'}, ${f.files} file(s) ${out.dryRun ? 'would be unlinked' : 'unlinked'}\n`,
+        tx(JOBS_TEXTS.pruneRetentionRow, {
+          label: JOBS_TEXTS.pruneLabelCompleted,
+          policy: formatPolicy(c.policySeconds),
+          rows: c.deleted,
+          rowsVerb,
+          files: c.files,
+          filesVerb,
+        }) +
+        tx(JOBS_TEXTS.pruneRetentionRow, {
+          label: JOBS_TEXTS.pruneLabelFailed,
+          policy: formatPolicy(f.policySeconds),
+          rows: f.deleted,
+          rowsVerb,
+          files: f.files,
+          filesVerb,
+        }),
     );
     if (out.orphanFiles.scanned) {
       this.context.stdout.write(
-        `  orphan-files: ${out.orphanFiles.deleted} file(s) ${out.dryRun ? 'would be removed' : 'removed'}\n`,
+        tx(JOBS_TEXTS.pruneOrphanFilesRow, {
+          count: out.orphanFiles.deleted,
+          verb: out.dryRun ? JOBS_TEXTS.pruneOrphanFilesVerbDryRun : JOBS_TEXTS.pruneOrphanFilesVerbApply,
+        }),
       );
     }
   }
 }
 
 function formatPolicy(seconds: number | null): string {
-  if (seconds === null) return 'never';
+  if (seconds === null) return JOBS_TEXTS.pruneRetentionPolicyNever;
   if (seconds % 86400 === 0) return `${seconds / 86400}d`;
   if (seconds % 3600 === 0) return `${seconds / 3600}h`;
   return `${seconds}s`;
 }
 
-// `join` import retained for symmetry with the JOBS_DIR_REL constant —
-// the helper currently resolves `cwd + JOBS_DIR_REL` via `resolve()`,
-// but keeping `join` available avoids a future churn when sub-paths
-// are added (e.g. per-runner subdirectories).
-void join;

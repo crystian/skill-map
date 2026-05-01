@@ -141,9 +141,7 @@ export class HistoryCommand extends Command {
     if (this.limit !== undefined) {
       const parsed = Number.parseInt(this.limit, 10);
       if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== this.limit.trim()) {
-        this.context.stderr.write(
-          `--limit: expected a positive integer, got "${this.limit}".\n`,
-        );
+        this.context.stderr.write(tx(HISTORY_TEXTS.limitNotPositiveInt, { value: this.limit }));
         return ExitCode.Error;
       }
       filter.limit = parsed;
@@ -229,7 +227,7 @@ export class HistoryStatsCommand extends Command {
     if (this.period !== undefined) {
       if (!PERIODS.includes(this.period as THistoryStatsPeriod)) {
         this.context.stderr.write(
-          `--period: invalid value "${this.period}". Allowed: ${PERIODS.join(', ')}.\n`,
+          tx(HISTORY_TEXTS.periodInvalid, { value: this.period, allowed: PERIODS.join(', ') }),
         );
         return ExitCode.Error;
       }
@@ -239,9 +237,7 @@ export class HistoryStatsCommand extends Command {
     if (this.top !== undefined) {
       const parsed = Number.parseInt(this.top, 10);
       if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== this.top.trim()) {
-        this.context.stderr.write(
-          `--top: expected a positive integer, got "${this.top}".\n`,
-        );
+        this.context.stderr.write(tx(HISTORY_TEXTS.topNotPositiveInt, { value: this.top }));
         return ExitCode.Error;
       }
       topN = parsed;
@@ -287,7 +283,7 @@ export class HistoryStatsCommand extends Command {
         const result = validators.validate('history-stats', stats);
         if (!result.ok) {
           this.context.stderr.write(
-            `internal: history-stats output failed schema validation — ${result.errors}\n`,
+            tx(HISTORY_TEXTS.schemaValidationFailed, { errors: String(result.errors) }),
           );
           return ExitCode.Error;
         }
@@ -325,7 +321,13 @@ function toExecutionRecord(r: ExecutionRecord): ExecutionRecord {
 // eslint-disable-next-line complexity
 function renderTable(rows: ExecutionRecord[]): string {
   const header = formatRow(
-    'ID', 'STARTED', 'ACTION', 'STATUS', 'DURATION', 'TOKENS', 'NODES',
+    HISTORY_TEXTS.tableHeaderId,
+    HISTORY_TEXTS.tableHeaderStarted,
+    HISTORY_TEXTS.tableHeaderAction,
+    HISTORY_TEXTS.tableHeaderStatus,
+    HISTORY_TEXTS.tableHeaderDuration,
+    HISTORY_TEXTS.tableHeaderTokens,
+    HISTORY_TEXTS.tableHeaderNodes,
   );
   const sep = '-'.repeat(header.length);
   const lines = [header, sep];
@@ -360,47 +362,61 @@ function renderTable(rows: ExecutionRecord[]): string {
 }
 
 function renderStats(stats: HistoryStats): string {
-  const lines: string[] = [];
-  const since = stats.range.since ?? '(all time)';
-  lines.push(`Window: ${since} → ${stats.range.until}`);
-  lines.push('');
-  lines.push(
-    `Totals: ${stats.totals.executionsCount} executions ` +
-      `(${stats.totals.completedCount} ok, ${stats.totals.failedCount} failed) — ` +
-      `tokens ${stats.totals.tokensIn} in / ${stats.totals.tokensOut} out — ` +
-      `duration ${formatElapsed(stats.totals.durationMsTotal)}`,
+  // Templates in HISTORY_TEXTS terminate with `\n`; section breaks are
+  // explicit blank `\n` strings between blocks. The final block does NOT
+  // append a trailing blank — matches the pre-i18n shape of `lines.push('')`
+  // + `lines.join('\n')` which produced exactly one trailing newline.
+  const out: string[] = [];
+  const since = stats.range.since ?? HISTORY_TEXTS.statsAllTimeWindow;
+  out.push(tx(HISTORY_TEXTS.statsWindow, { since, until: stats.range.until }));
+  out.push('\n');
+  out.push(
+    tx(HISTORY_TEXTS.statsTotals, {
+      count: stats.totals.executionsCount,
+      ok: stats.totals.completedCount,
+      failed: stats.totals.failedCount,
+      tokensIn: stats.totals.tokensIn,
+      tokensOut: stats.totals.tokensOut,
+      duration: formatElapsed(stats.totals.durationMsTotal),
+    }),
   );
-  lines.push(`Global error rate: ${(stats.errorRates.global * 100).toFixed(1)}%`);
-  lines.push('');
+  out.push(
+    tx(HISTORY_TEXTS.statsGlobalErrorRate, { rate: (stats.errorRates.global * 100).toFixed(1) }),
+  );
 
   if (stats.tokensPerAction.length > 0) {
-    lines.push('Top actions by tokens:');
+    out.push('\n');
+    out.push(HISTORY_TEXTS.statsTopActionsHeader);
     for (const a of stats.tokensPerAction.slice(0, 5)) {
-      lines.push(
-        `  ${a.actionId}@${a.actionVersion}: ${a.executionsCount} runs, ` +
-          `${a.tokensIn} in / ${a.tokensOut} out`,
+      out.push(
+        tx(HISTORY_TEXTS.statsTopActionsRow, {
+          id: a.actionId,
+          version: a.actionVersion,
+          runs: a.executionsCount,
+          tokensIn: a.tokensIn,
+          tokensOut: a.tokensOut,
+        }),
       );
     }
-    lines.push('');
   }
   if (stats.topNodes.length > 0) {
-    lines.push('Top nodes:');
+    out.push('\n');
+    out.push(HISTORY_TEXTS.statsTopNodesHeader);
     for (const n of stats.topNodes.slice(0, 5)) {
-      lines.push(`  ${n.nodePath}: ${n.executionsCount} runs`);
+      out.push(tx(HISTORY_TEXTS.statsTopNodesRow, { path: n.nodePath, runs: n.executionsCount }));
     }
-    lines.push('');
   }
   const failures = Object.entries(stats.errorRates.perFailureReason).filter(
     ([, v]) => v > 0,
   );
   if (failures.length > 0) {
-    lines.push('Failures by reason:');
+    out.push('\n');
+    out.push(HISTORY_TEXTS.statsFailuresByReasonHeader);
     for (const [reason, count] of failures) {
-      lines.push(`  ${reason}: ${count}`);
+      out.push(tx(HISTORY_TEXTS.statsFailuresByReasonRow, { reason, count }));
     }
-    lines.push('');
   }
-  return lines.join('\n');
+  return out.join('');
 }
 
 function formatRow(...cols: string[]): string {

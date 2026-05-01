@@ -16,6 +16,8 @@ import { createInterface } from 'node:readline';
 
 import type { Readable, Writable } from 'node:stream';
 
+import { UTIL_TEXTS } from '../i18n/util.texts.js';
+
 export interface IConfirmStreams {
   stdin: Readable;
   stderr: Writable;
@@ -25,7 +27,7 @@ export async function confirm(question: string, streams: IConfirmStreams): Promi
   const rl = createInterface({ input: streams.stdin, output: streams.stderr });
   try {
     const answer = await new Promise<string>((resolveP) =>
-      rl.question(`${question} [y/N] `, resolveP),
+      rl.question(`${question}${UTIL_TEXTS.confirmPromptSuffix}`, resolveP),
     );
     return /^y(es)?$/i.test(answer.trim());
   } finally {

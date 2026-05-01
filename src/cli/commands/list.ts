@@ -163,7 +163,15 @@ function renderTable(
   // Fixed-width columns. The path column truncates with an ellipsis to
   // keep the table readable on standard 100-column terminals; the JSON
   // mode preserves full paths.
-  const header = formatRow('PATH', 'KIND', 'OUT', 'IN', 'EXT', 'ISSUES', 'BYTES');
+  const header = formatRow(
+    LIST_TEXTS.tableHeaderPath,
+    LIST_TEXTS.tableHeaderKind,
+    LIST_TEXTS.tableHeaderOut,
+    LIST_TEXTS.tableHeaderIn,
+    LIST_TEXTS.tableHeaderExt,
+    LIST_TEXTS.tableHeaderIssues,
+    LIST_TEXTS.tableHeaderBytes,
+  );
   const sep = '-'.repeat(header.length);
   const lines = [header, sep];
   for (const node of nodes) {

@@ -553,19 +553,24 @@ export class DbMigrateCommand extends Command {
         if (this.dryRun) {
           this.context.stdout.write(
             kernelApplied === 0
-              ? 'kernel · Nothing to apply.\n'
-              : `kernel · Would apply ${kernelApplied} migration(s):\n` +
-                  result.applied
+              ? DB_TEXTS.migrateKernelDryNothing
+              : tx(DB_TEXTS.migrateKernelDryHeader, {
+                  count: kernelApplied,
+                  lines: result.applied
                     .map((m) => `  ${formatKernelName(m.version, m.description)}`)
-                    .join('\n') + '\n',
+                    .join('\n'),
+                }),
           );
+        } else if (kernelApplied === 0) {
+          this.context.stdout.write(DB_TEXTS.migrateKernelUpToDate);
         } else {
           this.context.stdout.write(
-            kernelApplied === 0
-              ? 'kernel · Already up to date.\n'
-              : `kernel · Applied ${kernelApplied} migration(s)${
-                  backupPath ? ` · backup: ${backupPath}` : ''
-                }\n`,
+            backupPath
+              ? tx(DB_TEXTS.migrateKernelAppliedWithBackup, {
+                  count: kernelApplied,
+                  backupPath,
+                })
+              : tx(DB_TEXTS.migrateKernelApplied, { count: kernelApplied }),
           );
         }
       }

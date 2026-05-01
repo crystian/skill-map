@@ -14,6 +14,9 @@
  *   - `≥ 60s`            → `1m 42s`
  */
 
+import { tx } from '../../kernel/util/tx.js';
+import { UTIL_TEXTS } from '../i18n/util.texts.js';
+
 export interface IElapsed {
   /** Wall-clock ms since `startElapsed()` was called. */
   ms(): number;
@@ -52,5 +55,5 @@ export function emitDoneStderr(
   quiet = false,
 ): void {
   if (quiet) return;
-  stderr.write(`done in ${elapsed.formatted()}\n`);
+  stderr.write(tx(UTIL_TEXTS.doneIn, { elapsed: elapsed.formatted() }));
 }

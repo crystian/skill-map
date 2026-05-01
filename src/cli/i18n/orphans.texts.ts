@@ -52,6 +52,16 @@ export const ORPHANS_TEXTS = {
   undoWouldMigrate:
     '(dry-run) Would revert {{newPath}} → {{from}}. Would migrate {{rows}} state rows; ' +
     'would emit a new orphan issue on {{from}}.\n',
+  /**
+   * Message persisted into `scan_issues.message` for the orphan issue
+   * emitted after `sm orphans undo-rename`. The string lands in DB rows
+   * and travels through `--json`, `sm check`, and downstream consumers,
+   * so localising it requires a kernel-side template (not just a CLI
+   * catalog) — kept here for now so the wording lives in one greppable
+   * place even if the layering is imperfect.
+   */
+  undoRenameOrphanMessage:
+    'Orphan history: {{toPath}} (was reverted from auto-rename to {{newPath}}).',
   // --- shared ------------------------------------------------------------
   invalidKind:
     '--kind: invalid value "{{kind}}". Allowed: orphan, medium, ambiguous.\n',

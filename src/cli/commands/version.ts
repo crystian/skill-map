@@ -1,6 +1,3 @@
-import { existsSync } from 'node:fs';
-import { DatabaseSync } from 'node:sqlite';
-
 import { Command, Option } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
@@ -8,6 +5,7 @@ import { VERSION_TEXTS } from '../i18n/version.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { VERSION } from '../version.js';
+import { tryWithSqlite } from '../util/with-sqlite.js';
 
 /**
  * `sm version` — multi-line version matrix.
@@ -29,10 +27,11 @@ import { VERSION } from '../version.js';
  *
  * The Clipanion built-in `--version` flag remains for the single-line form.
  *
- * `db-schema` resolution (Step 6 follow-up):
- *   - When the project DB file exists, the command opens it read-only and
- *     reads `PRAGMA user_version`. The migrations runner keeps that pragma
- *     in sync with the latest applied kernel migration.
+ * `db-schema` resolution:
+ *   - When the project DB file exists, the command opens it through
+ *     `StoragePort.migrations.currentSchemaVersion()` (which reads
+ *     `PRAGMA user_version`; the migrations runner keeps that pragma in
+ *     sync with the latest applied kernel migration).
  *   - When the DB is absent, the field stays `—` (no scope provisioned
  *     yet — typically pre-`sm init`).
  *   - Any read failure is silenced into `—` rather than turned into an
@@ -53,7 +52,7 @@ export class VersionCommand extends Command {
     const runtime = `Node ${process.version}`;
     const kernelVersion = VERSION;
     const specVersion = await resolveSpecVersion();
-    const dbSchema = resolveDbSchemaVersion();
+    const dbSchema = await resolveDbSchemaVersion();
 
     if (this.json) {
       // Spec § `sm version`: exactly `{ sm, kernel, spec, dbSchema }`.
@@ -98,28 +97,24 @@ async function resolveSpecVersion(): Promise<string> {
 }
 
 /**
- * Read `PRAGMA user_version` from the project DB. The migrations runner
- * keeps this in sync with the latest applied kernel migration; a fresh
- * DB returns 0.
+ * Resolve the project DB schema version through `StoragePort`.
  *
  * Failure modes (return `—` for all):
- *   - DB file does not exist (no `sm init` yet).
+ *   - DB file does not exist (no `sm init` yet — `tryWithSqlite`
+ *     short-circuits to `null` before opening the adapter, so no
+ *     `.skill-map/` directory is provisioned for an informational
+ *     read).
  *   - DB file exists but cannot be opened (corrupt / permissions).
  *   - PRAGMA returns null / non-numeric (engine quirk; never observed).
  */
-function resolveDbSchemaVersion(): string {
+async function resolveDbSchemaVersion(): Promise<string> {
   const dbPath = resolveDbPath({ global: false, db: undefined });
-  if (!existsSync(dbPath)) return '—';
   try {
-    const db = new DatabaseSync(dbPath, { readOnly: true });
-    try {
-      const row = db.prepare('PRAGMA user_version').get() as { user_version?: number } | undefined;
-      const v = row?.user_version;
-      if (typeof v !== 'number' || !Number.isFinite(v)) return '—';
-      return String(v);
-    } finally {
-      db.close();
-    }
+    const v = await tryWithSqlite({ databasePath: dbPath, autoBackup: false }, async (port) =>
+      port.migrations.currentSchemaVersion(),
+    );
+    if (v === null || v === undefined) return '—';
+    return String(v);
   } catch {
     return '—';
   }

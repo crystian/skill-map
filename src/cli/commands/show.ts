@@ -103,9 +103,12 @@ function renderLinksSection(
   arrow: '→' | '←',
 ): string[] {
   const aggregated = aggregateLinks(links, projectField);
-  const lines: string[] = ['', `${label} (${links.length}, ${aggregated.length} unique):`];
+  const lines: string[] = [
+    '',
+    tx(SHOW_TEXTS.sectionHeader, { label, count: links.length, unique: aggregated.length }),
+  ];
   if (aggregated.length === 0) {
-    lines.push('  (none)');
+    lines.push(SHOW_TEXTS.placeholderNone);
   } else {
     for (const grp of aggregated) lines.push(formatGroupedLink(arrow, grp));
   }
@@ -116,10 +119,10 @@ function renderHuman(doc: IShowDocument): string {
   const { node, linksOut, linksIn, issues } = doc;
   const out: string[] = [];
   out.push(...renderNodeHeader(node));
-  out.push('', 'Frontmatter:');
+  out.push('', SHOW_TEXTS.sectionFrontmatter);
   out.push(indent(JSON.stringify(node.frontmatter ?? {}, null, 2), 2));
-  out.push(...renderLinksSection('Links out', linksOut, 'target', '→'));
-  out.push(...renderLinksSection('Links in', linksIn, 'source', '←'));
+  out.push(...renderLinksSection(SHOW_TEXTS.sectionLinksOut, linksOut, 'target', '→'));
+  out.push(...renderLinksSection(SHOW_TEXTS.sectionLinksIn, linksIn, 'source', '←'));
   out.push(...renderIssuesSection(issues));
   // findings + summary intentionally omitted until the Step 10 / 11
   // features land — keeping an empty section header would mislead.
@@ -133,30 +136,44 @@ function renderHuman(doc: IShowDocument): string {
  */
 function renderNodeHeader(node: Node): string[] {
   const lines: string[] = [];
-  lines.push(`${sanitizeForTerminal(node.path)} [${sanitizeForTerminal(node.kind)}] (provider: ${sanitizeForTerminal(node.provider)})`);
-  if (node.title) lines.push(`title:        ${sanitizeForTerminal(node.title)}`);
-  if (node.description) lines.push(`description:  ${sanitizeForTerminal(node.description)}`);
-  if (node.stability) lines.push(`stability:    ${sanitizeForTerminal(node.stability)}`);
-  if (node.version) lines.push(`version:      ${sanitizeForTerminal(node.version)}`);
-  if (node.author) lines.push(`author:       ${sanitizeForTerminal(node.author)}`);
+  lines.push(
+    tx(SHOW_TEXTS.nodeIdentity, {
+      path: sanitizeForTerminal(node.path),
+      kind: sanitizeForTerminal(node.kind),
+      provider: sanitizeForTerminal(node.provider),
+    }),
+  );
+  if (node.title) lines.push(tx(SHOW_TEXTS.nodeFieldTitle, { value: sanitizeForTerminal(node.title) }));
+  if (node.description) lines.push(tx(SHOW_TEXTS.nodeFieldDescription, { value: sanitizeForTerminal(node.description) }));
+  if (node.stability) lines.push(tx(SHOW_TEXTS.nodeFieldStability, { value: sanitizeForTerminal(node.stability) }));
+  if (node.version) lines.push(tx(SHOW_TEXTS.nodeFieldVersion, { value: sanitizeForTerminal(node.version) }));
+  if (node.author) lines.push(tx(SHOW_TEXTS.nodeFieldAuthor, { value: sanitizeForTerminal(node.author) }));
   const b = node.bytes;
-  lines.push(`Weight: bytes ${b.total} total / ${b.frontmatter} frontmatter / ${b.body} body`);
+  lines.push(tx(SHOW_TEXTS.nodeWeight, { total: b.total, frontmatter: b.frontmatter, body: b.body }));
   if (node.tokens) {
     const t = node.tokens;
-    lines.push(`        tokens ${t.total} total / ${t.frontmatter} frontmatter / ${t.body} body`);
+    lines.push(tx(SHOW_TEXTS.nodeTokens, { total: t.total, frontmatter: t.frontmatter, body: t.body }));
   }
   // Render even when 0 — "External refs: 0" is information, not noise.
-  lines.push(`External refs: ${node.externalRefsCount}`);
+  lines.push(tx(SHOW_TEXTS.nodeExternalRefs, { count: node.externalRefsCount }));
   return lines;
 }
 
 /** Issues block: header line + `(none)` placeholder or one bullet per issue. */
 function renderIssuesSection(issues: Issue[]): string[] {
-  const lines: string[] = ['', `Issues (${issues.length}):`];
+  const lines: string[] = ['', tx(SHOW_TEXTS.issuesHeader, { count: issues.length })];
   if (issues.length === 0) {
-    lines.push('  (none)');
+    lines.push(SHOW_TEXTS.placeholderNone);
   } else {
-    for (const issue of issues) lines.push(`  - [${issue.severity}] ${sanitizeForTerminal(issue.ruleId)}: ${sanitizeForTerminal(issue.message)}`);
+    for (const issue of issues) {
+      lines.push(
+        tx(SHOW_TEXTS.issueRow, {
+          severity: issue.severity,
+          ruleId: sanitizeForTerminal(issue.ruleId),
+          message: sanitizeForTerminal(issue.message),
+        }),
+      );
+    }
   }
   return lines;
 }
