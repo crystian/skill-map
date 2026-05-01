@@ -62,6 +62,7 @@ import type {
   IListExecutionsFilter,
   THistoryStatsPeriod,
 } from './history.js';
+import { listOrphanJobFiles, pruneTerminalJobs } from './jobs.js';
 import { applyMigrations, discoverMigrations } from './migrations.js';
 import {
   loadExtractorRuns,
@@ -134,6 +135,7 @@ export class SqliteStorageAdapter implements StoragePort {
   scans!: StoragePort['scans'];
   issues!: StoragePort['issues'];
   history!: StoragePort['history'];
+  jobs!: StoragePort['jobs'];
 
   constructor(options: ISqliteStorageAdapterOptions) {
     this.#options = options;
@@ -237,6 +239,14 @@ export class SqliteStorageAdapter implements StoragePort {
         period: THistoryStatsPeriod,
         topN: number,
       ) => aggregateHistoryStats(this.db, range, period, topN),
+    };
+
+    this.jobs = {
+      pruneTerminal: (status, cutoffMs) =>
+        pruneTerminalJobs(this.db, status, cutoffMs),
+      listTerminalCandidates: (status, cutoffMs) =>
+        listTerminalCandidates(this.db, status, cutoffMs),
+      listOrphanFiles: (jobsDir) => listOrphanJobFiles(this.db, jobsDir),
     };
   }
 }
@@ -480,6 +490,31 @@ async function upsertEnrichments(
       )
       .execute();
   }
+}
+
+/**
+ * Read-only `state_jobs` filter mirroring the SELECT side of
+ * `pruneTerminalJobs` — `sm job prune --dry-run` consumes this so the
+ * preview names exactly the rows the live mode would delete.
+ */
+async function listTerminalCandidates(
+  db: Kysely<IDatabase>,
+  status: 'completed' | 'failed',
+  cutoffMs: number,
+): Promise<{ deletedCount: number; filePaths: string[] }> {
+  const rows = await db
+    .selectFrom('state_jobs')
+    .select(['id', 'filePath'])
+    .where('status', '=', status)
+    .where('finishedAt', 'is not', null)
+    .where('finishedAt', '<', cutoffMs)
+    .execute();
+  return {
+    deletedCount: rows.length,
+    filePaths: rows
+      .map((r) => r.filePath)
+      .filter((p): p is string => p !== null),
+  };
 }
 
 // `IExtractorRunRecord` re-exported for adapter consumers that don't

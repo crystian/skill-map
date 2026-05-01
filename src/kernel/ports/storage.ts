@@ -39,6 +39,10 @@ import type {
   THistoryStatsPeriod,
 } from '../adapters/sqlite/history.js';
 import type {
+  IOrphanFilesResult,
+  IPruneResult,
+} from '../adapters/sqlite/jobs.js';
+import type {
   IIssueRow,
   INodeBundle,
   INodeCounts,
@@ -149,6 +153,37 @@ export interface StoragePort {
   // canonical caller and it always wraps in a tx. A non-transactional
   // read shape lands when a non-refresh consumer surfaces; the
   // contract starts minimal on purpose.
+
+  // --- jobs namespace ----------------------------------------------------
+  jobs: {
+    /**
+     * Delete `state_jobs` rows in terminal `status` whose `finishedAt`
+     * is older than `cutoffMs` (Unix ms). Returns the deleted count
+     * plus every non-null `filePath` from the deleted rows so the
+     * caller can unlink the on-disk MD files. Caller computes
+     * `cutoffMs` from the configured retention.
+     */
+    pruneTerminal(
+      status: 'completed' | 'failed',
+      cutoffMs: number,
+    ): Promise<IPruneResult>;
+    /**
+     * Same SELECT side as `pruneTerminal` but without the DELETE.
+     * Powers `sm job prune --dry-run` previews so the dry-run output
+     * names exactly the rows the live mode would delete.
+     */
+    listTerminalCandidates(
+      status: 'completed' | 'failed',
+      cutoffMs: number,
+    ): Promise<IPruneResult>;
+    /**
+     * Enumerate MD files in `jobsDir` whose path no `state_jobs` row
+     * references. `sm job prune --orphan-files` consumes this. The
+     * walk is shallow (job files live directly under `.skill-map/
+     * jobs/`); symlinks are NOT followed.
+     */
+    listOrphanFiles(jobsDir: string): Promise<IOrphanFilesResult>;
+  };
 
   // --- history namespace -------------------------------------------------
   history: {

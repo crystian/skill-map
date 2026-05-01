@@ -49,11 +49,7 @@ import { join, resolve } from 'node:path';
 import { Command, Option } from 'clipanion';
 
 import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
-import {
-  listOrphanJobFiles,
-  pruneTerminalJobs,
-  type IPruneResult,
-} from '../../kernel/adapters/sqlite/jobs.js';
+import type { IPruneResult } from '../../kernel/adapters/sqlite/jobs.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { assertDbExists } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -177,7 +173,7 @@ export class JobPruneCommand extends Command {
         // We don't double-count: retention unlinked them, the FS scan
         // won't find them anymore.
         if (this.orphanFiles && out.orphanFiles.scanned) {
-          const orphans = await listOrphanJobFiles(adapter.db, jobsDir);
+          const orphans = await adapter.jobs.listOrphanFiles(jobsDir);
           const removed = await this.unlinkFiles(orphans.orphanFilePaths, this.dryRun);
           out.orphanFiles = { scanned: true, deleted: removed };
         }
@@ -202,24 +198,9 @@ export class JobPruneCommand extends Command {
     adapter: SqliteStorageAdapter,
     dryRun: boolean,
   ): Promise<IPruneResult> {
-    if (dryRun) {
-      // Mirror the SELECT side of pruneTerminalJobs without the DELETE.
-      // Keeps dry-run honest about exactly which rows would be hit.
-      const rows = await adapter.db
-        .selectFrom('state_jobs')
-        .select(['id', 'filePath'])
-        .where('status', '=', status)
-        .where('finishedAt', 'is not', null)
-        .where('finishedAt', '<', cutoffMs)
-        .execute();
-      return {
-        deletedCount: rows.length,
-        filePaths: rows
-          .map((r) => r.filePath)
-          .filter((p): p is string => p !== null),
-      };
-    }
-    return pruneTerminalJobs(adapter.db, status, cutoffMs);
+    return dryRun
+      ? adapter.jobs.listTerminalCandidates(status, cutoffMs)
+      : adapter.jobs.pruneTerminal(status, cutoffMs);
   }
 
   private async unlinkFiles(paths: string[], dryRun: boolean): Promise<number> {
