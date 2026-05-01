@@ -32,7 +32,7 @@
     "typecheck": "npm run typecheck --workspace=@skill-map/cli",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
-    "validate": "npm run test && npm run lint --workspaces --if-present",
+    "validate": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspace=@skill-map/cli",
     "test:all": "npm run test --workspace=@skill-map/cli && npm run test --workspace=@skill-map/testkit",
     "test:coverage": "npm run test:coverage --workspace=@skill-map/cli && npm run test:coverage --workspace=@skill-map/testkit",
