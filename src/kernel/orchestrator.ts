@@ -588,6 +588,221 @@ interface IWalkAndExtractResult {
   extractorRuns: IExtractorRunRecord[];
 }
 
+/**
+ * Run a set of extractors against a single node, collecting their link
+ * emissions and node-enrichment partials. Each extractor is invoked
+ * exactly once with a fresh `IExtractorContext`. Caller decides what
+ * to do with the returned arrays (push into per-scan buffers, write to
+ * a focused refresh result, etc.).
+ *
+ * Exported so `cli/commands/refresh.ts` can reuse the same wiring it
+ * needs for re-running a single extractor against a single node — the
+ * pre-extraction code in `refresh.ts` was hand-duplicating this loop
+ * (audit item V4).
+ *
+ * Within this call, multiple `enrichNode(partial)` calls from the same
+ * extractor against the same node fold into one record (last-write-wins
+ * per field) — same contract as the in-scan path.
+ */
+export async function runExtractorsForNode(opts: {
+  extractors: IExtractor[];
+  node: Node;
+  body: string;
+  frontmatter: Record<string, unknown>;
+  bodyHash: string;
+  emitter: ProgressEmitterPort;
+}): Promise<{
+  internalLinks: Link[];
+  externalLinks: Link[];
+  enrichments: IEnrichmentRecord[];
+}> {
+  const internalLinks: Link[] = [];
+  const externalLinks: Link[] = [];
+  const enrichmentBuffer = new Map<string, IEnrichmentRecord>();
+
+  for (const extractor of opts.extractors) {
+    const qualifiedId = qualifiedExtensionId(extractor.pluginId, extractor.id);
+    const isProb = extractor.mode === 'probabilistic';
+    const emitLink = (link: Link): void => {
+      const validated = validateLink(extractor, link, opts.emitter);
+      if (!validated) return;
+      if (isExternalUrlLink(validated)) externalLinks.push(validated);
+      else internalLinks.push(validated);
+    };
+    const enrichNode = (partial: Partial<Node>): void => {
+      const key = `${opts.node.path}\x00${qualifiedId}`;
+      const existing = enrichmentBuffer.get(key);
+      if (existing) {
+        existing.value = { ...existing.value, ...partial };
+        existing.enrichedAt = Date.now();
+      } else {
+        enrichmentBuffer.set(key, {
+          nodePath: opts.node.path,
+          extractorId: qualifiedId,
+          bodyHashAtEnrichment: opts.bodyHash,
+          value: { ...partial },
+          enrichedAt: Date.now(),
+          isProbabilistic: isProb,
+        });
+      }
+    };
+    const ctx = buildExtractorContext(
+      extractor,
+      opts.node,
+      opts.body,
+      opts.frontmatter,
+      emitLink,
+      enrichNode,
+    );
+    await extractor.extract(ctx);
+  }
+
+  return {
+    internalLinks,
+    externalLinks,
+    enrichments: Array.from(enrichmentBuffer.values()),
+  };
+}
+
+/**
+ * Compute the per-(node, extractor) cache decision for a single node.
+ * Returns:
+ *   - `applicableExtractors` — extractors whose `applicableKinds`
+ *     accepts this node's kind (or unrestricted).
+ *   - `applicableQualifiedIds` — set of qualified ids of the above.
+ *   - `cachedQualifiedIds` — applicable extractors whose prior run for
+ *     this node's body hash is still valid.
+ *   - `missingExtractors` — applicable extractors that need to run.
+ *   - `fullCacheHit` — true iff the node-level hash matched AND every
+ *     applicable extractor is cached (nothing to re-extract).
+ *
+ * Legacy fallback: when `priorExtractorRuns === undefined` the caller
+ * did not load fine-grained breadcrumbs (out-of-band tests, alternate
+ * driving adapters); we treat every applicable extractor as cached
+ * when the node-level hashes match — preserves the pre-A.9 contract.
+ */
+function computeCacheDecision(opts: {
+  extractors: IExtractor[];
+  kind: string;
+  nodePath: string;
+  bodyHash: string;
+  nodeHashCacheEligible: boolean;
+  priorExtractorRuns: Map<string, Map<string, string>> | undefined;
+}): {
+  applicableExtractors: IExtractor[];
+  applicableQualifiedIds: Set<string>;
+  cachedQualifiedIds: Set<string>;
+  missingExtractors: IExtractor[];
+  fullCacheHit: boolean;
+} {
+  const applicableExtractors = opts.extractors.filter(
+    (ex) => ex.applicableKinds === undefined || ex.applicableKinds.includes(opts.kind),
+  );
+  const applicableQualifiedIds = new Set(
+    applicableExtractors.map((ex) => qualifiedExtensionId(ex.pluginId, ex.id)),
+  );
+  const cachedQualifiedIds = new Set<string>();
+  const missingExtractors: IExtractor[] = [];
+
+  if (opts.priorExtractorRuns === undefined) {
+    if (opts.nodeHashCacheEligible) {
+      for (const id of applicableQualifiedIds) cachedQualifiedIds.add(id);
+    } else {
+      for (const ex of applicableExtractors) missingExtractors.push(ex);
+    }
+  } else {
+    const priorRunsForNode = opts.priorExtractorRuns.get(opts.nodePath) ?? new Map<string, string>();
+    for (const ex of applicableExtractors) {
+      const qualified = qualifiedExtensionId(ex.pluginId, ex.id);
+      const priorBody = priorRunsForNode.get(qualified);
+      if (opts.nodeHashCacheEligible && priorBody === opts.bodyHash) {
+        cachedQualifiedIds.add(qualified);
+      } else {
+        missingExtractors.push(ex);
+      }
+    }
+  }
+
+  return {
+    applicableExtractors,
+    applicableQualifiedIds,
+    cachedQualifiedIds,
+    missingExtractors,
+    fullCacheHit: opts.nodeHashCacheEligible && missingExtractors.length === 0,
+  };
+}
+
+/**
+ * Build the reused-node bundle for a node that fully cache-hit (body
+ * + frontmatter unchanged AND every applicable extractor still has a
+ * matching `scan_extractor_runs` row). Caller pushes the returned
+ * arrays into its scan-wide buffers and emits the progress event.
+ *
+ * Reshape rules (A.9 sources):
+ *   - missing source (extractor will re-emit) → drop link
+ *   - all-obsolete sources → drop link
+ *   - cached + obsolete → trim obsolete from `sources`
+ *   - cached only → keep verbatim
+ */
+function reusePriorNode(opts: {
+  priorNode: Node;
+  bodyHash: string;
+  strict: boolean;
+  cachedQualifiedIds: Set<string>;
+  applicableQualifiedIds: Set<string>;
+  shortIdToQualified: Map<string, string[]>;
+  priorLinksByOriginating: Map<string, Link[]>;
+  priorFrontmatterIssuesByNode: Map<string, Issue[]>;
+}): {
+  node: Node;
+  internalLinks: Link[];
+  frontmatterIssues: Issue[];
+  extractorRuns: IExtractorRunRecord[];
+} {
+  // Shallow-clone to avoid mutating the caller's prior snapshot when
+  // `recomputeLinkCounts` resets per-node counts later.
+  const node: Node = { ...opts.priorNode, bytes: { ...opts.priorNode.bytes } };
+  if (opts.priorNode.tokens) node.tokens = { ...opts.priorNode.tokens };
+
+  const internalLinks: Link[] = [];
+  const reusedLinks = opts.priorLinksByOriginating.get(opts.priorNode.path) ?? [];
+  for (const link of reusedLinks) {
+    const reshaped = reuseCachedLink(
+      link,
+      opts.shortIdToQualified,
+      opts.cachedQualifiedIds,
+      opts.applicableQualifiedIds,
+    );
+    if (reshaped) internalLinks.push(reshaped);
+  }
+
+  // Re-emit the prior frontmatter issues unchanged. They were validated
+  // against the same frontmatterHash, so re-validating would be wasted
+  // work. `strict` can promote `warn → error` retroactively.
+  const frontmatterIssues: Issue[] = [];
+  const reusedFm = opts.priorFrontmatterIssuesByNode.get(opts.priorNode.path) ?? [];
+  for (const issue of reusedFm) {
+    frontmatterIssues.push({ ...issue, severity: opts.strict ? 'error' : 'warn' });
+  }
+
+  // Persist one `scan_extractor_runs` row per still-applicable, still-
+  // cached pair so the next scan sees the cache survive even if no
+  // extractor actually ran. Without this, cached pairs would silently
+  // disappear on the replace-all persist.
+  const ranAt = Date.now();
+  const extractorRuns: IExtractorRunRecord[] = [];
+  for (const qualified of opts.cachedQualifiedIds) {
+    extractorRuns.push({
+      nodePath: opts.priorNode.path,
+      extractorId: qualified,
+      bodyHashAtRun: opts.bodyHash,
+      ranAt,
+    });
+  }
+
+  return { node, internalLinks, frontmatterIssues, extractorRuns };
+}
+
 async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExtractResult> {
   const {
     providers,
@@ -691,86 +906,38 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // tests, alternate driving adapters), so we treat every applicable
       // extractor as cached when the node-level hashes match. This
       // preserves the pre-A.9 contract for callers that did not opt in.
-      const applicableExtractors = extractors.filter(
-        (ex) =>
-          ex.applicableKinds === undefined || ex.applicableKinds.includes(kind),
-      );
-      const applicableQualifiedIds = new Set(
-        applicableExtractors.map((ex) => qualifiedExtensionId(ex.pluginId, ex.id)),
-      );
-      const cachedQualifiedIds = new Set<string>();
-      const missingExtractors: IExtractor[] = [];
-      if (priorExtractorRuns === undefined) {
-        if (nodeHashCacheEligible) {
-          for (const ex of applicableExtractors) {
-            cachedQualifiedIds.add(qualifiedExtensionId(ex.pluginId, ex.id));
-          }
-        } else {
-          for (const ex of applicableExtractors) missingExtractors.push(ex);
-        }
-      } else {
-        const priorRunsForNode = priorExtractorRuns.get(raw.path) ?? new Map<string, string>();
-        for (const ex of applicableExtractors) {
-          const qualified = qualifiedExtensionId(ex.pluginId, ex.id);
-          const priorBody = priorRunsForNode.get(qualified);
-          if (nodeHashCacheEligible && priorBody === bodyHash) {
-            cachedQualifiedIds.add(qualified);
-          } else {
-            missingExtractors.push(ex);
-          }
-        }
-      }
-
-      const fullCacheHit =
-        nodeHashCacheEligible && missingExtractors.length === 0;
+      const cacheDecision = computeCacheDecision({
+        extractors,
+        kind,
+        nodePath: raw.path,
+        bodyHash,
+        nodeHashCacheEligible,
+        priorExtractorRuns,
+      });
+      const {
+        applicableExtractors,
+        applicableQualifiedIds,
+        cachedQualifiedIds,
+        missingExtractors,
+        fullCacheHit,
+      } = cacheDecision;
 
       if (fullCacheHit && priorNode) {
-        // Reuse the prior node row verbatim; reuse its outbound internal
-        // links. Extractors are NOT re-run for this node — the body
-        // didn't change AND every currently-registered applicable
-        // extractor already has a row matching this body hash, so
-        // nothing derived from it needs refreshing. Shallow-clone to
-        // avoid mutating the caller's prior snapshot when
-        // `recomputeLinkCounts` resets per-node counts later.
-        const reused: Node = { ...priorNode, bytes: { ...priorNode.bytes } };
-        if (priorNode.tokens) reused.tokens = { ...priorNode.tokens };
-        nodes.push(reused);
-        cachedPaths.add(reused.path);
-        const reusedLinks = priorLinksByOriginating.get(priorNode.path) ?? [];
-        for (const link of reusedLinks) {
-          // Reshape per A.9 sources rules: drop the link if any source
-          // is missing (extractor will re-emit) or all sources are
-          // obsolete; trim obsolete short ids from `sources` if at
-          // least one cached source remains.
-          const reshaped = reuseCachedLink(
-            link,
-            shortIdToQualified,
-            cachedQualifiedIds,
-            applicableQualifiedIds,
-          );
-          if (reshaped) internalLinks.push(reshaped);
-        }
-        // Re-emit the prior frontmatter issues. They were validated
-        // against the same frontmatterHash, so the result is identical;
-        // re-validating here would be wasted work. The `strict` flag
-        // can promote `warn → error` retroactively.
-        const reusedFm = priorFrontmatterIssuesByNode.get(priorNode.path) ?? [];
-        for (const issue of reusedFm) {
-          frontmatterIssues.push({ ...issue, severity: strict ? 'error' : 'warn' });
-        }
-        // Persist a `scan_extractor_runs` row per still-applicable,
-        // still-cached pair so the next scan sees the cache survive
-        // even if no extractor actually ran. Without this, cached pairs
-        // would silently disappear on the replace-all persist.
-        const ranAt = Date.now();
-        for (const qualified of cachedQualifiedIds) {
-          extractorRuns.push({
-            nodePath: priorNode.path,
-            extractorId: qualified,
-            bodyHashAtRun: bodyHash,
-            ranAt,
-          });
-        }
+        const reused = reusePriorNode({
+          priorNode,
+          bodyHash,
+          strict,
+          cachedQualifiedIds,
+          applicableQualifiedIds,
+          shortIdToQualified,
+          priorLinksByOriginating,
+          priorFrontmatterIssuesByNode,
+        });
+        nodes.push(reused.node);
+        cachedPaths.add(reused.node.path);
+        for (const link of reused.internalLinks) internalLinks.push(link);
+        for (const issue of reused.frontmatterIssues) frontmatterIssues.push(issue);
+        for (const run of reused.extractorRuns) extractorRuns.push(run);
         emitter.emit(makeEvent('scan.progress', { index, path: raw.path, kind, cached: true }));
         continue;
       }
@@ -869,41 +1036,23 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // each invocation AND for each cached extractor whose contribution
       // survived intact (so the cache persists across scans).
       const extractorsToRun = partialCacheHit ? missingExtractors : applicableExtractors;
-      for (const extractor of extractorsToRun) {
-        // A.8 / B.1 callback wiring. `emitLink` validates against the
-        // extractor's declared `emitsLinkKinds` and partitions external
-        // (URL-shaped) pseudo-links from internal ones. `enrichNode` folds
-        // partials into a per-`(node, extractor)` entry in the buffer so
-        // attribution survives into the DB row layout; persistence is
-        // handled by `persistScanResult` upserting one row per pair into
-        // `node_enrichments`.
-        const qualifiedId = qualifiedExtensionId(extractor.pluginId, extractor.id);
-        const isProb = extractor.mode === 'probabilistic';
-        const emitLink = (link: Link): void => {
-          const validated = validateLink(extractor, link, emitter);
-          if (!validated) return;
-          if (isExternalUrlLink(validated)) externalLinks.push(validated);
-          else internalLinks.push(validated);
-        };
-        const enrichNode = (partial: Partial<Node>): void => {
-          const key = `${node.path}\x00${qualifiedId}`;
-          const existing = enrichmentBuffer.get(key);
-          if (existing) {
-            existing.value = { ...existing.value, ...partial };
-            existing.enrichedAt = Date.now();
-          } else {
-            enrichmentBuffer.set(key, {
-              nodePath: node.path,
-              extractorId: qualifiedId,
-              bodyHashAtEnrichment: bodyHash,
-              value: { ...partial },
-              enrichedAt: Date.now(),
-              isProbabilistic: isProb,
-            });
-          }
-        };
-        const ctx = buildExtractorContext(extractor, node, raw.body, raw.frontmatter, emitLink, enrichNode);
-        await extractor.extract(ctx);
+      const extractResult = await runExtractorsForNode({
+        extractors: extractorsToRun,
+        node,
+        body: raw.body,
+        frontmatter: raw.frontmatter,
+        bodyHash,
+        emitter,
+      });
+      for (const link of extractResult.internalLinks) internalLinks.push(link);
+      for (const link of extractResult.externalLinks) externalLinks.push(link);
+      // Merge per-node enrichment records into the scan-wide buffer.
+      // Keys are `${nodePath}\x00${extractorId}` and unique per node
+      // (paths are unique across the scan), so `set()` is collision-free
+      // — but we keep the keyed shape in case future code wants to fold
+      // across providers walking the same node.
+      for (const enr of extractResult.enrichments) {
+        enrichmentBuffer.set(`${enr.nodePath}\x00${enr.extractorId}`, enr);
       }
 
       // Persist a `scan_extractor_runs` row for every applicable

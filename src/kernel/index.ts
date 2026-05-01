@@ -68,6 +68,7 @@ export {
   runScanWithRenames,
   detectRenamesAndOrphans,
   mergeNodeWithEnrichments,
+  runExtractorsForNode,
 } from './orchestrator.js';
 export type {
   RunScanOptions,

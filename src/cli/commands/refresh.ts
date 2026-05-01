@@ -41,14 +41,13 @@ import type { Kysely } from 'kysely';
 
 import { listBuiltIns } from '../../extensions/built-ins.js';
 import {
-  qualifiedExtensionId,
+  runExtractorsForNode,
   type IEnrichmentRecord,
   type IExtractor,
-  type IExtractorContext,
   type IPersistedEnrichment,
-  type Link,
   type Node,
 } from '../../kernel/index.js';
+import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
 import {
   loadNodeEnrichments,
   loadScanResult,
@@ -285,37 +284,20 @@ export async function runExtractorForEnrichment(
   body: string,
   frontmatter: Record<string, unknown>,
 ): Promise<IEnrichmentRecord[]> {
-  const qualifiedId = qualifiedExtensionId(extractor.pluginId, extractor.id);
-  const partials: Array<Partial<Node>> = [];
-  // Refresh stays scoped to the enrichment layer; emitted links are
-  // discarded. Rebuilding links across the graph is `sm scan`'s job.
-  const emitLink = (_link: Link): void => {
-    /* discarded */
-  };
-  const enrichNode = (partial: Partial<Node>): void => {
-    partials.push({ ...partial });
-  };
-  const ctx: IExtractorContext = {
+  // Delegate to the kernel's shared loop (audit item V4 — refresh used
+  // to hand-duplicate the extract-and-fold dance). Refresh stays scoped
+  // to the enrichment layer, so emitted links are discarded; the
+  // emitter is a throwaway in-memory instance because refresh doesn't
+  // expose progress events.
+  const result = await runExtractorsForNode({
+    extractors: [extractor],
     node,
-    body: extractor.scope === 'frontmatter' ? '' : body,
-    frontmatter: extractor.scope === 'body' ? {} : frontmatter,
-    emitLink,
-    enrichNode,
-  };
-  await Promise.resolve(extractor.extract(ctx));
-  if (partials.length === 0) return [];
-  const folded: Partial<Node> = {};
-  for (const partial of partials) Object.assign(folded, partial);
-  return [
-    {
-      nodePath: node.path,
-      extractorId: qualifiedId,
-      bodyHashAtEnrichment: node.bodyHash,
-      value: folded,
-      enrichedAt: Date.now(),
-      isProbabilistic: false,
-    },
-  ];
+    body,
+    frontmatter,
+    bodyHash: node.bodyHash,
+    emitter: new InMemoryProgressEmitter(),
+  });
+  return result.enrichments;
 }
 
 /**
