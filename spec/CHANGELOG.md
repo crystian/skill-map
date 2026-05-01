@@ -1,5 +1,32 @@
 # Spec changelog
 
+## 0.10.0
+
+### Minor Changes
+
+- f8a7125: Open `Node.kind` to any Provider-declared string (Phase A — spec only).
+
+  The kernel always documented `IProvider.kinds` as "open by design" so future Cursor / Obsidian / Roo Providers can declare their own kinds. The spec, however, had three layers underneath that closed it back to the original five-value Claude Provider catalog (`skill` / `agent` / `command` / `hook` / `note`):
+
+  - `node.schema.json#/properties/kind` carried `enum: [<5 values>]` — AJV-rejected anything else.
+  - `db-schema.md` § `scan_nodes` and § `state_summaries` mandated `CHECK in (<5 values>)` SQL constraints.
+  - `extensions/action.schema.json#/.../filter/kind` had the same closed list for the per-action applicability filter.
+
+  This phase opens the spec end:
+
+  - `node.schema.json#/properties/kind` → `{ "type": "string", "minLength": 1 }` with a description naming the built-in Claude catalog so consumers know the default contract.
+  - `db-schema.md` drops both `CHECK in (...)` constraint rows. Both columns stay `TEXT NOT NULL`.
+  - `extensions/action.schema.json#/.../filter/kind` widens to `{ items: { "type": "string", "minLength": 1 } }`.
+
+  The TS side (`Node.kind: string`, `IProvider.classify(...): { kind: string; ... }`, Kysely `TNodeKind = string`) and the SQL `002_open_node_kinds` migration that drops the live CHECK constraints land in follow-up phases under `@skill-map/cli`. Phase A is a safe checkpoint: shipping the spec change alone changes nothing at runtime (the kernel still emits closed kinds, the live DB still enforces the existing CHECK), but it unblocks the rest of the refactor and aligns the source-of-truth artifact with the design intent.
+
+  Migration for consumers:
+
+  - Anyone validating an exported `Node` JSON against `node.schema.json` now accepts external-Provider kinds.
+  - Any UI / dashboard / script that hard-coded the closed enum elsewhere (filter chips, assertion sets) needs to widen to `string` and accept whatever an enabled Provider declares.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0 (this is breaking for consumers that relied on the enum, but pre-1.0 breakings ship as minor).
+
 ## 0.9.0
 
 ### Minor Changes
@@ -86,7 +113,7 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
   `scan_nodes.kind` SQL CHECK + the closed TS `NodeKind` union closed
   three layers underneath. Effects:
   - `node.schema.json#/properties/kind` switches from `enum: [...5
-    values]` to `{ "type": "string", "minLength": 1 }`. The
+values]` to `{ "type": "string", "minLength": 1 }`. The
     description still names the built-in Claude Provider catalog so
     consumers know what to expect from the default install.
   - `db-schema.md` drops the `CHECK in (...)` constraint on
@@ -94,13 +121,13 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
     `TEXT NOT NULL`.
   - `extensions/action.schema.json#/.../filter/kind` (the per-kind
     filter for action applicability) widens the same way: `items:
-    { type: 'string', minLength: 1 }` instead of the closed enum.
-  Migration: consumers who validate exported `Node` JSON against
-  `node.schema.json` will now accept external-Provider kinds. Any
-  consumer that hard-coded the closed enum elsewhere (UI filter chip
-  set, scripted assertions) needs to widen to "string". The TS +
-  SQL counterpart lands in `@skill-map/cli` (kernel TS contract +
-  migration `002_open_node_kinds`).
+  { type: 'string', minLength: 1 }` instead of the closed enum.
+    Migration: consumers who validate exported `Node` JSON against
+    `node.schema.json` will now accept external-Provider kinds. Any
+    consumer that hard-coded the closed enum elsewhere (UI filter chip
+    set, scripted assertions) needs to widen to "string". The TS +
+    SQL counterpart lands in `@skill-map/cli` (kernel TS contract +
+    migration `002_open_node_kinds`).
 - **`conformance-case.schema.json` — rename `setup.disableAllDetectors`
   → `setup.disableAllExtractors`.** Finishes the kind rename Detector →
   Extractor introduced in 0.8.0 (Phase 2 of the plug-in model
@@ -399,13 +426,13 @@ the`CamelCasePlugin`; raw SQL fragments must use snake_case to
           failure / guard / summary templates, plus the `sm scan
 
     compare-with`dump-load errors.
-    -`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
-    -`cli/i18n/init.texts.ts`—`sm init`templates including
-      the`--dry-run`previews and the singular/plural pair for
-      gitignore updates.
-    -`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
-    -`cli/i18n/cli-progress-emitter.texts.ts`— the
-     `extension.error: ...` stderr line.
+-`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
+-`cli/i18n/init.texts.ts`—`sm init`templates including
+  the`--dry-run`previews and the singular/plural pair for
+  gitignore updates.
+-`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
+-`cli/i18n/cli-progress-emitter.texts.ts`— the
+ `extension.error: ...` stderr line.
 
         String content moved verbatim — every existing test that
         matches on stderr / stdout content keeps passing. Trivial
@@ -1065,9 +1092,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                       `--json` output is byte-identical to before — raw rows, no merge.
-                       Storage is byte-identical to before. The grouping is purely a
-                       read-time presentation choice for human eyes.
+                             `--json` output is byte-identical to before — raw rows, no merge.
+                             Storage is byte-identical to before. The grouping is purely a
+                             read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
