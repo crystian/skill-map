@@ -21,7 +21,7 @@
  * tx (the rename heuristic does this).
  */
 
-import { sql, type Insertable, type Kysely, type Transaction } from 'kysely';
+import { sql, type Insertable, type Kysely, type Selectable, type Transaction } from 'kysely';
 
 import type {
   ExecutionFailureReason,
@@ -256,70 +256,17 @@ export async function aggregateHistoryStats(
     'user-cancelled': 0,
   };
 
+  const totals = { executionsCount, completedCount, failedCount, tokensInTotal, tokensOutTotal, durationMsTotal };
   for (const row of rows) {
-    executionsCount += 1;
-    const tIn = row.tokensIn ?? 0;
-    const tOut = row.tokensOut ?? 0;
-    tokensInTotal += tIn;
-    tokensOutTotal += tOut;
-    if (row.durationMs !== null) durationMsTotal += row.durationMs;
-
-    if (row.status === 'completed') completedCount += 1;
-    if (row.status === 'failed') failedCount += 1;
-
-    if (row.failureReason !== null) {
-      const reason = row.failureReason as ExecutionFailureReason;
-      if (FAILURE_REASONS.includes(reason)) {
-        perFailureReason[reason] += 1;
-      }
-    }
-
-    // Per-action rollup keyed by (id, version).
-    const actionKey = `${row.extensionId}@${row.extensionVersion}`;
-    let actionAcc = perAction.get(actionKey);
-    if (!actionAcc) {
-      actionAcc = {
-        actionId: row.extensionId,
-        actionVersion: row.extensionVersion,
-        executionsCount: 0,
-        tokensIn: 0,
-        tokensOut: 0,
-        durations: [],
-        failedCount: 0,
-      };
-      perAction.set(actionKey, actionAcc);
-    }
-    actionAcc.executionsCount += 1;
-    actionAcc.tokensIn += tIn;
-    actionAcc.tokensOut += tOut;
-    if (row.durationMs !== null) actionAcc.durations.push(row.durationMs);
-    if (row.status === 'failed') actionAcc.failedCount += 1;
-
-    // Per-period bucket.
-    const bucketStart = bucketStartMs(row.startedAt, period);
-    let periodAcc = perPeriod.get(bucketStart);
-    if (!periodAcc) {
-      periodAcc = { tokensIn: 0, tokensOut: 0, executionsCount: 0 };
-      perPeriod.set(bucketStart, periodAcc);
-    }
-    periodAcc.executionsCount += 1;
-    periodAcc.tokensIn += tIn;
-    periodAcc.tokensOut += tOut;
-
-    // Per-node rollup.
-    const nodeIds = parseStringArray(row.nodeIdsJson);
-    for (const path of nodeIds) {
-      let nodeAcc = perNode.get(path);
-      if (!nodeAcc) {
-        nodeAcc = { executionsCount: 0, lastExecutedAt: 0 };
-        perNode.set(path, nodeAcc);
-      }
-      nodeAcc.executionsCount += 1;
-      if (row.startedAt > nodeAcc.lastExecutedAt) {
-        nodeAcc.lastExecutedAt = row.startedAt;
-      }
-    }
+    accumulateExecutionRow(row, totals, perFailureReason, perAction, perPeriod, perNode, period);
   }
+  // Re-bind locals from the mutated totals object.
+  executionsCount = totals.executionsCount;
+  completedCount = totals.completedCount;
+  failedCount = totals.failedCount;
+  tokensInTotal = totals.tokensInTotal;
+  tokensOutTotal = totals.tokensOutTotal;
+  durationMsTotal = totals.durationMsTotal;
 
   // tokensPerAction sorted desc by tokensIn + tokensOut.
   const tokensPerAction: HistoryStatsTokensPerAction[] = Array.from(perAction.values())
@@ -422,6 +369,100 @@ export function bucketStartMs(dateMs: number, period: THistoryStatsPeriod): numb
   const dow = d.getUTCDay();
   const offset = (dow + 6) % 7;
   return Date.UTC(y, m, day - offset, 0, 0, 0, 0);
+}
+
+interface IExecutionRowTotals {
+  executionsCount: number;
+  completedCount: number;
+  failedCount: number;
+  tokensInTotal: number;
+  tokensOutTotal: number;
+  durationMsTotal: number;
+}
+
+interface IPerActionAcc {
+  actionId: string;
+  actionVersion: string;
+  executionsCount: number;
+  tokensIn: number;
+  tokensOut: number;
+  durations: number[];
+  failedCount: number;
+}
+
+/**
+ * Fold one `state_executions` row into every accumulator the
+ * `aggregateHistoryStats` query needs: totals, per-failure-reason
+ * counts, per-action rollup, per-period bucket, per-node rollup. Pure
+ * mutation of the supplied containers — caller iterates rows and emits
+ * the final stats from the same containers afterward.
+ */
+function accumulateExecutionRow(
+  row: Selectable<IStateExecutionsTable>,
+  totals: IExecutionRowTotals,
+  perFailureReason: Record<ExecutionFailureReason, number>,
+  perAction: Map<string, IPerActionAcc>,
+  perPeriod: Map<number, { tokensIn: number; tokensOut: number; executionsCount: number }>,
+  perNode: Map<string, { executionsCount: number; lastExecutedAt: number }>,
+  period: THistoryStatsPeriod,
+): void {
+  totals.executionsCount += 1;
+  const tIn = row.tokensIn ?? 0;
+  const tOut = row.tokensOut ?? 0;
+  totals.tokensInTotal += tIn;
+  totals.tokensOutTotal += tOut;
+  if (row.durationMs !== null) totals.durationMsTotal += row.durationMs;
+
+  if (row.status === 'completed') totals.completedCount += 1;
+  if (row.status === 'failed') totals.failedCount += 1;
+
+  if (row.failureReason !== null) {
+    const reason = row.failureReason as ExecutionFailureReason;
+    if (FAILURE_REASONS.includes(reason)) perFailureReason[reason] += 1;
+  }
+
+  // Per-action rollup keyed by (id, version).
+  const actionKey = `${row.extensionId}@${row.extensionVersion}`;
+  let actionAcc = perAction.get(actionKey);
+  if (!actionAcc) {
+    actionAcc = {
+      actionId: row.extensionId,
+      actionVersion: row.extensionVersion,
+      executionsCount: 0,
+      tokensIn: 0,
+      tokensOut: 0,
+      durations: [],
+      failedCount: 0,
+    };
+    perAction.set(actionKey, actionAcc);
+  }
+  actionAcc.executionsCount += 1;
+  actionAcc.tokensIn += tIn;
+  actionAcc.tokensOut += tOut;
+  if (row.durationMs !== null) actionAcc.durations.push(row.durationMs);
+  if (row.status === 'failed') actionAcc.failedCount += 1;
+
+  // Per-period bucket.
+  const bucketStart = bucketStartMs(row.startedAt, period);
+  let periodAcc = perPeriod.get(bucketStart);
+  if (!periodAcc) {
+    periodAcc = { tokensIn: 0, tokensOut: 0, executionsCount: 0 };
+    perPeriod.set(bucketStart, periodAcc);
+  }
+  periodAcc.executionsCount += 1;
+  periodAcc.tokensIn += tIn;
+  periodAcc.tokensOut += tOut;
+
+  // Per-node rollup.
+  for (const path of parseStringArray(row.nodeIdsJson)) {
+    let nodeAcc = perNode.get(path);
+    if (!nodeAcc) {
+      nodeAcc = { executionsCount: 0, lastExecutedAt: 0 };
+      perNode.set(path, nodeAcc);
+    }
+    nodeAcc.executionsCount += 1;
+    if (row.startedAt > nodeAcc.lastExecutedAt) nodeAcc.lastExecutedAt = row.startedAt;
+  }
 }
 
 function meanDuration(values: number[]): number | null {

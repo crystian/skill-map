@@ -106,6 +106,11 @@ export class ScanCompareCommand extends Command {
     description: 'Skip drop-in plugin discovery.',
   });
 
+  // Cyclomatic count comes from CLI ergonomics: 3 distinct try/catch
+  // (dump load, config load, scan run) + flag-default handling + ternary
+  // for the JSON branch. The pure pieces already live in
+  // `loadAndValidateDump` and `computeScanDelta`.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const roots = this.roots.length > 0 ? this.roots : ['.'];
 

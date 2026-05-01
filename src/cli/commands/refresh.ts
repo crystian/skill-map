@@ -111,6 +111,12 @@ export class RefreshCommand extends Command {
     description: 'Skip drop-in plugin discovery; use only the built-in extractor set.',
   });
 
+  // The remaining cyclomatic count comes from CLI ergonomics that don't
+  // benefit from further extraction: argument-validation guards (2),
+  // try/catch around extract (2) + persist (2), `instanceof Error` per
+  // catch, plus the `if (probSkipCount > 0)` advisory. The inner work
+  // already lives in `#resolveTargetNodes` and `#runDetExtractorsAcrossNodes`.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
