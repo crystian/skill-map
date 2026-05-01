@@ -13,8 +13,10 @@
 
 import { Command, Option } from 'clipanion';
 
-import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { Node } from '../../kernel/types.js';
+import { tx } from '../../kernel/util/tx.js';
+import { LIST_TEXTS } from '../i18n/list.texts.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { withSqlite } from '../util/with-sqlite.js';
@@ -77,7 +79,10 @@ export class ListCommand extends Command {
       const resolved = SORT_BY[this.sortBy];
       if (!resolved) {
         this.context.stderr.write(
-          `--sort-by: invalid sort field "${this.sortBy}". Allowed: ${Object.keys(SORT_BY).join(', ')}.\n`,
+          tx(LIST_TEXTS.invalidSortBy, {
+            value: this.sortBy,
+            allowed: Object.keys(SORT_BY).join(', '),
+          }),
         );
         return ExitCode.Error;
       }
@@ -89,9 +94,7 @@ export class ListCommand extends Command {
     if (this.limit !== undefined) {
       const parsed = Number.parseInt(this.limit, 10);
       if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== this.limit.trim()) {
-        this.context.stderr.write(
-          `--limit: expected a positive integer, got "${this.limit}".\n`,
-        );
+        this.context.stderr.write(tx(LIST_TEXTS.invalidLimit, { value: this.limit }));
         return ExitCode.Error;
       }
       limitValue = parsed;
@@ -121,7 +124,7 @@ export class ListCommand extends Command {
       }
 
       if (nodes.length === 0) {
-        this.context.stdout.write('No nodes found.\n');
+        this.context.stdout.write(LIST_TEXTS.noNodesFound);
         return ExitCode.Ok;
       }
 
@@ -131,7 +134,7 @@ export class ListCommand extends Command {
   }
 
   async #countIssuesPerNode(
-    adapter: SqliteStorageAdapter,
+    adapter: StoragePort,
     paths: string[],
   ): Promise<Map<string, number>> {
     const out = new Map<string, number>();

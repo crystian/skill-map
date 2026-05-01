@@ -25,7 +25,7 @@ import { LOGGER_TEXTS } from '../i18n/logger.texts.js';
 
 export type LogFormatter = (record: LogRecord) => string;
 
-export interface LoggerOptions {
+export interface ILoggerOptions {
   level: LogLevel;
   stream: NodeJS.WritableStream;
   format?: LogFormatter;
@@ -69,7 +69,7 @@ export class Logger implements LoggerPort {
   readonly #stream: NodeJS.WritableStream;
   readonly #format: LogFormatter;
 
-  constructor(opts: LoggerOptions) {
+  constructor(opts: ILoggerOptions) {
     this.#level = opts.level;
     this.#stream = opts.stream;
     this.#format = opts.format ?? defaultFormat;
@@ -111,7 +111,7 @@ export class Logger implements LoggerPort {
   }
 }
 
-export interface ResolveLogLevelOptions {
+export interface IResolveLogLevelOptions {
   flag?: string | null;
   env?: string | null;
   fallback: LogLevel;
@@ -125,7 +125,7 @@ export interface ResolveLogLevelOptions {
  * write a one-line warning to `errStream` and fall through to the next
  * source so a typo doesn't silently disable logging.
  */
-export function resolveLogLevel(opts: ResolveLogLevelOptions): LogLevel {
+export function resolveLogLevel(opts: IResolveLogLevelOptions): LogLevel {
   const allowed = LOG_LEVELS.join(', ');
   const errStream = opts.errStream ?? process.stderr;
 

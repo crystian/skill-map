@@ -65,8 +65,29 @@ function targetSettingsPath(target: TWriteTarget, cwd: string, home: string): st
   return join(root, '.skill-map', 'settings.json');
 }
 
+/**
+ * Path segments that, if walked, would mutate the prototype chain of the
+ * current process or the resulting object. Rejected uniformly across
+ * `getAtPath` / `setAtPath` / `deleteAtPath` so `sm config <verb>` cannot
+ * be coerced into prototype pollution via a hostile dot-path argument.
+ */
+const FORBIDDEN_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+
+class ForbiddenSegmentError extends Error {
+  constructor(public readonly segment: string, public readonly key: string) {
+    super(`forbidden config key segment "${segment}" in "${key}"`);
+  }
+}
+
+function assertSafeSegments(segments: string[], key: string): void {
+  for (const seg of segments) {
+    if (FORBIDDEN_SEGMENTS.has(seg)) throw new ForbiddenSegmentError(seg, key);
+  }
+}
+
 function getAtPath(obj: unknown, dotPath: string): unknown {
   const segments = dotPath.split('.').filter(Boolean);
+  assertSafeSegments(segments, dotPath);
   let cur: unknown = obj;
   for (const seg of segments) {
     if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
@@ -84,6 +105,7 @@ function setAtPath(
   value: unknown,
 ): void {
   const segments = dotPath.split('.').filter(Boolean);
+  assertSafeSegments(segments, dotPath);
   if (segments.length === 0) return;
   let cur: Record<string, unknown> = obj;
   for (let i = 0; i < segments.length - 1; i++) {
@@ -99,6 +121,7 @@ function setAtPath(
 
 function deleteAtPath(obj: Record<string, unknown>, dotPath: string): boolean {
   const segments = dotPath.split('.').filter(Boolean);
+  assertSafeSegments(segments, dotPath);
   if (segments.length === 0) return false;
   let cur: Record<string, unknown> = obj;
   for (let i = 0; i < segments.length - 1; i++) {
@@ -175,7 +198,7 @@ function tryLoadConfig(
     return { ok: true, loaded: loadConfig(opts) };
   } catch (err) {
     const message = formatErrorMessage(err);
-    stderr.write(`sm config: ${message}\n`);
+    stderr.write(tx(CONFIG_TEXTS.loadFailure, { message }));
     return { ok: false, exitCode: 2 };
   }
 }
@@ -272,7 +295,16 @@ export class ConfigGetCommand extends Command {
     if (!result.ok) return result.exitCode;
     const { effective, warnings } = result.loaded;
     for (const w of warnings) this.context.stderr.write(w + '\n');
-    const value = getAtPath(effective, this.key);
+    let value: unknown;
+    try {
+      value = getAtPath(effective, this.key);
+    } catch (err) {
+      if (err instanceof ForbiddenSegmentError) {
+        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        return ExitCode.Error;
+      }
+      throw err;
+    }
     if (value === undefined) {
       this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
       return ExitCode.NotFound;
@@ -305,6 +337,11 @@ export class ConfigShowCommand extends Command {
   global = Option.Boolean('-g,--global', false);
   strict = Option.Boolean('--strict', false);
 
+  // CLI orchestrator: each branch (load failure, forbidden segment,
+  // unknown key, --json + --source 2x2 dispatch) is one validation gate
+  // or output-format pick. Splitting per branch scatters the gate from
+  // the value it gates.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const result = tryLoadConfig(
       { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
@@ -313,7 +350,16 @@ export class ConfigShowCommand extends Command {
     if (!result.ok) return result.exitCode;
     const { effective, sources, warnings } = result.loaded;
     for (const w of warnings) this.context.stderr.write(w + '\n');
-    const value = getAtPath(effective, this.key);
+    let value: unknown;
+    try {
+      value = getAtPath(effective, this.key);
+    } catch (err) {
+      if (err instanceof ForbiddenSegmentError) {
+        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        return ExitCode.Error;
+      }
+      throw err;
+    }
     if (value === undefined) {
       this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
       return ExitCode.NotFound;
@@ -398,7 +444,16 @@ export class ConfigSetCommand extends Command {
 
     const current = readJsonObjectOrEmpty(path);
     const value = parseCliValue(this.value);
-    setAtPath(current, this.key, value);
+    try {
+      setAtPath(current, this.key, value);
+    } catch (err) {
+      if (err instanceof ForbiddenSegmentError) {
+        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        emitDoneStderr(this.context.stderr, elapsed);
+        return ExitCode.Error;
+      }
+      throw err;
+    }
 
     const validators = loadSchemaValidators();
     const result = validators.validate('project-config', current);
@@ -442,7 +497,17 @@ export class ConfigResetCommand extends Command {
       return ExitCode.Ok;
     }
     const current = readJsonObjectOrEmpty(path);
-    const removed = deleteAtPath(current, this.key);
+    let removed: boolean;
+    try {
+      removed = deleteAtPath(current, this.key);
+    } catch (err) {
+      if (err instanceof ForbiddenSegmentError) {
+        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+        emitDoneStderr(this.context.stderr, elapsed);
+        return ExitCode.Error;
+      }
+      throw err;
+    }
     if (!removed) {
       this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
       emitDoneStderr(this.context.stderr, elapsed);

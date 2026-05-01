@@ -205,7 +205,7 @@ export class PluginsListCommand extends Command {
     }
 
     if (plugins.length === 0 && builtIns.length === 0) {
-      this.context.stdout.write('No plugins discovered.\n');
+      this.context.stdout.write(PLUGINS_TEXTS.listEmpty);
       return ExitCode.Ok;
     }
 
@@ -597,9 +597,20 @@ export class PluginsDoctorCommand extends Command {
       (n, b) => n + (b.granularity === 'bundle' ? 1 : b.extensions.length),
       0,
     );
-    this.context.stdout.write(`Discovered ${total} plugin(s) (${builtIns.length} built-in bundles, ${plugins.length} user):\n`);
+    this.context.stdout.write(
+      tx(PLUGINS_TEXTS.doctorDiscoveredHeader, {
+        total,
+        builtInCount: builtIns.length,
+        userCount: plugins.length,
+      }),
+    );
     for (const status of Object.keys(counts) as Array<IDiscoveredPlugin['status']>) {
-      this.context.stdout.write(`  ${status.padEnd(18)} ${counts[status]}\n`);
+      this.context.stdout.write(
+        tx(PLUGINS_TEXTS.doctorCountRow, {
+          status: status.padEnd(18),
+          count: counts[status],
+        }),
+      );
     }
 
     // Spec § A.10 — applicableKinds: surface unknown-kind warnings as
@@ -613,22 +624,26 @@ export class PluginsDoctorCommand extends Command {
     // have installed that platform yet, so missing dir is informational.
     const explorationDirWarnings = collectExplorationDirWarnings(plugins);
     if (applicableKindWarnings.length > 0 || explorationDirWarnings.length > 0) {
-      this.context.stdout.write('\nWarnings:\n');
+      this.context.stdout.write(PLUGINS_TEXTS.doctorWarningsHeader);
       for (const w of applicableKindWarnings) {
         this.context.stdout.write(
-          `  [warn] ${tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
-            extractorId: w.extractorQualifiedId,
-            unknownKind: w.unknownKind,
-          })}\n`,
+          tx(PLUGINS_TEXTS.doctorWarningLine, {
+            message: tx(PLUGINS_TEXTS.doctorApplicableKindUnknown, {
+              extractorId: w.extractorQualifiedId,
+              unknownKind: w.unknownKind,
+            }),
+          }),
         );
       }
       for (const w of explorationDirWarnings) {
         this.context.stdout.write(
-          `  [warn] ${tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
-            providerId: w.providerQualifiedId,
-            explorationDir: w.explorationDir,
-            resolvedPath: w.resolvedPath,
-          })}\n`,
+          tx(PLUGINS_TEXTS.doctorWarningLine, {
+            message: tx(PLUGINS_TEXTS.doctorProviderExplorationDirMissing, {
+              providerId: w.providerQualifiedId,
+              explorationDir: w.explorationDir,
+              resolvedPath: w.resolvedPath,
+            }),
+          }),
         );
       }
     }
@@ -638,9 +653,15 @@ export class PluginsDoctorCommand extends Command {
       (p) => p.status !== 'enabled' && p.status !== 'disabled',
     );
     if (bad.length > 0) {
-      this.context.stdout.write('\nIssues:\n');
+      this.context.stdout.write(PLUGINS_TEXTS.doctorIssuesHeader);
       for (const p of bad) {
-        this.context.stdout.write(`  [${p.status}] ${p.id} — ${p.reason ?? ''}\n`);
+        this.context.stdout.write(
+          tx(PLUGINS_TEXTS.doctorIssueLine, {
+            status: p.status,
+            id: p.id,
+            reason: p.reason ?? '',
+          }),
+        );
       }
       return ExitCode.Issues;
     }
@@ -763,12 +784,12 @@ abstract class TogglePluginsBase extends Command {
     const elapsed = startElapsed();
     const verb = enabled ? 'enable' : 'disable';
     if (this.all && this.id) {
-      this.context.stderr.write('Pass either an <id> or --all, not both.\n');
+      this.context.stderr.write(PLUGINS_TEXTS.toggleBothIdAndAll);
       emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
     if (!this.all && !this.id) {
-      this.context.stderr.write('Pass <id> or --all.\n');
+      this.context.stderr.write(PLUGINS_TEXTS.toggleNeitherIdNorAll);
       emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
@@ -796,7 +817,7 @@ abstract class TogglePluginsBase extends Command {
     } else {
       const resolved = resolveToggleTarget(this.id!, catalogue, verb);
       if ('error' in resolved) {
-        this.context.stderr.write(resolved.error + '\n');
+        this.context.stderr.write(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
         emitDoneStderr(this.context.stderr, elapsed);
         // Granularity errors and unknown ids are both user input
         // problems — exit 5 (NotFound) keeps the existing contract
@@ -815,10 +836,14 @@ abstract class TogglePluginsBase extends Command {
 
     const verbPast = enabled ? 'enabled' : 'disabled';
     if (targets.length === 1) {
-      this.context.stdout.write(`${verbPast}: ${targets[0]}\n`);
+      this.context.stdout.write(tx(PLUGINS_TEXTS.toggleAppliedSingle, { verbPast, id: targets[0]! }));
     } else {
-      this.context.stdout.write(`${verbPast}: ${targets.length} plugin(s)\n`);
-      for (const id of targets) this.context.stdout.write(`  - ${id}\n`);
+      this.context.stdout.write(
+        tx(PLUGINS_TEXTS.toggleAppliedManyHeader, { verbPast, count: targets.length }),
+      );
+      for (const id of targets) {
+        this.context.stdout.write(tx(PLUGINS_TEXTS.toggleAppliedManyRow, { id }));
+      }
     }
     emitDoneStderr(this.context.stderr, elapsed);
     return ExitCode.Ok;

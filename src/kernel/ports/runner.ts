@@ -5,12 +5,12 @@
  * (job subsystem + first summarizer).
  */
 
-export interface RunOptions {
+export interface IRunOptions {
   timeoutMs?: number;
   model?: string;
 }
 
-export interface RunResult {
+export interface IRunResult {
   reportPath: string;
   tokensIn: number;
   tokensOut: number;
@@ -19,5 +19,5 @@ export interface RunResult {
 }
 
 export interface RunnerPort {
-  run(jobFilePath: string, options?: RunOptions): Promise<RunResult>;
+  run(jobFilePath: string, options?: IRunOptions): Promise<IRunResult>;
 }

@@ -34,14 +34,15 @@
 
 import { existsSync } from 'node:fs';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import { createSqliteStorage } from '../../kernel/adapters/sqlite/index.js';
 import type { ISqliteStorageAdapterOptions } from '../../kernel/adapters/sqlite/index.js';
+import type { StoragePort } from '../../kernel/ports/storage.js';
 
 export async function withSqlite<T>(
   options: ISqliteStorageAdapterOptions,
-  fn: (adapter: SqliteStorageAdapter) => Promise<T>,
+  fn: (adapter: StoragePort) => Promise<T>,
 ): Promise<T> {
-  const adapter = new SqliteStorageAdapter(options);
+  const adapter = createSqliteStorage(options);
   await adapter.init();
   try {
     return await fn(adapter);
@@ -69,7 +70,7 @@ export async function withSqlite<T>(
  */
 export async function tryWithSqlite<T>(
   options: ISqliteStorageAdapterOptions,
-  fn: (adapter: SqliteStorageAdapter) => Promise<T>,
+  fn: (adapter: StoragePort) => Promise<T>,
 ): Promise<T | null> {
   if (options.databasePath !== ':memory:' && !existsSync(options.databasePath)) {
     return null;

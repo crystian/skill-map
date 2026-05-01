@@ -10,12 +10,12 @@ export interface NodeStat {
   mtimeMs: number;
 }
 
-export interface WalkOptions {
+export interface IWalkOptions {
   ignore?: string[];
 }
 
 export interface FilesystemPort {
-  walk(roots: string[], options?: WalkOptions): AsyncIterable<NodeStat>;
+  walk(roots: string[], options?: IWalkOptions): AsyncIterable<NodeStat>;
   readNode(path: string): Promise<string>;
   stat(path: string): Promise<NodeStat>;
   writeJobFile(path: string, content: string): Promise<void>;

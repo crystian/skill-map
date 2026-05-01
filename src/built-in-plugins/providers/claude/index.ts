@@ -159,16 +159,29 @@ interface ISplitResult {
   body: string;
 }
 
+const FORBIDDEN_FRONTMATTER_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function splitFrontmatter(raw: string): ISplitResult {
   const match = FRONTMATTER_RE.exec(raw);
   if (!match) return { frontmatterRaw: '', frontmatter: {}, body: raw };
   const frontmatterRaw = match[1]!;
   const body = match[2]!;
-  let parsed: Record<string, unknown> = {};
+  const parsed: Record<string, unknown> = {};
   try {
     const doc = yaml.load(frontmatterRaw);
     if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
-      parsed = doc as Record<string, unknown>;
+      // js-yaml stores `__proto__:` as an own data property (rather than
+      // polluting Object.prototype), but the value still flows into
+      // downstream `Object.assign`-style merges where the `__proto__`
+      // setter fires. Strip pollution-class keys at parse time so the
+      // returned object is safe to spread, copy, and persist. Prototype
+      // stays normal so `deepStrictEqual` round-trips against the
+      // persisted form (which goes through `JSON.parse` and inherits
+      // Object.prototype).
+      for (const [k, v] of Object.entries(doc as Record<string, unknown>)) {
+        if (FORBIDDEN_FRONTMATTER_KEYS.has(k)) continue;
+        parsed[k] = v;
+      }
     }
   } catch {
     // Malformed YAML — leave as empty object, keep the raw string for

@@ -7,4 +7,8 @@
 
 export const EXPORT_TEXTS = {
   errorPrefix: 'sm export: {{message}}\n',
+
+  formatNotImplemented: 'format={{format}} not yet implemented ({{reason}}).\n',
+  formatUnsupported:
+    'Unsupported format: {{format}}. Supported: {{supported}}. Deferred: {{deferred}}.\n',
 } as const;

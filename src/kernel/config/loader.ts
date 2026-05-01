@@ -253,19 +253,35 @@ function describeJsonType(v: unknown): string {
   return typeof v;
 }
 
+/**
+ * Names that, when used as object keys, manipulate the prototype chain.
+ * Filtered everywhere user-controlled config data is walked or merged so
+ * a hostile config layer cannot pollute `Object.prototype` or replace
+ * the merged config's `[[Prototype]]`.
+ */
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 function deleteAtPath(root: Record<string, unknown>, parentPath: string, key: string): void {
+  if (containsForbidden(parentPath, key)) return;
   const segments = parentPath.split('/').filter(Boolean);
   let cur: unknown = root;
   for (const seg of segments) {
-    if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
-      cur = (cur as Record<string, unknown>)[seg];
-    } else {
-      return;
-    }
+    if (!isPlainObject(cur)) return;
+    cur = cur[seg];
   }
-  if (cur && typeof cur === 'object' && !Array.isArray(cur)) {
-    delete (cur as Record<string, unknown>)[key];
+  if (isPlainObject(cur)) delete cur[key];
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+function containsForbidden(parentPath: string, leaf: string): boolean {
+  if (FORBIDDEN_KEYS.has(leaf)) return true;
+  for (const seg of parentPath.split('/')) {
+    if (FORBIDDEN_KEYS.has(seg)) return true;
   }
+  return false;
 }
 
 function joinSegments(instancePath: string, leaf: string): string {
@@ -279,21 +295,26 @@ function deepMerge(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...target };
   for (const [k, v] of Object.entries(source)) {
-    const tv = out[k];
-    if (
-      v !== null
-      && typeof v === 'object'
-      && !Array.isArray(v)
-      && tv !== null
-      && typeof tv === 'object'
-      && !Array.isArray(tv)
-    ) {
-      out[k] = deepMerge(tv as Record<string, unknown>, v as Record<string, unknown>);
-    } else {
-      out[k] = v;
-    }
+    if (FORBIDDEN_KEYS.has(k)) continue;
+    out[k] = mergeValue(out[k], v);
   }
   return out;
+}
+
+function mergeValue(target: unknown, source: unknown): unknown {
+  if (source === null || typeof source !== 'object' || Array.isArray(source)) {
+    return source;
+  }
+  // When the source is a plain object — recurse even if the target slot
+  // is empty, so nested `__proto__` / `constructor` / `prototype` keys
+  // are filtered. Skipping the recursion in the empty-target case
+  // (early version of the H1 fix) leaked pollution keys verbatim into
+  // the merged config.
+  const targetSlot =
+    target !== null && typeof target === 'object' && !Array.isArray(target)
+      ? (target as Record<string, unknown>)
+      : {};
+  return deepMerge(targetSlot, source as Record<string, unknown>);
 }
 
 // eslint-disable-next-line complexity

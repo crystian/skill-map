@@ -12,7 +12,7 @@ import type {
 } from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
-import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -240,7 +240,7 @@ export class ScanCommand extends Command {
     // Without `--changed`, an empty / missing prior is silent (it's the
     // normal first-scan path).
     const loadPrior = async (
-      adapter: SqliteStorageAdapter,
+      adapter: StoragePort,
     ): Promise<ScanResult | null> => {
       if (this.noBuiltIns) return null;
       const loaded = await adapter.scans.load();

@@ -30,7 +30,7 @@
 
 import { createRequire } from 'node:module';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
@@ -339,6 +339,17 @@ export class PluginLoader implements PluginLoaderPort {
     manifest: IPluginManifest,
     relEntry: string,
   ): Promise<{ ok: true; extension: ILoadedExtension } | { ok: false; failure: IDiscoveredPlugin }> {
+    if (!isInsidePlugin(pluginPath, relEntry)) {
+      return { ok: false, failure: {
+        ...fail(
+          pluginPath,
+          manifest.id,
+          'invalid-manifest',
+          tx(PLUGIN_LOADER_TEXTS.loadErrorPathEscapesPlugin, { relEntry, pluginPath }),
+        ),
+        manifest,
+      }};
+    }
     const abs = resolve(pluginPath, relEntry);
     if (!existsSync(abs)) {
       return { ok: false, failure: {
@@ -568,6 +579,28 @@ function fail(
   reason: string,
 ): IDiscoveredPlugin {
   return { path, id, status, reason };
+}
+
+/**
+ * Check that a manifest-declared relative path stays inside the plugin
+ * tree once resolved. Rejects absolute paths and any value whose
+ * resolved form lies above (or beside) the plugin root via `..`
+ * components. Returns `null` when safe; otherwise the resolved
+ * absolute path is returned for diagnostics.
+ *
+ * Closes the lane where one plugin directory references another
+ * plugin's source (or arbitrary files on disk) by way of
+ * `extensions: ["../foo/index.js"]` or `storage.schema:
+ * "../bar.schema.json"`.
+ */
+function isInsidePlugin(pluginPath: string, relEntry: string): boolean {
+  if (isAbsolute(relEntry)) return false;
+  const abs = resolve(pluginPath, relEntry);
+  const rel = relative(pluginPath, abs);
+  if (rel === '') return true;
+  if (rel.startsWith('..')) return false;
+  if (isAbsolute(rel)) return false;
+  return true;
 }
 
 function describe(err: unknown): string {
@@ -824,6 +857,13 @@ function compilePluginSchema(
       };
     }
   | { ok: false; phase: 'read' | 'compile'; errDescription: string } {
+  if (!isInsidePlugin(pluginPath, relPath)) {
+    return {
+      ok: false,
+      phase: 'read',
+      errDescription: tx(PLUGIN_LOADER_TEXTS.loadErrorSchemaPathEscapesPlugin, { relPath, pluginPath }),
+    };
+  }
   const abs = resolve(pluginPath, relPath);
   let raw: unknown;
   try {

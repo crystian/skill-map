@@ -117,7 +117,7 @@ export type {
   INodeFilter,
   IPersistOptions,
 } from './types/storage.js';
-export type { FilesystemPort, NodeStat, WalkOptions } from './ports/filesystem.js';
+export type { FilesystemPort, IWalkOptions, NodeStat } from './ports/filesystem.js';
 export type {
   PluginLoaderPort,
   IDiscoveredPlugin,
@@ -128,7 +128,7 @@ export type {
   TPluginLoadStatus,
   TPluginStorage,
 } from './ports/plugin-loader.js';
-export type { RunnerPort, RunOptions, RunResult } from './ports/runner.js';
+export type { IRunOptions, IRunResult, RunnerPort } from './ports/runner.js';
 export type {
   ProgressEmitterPort,
   ProgressEvent,

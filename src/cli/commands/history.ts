@@ -24,6 +24,7 @@ import type {
   ExecutionStatus,
   HistoryStats,
 } from '../../kernel/types.js';
+import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { emitDoneStderr, formatElapsed, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -48,7 +49,7 @@ function parseIsoMs(
 ): number | null {
   const ms = Date.parse(input);
   if (!Number.isFinite(ms)) {
-    stderr.write(`${flag}: expected an ISO-8601 date-time, got "${input}".\n`);
+    stderr.write(tx(HISTORY_TEXTS.invalidIsoDateTime, { flag, value: input }));
     return null;
   }
   return ms;
@@ -60,14 +61,12 @@ function parseStatuses(
 ): ExecutionStatus[] | null {
   const parts = input.split(',').map((s) => s.trim()).filter((s) => s.length > 0);
   if (parts.length === 0) {
-    stderr.write(`--status: expected one or more of ${STATUSES.join(', ')}.\n`);
+    stderr.write(tx(HISTORY_TEXTS.statusEmpty, { allowed: STATUSES.join(', ') }));
     return null;
   }
   for (const p of parts) {
     if (!STATUSES.includes(p as ExecutionStatus)) {
-      stderr.write(
-        `--status: invalid value "${p}". Allowed: ${STATUSES.join(', ')}.\n`,
-      );
+      stderr.write(tx(HISTORY_TEXTS.statusInvalid, { value: p, allowed: STATUSES.join(', ') }));
       return null;
     }
   }

@@ -320,3 +320,45 @@ describe('sm config — --strict UX', () => {
     assert.ok(!r.stderr.includes('Internal Error'));
   });
 });
+
+describe('sm config — prototype-pollution defence (audit H2)', () => {
+  for (const segment of ['__proto__', 'constructor', 'prototype']) {
+    it(`config set rejects "${segment}" segment with a clean error`, () => {
+      const scope = freshScope(`set-${segment}`);
+      const r = sm(['config', 'set', `${segment}.polluted`, 'true'], scope);
+      assert.equal(r.status, 2);
+      assert.match(r.stderr, /forbidden key segment/);
+      assert.match(r.stderr, new RegExp(segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+      // No file written.
+      assert.ok(!existsSync(join(scope.cwd, '.skill-map', 'settings.json')));
+    });
+
+    it(`config set rejects nested "${segment}" segment`, () => {
+      const scope = freshScope(`set-nested-${segment}`);
+      const r = sm(['config', 'set', `scan.${segment}.x`, 'true'], scope);
+      assert.equal(r.status, 2);
+      assert.match(r.stderr, /forbidden key segment/);
+    });
+
+    it(`config get rejects "${segment}" segment without exposing prototype data`, () => {
+      const scope = freshScope(`get-${segment}`);
+      const r = sm(['config', 'get', `${segment}.polluted`], scope);
+      assert.equal(r.status, 2);
+      assert.match(r.stderr, /forbidden key segment/);
+      assert.equal(r.stdout, '');
+    });
+
+    it(`config reset rejects "${segment}" segment`, () => {
+      const scope = freshScope(`reset-${segment}`);
+      writeSettings(scope.cwd, { autoMigrate: false });
+      const r = sm(['config', 'reset', `${segment}.x`], scope);
+      assert.equal(r.status, 2);
+      assert.match(r.stderr, /forbidden key segment/);
+      // Pre-existing settings file untouched.
+      const written = JSON.parse(
+        readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
+      ) as Record<string, unknown>;
+      assert.equal(written['autoMigrate'], false);
+    });
+  }
+});

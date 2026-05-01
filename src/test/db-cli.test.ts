@@ -222,3 +222,32 @@ describe('sm db restore --dry-run', () => {
     assert.doesNotMatch(r.stderr, /Aborted/);
   });
 });
+
+describe('sm db dump --tables — identifier whitelist (audit L1)', () => {
+  it('rejects a table name with a semicolon', () => {
+    const scope = freshScope('dump-semi');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['db', 'dump', '--tables', 'scan_nodes; .shell'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /refusing non-identifier name/i);
+  });
+
+  it('rejects a table name with a dash', () => {
+    const scope = freshScope('dump-dash');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['db', 'dump', '--tables', 'scan-nodes'], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /refusing non-identifier name/i);
+  });
+
+  it('rejects an empty token', () => {
+    const scope = freshScope('dump-empty');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['db', 'dump', '--tables', ''], scope);
+    assert.equal(r.status, 2);
+    assert.match(r.stderr, /refusing non-identifier name/i);
+  });
+});

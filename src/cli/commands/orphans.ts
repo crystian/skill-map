@@ -18,7 +18,7 @@
 import { Command, Option } from 'clipanion';
 
 import type { IMigrateNodeFksReport } from '../../kernel/adapters/sqlite/history.js';
-import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { ITransactionalStorage } from '../../kernel/ports/storage.js';
 import type { IIssueRow } from '../../kernel/types/storage.js';
 import type { Issue } from '../../kernel/types.js';
@@ -42,7 +42,7 @@ type OrphanRuleId = typeof ORPHAN_RULE_IDS[number];
  * predicate they care about (path equality, candidate match, etc.).
  */
 async function findActiveOrphanIssues(
-  adapter: SqliteStorageAdapter,
+  adapter: StoragePort,
   predicate: (issue: Issue) => boolean,
 ): Promise<IIssueRow[]> {
   return adapter.issues.findActive(
@@ -453,7 +453,7 @@ const DRY_RUN_ROLLBACK = Symbol('orphans:dry-run-rollback');
  * A throw-to-rollback gives that for free.
  */
 async function runWithOptionalRollback(
-  adapter: SqliteStorageAdapter,
+  adapter: StoragePort,
   body: (tx: ITransactionalStorage) => Promise<IMigrateNodeFksReport>,
   dryRun: boolean,
 ): Promise<IMigrateNodeFksReport> {

@@ -14,7 +14,7 @@
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve } from 'node:path';
 
 export type AssertionResult =
   | { ok: true; type: string }
@@ -218,12 +218,31 @@ function runPriorScansSetup(
  * Provider-owned for Provider cases — see `RunCaseOptions.fixturesRoot`).
  */
 function replaceFixture(scope: string, fixturesRoot: string, fixture: string): void {
+  assertContained(fixturesRoot, fixture, 'fixture');
   for (const entry of readdirSync(scope)) {
     if (entry === '.skill-map') continue;
     rmSync(join(scope, entry), { recursive: true, force: true });
   }
   const src = join(fixturesRoot, fixture);
   cpSync(src, scope, { recursive: true });
+}
+
+/**
+ * Reject case-supplied path strings that escape the directory tree they
+ * are anchored to. A hostile case JSON would otherwise be able to copy
+ * arbitrary filesystem content into the tmp scope (`fixture: "../.."`)
+ * or read files outside the conformance sandbox via `file-exists` /
+ * `file-contains-verbatim` assertions.
+ */
+function assertContained(root: string, rel: string, label: string): void {
+  if (isAbsolute(rel)) {
+    throw new Error(`conformance: ${label} path "${rel}" must be relative to its anchor (${root})`);
+  }
+  const abs = resolve(root, rel);
+  const r = relative(root, abs);
+  if (r.startsWith('..') || isAbsolute(r)) {
+    throw new Error(`conformance: ${label} path "${rel}" escapes its anchor (${root})`);
+  }
 }
 
 interface AssertionContext {
@@ -253,12 +272,23 @@ function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult
     case 'json-path':
       return evaluateJsonPath(a, ctx);
     case 'file-exists': {
+      try {
+        assertContained(ctx.scope, a.path, 'file-exists');
+      } catch (err) {
+        return { ok: false, type: a.type, reason: (err as Error).message };
+      }
       const abs = resolve(ctx.scope, a.path);
       return existsSync(abs)
         ? { ok: true, type: a.type }
         : { ok: false, type: a.type, reason: `file not found: ${a.path}` };
     }
     case 'file-contains-verbatim': {
+      try {
+        assertContained(ctx.fixturesRoot, a.fixture, 'file-contains-verbatim/fixture');
+        assertContained(ctx.scope, a.path, 'file-contains-verbatim/path');
+      } catch (err) {
+        return { ok: false, type: a.type, reason: (err as Error).message };
+      }
       const fixturePath = join(ctx.fixturesRoot, a.fixture);
       const targetPath = resolve(ctx.scope, a.path);
       if (!existsSync(targetPath)) {

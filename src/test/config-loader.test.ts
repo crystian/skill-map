@@ -241,3 +241,54 @@ describe('config loader — strict mode', () => {
     );
   });
 });
+
+describe('config loader — prototype pollution defence (audit H1)', () => {
+  it('skips __proto__ inside plugins[*].config (additionalProperties:true subtree)', () => {
+    const { home, cwd } = freshScope('proto-plugins');
+    writeSettings(home, 'settings', {
+      plugins: {
+        evil: {
+          config: { __proto__: { polluted: 'yes' }, legitimate: 1 },
+        },
+      },
+    });
+    const { effective } = loadConfig({ scope: 'project', cwd, homedir: home });
+    // The legitimate sibling key still merges through.
+    strictEqual(
+      (effective.plugins['evil']?.config as Record<string, unknown>)?.['legitimate'],
+      1,
+    );
+    // Nothing was written via the __proto__ setter on the merged config
+    // or on Object.prototype itself.
+    strictEqual(({} as Record<string, unknown>)['polluted'], undefined);
+    strictEqual(
+      Object.getPrototypeOf(effective.plugins['evil']?.config),
+      Object.prototype,
+    );
+  });
+
+  it('skips constructor / prototype keys', () => {
+    const { home, cwd } = freshScope('proto-constructor');
+    writeSettings(home, 'settings', {
+      plugins: {
+        evil: {
+          config: { constructor: { polluted: 'no' }, prototype: { also: 'no' }, ok: 2 },
+        },
+      },
+    });
+    const { effective } = loadConfig({ scope: 'project', cwd, homedir: home });
+    const merged = effective.plugins['evil']?.config as Record<string, unknown>;
+    strictEqual(merged['ok'], 2);
+    ok(!Object.prototype.hasOwnProperty.call(merged, 'constructor'));
+    ok(!Object.prototype.hasOwnProperty.call(merged, 'prototype'));
+  });
+
+  it('does not pollute Object.prototype across multiple loads', () => {
+    const { home, cwd } = freshScope('proto-no-bleed');
+    writeSettings(home, 'settings', {
+      plugins: { x: { config: { __proto__: { leaked: true } } } },
+    });
+    loadConfig({ scope: 'project', cwd, homedir: home });
+    strictEqual(({} as Record<string, unknown>)['leaked'], undefined);
+  });
+});

@@ -83,4 +83,10 @@ export const PLUGIN_LOADER_TEXTS = {
 
   invalidManifestHookEmptyTriggers:
     "Hook '{{hookId}}' declares no triggers. At least one entry from the curated set is required.",
+
+  loadErrorPathEscapesPlugin:
+    "extension entry '{{relEntry}}' resolves outside the plugin directory ({{pluginPath}}). Plugin entries must be relative paths inside the plugin tree.",
+
+  loadErrorSchemaPathEscapesPlugin:
+    "schema path '{{relPath}}' resolves outside the plugin directory ({{pluginPath}}). Plugin schemas must be relative paths inside the plugin tree.",
 } as const;

@@ -195,8 +195,12 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       context.stdout.write(JSON.stringify(result) + '\n');
     } else {
       context.stdout.write(
-        `scanned ${result.stats.nodesCount} nodes / ${result.stats.linksCount} links / ` +
-          `${result.stats.issuesCount} issues in ${result.stats.durationMs}ms\n`,
+        tx(WATCH_TEXTS.scannedSummary, {
+          nodes: result.stats.nodesCount,
+          links: result.stats.linksCount,
+          issues: result.stats.issuesCount,
+          durationMs: result.stats.durationMs,
+        }),
       );
     }
   };

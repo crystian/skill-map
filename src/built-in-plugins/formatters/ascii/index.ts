@@ -24,6 +24,7 @@
  */
 
 import type { IFormatter, IFormatterContext } from '../../../kernel/extensions/index.js';
+import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
 
 const ID = 'ascii';
 // Built-in Claude Provider catalog rendered first, in this canonical
@@ -88,7 +89,7 @@ export const asciiFormatter: IFormatter = {
       });
       for (const link of sorted) {
         out.push(
-          `- ${link.source} --${link.kind}--> ${link.target}  [${link.confidence}]`,
+          `- ${sanitizeForTerminal(link.source)} --${sanitizeForTerminal(link.kind)}--> ${sanitizeForTerminal(link.target)}  [${link.confidence}]`,
         );
       }
       out.push('');
@@ -97,7 +98,7 @@ export const asciiFormatter: IFormatter = {
     if (ctx.issues.length > 0) {
       out.push(`## issues (${ctx.issues.length})`);
       for (const issue of ctx.issues) {
-        out.push(`- [${issue.severity}] ${issue.ruleId}: ${issue.message}`);
+        out.push(`- [${issue.severity}] ${issue.ruleId}: ${sanitizeForTerminal(issue.message)}`);
       }
       out.push('');
     }
@@ -118,10 +119,10 @@ function renderSection(
   group: ReadonlyArray<{ path: string; title?: string | null; frontmatter?: Record<string, unknown> }>,
 ): void {
   const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
-  out.push(`## ${kind} (${sorted.length})`);
+  out.push(`## ${sanitizeForTerminal(kind)} (${sorted.length})`);
   for (const node of sorted) {
     const title = pickTitle(node);
-    out.push(`- ${node.path}${title ? ` — "${title}"` : ''}`);
+    out.push(`- ${sanitizeForTerminal(node.path)}${title ? ` — "${sanitizeForTerminal(title)}"` : ''}`);
   }
   out.push('');
 }

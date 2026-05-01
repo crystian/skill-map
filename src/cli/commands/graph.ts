@@ -22,6 +22,8 @@
 
 import { Command, Option } from 'clipanion';
 
+import { tx } from '../../kernel/util/tx.js';
+import { GRAPH_TEXTS } from '../i18n/graph.texts.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
@@ -79,7 +81,10 @@ export class GraphCommand extends Command {
         .sort()
         .join(', ');
       this.context.stderr.write(
-        `No formatter registered for format=${this.format}. Available: ${available || '(none)'}.\n`,
+        tx(GRAPH_TEXTS.noFormatterRegistered, {
+          format: this.format,
+          available: available || GRAPH_TEXTS.availableNone,
+        }),
       );
       return ExitCode.Error;
     }

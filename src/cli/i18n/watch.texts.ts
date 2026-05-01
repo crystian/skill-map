@@ -23,6 +23,9 @@ export const WATCH_TEXTS = {
 
   stopped: 'sm watch: stopped after {{batchCount}} batch(es).\n',
 
+  scannedSummary:
+    'scanned {{nodes}} nodes / {{links}} links / {{issues}} issues in {{durationMs}}ms\n',
+
   priorSchemaValidationFailed:
     'prior scan-result loaded from DB failed schema validation: {{errors}}',
 } as const;

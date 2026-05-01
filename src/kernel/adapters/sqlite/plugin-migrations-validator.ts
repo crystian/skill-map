@@ -97,6 +97,66 @@ export function stripComments(sql: string): string {
     .replace(/--[^\n\r]*/g, ' ');
 }
 
+/**
+ * Detect SQL whose validator-visible text (post `stripComments`) would
+ * differ from the engine-visible text because a `--` or `/*` sits inside
+ * a string literal. Returns `null` when the SQL is safe; otherwise a
+ * violation message that the validator surfaces verbatim.
+ *
+ * Closes the lane where a hostile plugin shifts the validator's view
+ * of statement boundaries by smuggling comment markers inside literals
+ * (the validator sees one stripped statement, `db.exec` runs the
+ * original — see audit finding M5).
+ */
+// Char-by-char state machine (4 quoting modes + 2 marker checks). Each
+// branch is one state transition; splitting per mode would scatter the
+// dispatcher and obscure the literal-tracking invariant.
+// eslint-disable-next-line complexity
+export function detectCommentMarkerInLiteral(sql: string): string | null {
+  let inSingle = false;
+  let inDouble = false;
+  let inBacktick = false;
+  let inBracket = false;
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i]!;
+    const next = sql[i + 1];
+    if (inSingle) {
+      if (ch === "'" && next === "'") { i++; continue; }
+      if (ch === "'") { inSingle = false; continue; }
+      if (ch === '-' && next === '-') {
+        return "string literal contains '--' (line comment marker). Reject — validator and engine would disagree on statement boundaries.";
+      }
+      if (ch === '/' && next === '*') {
+        return "string literal contains '/*' (block comment marker). Reject — validator and engine would disagree on statement boundaries.";
+      }
+      continue;
+    }
+    if (inDouble) {
+      if (ch === '"') { inDouble = false; continue; }
+      if (ch === '-' && next === '-') {
+        return "double-quoted identifier contains '--' (line comment marker). Reject — validator and engine would disagree on statement boundaries.";
+      }
+      if (ch === '/' && next === '*') {
+        return "double-quoted identifier contains '/*' (block comment marker). Reject — validator and engine would disagree on statement boundaries.";
+      }
+      continue;
+    }
+    if (inBacktick) {
+      if (ch === '`') inBacktick = false;
+      continue;
+    }
+    if (inBracket) {
+      if (ch === ']') inBracket = false;
+      continue;
+    }
+    if (ch === "'") { inSingle = true; continue; }
+    if (ch === '"') { inDouble = true; continue; }
+    if (ch === '`') { inBacktick = true; continue; }
+    if (ch === '[') { inBracket = true; continue; }
+  }
+  return null;
+}
+
 /** Tokens that abort validation immediately — too dangerous in plugin space. */
 const FORBIDDEN_KEYWORDS = [
   /\bBEGIN\b/i,
@@ -334,6 +394,16 @@ export function splitStatements(sql: string): string[] {
 export function validatePluginMigrationSql(sql: string, normalizedId: string): IValidationResult {
   const violations: string[] = [];
   const prefix = `plugin_${normalizedId}_`;
+
+  // Pre-check: reject any literal that contains a comment marker. If we
+  // skip this, `stripComments` mutates the validator's view of the
+  // statement while `db.exec` still runs the original — opening a
+  // boundary-shifting attack (see audit finding M5).
+  const literalIssue = detectCommentMarkerInLiteral(sql);
+  if (literalIssue) {
+    return { ok: false, violations: [literalIssue] };
+  }
+
   const stripped = stripComments(sql);
 
   for (const re of FORBIDDEN_KEYWORDS) {

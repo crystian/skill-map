@@ -26,7 +26,8 @@ import { DB_TEXTS } from '../i18n/db.texts.js';
 
 import { Command, Option } from 'clipanion';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import { createSqliteStorage } from '../../kernel/adapters/sqlite/index.js';
+import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { IPluginApplyResult } from '../../kernel/adapters/sqlite/plugin-migrations.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
@@ -36,6 +37,20 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+
+const SAFE_SQL_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
+ * Reject any sqlite_master row name that is not a plain identifier before
+ * it reaches a `db.exec` statement. The catalog filter `LIKE 'scan_%'`
+ * (and optional `state_%`) shipped above is the primary line of defence;
+ * this function is the second layer.
+ */
+function assertSafeIdentifier(name: string): void {
+  if (!SAFE_SQL_IDENTIFIER_RE.test(name)) {
+    throw new Error(`refusing to operate on non-identifier table name: ${JSON.stringify(name)}`);
+  }
+}
 
 // --- backup ---------------------------------------------------------------
 
@@ -245,6 +260,14 @@ export class DbResetCommand extends Command {
         )
         .all() as Array<{ name: string }>;
 
+      // Defence in depth — the LIKE filter above already restricts
+      // results to `scan_*` (and optionally `state_*`) catalog rows, but
+      // the per-plugin migration validator approves DML in plugin-owned
+      // tables. A future bug there could yield a row with an unsafe
+      // name reaching this loop. Whitelist + double-quote before
+      // interpolating into a statement that is exec'd as-is.
+      for (const r of rows) assertSafeIdentifier(r.name);
+
       if (this.dryRun) {
         this.context.stdout.write(DB_TEXTS.dryRunHeader);
         if (rows.length === 0) {
@@ -254,7 +277,7 @@ export class DbResetCommand extends Command {
         // Probe row counts so the user sees the destructive scope. Read-
         // only queries — safe in dry-run.
         const withCounts = rows.map((r) => {
-          const count = db.prepare(`SELECT COUNT(*) AS c FROM ${r.name}`).get() as { c: number };
+          const count = db.prepare(`SELECT COUNT(*) AS c FROM "${r.name}"`).get() as { c: number };
           return { name: r.name, rowCount: Number(count.c) };
         });
         const totalRows = withCounts.reduce((acc, r) => acc + r.rowCount, 0);
@@ -271,7 +294,7 @@ export class DbResetCommand extends Command {
 
       db.exec('BEGIN');
       for (const { name } of rows) {
-        db.exec(`DELETE FROM ${name}`);
+        db.exec(`DELETE FROM "${name}"`);
       }
       db.exec('COMMIT');
 
@@ -313,9 +336,7 @@ export class DbShellCommand extends Command {
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
-      this.context.stderr.write(
-        'sqlite3 binary not found on PATH. Install it (macOS: brew install sqlite; Debian/Ubuntu: apt install sqlite3) or use `sm db dump` for read-only inspection.\n',
-      );
+      this.context.stderr.write(DB_TEXTS.shellSqlite3NotFound);
       return ExitCode.Error;
     }
     return result.status ?? 0;
@@ -336,19 +357,28 @@ export class DbDumpCommand extends Command {
   db = Option.String('--db', { required: false });
   tables = Option.Array('--tables', { required: false });
 
+  // CLI orchestrator: each branch (db existence, per-table identifier
+  // gate, sqlite3-not-found fallback, exit-status passthrough) is a
+  // single dispatcher decision. Splitting per branch scatters the gate
+  // away from the value it gates.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db });
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     const args = ['-readonly', path, '.dump'];
     if (this.tables && this.tables.length > 0) {
+      for (const t of this.tables) {
+        if (!SAFE_SQL_IDENTIFIER_RE.test(t)) {
+          this.context.stderr.write(tx(DB_TEXTS.dumpInvalidTable, { table: t }));
+          return ExitCode.Error;
+        }
+      }
       args.push(...this.tables);
     }
     const result = spawnSync('sqlite3', args, { stdio: ['ignore', 'inherit', 'inherit'] });
     if (result.error && (result.error as NodeJS.ErrnoException).code === 'ENOENT') {
-      this.context.stderr.write(
-        'sqlite3 binary not found on PATH. Install it to use `sm db dump`.\n',
-      );
+      this.context.stderr.write(DB_TEXTS.dumpSqlite3NotFound);
       return ExitCode.Error;
     }
     return result.status ?? 0;
@@ -412,7 +442,7 @@ export class DbMigrateCommand extends Command {
     // methods open their own short-lived raw `DatabaseSync` handles
     // internally; the adapter's Kysely connection is unused by this
     // verb.
-    const adapter = new SqliteStorageAdapter({
+    const adapter = createSqliteStorage({
       databasePath: path,
       autoMigrate: false,
     });
@@ -560,7 +590,7 @@ export class DbMigrateCommand extends Command {
 }
 
 interface IRunPluginMigrationsOpts {
-  adapter: SqliteStorageAdapter;
+  adapter: StoragePort;
   plugins: IDiscoveredPlugin[];
   dryRun: boolean;
   stdout: NodeJS.WritableStream;
@@ -584,29 +614,38 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
       result = adapter.pluginMigrations.apply(plugin, { dryRun });
     } catch (err) {
       const reason = formatErrorMessage(err);
-      stderr.write(`plugin ${plugin.id} · ${reason}\n`);
+      stderr.write(tx(DB_TEXTS.pluginMigrateFailure, { pluginId: plugin.id, reason }));
       exit = 2;
       continue;
     }
     if (dryRun) {
       stdout.write(
         result.applied.length === 0
-          ? `plugin ${plugin.id} · Nothing to apply.\n`
-          : `plugin ${plugin.id} · Would apply ${result.applied.length} migration(s):\n` +
-              result.applied
+          ? tx(DB_TEXTS.pluginMigrateDryNothing, { pluginId: plugin.id })
+          : tx(DB_TEXTS.pluginMigrateDryHeader, {
+              pluginId: plugin.id,
+              count: result.applied.length,
+              lines: result.applied
                 .map((m) => `  ${formatKernelName(m.version, m.description)}`)
-                .join('\n') + '\n',
+                .join('\n'),
+            }),
       );
     } else {
       stdout.write(
         result.applied.length === 0
-          ? `plugin ${plugin.id} · Already up to date.\n`
-          : `plugin ${plugin.id} · Applied ${result.applied.length} migration(s)\n`,
+          ? tx(DB_TEXTS.pluginMigrateUpToDate, { pluginId: plugin.id })
+          : tx(DB_TEXTS.pluginMigrateApplied, {
+              pluginId: plugin.id,
+              count: result.applied.length,
+            }),
       );
     }
     if (result.intrusions.length > 0) {
       stderr.write(
-        `plugin ${plugin.id} · catalog intrusion detected: ${result.intrusions.join(', ')}\n`,
+        tx(DB_TEXTS.pluginMigrateIntrusion, {
+          pluginId: plugin.id,
+          intrusions: result.intrusions.join(', '),
+        }),
       );
       exit = 2;
     }

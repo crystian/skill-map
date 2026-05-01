@@ -12,4 +12,6 @@ export const CONFIG_TEXTS = {
   setWritten: '{{key}} = {{value}}  (wrote {{path}})\n',
   unsetNoOverride: 'No override at {{path}} for {{key}}\n',
   unsetRemoved: 'Removed {{key}} from {{path}}\n',
+  loadFailure: 'sm config: {{message}}\n',
+  forbiddenKeySegment: 'sm config: forbidden key segment "{{segment}}" in "{{key}}" (rejects __proto__ / constructor / prototype)\n',
 } as const;

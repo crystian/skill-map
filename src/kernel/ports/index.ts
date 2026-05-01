@@ -1,5 +1,5 @@
 export type { StoragePort } from './storage.js';
-export type { FilesystemPort, NodeStat, WalkOptions } from './filesystem.js';
+export type { FilesystemPort, IWalkOptions, NodeStat } from './filesystem.js';
 export type {
   PluginLoaderPort,
   IDiscoveredPlugin,
@@ -10,7 +10,7 @@ export type {
   TPluginLoadStatus,
   TPluginStorage,
 } from './plugin-loader.js';
-export type { RunnerPort, RunOptions, RunResult } from './runner.js';
+export type { IRunOptions, IRunResult, RunnerPort } from './runner.js';
 export type {
   ProgressEmitterPort,
   ProgressEvent,

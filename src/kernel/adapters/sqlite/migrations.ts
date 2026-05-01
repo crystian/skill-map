@@ -179,6 +179,16 @@ export function applyMigrations(
 
   for (const migration of toApply) {
     const sql = readFileSync(migration.filePath, 'utf8');
+    // `migration.version` is parsed from a 3-digit filename prefix and is
+    // therefore always a finite non-negative integer in normal flows.
+    // Guard against future code paths that might loosen the parser
+    // before the value flows into a string-interpolated PRAGMA — better
+    // to fail fast than to surface a SQL error from the engine.
+    if (!Number.isInteger(migration.version) || migration.version < 0 || migration.version > 9999) {
+      throw new Error(
+        `Migration version must be a non-negative integer ≤ 9999, got ${String(migration.version)}`,
+      );
+    }
     try {
       db.exec('BEGIN');
       db.exec(sql);

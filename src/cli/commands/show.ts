@@ -20,6 +20,7 @@ import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { tx } from '../../kernel/util/tx.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SHOW_TEXTS } from '../i18n/show.texts.js';
 
 interface IShowDocument {
@@ -132,12 +133,12 @@ function renderHuman(doc: IShowDocument): string {
  */
 function renderNodeHeader(node: Node): string[] {
   const lines: string[] = [];
-  lines.push(`${node.path} [${node.kind}] (provider: ${node.provider})`);
-  if (node.title) lines.push(`title:        ${node.title}`);
-  if (node.description) lines.push(`description:  ${node.description}`);
-  if (node.stability) lines.push(`stability:    ${node.stability}`);
-  if (node.version) lines.push(`version:      ${node.version}`);
-  if (node.author) lines.push(`author:       ${node.author}`);
+  lines.push(`${sanitizeForTerminal(node.path)} [${sanitizeForTerminal(node.kind)}] (provider: ${sanitizeForTerminal(node.provider)})`);
+  if (node.title) lines.push(`title:        ${sanitizeForTerminal(node.title)}`);
+  if (node.description) lines.push(`description:  ${sanitizeForTerminal(node.description)}`);
+  if (node.stability) lines.push(`stability:    ${sanitizeForTerminal(node.stability)}`);
+  if (node.version) lines.push(`version:      ${sanitizeForTerminal(node.version)}`);
+  if (node.author) lines.push(`author:       ${sanitizeForTerminal(node.author)}`);
   const b = node.bytes;
   lines.push(`Weight: bytes ${b.total} total / ${b.frontmatter} frontmatter / ${b.body} body`);
   if (node.tokens) {
@@ -155,7 +156,7 @@ function renderIssuesSection(issues: Issue[]): string[] {
   if (issues.length === 0) {
     lines.push('  (none)');
   } else {
-    for (const issue of issues) lines.push(`  - [${issue.severity}] ${issue.ruleId}: ${issue.message}`);
+    for (const issue of issues) lines.push(`  - [${issue.severity}] ${sanitizeForTerminal(issue.ruleId)}: ${sanitizeForTerminal(issue.message)}`);
   }
   return lines;
 }
@@ -232,8 +233,8 @@ function aggregateLinks(links: Link[], endpointSide: 'target' | 'source'): IGrou
 }
 
 function formatGroupedLink(arrow: '→' | '←', grp: IGroupedLink): string {
-  const head = `  - [${grp.kind}/${grp.confidence}] ${arrow} ${grp.endpoint}`;
-  const sources = grp.sources.length > 0 ? `  sources: ${grp.sources.join(', ')}` : '';
+  const head = `  - [${sanitizeForTerminal(grp.kind)}/${grp.confidence}] ${arrow} ${sanitizeForTerminal(grp.endpoint)}`;
+  const sources = grp.sources.length > 0 ? `  sources: ${grp.sources.map(sanitizeForTerminal).join(', ')}` : '';
   const dup = grp.rowCount > 1 ? ` (×${grp.rowCount})` : '';
   return `${head}${dup}${sources}`;
 }

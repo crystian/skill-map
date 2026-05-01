@@ -105,7 +105,7 @@ export default tseslint.config(
         { skipStrings: true, skipComments: true, skipRegExps: true, skipTemplates: true },
       ],
       'no-useless-assignment': 'error',
-      'no-unused-private-class-members': 'warn',
+      'no-unused-private-class-members': 'error',
 
       // --- Stylistic (moved out of ESLint core in v9) ---------------------
       '@stylistic/quotes': [

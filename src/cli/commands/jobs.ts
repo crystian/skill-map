@@ -48,8 +48,8 @@ import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IPruneResult } from '../../kernel/adapters/sqlite/jobs.js';
+import type { StoragePort } from '../../kernel/ports/storage.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { assertDbExists } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -195,7 +195,7 @@ export class JobPruneCommand extends Command {
   private async pruneOrPreview(
     status: 'completed' | 'failed',
     cutoffMs: number,
-    adapter: SqliteStorageAdapter,
+    adapter: StoragePort,
     dryRun: boolean,
   ): Promise<IPruneResult> {
     return dryRun

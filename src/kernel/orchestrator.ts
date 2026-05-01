@@ -2086,11 +2086,27 @@ export function mergeNodeWithEnrichments(
     .filter((e) => e.nodePath === node.path)
     .filter((e) => includeStale || !e.stale)
     .sort((a, b) => a.enrichedAt - b.enrichedAt);
-  const base: Record<string, unknown> = { ...(node.frontmatter ?? {}) };
+  // `assignSafe` strips `__proto__` / `constructor` / `prototype` from
+  // every source before copying, so a hostile enrichment value
+  // (plugin-authored, persisted as JSON) cannot replace the merged
+  // object's prototype via the `__proto__` setter. Prototype stays
+  // normal so consumers can `deepStrictEqual` the result against
+  // JSON-parse-shaped baselines.
+  const base: Record<string, unknown> = {};
+  assignSafe(base, node.frontmatter ?? {});
   for (const row of applicable) {
-    Object.assign(base, row.value);
+    assignSafe(base, row.value as Record<string, unknown>);
   }
   return base;
+}
+
+const FORBIDDEN_MERGE_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+function assignSafe(target: Record<string, unknown>, source: Record<string, unknown>): void {
+  for (const [k, v] of Object.entries(source)) {
+    if (FORBIDDEN_MERGE_KEYS.has(k)) continue;
+    target[k] = v;
+  }
 }
 
 /**

@@ -46,6 +46,7 @@ import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -239,24 +240,24 @@ function renderDeltaHuman(delta: IScanDelta): string {
 function renderDeltaNodes(nodes: IScanDelta['nodes']): string[] {
   if (nodes.added.length + nodes.removed.length + nodes.changed.length === 0) return [];
   const lines: string[] = ['', '## nodes'];
-  for (const n of nodes.added) lines.push(`+ ${n.path} (${n.kind})`);
-  for (const n of nodes.removed) lines.push(`- ${n.path} (${n.kind})`);
-  for (const c of nodes.changed) lines.push(`~ ${c.after.path} (${c.reason} changed)`);
+  for (const n of nodes.added) lines.push(`+ ${sanitizeForTerminal(n.path)} (${sanitizeForTerminal(n.kind)})`);
+  for (const n of nodes.removed) lines.push(`- ${sanitizeForTerminal(n.path)} (${sanitizeForTerminal(n.kind)})`);
+  for (const c of nodes.changed) lines.push(`~ ${sanitizeForTerminal(c.after.path)} (${c.reason} changed)`);
   return lines;
 }
 
 function renderDeltaLinks(links: IScanDelta['links']): string[] {
   if (links.added.length + links.removed.length === 0) return [];
   const lines: string[] = ['', '## links'];
-  for (const l of links.added) lines.push(`+ ${l.source} --${l.kind}--> ${l.target}`);
-  for (const l of links.removed) lines.push(`- ${l.source} --${l.kind}--> ${l.target}`);
+  for (const l of links.added) lines.push(`+ ${sanitizeForTerminal(l.source)} --${sanitizeForTerminal(l.kind)}--> ${sanitizeForTerminal(l.target)}`);
+  for (const l of links.removed) lines.push(`- ${sanitizeForTerminal(l.source)} --${sanitizeForTerminal(l.kind)}--> ${sanitizeForTerminal(l.target)}`);
   return lines;
 }
 
 function renderDeltaIssues(issues: IScanDelta['issues']): string[] {
   if (issues.added.length + issues.removed.length === 0) return [];
   const lines: string[] = ['', '## issues'];
-  for (const i of issues.added) lines.push(`+ [${i.severity}] ${i.ruleId}: ${i.message}`);
-  for (const i of issues.removed) lines.push(`- [${i.severity}] ${i.ruleId}: ${i.message}`);
+  for (const i of issues.added) lines.push(`+ [${i.severity}] ${sanitizeForTerminal(i.ruleId)}: ${sanitizeForTerminal(i.message)}`);
+  for (const i of issues.removed) lines.push(`- [${i.severity}] ${sanitizeForTerminal(i.ruleId)}: ${sanitizeForTerminal(i.message)}`);
   return lines;
 }

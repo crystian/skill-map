@@ -275,3 +275,50 @@ describe('detectCatalogIntrusion', () => {
     deepStrictEqual(detectCatalogIntrusion(before, after, 'foo'), []);
   });
 });
+
+describe('validatePluginMigrationSql — comment markers in literals (audit M5)', () => {
+  it('rejects a single-quoted literal containing -- (line comment marker)', () => {
+    const result = validatePluginMigrationSql(
+      "INSERT INTO plugin_foo_t (note) VALUES ('-- DROP TABLE scan_nodes;')",
+      'foo',
+    );
+    strictEqual(result.ok, false);
+    ok(
+      result.violations[0]!.includes('--'),
+      `expected violation message about '--', got ${result.violations[0]}`,
+    );
+  });
+
+  it('rejects a single-quoted literal containing /* (block comment marker)', () => {
+    const result = validatePluginMigrationSql(
+      "INSERT INTO plugin_foo_t (note) VALUES ('/* hidden */')",
+      'foo',
+    );
+    strictEqual(result.ok, false);
+    ok(result.violations[0]!.includes('/*'));
+  });
+
+  it('rejects a double-quoted identifier containing --', () => {
+    const result = validatePluginMigrationSql(
+      'CREATE TABLE plugin_foo_t ("col--name" TEXT)',
+      'foo',
+    );
+    strictEqual(result.ok, false);
+  });
+
+  it('does not flag bare -- outside literals (real comment)', () => {
+    const result = validatePluginMigrationSql(
+      "-- a real header comment\nCREATE TABLE plugin_foo_t (col TEXT);",
+      'foo',
+    );
+    strictEqual(result.ok, true, `unexpected violations: ${result.violations.join(' | ')}`);
+  });
+
+  it('does not flag plain literal content without comment markers', () => {
+    const result = validatePluginMigrationSql(
+      "INSERT INTO plugin_foo_t (note) VALUES ('hello world')",
+      'foo',
+    );
+    strictEqual(result.ok, true);
+  });
+});

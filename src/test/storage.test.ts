@@ -332,6 +332,34 @@ describe('migrations runner', () => {
       rmSync(fakeDir, { recursive: true, force: true });
     }
   });
+
+  // Audit M6 — guard against a future code path that loosens version
+  // parsing and lets a non-integer flow into the `PRAGMA user_version
+  // = ${n}` interpolation. The guard lives in `applyMigrations`, so we
+  // exercise it with a synthetic discovered file whose `version` is
+  // tampered to a non-integer (the regex in `discoverMigrations` would
+  // never produce one today, but this pins the contract).
+  it('rejects non-integer migration versions before interpolating into PRAGMA', () => {
+    const dbPath = join(mkdtempSync(join(tmpdir(), 'm6-')), 'sm.db');
+    // Empty migrations dir → no plan, but applyMigrations still walks
+    // the array we synthesise via the public type. Instead we assert
+    // against the helper directly: tamper the version on a discovered
+    // file by reaching into a rebuilt array.
+    const fakeDir = mkdtempSync(join(tmpdir(), 'm6-mig-'));
+    try {
+      writeFileSync(join(fakeDir, '001_init.sql'), 'CREATE TABLE x (id INTEGER);');
+      const files = discoverMigrations(fakeDir);
+      strictEqual(files.length, 1);
+      // Synthesise a tampered file; the production code will assert.
+      const tampered = { ...files[0]!, version: 1.5 };
+      throws(
+        () => applyMigrations(new DatabaseSync(dbPath), dbPath, { backup: false }, [tampered]),
+        /non-negative integer/,
+      );
+    } finally {
+      rmSync(fakeDir, { recursive: true, force: true });
+    }
+  });
 });
 
 // --- helpers --------------------------------------------------------------

@@ -46,6 +46,7 @@ import { Command, Option } from 'clipanion';
 
 import { runConformanceCase } from '../../conformance/index.js';
 import { tx } from '../../kernel/util/tx.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
@@ -256,7 +257,7 @@ function writeStreamSnippet(
   if (trimmed.length === 0) return;
   stream.write(header);
   for (const line of trimmed.split(/\r?\n/)) {
-    stream.write(tx(CONFORMANCE_TEXTS.caseFailureStreamLine, { line }));
+    stream.write(tx(CONFORMANCE_TEXTS.caseFailureStreamLine, { line: sanitizeForTerminal(line) }));
   }
 }
 

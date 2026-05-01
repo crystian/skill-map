@@ -30,6 +30,7 @@ import type { Issue, Link, Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tx } from '../../kernel/util/tx.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { EXPORT_TEXTS } from '../i18n/export.texts.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
@@ -78,14 +79,20 @@ export class ExportCommand extends Command {
     const format = (this.format ?? 'json').toLowerCase();
     if (DEFERRED_FORMATS[format]) {
       this.context.stderr.write(
-        `format=${format} not yet implemented (${DEFERRED_FORMATS[format]}).\n`,
+        tx(EXPORT_TEXTS.formatNotImplemented, {
+          format,
+          reason: DEFERRED_FORMATS[format],
+        }),
       );
       return ExitCode.Error;
     }
     if (!(SUPPORTED_FORMATS as readonly string[]).includes(format)) {
       this.context.stderr.write(
-        `Unsupported format: ${format}. Supported: ${SUPPORTED_FORMATS.join(', ')}. ` +
-          `Deferred: ${Object.keys(DEFERRED_FORMATS).join(', ')}.\n`,
+        tx(EXPORT_TEXTS.formatUnsupported, {
+          format,
+          supported: SUPPORTED_FORMATS.join(', '),
+          deferred: Object.keys(DEFERRED_FORMATS).join(', '),
+        }),
       );
       return ExitCode.Error;
     }
@@ -170,7 +177,7 @@ function renderMarkdown(subset: IExportSubset): string {
       return aKey.localeCompare(bKey);
     });
     for (const link of sorted) {
-      out.push(`- \`${link.source}\` --${link.kind}--> \`${link.target}\` _[${link.confidence}]_`);
+      out.push(`- \`${sanitizeForTerminal(link.source)}\` --${sanitizeForTerminal(link.kind)}--> \`${sanitizeForTerminal(link.target)}\` _[${link.confidence}]_`);
     }
     out.push('');
   }
@@ -179,7 +186,7 @@ function renderMarkdown(subset: IExportSubset): string {
     out.push(`## issues (${subset.issues.length})`);
     out.push('');
     for (const issue of subset.issues) {
-      out.push(`- **[${issue.severity}]** \`${issue.ruleId}\`: ${issue.message}`);
+      out.push(`- **[${issue.severity}]** \`${sanitizeForTerminal(issue.ruleId)}\`: ${sanitizeForTerminal(issue.message)}`);
     }
     out.push('');
   }
@@ -240,7 +247,7 @@ function appendKindSection(
   issuesPerNode: Map<string, number>,
 ): void {
   const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
-  lines.push(`## ${kind} (${sorted.length})`);
+  lines.push(`## ${sanitizeForTerminal(kind)} (${sorted.length})`);
   lines.push('');
   for (const node of sorted) lines.push(renderNodeBullet(node, issuesPerNode));
   lines.push('');
@@ -251,7 +258,7 @@ function renderNodeBullet(node: Node, issuesPerNode: Map<string, number>): strin
   const title = pickTitle(node);
   const issueCount = issuesPerNode.get(node.path) ?? 0;
   const issueSuffix = issueCount > 0 ? ` — ${issueCount} issue${issueCount === 1 ? '' : 's'}` : '';
-  return `- \`${node.path}\`${title ? ` — "${title}"` : ''}${issueSuffix}`;
+  return `- \`${sanitizeForTerminal(node.path)}\`${title ? ` — "${sanitizeForTerminal(title)}"` : ''}${issueSuffix}`;
 }
 
 function pickTitle(node: Node): string | null {

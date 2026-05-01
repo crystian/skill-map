@@ -750,4 +750,46 @@ describe('PluginLoader', () => {
       match(result[0]!.reason!, /applicableKinds|minItems|fewer than 1/i);
     });
   });
+
+  // Audit M3 — extension entries that escape the plugin tree (`../`
+  // breakouts, absolute paths) must be rejected before any
+  // dynamic-import is attempted. Closes the lane where one plugin
+  // re-imports another plugin's source under its own pluginId.
+  describe('audit M3 — plugin entry containment', () => {
+    it('rejects an extension entry that escapes the plugin directory via ..', async () => {
+      const root = makePluginsDir('m3-escape');
+      // Create a sibling file the malicious manifest will try to import.
+      mkdirSync(join(root, 'shared'), { recursive: true });
+      writeFileSync(
+        join(root, 'shared', 'leaked.mjs'),
+        `export default { id: 'x', kind: 'extractor', version: '1.0.0', description: '', emitsLinkKinds: ['references'], defaultConfidence: 'high' };`,
+      );
+      writePlugin(root, 'attacker', {
+        id: 'attacker',
+        version: '0.1.0',
+        specCompat: '>=0.0.0',
+        extensions: ['../shared/leaked.mjs'],
+      });
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /resolves outside the plugin directory|escapes/i);
+    });
+
+    it('rejects an absolute-path extension entry', async () => {
+      const root = makePluginsDir('m3-abs');
+      writePlugin(root, 'absolute', {
+        id: 'absolute',
+        version: '0.1.0',
+        specCompat: '>=0.0.0',
+        extensions: ['/etc/hostname'],
+      });
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'invalid-manifest');
+      match(result[0]!.reason!, /resolves outside the plugin directory|escapes/i);
+    });
+  });
 });

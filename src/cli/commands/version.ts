@@ -3,6 +3,8 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { Command, Option } from 'clipanion';
 
+import { tx } from '../../kernel/util/tx.js';
+import { VERSION_TEXTS } from '../i18n/version.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { VERSION } from '../version.js';
@@ -78,7 +80,7 @@ export class VersionCommand extends Command {
 
     const pad = Math.max(...lines.map(([k]) => k.length)) + 2;
     for (const [k, v] of lines) {
-      this.context.stdout.write(`${k.padEnd(pad)}${v}\n`);
+      this.context.stdout.write(tx(VERSION_TEXTS.matrixRow, { key: k.padEnd(pad), value: v }));
     }
     return ExitCode.Ok;
   }

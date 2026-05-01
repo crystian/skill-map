@@ -45,4 +45,24 @@ export const PLUGINS_TEXTS = {
   doctorProviderExplorationDirMissing:
     "Provider '{{providerId}}' declares explorationDir '{{explorationDir}}', but the resolved path '{{resolvedPath}}' does not exist. " +
     'The Provider is loaded but will yield no nodes from that directory until it appears.',
+
+  // --- list verb -------------------------------------------------------
+  listEmpty: 'No plugins discovered.\n',
+
+  // --- doctor verb -----------------------------------------------------
+  doctorDiscoveredHeader:
+    'Discovered {{total}} plugin(s) ({{builtInCount}} built-in bundles, {{userCount}} user):\n',
+  doctorCountRow: '  {{status}} {{count}}\n',
+  doctorWarningsHeader: '\nWarnings:\n',
+  doctorWarningLine: '  [warn] {{message}}\n',
+  doctorIssuesHeader: '\nIssues:\n',
+  doctorIssueLine: '  [{{status}}] {{id}} — {{reason}}\n',
+
+  // --- enable / disable -----------------------------------------------
+  toggleBothIdAndAll: 'Pass either an <id> or --all, not both.\n',
+  toggleNeitherIdNorAll: 'Pass <id> or --all.\n',
+  toggleResolveError: '{{error}}\n',
+  toggleAppliedSingle: '{{verbPast}}: {{id}}\n',
+  toggleAppliedManyHeader: '{{verbPast}}: {{count}} plugin(s)\n',
+  toggleAppliedManyRow: '  - {{id}}\n',
 } as const;
