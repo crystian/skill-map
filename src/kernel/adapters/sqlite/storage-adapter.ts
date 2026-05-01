@@ -52,6 +52,16 @@ import type {
 } from '../../types/storage.js';
 import type { Issue, Node, ScanResult } from '../../types.js';
 import { NodeSqliteDialect } from './dialect.js';
+import {
+  aggregateHistoryStats,
+  listExecutions,
+  migrateNodeFks,
+} from './history.js';
+import type {
+  IHistoryStatsRange,
+  IListExecutionsFilter,
+  THistoryStatsPeriod,
+} from './history.js';
 import { applyMigrations, discoverMigrations } from './migrations.js';
 import {
   loadExtractorRuns,
@@ -123,6 +133,7 @@ export class SqliteStorageAdapter implements StoragePort {
   // `init()` because they need the `Kysely<IDatabase>` instance.
   scans!: StoragePort['scans'];
   issues!: StoragePort['issues'];
+  history!: StoragePort['history'];
 
   constructor(options: ISqliteStorageAdapterOptions) {
     this.#options = options;
@@ -217,6 +228,15 @@ export class SqliteStorageAdapter implements StoragePort {
     this.issues = {
       listAll: () => listAllIssues(this.db),
       findActive: (predicate) => findActiveIssues(this.db, predicate),
+    };
+
+    this.history = {
+      list: (filter: IListExecutionsFilter) => listExecutions(this.db, filter),
+      aggregateStats: (
+        range: IHistoryStatsRange,
+        period: THistoryStatsPeriod,
+        topN: number,
+      ) => aggregateHistoryStats(this.db, range, period, topN),
     };
   }
 }
@@ -416,6 +436,10 @@ function buildTxSubset(trx: Transaction<IDatabase>): ITransactionalStorage {
       upsertMany: async (records: IEnrichmentRecord[]) => {
         await upsertEnrichments(trx, records);
       },
+    },
+    history: {
+      migrateNodeFks: (from: string, to: string) =>
+        migrateNodeFks(trx, from, to),
     },
   };
 }

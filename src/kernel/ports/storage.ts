@@ -20,12 +20,24 @@
  * lands today.
  */
 
-import type { Issue, Node, ScanResult } from '../types.js';
+import type {
+  ExecutionRecord,
+  HistoryStats,
+  Issue,
+  Node,
+  ScanResult,
+} from '../types.js';
 import type {
   IEnrichmentRecord,
   IExtractorRunRecord,
   IPersistedEnrichment,
 } from '../orchestrator.js';
+import type {
+  IHistoryStatsRange,
+  IListExecutionsFilter,
+  IMigrateNodeFksReport,
+  THistoryStatsPeriod,
+} from '../adapters/sqlite/history.js';
 import type {
   IIssueRow,
   INodeBundle,
@@ -62,8 +74,17 @@ export interface ITransactionalStorage {
      */
     upsertMany(records: IEnrichmentRecord[]): Promise<void>;
   };
-  // history.insertExecution / history.migrateNodeFks land in Phase B.
-  // jobs / pluginConfig in C-D.
+  history: {
+    /**
+     * Repoint every `state_*` reference from `fromPath` to `toPath`.
+     * Atomic across the four state tables; the report flags any
+     * composite-PK collisions so callers can diagnose them.
+     * `sm orphans reconcile` / `undo-rename` and the scan-time
+     * rename heuristic are the canonical consumers.
+     */
+    migrateNodeFks(from: string, to: string): Promise<IMigrateNodeFksReport>;
+  };
+  // jobs / pluginConfig namespaces land in Phases C-D.
 }
 
 export interface StoragePort {
@@ -128,6 +149,27 @@ export interface StoragePort {
   // canonical caller and it always wraps in a tx. A non-transactional
   // read shape lands when a non-refresh consumer surfaces; the
   // contract starts minimal on purpose.
+
+  // --- history namespace -------------------------------------------------
+  history: {
+    /** List `state_executions` rows (paginated by filter). */
+    list(filter: IListExecutionsFilter): Promise<ExecutionRecord[]>;
+    /**
+     * Aggregate counters / period buckets / top-nodes / error rates
+     * over `state_executions`. Body matches the spec
+     * `history-stats.schema.json` shape minus `range`/`elapsedMs`
+     * (the verb fills those in around the call).
+     */
+    aggregateStats(
+      range: IHistoryStatsRange,
+      period: THistoryStatsPeriod,
+      topN: number,
+    ): Promise<
+      Omit<HistoryStats, 'elapsedMs' | 'range'> & {
+        rangeMs: { sinceMs: number | null; untilMs: number };
+      }
+    >;
+  };
 
   // --- transactions ------------------------------------------------------
   /**

@@ -17,7 +17,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { migrateNodeFks } from '../../kernel/adapters/sqlite/history.js';
 import type { IMigrateNodeFksReport } from '../../kernel/adapters/sqlite/history.js';
 import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { ITransactionalStorage } from '../../kernel/ports/storage.js';
@@ -30,8 +29,6 @@ import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { ORPHANS_TEXTS } from '../i18n/orphans.texts.js';
 import { withSqlite } from '../util/with-sqlite.js';
-import type { Kysely } from 'kysely';
-import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
 type OrphanRuleId = typeof ORPHAN_RULE_IDS[number];
@@ -203,12 +200,12 @@ export class OrphansReconcileCommand extends Command {
       // constructs the command without going through Clipanion.
       const dryRun = this.dryRun === true;
       const summary = await runWithOptionalRollback(
-        adapter.db,
-        async (trx) => {
-          const report = await migrateNodeFks(trx, orphanPath, toPath);
+        adapter,
+        async (tx) => {
+          const report = await tx.history.migrateNodeFks(orphanPath, toPath);
           if (!dryRun) {
             for (const cand of candidates) {
-              await trx.deleteFrom('scan_issues').where('id', '=', cand.id).execute();
+              await tx.issues.deleteById(cand.id);
             }
           }
           return report;
@@ -349,30 +346,22 @@ export class OrphansUndoRenameCommand extends Command {
       // constructs the command without going through Clipanion.
       const dryRun = this.dryRun === true;
       const summary = await runWithOptionalRollback(
-        adapter.db,
-        async (trx) => {
-          const report = await migrateNodeFks(trx, newPath, toPath);
+        adapter,
+        async (txStore) => {
+          const report = await txStore.history.migrateNodeFks(newPath, toPath);
           if (!dryRun) {
-            await trx
-              .deleteFrom('scan_issues')
-              .where('id', '=', candidate.id)
-              .execute();
-            // Per spec: "the previous path becomes an `orphan`". The new
-            // path (which the file in FS still has) inherits no rows, so
-            // the orphan path is the OLD path the FKs just landed on.
-            await trx
-              .insertInto('scan_issues')
-              .values({
-                ruleId: 'orphan',
-                severity: 'info',
-                nodeIdsJson: JSON.stringify([toPath]),
-                linkIndicesJson: null,
-                message: `Orphan history: ${toPath} (was reverted from auto-rename to ${newPath}).`,
-                detail: null,
-                fixJson: null,
-                dataJson: JSON.stringify({ path: toPath }),
-              })
-              .execute();
+            await txStore.issues.deleteById(candidate.id);
+            // Per spec: "the previous path becomes an `orphan`". The
+            // new path (which the file in FS still has) inherits no
+            // rows, so the orphan path is the OLD path the FKs just
+            // landed on.
+            await txStore.issues.insert({
+              ruleId: 'orphan',
+              severity: 'info',
+              nodeIds: [toPath],
+              message: `Orphan history: ${toPath} (was reverted from auto-rename to ${newPath}).`,
+              data: { path: toPath },
+            });
           }
           return report;
         },
@@ -452,11 +441,11 @@ export class OrphansUndoRenameCommand extends Command {
 const DRY_RUN_ROLLBACK = Symbol('orphans:dry-run-rollback');
 
 /**
- * Run `body` inside a Kysely transaction. When `dryRun` is true, the
- * helper throws the rollback sentinel after capturing `body`'s return
- * value so SQLite reverts every page touched by the body — the spec
- * § Dry-run "no observable side effects" guarantee. The return value
- * is propagated either way.
+ * Run `body` inside a `port.transaction(...)` callback. When `dryRun`
+ * is true, the helper throws the rollback sentinel after capturing
+ * `body`'s return value so the adapter rolls back the transaction —
+ * the spec § Dry-run "no observable side effects" guarantee. The
+ * return value is propagated either way.
  *
  * Reasoning: `migrateNodeFks` is a complex multi-table mutation; we
  * want the dry-run preview to come from the SAME code path as the
@@ -464,14 +453,14 @@ const DRY_RUN_ROLLBACK = Symbol('orphans:dry-run-rollback');
  * A throw-to-rollback gives that for free.
  */
 async function runWithOptionalRollback(
-  db: Kysely<IDatabase>,
-  body: (trx: Parameters<Parameters<ReturnType<Kysely<IDatabase>['transaction']>['execute']>[0]>[0]) => Promise<IMigrateNodeFksReport>,
+  adapter: SqliteStorageAdapter,
+  body: (tx: ITransactionalStorage) => Promise<IMigrateNodeFksReport>,
   dryRun: boolean,
 ): Promise<IMigrateNodeFksReport> {
   let captured: IMigrateNodeFksReport | undefined;
   try {
-    return await db.transaction().execute(async (trx) => {
-      const report = await body(trx);
+    return await adapter.transaction(async (tx) => {
+      const report = await body(tx);
       if (dryRun) {
         captured = report;
         throw DRY_RUN_ROLLBACK;

@@ -15,11 +15,9 @@
 import { Command, Option } from 'clipanion';
 
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import {
-  aggregateHistoryStats,
-  listExecutions,
-  type IListExecutionsFilter,
-  type THistoryStatsPeriod,
+import type {
+  IListExecutionsFilter,
+  THistoryStatsPeriod,
 } from '../../kernel/adapters/sqlite/history.js';
 import type {
   ExecutionRecord,
@@ -157,7 +155,7 @@ export class HistoryCommand extends Command {
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const rows = await listExecutions(adapter.db, filter);
+      const rows = await adapter.history.list(filter);
 
       if (this.json) {
         // Array output — no top-level elapsedMs per cli-contract.md
@@ -255,8 +253,7 @@ export class HistoryStatsCommand extends Command {
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const aggregated = await aggregateHistoryStats(
-        adapter.db,
+      const aggregated = await adapter.history.aggregateStats(
         { sinceMs, untilMs },
         period,
         topN,
