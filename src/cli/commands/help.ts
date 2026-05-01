@@ -221,34 +221,43 @@ function renderMarkdown(doc: IHelpDocument): string {
   for (const category of sortedCategories) {
     out.push(`## ${category}`, '');
     const verbs = byCategory.get(category)!;
-    for (const verb of verbs) {
-      out.push(`### \`sm ${verb.name}\``, '');
-      if (verb.description) out.push(verb.description, '');
-      if (verb.details) out.push(verb.details, '');
-      if (verb.flags.length > 0) {
-        out.push('**Flags:**', '');
-        for (const flag of verb.flags) {
-          const names = [flag.name, ...flag.aliases].map((n) => `\`${n}\``).join(', ');
-          const req = flag.required ? ' (required)' : '';
-          const desc = flag.description ? ` — ${flag.description}` : '';
-          out.push(`- ${names} \`${flag.type}\`${req}${desc}`);
-        }
-        out.push('');
-      }
-      if (verb.examples.length > 0) {
-        out.push('**Examples:**', '');
-        for (const ex of verb.examples) {
-          out.push(`- ${ex.title}`);
-          out.push('  ```');
-          out.push(`  ${ex.command}`);
-          out.push('  ```');
-        }
-        out.push('');
-      }
-    }
+    for (const verb of verbs) out.push(...renderVerbBlock(verb));
   }
 
   return out.join('\n').replace(/\n{3,}/g, '\n\n') + '\n';
+}
+
+/**
+ * Render the markdown block for a single verb: heading, description,
+ * details, flags table, examples. Used per verb under each category in
+ * `renderMarkdown`. Returns the lines as an array; caller concatenates.
+ */
+function renderVerbBlock(verb: IHelpVerb): string[] {
+  const out: string[] = [];
+  out.push(`### \`sm ${verb.name}\``, '');
+  if (verb.description) out.push(verb.description, '');
+  if (verb.details) out.push(verb.details, '');
+  if (verb.flags.length > 0) {
+    out.push('**Flags:**', '');
+    for (const flag of verb.flags) {
+      const names = [flag.name, ...flag.aliases].map((n) => `\`${n}\``).join(', ');
+      const req = flag.required ? ' (required)' : '';
+      const desc = flag.description ? ` — ${flag.description}` : '';
+      out.push(`- ${names} \`${flag.type}\`${req}${desc}`);
+    }
+    out.push('');
+  }
+  if (verb.examples.length > 0) {
+    out.push('**Examples:**', '');
+    for (const ex of verb.examples) {
+      out.push(`- ${ex.title}`);
+      out.push('  ```');
+      out.push(`  ${ex.command}`);
+      out.push('  ```');
+    }
+    out.push('');
+  }
+  return out;
 }
 
 function renderSingle(verb: IHelpVerb, format: THelpFormat): string {

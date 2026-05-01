@@ -46,6 +46,7 @@ import {
   type IExtractor,
   type IPersistedEnrichment,
   type Node,
+  type ScanResult,
 } from '../../kernel/index.js';
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
 import {
@@ -156,84 +157,20 @@ export class RefreshCommand extends Command {
     }
 
     // --- decide target nodes -----------------------------------------------
-    const nodesByPath = new Map<string, Node>();
-    for (const node of persisted.result.nodes) nodesByPath.set(node.path, node);
-
-    let targetNodes: Node[];
-    let staleEnrichments: IPersistedEnrichment[] = [];
-    if (this.stale) {
-      // Only probabilistic rows can be stale. Filter, dedupe by path,
-      // resolve back to live Node rows.
-      staleEnrichments = persisted.enrichments.filter((e) => e.stale);
-      if (staleEnrichments.length === 0) {
-        this.context.stdout.write(REFRESH_TEXTS.refreshingStaleNone);
-        return ExitCode.Ok;
-      }
-      const stalePaths = new Set(staleEnrichments.map((e) => e.nodePath));
-      targetNodes = [];
-      for (const path of stalePaths) {
-        const node = nodesByPath.get(path);
-        if (node) targetNodes.push(node);
-      }
-      this.context.stdout.write(
-        tx(REFRESH_TEXTS.refreshingStale, {
-          count: staleEnrichments.length,
-          nodeCount: targetNodes.length,
-        }),
-      );
-    } else {
-      const node = nodesByPath.get(this.nodePath!);
-      if (!node) {
-        this.context.stderr.write(
-          tx(REFRESH_TEXTS.nodeNotFound, { nodePath: this.nodePath! }),
-        );
-        return ExitCode.NotFound;
-      }
-      targetNodes = [node];
-      this.context.stdout.write(
-        tx(REFRESH_TEXTS.refreshingNode, { nodePath: node.path }),
-      );
-    }
+    const targetResult = this.#resolveTargetNodes(persisted);
+    if (!targetResult.ok) return targetResult.exitCode;
+    const targetNodes = targetResult.nodes;
 
     // --- run det extractors per node, count prob skips ---------------------
-    const freshDetEnrichments: IEnrichmentRecord[] = [];
-    let probSkipCount = 0;
-    const probSkipNodePaths = new Set<string>();
+    let extractResult;
     try {
-      for (const node of targetNodes) {
-        let body: string;
-        try {
-          const raw = readFileSync(resolve(process.cwd(), node.path), 'utf8');
-          // Strip the YAML frontmatter fence so `scope: 'body'` extractors
-          // see only the body, matching the orchestrator's walk semantics.
-          body = stripFrontmatterFence(raw);
-        } catch (err) {
-          this.context.stderr.write(
-            tx(REFRESH_TEXTS.refreshFailed, {
-              message: `read failed for ${node.path}: ${err instanceof Error ? err.message : String(err)}`,
-            }),
-          );
-          continue;
-        }
-        const fm = (node.frontmatter ?? {}) as Record<string, unknown>;
-        const applicable = allExtractors.filter(
-          (ex) => ex.applicableKinds === undefined || ex.applicableKinds.includes(node.kind),
-        );
-        for (const extractor of applicable) {
-          if (extractor.mode === 'probabilistic') {
-            probSkipCount += 1;
-            probSkipNodePaths.add(node.path);
-            continue;
-          }
-          const records = await runExtractorForEnrichment(extractor, node, body, fm);
-          for (const record of records) freshDetEnrichments.push(record);
-        }
-      }
+      extractResult = await this.#runDetExtractorsAcrossNodes(targetNodes, allExtractors);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.context.stderr.write(tx(REFRESH_TEXTS.refreshFailed, { message }));
       return ExitCode.Error;
     }
+    const { freshDetEnrichments, probSkipCount, probSkipNodePaths } = extractResult;
 
     // --- persist fresh det enrichments -------------------------------------
     if (freshDetEnrichments.length > 0) {
@@ -262,6 +199,102 @@ export class RefreshCommand extends Command {
     }
 
     return ExitCode.Ok;
+  }
+
+  /**
+   * Decide which nodes the verb should refresh based on `--stale` /
+   * `<nodePath>`. Writes the per-target advisory to stdout (or the
+   * not-found / nothing-to-do message). Returns either the target list
+   * or the exit code the caller should use.
+   */
+  #resolveTargetNodes(
+    persisted: { result: ScanResult; enrichments: IPersistedEnrichment[] },
+  ): { ok: true; nodes: Node[] } | { ok: false; exitCode: number } {
+    const nodesByPath = new Map<string, Node>();
+    for (const node of persisted.result.nodes) nodesByPath.set(node.path, node);
+
+    if (this.stale) {
+      const staleEnrichments = persisted.enrichments.filter((e) => e.stale);
+      if (staleEnrichments.length === 0) {
+        this.context.stdout.write(REFRESH_TEXTS.refreshingStaleNone);
+        return { ok: false, exitCode: ExitCode.Ok };
+      }
+      const stalePaths = new Set(staleEnrichments.map((e) => e.nodePath));
+      const nodes: Node[] = [];
+      for (const path of stalePaths) {
+        const node = nodesByPath.get(path);
+        if (node) nodes.push(node);
+      }
+      this.context.stdout.write(
+        tx(REFRESH_TEXTS.refreshingStale, {
+          count: staleEnrichments.length,
+          nodeCount: nodes.length,
+        }),
+      );
+      return { ok: true, nodes };
+    }
+
+    const node = nodesByPath.get(this.nodePath!);
+    if (!node) {
+      this.context.stderr.write(
+        tx(REFRESH_TEXTS.nodeNotFound, { nodePath: this.nodePath! }),
+      );
+      return { ok: false, exitCode: ExitCode.NotFound };
+    }
+    this.context.stdout.write(
+      tx(REFRESH_TEXTS.refreshingNode, { nodePath: node.path }),
+    );
+    return { ok: true, nodes: [node] };
+  }
+
+  /**
+   * For each target node: read its body off disk, run every applicable
+   * deterministic extractor, count probabilistic skips. Probabilistic
+   * extractors are deferred to the job subsystem (Step 10); refresh
+   * just reports the count so the user knows which extractors were
+   * skipped and on which nodes.
+   */
+  async #runDetExtractorsAcrossNodes(
+    targetNodes: Node[],
+    allExtractors: IExtractor[],
+  ): Promise<{
+    freshDetEnrichments: IEnrichmentRecord[];
+    probSkipCount: number;
+    probSkipNodePaths: Set<string>;
+  }> {
+    const freshDetEnrichments: IEnrichmentRecord[] = [];
+    let probSkipCount = 0;
+    const probSkipNodePaths = new Set<string>();
+
+    for (const node of targetNodes) {
+      let body: string;
+      try {
+        const raw = readFileSync(resolve(process.cwd(), node.path), 'utf8');
+        body = stripFrontmatterFence(raw);
+      } catch (err) {
+        this.context.stderr.write(
+          tx(REFRESH_TEXTS.refreshFailed, {
+            message: `read failed for ${node.path}: ${err instanceof Error ? err.message : String(err)}`,
+          }),
+        );
+        continue;
+      }
+      const fm = (node.frontmatter ?? {}) as Record<string, unknown>;
+      const applicable = allExtractors.filter(
+        (ex) => ex.applicableKinds === undefined || ex.applicableKinds.includes(node.kind),
+      );
+      for (const extractor of applicable) {
+        if (extractor.mode === 'probabilistic') {
+          probSkipCount += 1;
+          probSkipNodePaths.add(node.path);
+          continue;
+        }
+        const records = await runExtractorForEnrichment(extractor, node, body, fm);
+        for (const record of records) freshDetEnrichments.push(record);
+      }
+    }
+
+    return { freshDetEnrichments, probSkipCount, probSkipNodePaths };
   }
 }
 

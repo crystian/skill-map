@@ -105,61 +105,10 @@ export class InitCommand extends Command {
     }
 
     if (this.dryRun) {
-      this.context.stdout.write(INIT_TEXTS.dryRunHeader);
-      if (!existsSync(skillMapDir)) {
-        this.context.stdout.write(tx(INIT_TEXTS.dryRunWouldCreateDir, { path: skillMapDir }));
-      }
-      // settingsPath: always written. existsSync→overwrite (only here under
-      // --force, since the gate above already short-circuited the without-
-      // force path), otherwise fresh write.
-      this.context.stdout.write(
-        existsSync(settingsPath)
-          ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: settingsPath })
-          : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: settingsPath }),
-      );
-      // Local + ignore: written only when missing OR --force.
-      if (!existsSync(localPath) || this.force) {
-        this.context.stdout.write(
-          existsSync(localPath)
-            ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: localPath })
-            : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: localPath }),
-        );
-      }
-      if (!existsSync(ignorePath) || this.force) {
-        this.context.stdout.write(
-          existsSync(ignorePath)
-            ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: ignorePath })
-            : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: ignorePath }),
-        );
-      }
-      if (!this.global) {
-        const wouldAdd = previewGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
-        const gitignorePath = join(scopeRoot, '.gitignore');
-        if (wouldAdd.length === 0) {
-          this.context.stdout.write(
-            tx(INIT_TEXTS.dryRunWouldLeaveGitignoreUnchanged, { path: gitignorePath }),
-          );
-        } else if (wouldAdd.length === 1) {
-          this.context.stdout.write(
-            tx(INIT_TEXTS.dryRunWouldUpdateGitignoreSingular, {
-              path: gitignorePath,
-              entries: wouldAdd[0]!,
-            }),
-          );
-        } else {
-          this.context.stdout.write(
-            tx(INIT_TEXTS.dryRunWouldUpdateGitignorePlural, {
-              path: gitignorePath,
-              count: wouldAdd.length,
-              entries: wouldAdd.join(', '),
-            }),
-          );
-        }
-      }
-      this.context.stdout.write(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: dbPath }));
-      this.context.stdout.write(
-        this.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
-      );
+      writeDryRunPlan(this.context.stdout, {
+        skillMapDir, settingsPath, localPath, ignorePath, dbPath,
+        scopeRoot, force: this.force, global: this.global, noScan: this.noScan,
+      });
       emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Ok;
     }
@@ -207,6 +156,86 @@ export class InitCommand extends Command {
     const scanCode = await runFirstScan(scopeRoot, dbPath, this.strict, this.context.stdout, this.context.stderr);
     emitDoneStderr(this.context.stderr, elapsed);
     return scanCode;
+  }
+}
+
+/**
+ * Render the `--dry-run` plan to stdout: which directories/files the
+ * verb would create or overwrite, and whether the first scan would
+ * run. Used only when `--dry-run` is set; the real provision path
+ * skips this entirely.
+ */
+function writeDryRunPlan(
+  stdout: NodeJS.WritableStream,
+  opts: {
+    skillMapDir: string;
+    settingsPath: string;
+    localPath: string;
+    ignorePath: string;
+    dbPath: string;
+    scopeRoot: string;
+    force: boolean;
+    global: boolean;
+    noScan: boolean;
+  },
+): void {
+  stdout.write(INIT_TEXTS.dryRunHeader);
+  if (!existsSync(opts.skillMapDir)) {
+    stdout.write(tx(INIT_TEXTS.dryRunWouldCreateDir, { path: opts.skillMapDir }));
+  }
+  // settingsPath: always written; existsSync → overwrite (only here under
+  // --force; the no-force path short-circuited above).
+  stdout.write(
+    existsSync(opts.settingsPath)
+      ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: opts.settingsPath })
+      : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: opts.settingsPath }),
+  );
+  // Local + ignore: written only when missing OR --force.
+  if (!existsSync(opts.localPath) || opts.force) {
+    stdout.write(
+      existsSync(opts.localPath)
+        ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: opts.localPath })
+        : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: opts.localPath }),
+    );
+  }
+  if (!existsSync(opts.ignorePath) || opts.force) {
+    stdout.write(
+      existsSync(opts.ignorePath)
+        ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: opts.ignorePath })
+        : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: opts.ignorePath }),
+    );
+  }
+  if (!opts.global) writeDryRunGitignorePlan(stdout, opts.scopeRoot);
+  stdout.write(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: opts.dbPath }));
+  stdout.write(
+    opts.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
+  );
+}
+
+/**
+ * Subhelper of `writeDryRunPlan` — render the `.gitignore` preview
+ * (unchanged / one-entry / multi-entry phrasing). Project scope only.
+ */
+function writeDryRunGitignorePlan(stdout: NodeJS.WritableStream, scopeRoot: string): void {
+  const wouldAdd = previewGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
+  const gitignorePath = join(scopeRoot, '.gitignore');
+  if (wouldAdd.length === 0) {
+    stdout.write(tx(INIT_TEXTS.dryRunWouldLeaveGitignoreUnchanged, { path: gitignorePath }));
+  } else if (wouldAdd.length === 1) {
+    stdout.write(
+      tx(INIT_TEXTS.dryRunWouldUpdateGitignoreSingular, {
+        path: gitignorePath,
+        entries: wouldAdd[0]!,
+      }),
+    );
+  } else {
+    stdout.write(
+      tx(INIT_TEXTS.dryRunWouldUpdateGitignorePlural, {
+        path: gitignorePath,
+        count: wouldAdd.length,
+        entries: wouldAdd.join(', '),
+      }),
+    );
   }
 }
 

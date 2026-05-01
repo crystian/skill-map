@@ -734,10 +734,10 @@ function computeCacheDecision(opts: {
 }
 
 /**
- * Build the reused-node bundle for a node that fully cache-hit (body
- * + frontmatter unchanged AND every applicable extractor still has a
- * matching `scan_extractor_runs` row). Caller pushes the returned
- * arrays into its scan-wide buffers and emits the progress event.
+ * Shallow-clone a prior node, reshape its outbound internal links per
+ * A.9 source rules, and re-emit its prior frontmatter issues. Shared
+ * by the full-cache-hit and partial-cache-hit branches of
+ * `walkAndExtract`.
  *
  * Reshape rules (A.9 sources):
  *   - missing source (extractor will re-emit) → drop link
@@ -745,21 +745,15 @@ function computeCacheDecision(opts: {
  *   - cached + obsolete → trim obsolete from `sources`
  *   - cached only → keep verbatim
  */
-function reusePriorNode(opts: {
+function cloneNodeAndReshapeLinks(opts: {
   priorNode: Node;
-  bodyHash: string;
   strict: boolean;
   cachedQualifiedIds: Set<string>;
   applicableQualifiedIds: Set<string>;
   shortIdToQualified: Map<string, string[]>;
   priorLinksByOriginating: Map<string, Link[]>;
   priorFrontmatterIssuesByNode: Map<string, Issue[]>;
-}): {
-  node: Node;
-  internalLinks: Link[];
-  frontmatterIssues: Issue[];
-  extractorRuns: IExtractorRunRecord[];
-} {
+}): { node: Node; internalLinks: Link[]; frontmatterIssues: Issue[] } {
   // Shallow-clone to avoid mutating the caller's prior snapshot when
   // `recomputeLinkCounts` resets per-node counts later.
   const node: Node = { ...opts.priorNode, bytes: { ...opts.priorNode.bytes } };
@@ -777,19 +771,47 @@ function reusePriorNode(opts: {
     if (reshaped) internalLinks.push(reshaped);
   }
 
-  // Re-emit the prior frontmatter issues unchanged. They were validated
-  // against the same frontmatterHash, so re-validating would be wasted
-  // work. `strict` can promote `warn → error` retroactively.
+  // Re-emit prior frontmatter issues unchanged (frontmatter hash is
+  // unchanged in both cache branches). `strict` can promote
+  // `warn → error` retroactively.
   const frontmatterIssues: Issue[] = [];
   const reusedFm = opts.priorFrontmatterIssuesByNode.get(opts.priorNode.path) ?? [];
   for (const issue of reusedFm) {
     frontmatterIssues.push({ ...issue, severity: opts.strict ? 'error' : 'warn' });
   }
 
-  // Persist one `scan_extractor_runs` row per still-applicable, still-
-  // cached pair so the next scan sees the cache survive even if no
-  // extractor actually ran. Without this, cached pairs would silently
-  // disappear on the replace-all persist.
+  return { node, internalLinks, frontmatterIssues };
+}
+
+/**
+ * Build the reused-node bundle for a node that fully cache-hit (body
+ * + frontmatter unchanged AND every applicable extractor still has a
+ * matching `scan_extractor_runs` row). Caller pushes the returned
+ * arrays into its scan-wide buffers and emits the progress event.
+ *
+ * Adds `extractorRuns` rows for every still-cached extractor so the
+ * cache survives the next replace-all persist.
+ */
+function reusePriorNode(opts: {
+  priorNode: Node;
+  bodyHash: string;
+  strict: boolean;
+  cachedQualifiedIds: Set<string>;
+  applicableQualifiedIds: Set<string>;
+  shortIdToQualified: Map<string, string[]>;
+  priorLinksByOriginating: Map<string, Link[]>;
+  priorFrontmatterIssuesByNode: Map<string, Issue[]>;
+}): {
+  node: Node;
+  internalLinks: Link[];
+  frontmatterIssues: Issue[];
+  extractorRuns: IExtractorRunRecord[];
+} {
+  const base = cloneNodeAndReshapeLinks(opts);
+
+  // Persist one `scan_extractor_runs` row per still-cached pair so the
+  // cache survives the next replace-all persist (without this, cached
+  // pairs silently disappear).
   const ranAt = Date.now();
   const extractorRuns: IExtractorRunRecord[] = [];
   for (const qualified of opts.cachedQualifiedIds) {
@@ -801,7 +823,7 @@ function reusePriorNode(opts: {
     });
   }
 
-  return { node, internalLinks, frontmatterIssues, extractorRuns };
+  return { ...base, extractorRuns };
 }
 
 /**
@@ -1006,36 +1028,18 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         nodeHashCacheEligible && cachedQualifiedIds.size > 0 && priorNode !== undefined;
       if (partialCacheHit && priorNode) {
         // Body / frontmatter unchanged AND at least one extractor is
-        // still cached; reuse the prior node row but re-run the missing
-        // extractors. Shallow-clone identical to the full-cache branch
-        // so downstream `recomputeLinkCounts` doesn't mutate the caller's
-        // prior. NOT marking the path as `cachedPaths` because some
-        // extraction is happening — the `externalRefsCount` recompute
-        // wants this node to be re-derived from a fresh extractor pass
-        // (the missing extractor may emit URLs).
-        node = { ...priorNode, bytes: { ...priorNode.bytes } };
-        if (priorNode.tokens) node.tokens = { ...priorNode.tokens };
-        // Reshape prior internal links per A.9 sources rules:
-        //   - missing source (extractor will re-emit)  → drop
-        //   - all-obsolete sources                     → drop
-        //   - cached + obsolete                        → trim obsolete
-        //   - cached only                              → keep verbatim
-        const reusedLinks = priorLinksByOriginating.get(priorNode.path) ?? [];
-        for (const link of reusedLinks) {
-          const reshaped = reuseCachedLink(
-            link,
-            shortIdToQualified,
-            cachedQualifiedIds,
-            applicableQualifiedIds,
-          );
-          if (reshaped) internalLinks.push(reshaped);
-        }
-        // Re-emit prior frontmatter issues — same rationale as the
-        // full-cache branch (frontmatter hash is unchanged).
-        const reusedFm = priorFrontmatterIssuesByNode.get(priorNode.path) ?? [];
-        for (const issue of reusedFm) {
-          frontmatterIssues.push({ ...issue, severity: strict ? 'error' : 'warn' });
-        }
+        // still cached; reuse the prior node row + reshape its links
+        // and frontmatter issues. NOT marking the path as `cachedPaths`
+        // because some extraction is happening — the `externalRefsCount`
+        // recompute wants the node re-derived from a fresh extractor
+        // pass (the missing extractor may emit URLs).
+        const partial = cloneNodeAndReshapeLinks({
+          priorNode, strict, cachedQualifiedIds, applicableQualifiedIds,
+          shortIdToQualified, priorLinksByOriginating, priorFrontmatterIssuesByNode,
+        });
+        node = partial.node;
+        for (const link of partial.internalLinks) internalLinks.push(link);
+        for (const issue of partial.frontmatterIssues) frontmatterIssues.push(issue);
         nodes.push(node);
       } else {
         const fresh = buildFreshNodeAndValidateFrontmatter({

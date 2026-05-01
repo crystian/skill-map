@@ -282,28 +282,10 @@ export function composeScanExtensions(opts: {
   const hooks: IHook[] = [];
 
   if (!opts.noBuiltIns) {
-    for (const bundle of builtInBundles) {
-      for (const ext of bundle.extensions) {
-        if (!isBuiltInExtensionEnabled(bundle, ext, opts.pluginRuntime.resolveEnabled)) continue;
-        switch (ext.kind) {
-          case 'provider':
-            providers.push(ext);
-            break;
-          case 'extractor':
-            extractors.push(ext);
-            break;
-          case 'rule':
-            rules.push(ext);
-            break;
-          case 'hook':
-            hooks.push(ext);
-            break;
-          // formatters are not consumed by scan; skipped silently.
-          default:
-            break;
-        }
-      }
-    }
+    accumulateBuiltInScanExtensions(
+      { providers, extractors, rules, hooks },
+      opts.pluginRuntime.resolveEnabled,
+    );
   }
   providers.push(...opts.pluginRuntime.extensions.providers);
   extractors.push(...opts.pluginRuntime.extensions.extractors);
@@ -333,6 +315,39 @@ export function composeScanExtensions(opts: {
     rules: finalRules,
     hooks,
   };
+}
+
+/**
+ * Walk every built-in bundle, drop disabled extensions per the
+ * resolver, and bucket the survivors into the per-kind arrays.
+ * Formatters are consumed by `composeFormatters`, not scan, so they
+ * are skipped here even if the bundle ships them.
+ */
+function accumulateBuiltInScanExtensions(
+  buckets: { providers: IProvider[]; extractors: IExtractor[]; rules: IRule[]; hooks: IHook[] },
+  resolveEnabled: (id: string) => boolean,
+): void {
+  for (const bundle of builtInBundles) {
+    for (const ext of bundle.extensions) {
+      if (!isBuiltInExtensionEnabled(bundle, ext, resolveEnabled)) continue;
+      switch (ext.kind) {
+        case 'provider':
+          buckets.providers.push(ext);
+          break;
+        case 'extractor':
+          buckets.extractors.push(ext);
+          break;
+        case 'rule':
+          buckets.rules.push(ext);
+          break;
+        case 'hook':
+          buckets.hooks.push(ext);
+          break;
+        default:
+          break;
+      }
+    }
+  }
 }
 
 /**

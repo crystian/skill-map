@@ -126,88 +126,79 @@ export const triggerCollisionRule: IRule = {
 
     const issues: Issue[] = [];
     for (const [normalized, claims] of buckets) {
-      const advertiserPaths = [
-        ...new Set(
-          claims.filter((c) => c.kind === 'advertiser').map((c) => c.token),
-        ),
-      ].sort();
-      const invocationTargets = [
-        ...new Set(
-          claims.filter((c) => c.kind === 'invocation').map((c) => c.token),
-        ),
-      ].sort();
-
-      // Three independent fire conditions:
-      //   1. ≥ 2 distinct advertisers (two nodes both saying `name: deploy`)
-      //      → real ambiguity even with no invocations.
-      //   2. ≥ 2 distinct invocation forms (`/Deploy` and `/deploy` from
-      //      different sources) → the historical case-mismatch ambiguity.
-      //   3. exactly 1 advertiser + ≥ 1 non-canonical invocation. An
-      //      invocation is "canonical" if its raw target equals the
-      //      advertiser's literal canonical form (`/<frontmatter.name>`).
-      //      `/Deploy` invoked against advertiser `deploy` is
-      //      non-canonical (case mismatch). `/foblex-flow` invoked
-      //      against advertiser `foblex-flow` IS canonical, even though
-      //      both normalize to `/foblex flow` — separator unification is
-      //      a normalizer concern, not a user-facing ambiguity.
-      //
-      // The "1 advertiser + canonical invocation" case (`name: deploy`
-      // advertised, `/deploy` invoked) is the normal flow and stays
-      // silent: it's the same logical claim. Multiple invocations of
-      // the same target also stay silent (collapse to one token).
-      const advertisers = claims.filter(
-        (c): c is IAdvertiserClaim => c.kind === 'advertiser',
-      );
-      const advertiserAmbiguous = advertiserPaths.length >= 2;
-      const invocationAmbiguous = invocationTargets.length >= 2;
-
-      // A non-canonical invocation is one whose raw target does not match
-      // ANY advertiser's canonical form in this bucket. In the
-      // single-advertiser case there's only one canonical form to compare
-      // against, which is the realistic shape; in the multi-advertiser
-      // case option 1 already fires regardless.
-      const canonicalForms = new Set(advertisers.map((a) => a.canonicalForm));
-      const nonCanonicalInvocations = invocationTargets.filter(
-        (t) => !canonicalForms.has(t),
-      );
-      const crossKindAmbiguous =
-        advertiserPaths.length === 1 && nonCanonicalInvocations.length >= 1;
-
-      if (!advertiserAmbiguous && !invocationAmbiguous && !crossKindAmbiguous) {
-        continue;
-      }
-
-      const nodeIds = [...new Set(claims.map((c) => c.nodeId))].sort();
-
-      const parts: string[] = [];
-      if (advertiserAmbiguous) {
-        parts.push(
-          `${advertiserPaths.length} nodes advertise it: ${advertiserPaths.join(', ')}`,
-        );
-      }
-      if (invocationAmbiguous) {
-        parts.push(
-          `${invocationTargets.length} distinct invocation forms: ${invocationTargets.join(', ')}`,
-        );
-      } else if (crossKindAmbiguous) {
-        parts.push(
-          `non-canonical invocation${nonCanonicalInvocations.length > 1 ? 's' : ''} ` +
-            `${nonCanonicalInvocations.join(', ')} against advertiser ${advertiserPaths[0]}`,
-        );
-      }
-
-      issues.push({
-        ruleId: ID,
-        severity: 'error',
-        nodeIds,
-        message: `Trigger "${normalized}" has ${parts.join('; and ')}.`,
-        data: {
-          normalizedTrigger: normalized,
-          invocationTargets,
-          advertiserPaths,
-        },
-      });
+      const issue = analyzeTriggerBucket(normalized, claims);
+      if (issue) issues.push(issue);
     }
     return issues;
   },
 };
+
+/**
+ * Analyze one bucket of trigger claims and decide whether to emit an
+ * `error` issue. Three independent fire conditions:
+ *
+ *   1. ≥ 2 distinct advertisers (two nodes both `name: deploy`) — real
+ *      ambiguity even without any invocations.
+ *   2. ≥ 2 distinct invocation forms (`/Deploy` + `/deploy` from
+ *      different sources) — historical case-mismatch ambiguity.
+ *   3. Exactly 1 advertiser + ≥ 1 non-canonical invocation. An
+ *      invocation is "canonical" if its raw target equals the
+ *      advertiser's literal canonical form (`/<frontmatter.name>`).
+ *      `/foblex-flow` against `foblex-flow` IS canonical (separator
+ *      unification is a normalizer concern, not user-facing ambiguity).
+ *
+ * Otherwise (1 advertiser + only canonical invocations, or repeated
+ * invocations of the same target) we stay silent: same logical claim.
+ */
+function analyzeTriggerBucket(normalized: string, claims: IClaim[]): Issue | null {
+  const advertiserPaths = [
+    ...new Set(claims.filter((c) => c.kind === 'advertiser').map((c) => c.token)),
+  ].sort();
+  const invocationTargets = [
+    ...new Set(claims.filter((c) => c.kind === 'invocation').map((c) => c.token)),
+  ].sort();
+  const advertisers = claims.filter(
+    (c): c is IAdvertiserClaim => c.kind === 'advertiser',
+  );
+
+  const advertiserAmbiguous = advertiserPaths.length >= 2;
+  const invocationAmbiguous = invocationTargets.length >= 2;
+  const canonicalForms = new Set(advertisers.map((a) => a.canonicalForm));
+  const nonCanonicalInvocations = invocationTargets.filter((t) => !canonicalForms.has(t));
+  const crossKindAmbiguous =
+    advertiserPaths.length === 1 && nonCanonicalInvocations.length >= 1;
+
+  if (!advertiserAmbiguous && !invocationAmbiguous && !crossKindAmbiguous) {
+    return null;
+  }
+
+  const nodeIds = [...new Set(claims.map((c) => c.nodeId))].sort();
+  const parts: string[] = [];
+  if (advertiserAmbiguous) {
+    parts.push(
+      `${advertiserPaths.length} nodes advertise it: ${advertiserPaths.join(', ')}`,
+    );
+  }
+  if (invocationAmbiguous) {
+    parts.push(
+      `${invocationTargets.length} distinct invocation forms: ${invocationTargets.join(', ')}`,
+    );
+  } else if (crossKindAmbiguous) {
+    parts.push(
+      `non-canonical invocation${nonCanonicalInvocations.length > 1 ? 's' : ''} ` +
+        `${nonCanonicalInvocations.join(', ')} against advertiser ${advertiserPaths[0]}`,
+    );
+  }
+
+  return {
+    ruleId: ID,
+    severity: 'error',
+    nodeIds,
+    message: `Trigger "${normalized}" has ${parts.join('; and ')}.`,
+    data: {
+      normalizedTrigger: normalized,
+      invocationTargets,
+      advertiserPaths,
+    },
+  };
+}
