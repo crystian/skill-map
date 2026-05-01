@@ -121,6 +121,7 @@ export const claudeProvider: IProvider = {
   },
 };
 
+// eslint-disable-next-line complexity
 async function* walkMarkdown(
   root: string,
   current: string,

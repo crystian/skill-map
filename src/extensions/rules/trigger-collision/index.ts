@@ -81,6 +81,9 @@ export const triggerCollisionRule: IRule = {
     'Flags trigger names (/command, @agent) claimed by multiple distinct nodes — by advertisement (frontmatter.name) or by invocation.',
   stability: 'stable',
 
+  // Two claim-collection passes (advertisement + invocation) feeding
+  // the bucket map. Per-bucket analysis lives in `analyzeTriggerBucket`.
+  // eslint-disable-next-line complexity
   evaluate(ctx: IRuleContext): Issue[] {
     // Bucket claims by normalized trigger.
     const buckets = new Map<string, IClaim[]>();
@@ -150,6 +153,7 @@ export const triggerCollisionRule: IRule = {
  * Otherwise (1 advertiser + only canonical invocations, or repeated
  * invocations of the same target) we stay silent: same logical claim.
  */
+// eslint-disable-next-line complexity
 function analyzeTriggerBucket(normalized: string, claims: IClaim[]): Issue | null {
   const advertiserPaths = [
     ...new Set(claims.filter((c) => c.kind === 'advertiser').map((c) => c.token)),

@@ -165,6 +165,7 @@ export class PluginLoader implements PluginLoaderPort {
    * Load a single plugin from its directory. Never throws — a failure is
    * reported via the returned status.
    */
+  // eslint-disable-next-line complexity
   async loadOne(pluginPath: string): Promise<IDiscoveredPlugin> {
     const manifestResult = this.#parseAndValidateManifest(pluginPath);
     if (!manifestResult.ok) return manifestResult.failure;
@@ -327,6 +328,12 @@ export class PluginLoader implements PluginLoaderPort {
    * `pluginId` injected; on failure returns the `IDiscoveredPlugin`
    * with the appropriate status (`load-error` or `invalid-manifest`).
    */
+  // Six sub-validations per extension entry (file exists, dynamic
+  // import, has-kind, kind-known, pluginId match, kind-specific schema
+  // including hook trigger pre-check). Each branch is one early-return;
+  // splitting per sub-check would multiply the discriminated-union
+  // boilerplate without making the validation pipeline clearer.
+  // eslint-disable-next-line complexity
   async #loadAndValidateExtensionEntry(
     pluginPath: string,
     manifest: IPluginManifest,
@@ -664,6 +671,7 @@ function pathId(p: string): string {
  *
  * Concretely we only consider plugins that have a `manifest` populated.
  */
+// eslint-disable-next-line complexity
 function applyIdCollisions(plugins: IDiscoveredPlugin[]): IDiscoveredPlugin[] {
   const buckets = new Map<string, IDiscoveredPlugin[]>();
   for (const p of plugins) {
@@ -733,6 +741,7 @@ function applyIdCollisions(plugins: IDiscoveredPlugin[]): IDiscoveredPlugin[] {
  * validators, which live on a separate cached instance — see
  * `schema-validators.ts`).
  */
+// eslint-disable-next-line complexity
 function loadStorageSchemas(
   pluginPath: string,
   manifest: IPluginManifest,

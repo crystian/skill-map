@@ -237,27 +237,35 @@ function renderVerbBlock(verb: IHelpVerb): string[] {
   out.push(`### \`sm ${verb.name}\``, '');
   if (verb.description) out.push(verb.description, '');
   if (verb.details) out.push(verb.details, '');
-  if (verb.flags.length > 0) {
-    out.push('**Flags:**', '');
-    for (const flag of verb.flags) {
-      const names = [flag.name, ...flag.aliases].map((n) => `\`${n}\``).join(', ');
-      const req = flag.required ? ' (required)' : '';
-      const desc = flag.description ? ` — ${flag.description}` : '';
-      out.push(`- ${names} \`${flag.type}\`${req}${desc}`);
-    }
-    out.push('');
-  }
-  if (verb.examples.length > 0) {
-    out.push('**Examples:**', '');
-    for (const ex of verb.examples) {
-      out.push(`- ${ex.title}`);
-      out.push('  ```');
-      out.push(`  ${ex.command}`);
-      out.push('  ```');
-    }
-    out.push('');
-  }
+  if (verb.flags.length > 0) out.push(...renderVerbFlags(verb.flags));
+  if (verb.examples.length > 0) out.push(...renderVerbExamples(verb.examples));
   return out;
+}
+
+/** Markdown flags table for one verb. */
+function renderVerbFlags(flags: IHelpVerb['flags']): string[] {
+  const lines: string[] = ['**Flags:**', ''];
+  for (const flag of flags) {
+    const names = [flag.name, ...flag.aliases].map((n) => `\`${n}\``).join(', ');
+    const req = flag.required ? ' (required)' : '';
+    const desc = flag.description ? ` — ${flag.description}` : '';
+    lines.push(`- ${names} \`${flag.type}\`${req}${desc}`);
+  }
+  lines.push('');
+  return lines;
+}
+
+/** Markdown examples block for one verb. */
+function renderVerbExamples(examples: IHelpVerb['examples']): string[] {
+  const lines: string[] = ['**Examples:**', ''];
+  for (const ex of examples) {
+    lines.push(`- ${ex.title}`);
+    lines.push('  ```');
+    lines.push(`  ${ex.command}`);
+    lines.push('  ```');
+  }
+  lines.push('');
+  return lines;
 }
 
 function renderSingle(verb: IHelpVerb, format: THelpFormat): string {

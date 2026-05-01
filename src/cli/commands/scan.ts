@@ -127,6 +127,15 @@ export class ScanCommand extends Command {
     description: 'Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.',
   });
 
+  // The biggest CLI orchestrator — watch alias dispatch + flag combo
+  // checks + plugin runtime + config + ignore filter + prior-snapshot
+  // load + persist branch (with stranded-orphan guard) + dry-run branch
+  // + JSON / human render with strict self-validation. The core scan
+  // pipeline lives in `runScan` / `runScanWithRenames`; the
+  // `loadPrior` and `runScanWith` closures below encapsulate the DB +
+  // option wiring. Splitting per branch would scatter Clipanion's
+  // `this.<flag>` reads from the validations they shape.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     // --- watch alias -----------------------------------------------------
     // `--watch` is a thin alias for the `sm watch` verb. We delegate to

@@ -242,6 +242,7 @@ export function applyPluginMigrations(
       const reason = err instanceof Error ? err.message : String(err);
       throw new Error(
         `Plugin ${plugin.id}: migration ${formatMigrationName(migration)} failed: ${reason}`,
+        { cause: err },
       );
     }
   }

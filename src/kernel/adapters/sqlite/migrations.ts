@@ -199,6 +199,7 @@ export function applyMigrations(
       const reason = err instanceof Error ? err.message : String(err);
       throw new Error(
         `Migration ${String(migration.version).padStart(3, '0')}_${migration.description} failed: ${reason}`,
+        { cause: err },
       );
     }
   }

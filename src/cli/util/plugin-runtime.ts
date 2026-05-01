@@ -267,6 +267,7 @@ function envFlagOn(name: string): boolean {
  * Returns `undefined` when both halves are empty so the orchestrator
  * follows its zero-extension code path.
  */
+// eslint-disable-next-line complexity
 export function composeScanExtensions(opts: {
   noBuiltIns: boolean;
   pluginRuntime: IPluginRuntimeBundle;
@@ -439,6 +440,7 @@ async function buildEnabledResolver(
  * `ext.instance` arrives from the loader already cloned with
  * `pluginId` injected (spec § A.6), so this function never mutates.
  */
+// eslint-disable-next-line complexity
 function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle): void {
   for (const ext of loaded) {
     const instance = ext.instance;

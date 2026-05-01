@@ -146,56 +146,50 @@ function renderLinksSection(
 function renderHuman(doc: IShowDocument): string {
   const { node, linksOut, linksIn, issues } = doc;
   const out: string[] = [];
-
-  out.push(`${node.path} [${node.kind}] (provider: ${node.provider})`);
-  if (node.title) out.push(`title:        ${node.title}`);
-  if (node.description) out.push(`description:  ${node.description}`);
-  if (node.stability) out.push(`stability:    ${node.stability}`);
-  if (node.version) out.push(`version:      ${node.version}`);
-  if (node.author) out.push(`author:       ${node.author}`);
-
-  const b = node.bytes;
-  out.push(
-    `Weight: bytes ${b.total} total / ${b.frontmatter} frontmatter / ${b.body} body`,
-  );
-  if (node.tokens) {
-    const t = node.tokens;
-    out.push(
-      `        tokens ${t.total} total / ${t.frontmatter} frontmatter / ${t.body} body`,
-    );
-  }
-  // Render even when 0 — "External refs: 0" is information, not noise, and
-  // mirrors the `--json` output which exposes `node.externalRefsCount`
-  // unconditionally.
-  out.push(`External refs: ${node.externalRefsCount}`);
-
+  out.push(...renderNodeHeader(node));
   out.push('', 'Frontmatter:');
   out.push(indent(JSON.stringify(node.frontmatter ?? {}, null, 2), 2));
-
-  // Per Step 7.2 + Decision #90: storage keeps one row per extractor
-  // (no merge), but the human view groups identical-shape links so a
-  // skill detected by both the frontmatter and slash extractor renders
-  // as one line with `sources: frontmatter, slash` instead of two
-  // duplicated rows. The total row count is preserved in the header
-  // so authors notice when N extractors emit the same link. `--json`
-  // output stays raw for machines (no behavioural change).
   out.push(...renderLinksSection('Links out', linksOut, 'target', '→'));
   out.push(...renderLinksSection('Links in', linksIn, 'source', '←'));
-
-  out.push('', `Issues (${issues.length}):`);
-  if (issues.length === 0) {
-    out.push('  (none)');
-  } else {
-    for (const issue of issues) {
-      out.push(`  - [${issue.severity}] ${issue.ruleId}: ${issue.message}`);
-    }
-  }
-
-  // findings + summary intentionally omitted from human output until the
-  // Step 10 / 11 features land — keeping the section header would suggest
-  // an empty result rather than an unimplemented feature.
-
+  out.push(...renderIssuesSection(issues));
+  // findings + summary intentionally omitted until the Step 10 / 11
+  // features land — keeping an empty section header would mislead.
   return out.join('\n') + '\n';
+}
+
+/**
+ * Header block: id line + each present optional field on its own row +
+ * weight + token line + external refs counter. Optional fields are
+ * gated individually so missing ones don't render as empty rows.
+ */
+function renderNodeHeader(node: Node): string[] {
+  const lines: string[] = [];
+  lines.push(`${node.path} [${node.kind}] (provider: ${node.provider})`);
+  if (node.title) lines.push(`title:        ${node.title}`);
+  if (node.description) lines.push(`description:  ${node.description}`);
+  if (node.stability) lines.push(`stability:    ${node.stability}`);
+  if (node.version) lines.push(`version:      ${node.version}`);
+  if (node.author) lines.push(`author:       ${node.author}`);
+  const b = node.bytes;
+  lines.push(`Weight: bytes ${b.total} total / ${b.frontmatter} frontmatter / ${b.body} body`);
+  if (node.tokens) {
+    const t = node.tokens;
+    lines.push(`        tokens ${t.total} total / ${t.frontmatter} frontmatter / ${t.body} body`);
+  }
+  // Render even when 0 — "External refs: 0" is information, not noise.
+  lines.push(`External refs: ${node.externalRefsCount}`);
+  return lines;
+}
+
+/** Issues block: header line + `(none)` placeholder or one bullet per issue. */
+function renderIssuesSection(issues: Issue[]): string[] {
+  const lines: string[] = ['', `Issues (${issues.length}):`];
+  if (issues.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const issue of issues) lines.push(`  - [${issue.severity}] ${issue.ruleId}: ${issue.message}`);
+  }
+  return lines;
 }
 
 function indent(s: string, spaces: number): string {
@@ -229,6 +223,7 @@ interface IGroupedLink {
  * `endpointSide` picks which end of the link is the "other" node:
  * `'target'` for outgoing links, `'source'` for incoming.
  */
+// eslint-disable-next-line complexity
 function aggregateLinks(links: Link[], endpointSide: 'target' | 'source'): IGroupedLink[] {
   const groups = new Map<string, IGroupedLink>();
   for (const link of links) {

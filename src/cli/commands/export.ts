@@ -217,15 +217,18 @@ function renderNodesByKindSection(
     const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
     lines.push(`## ${kind} (${sorted.length})`);
     lines.push('');
-    for (const node of sorted) {
-      const title = pickTitle(node);
-      const issueCount = issuesPerNode.get(node.path) ?? 0;
-      const issueSuffix = issueCount > 0 ? ` — ${issueCount} issue${issueCount === 1 ? '' : 's'}` : '';
-      lines.push(`- \`${node.path}\`${title ? ` — "${title}"` : ''}${issueSuffix}`);
-    }
+    for (const node of sorted) lines.push(renderNodeBullet(node, issuesPerNode));
     lines.push('');
   }
   return lines;
+}
+
+/** Render one node as a markdown bullet, with optional title + issue count. */
+function renderNodeBullet(node: Node, issuesPerNode: Map<string, number>): string {
+  const title = pickTitle(node);
+  const issueCount = issuesPerNode.get(node.path) ?? 0;
+  const issueSuffix = issueCount > 0 ? ` — ${issueCount} issue${issueCount === 1 ? '' : 's'}` : '';
+  return `- \`${node.path}\`${title ? ` — "${title}"` : ''}${issueSuffix}`;
 }
 
 function pickTitle(node: Node): string | null {

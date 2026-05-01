@@ -149,6 +149,7 @@ export class ListCommand extends Command {
     });
   }
 
+  // eslint-disable-next-line complexity
   async #countIssuesPerNode(
     adapter: SqliteStorageAdapter,
     paths: string[],

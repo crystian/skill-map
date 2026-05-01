@@ -77,6 +77,11 @@ export interface IRunWatchOptions {
  * Shared implementation behind `sm watch` and `sm scan --watch`.
  * Returns the final process exit code.
  */
+// Long-running watch loop: config + plugin runtime + initial scan +
+// debounced batch handler + signal handlers. Branching is intrinsic to
+// the loop's lifecycle (first-scan vs follow-up scan, JSON vs human
+// render, error recovery). The handler bodies use injected helpers.
+// eslint-disable-next-line complexity
 export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const { context } = opts;
   const runtimeCtx = defaultRuntimeContext();
@@ -112,6 +117,9 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     context.stderr.write(`${warn}\n`);
   }
 
+  // One scan pass with cache reuse + persist + render. Branching is
+  // intrinsic to the watcher's per-batch lifecycle.
+  // eslint-disable-next-line complexity
   const runOnePass = async (): Promise<void> => {
     const kernel = createKernel();
     const enabledBuiltIns = filterBuiltInManifests(listBuiltIns(), pluginRuntime.resolveEnabled);

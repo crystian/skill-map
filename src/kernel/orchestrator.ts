@@ -319,6 +319,7 @@ export async function runScan(
   return result;
 }
 
+// eslint-disable-next-line complexity
 async function runScanInternal(
   _kernel: Kernel,
   options: RunScanOptions,
@@ -497,6 +498,7 @@ interface IPriorIndex {
   priorFrontmatterIssuesByNode: Map<string, Issue[]>;
 }
 
+// eslint-disable-next-line complexity
 function indexPriorSnapshot(prior: ScanResult | null): IPriorIndex {
   const priorNodesByPath = new Map<string, Node>();
   const priorNodePaths = new Set<string>();
@@ -682,6 +684,7 @@ export async function runExtractorsForNode(opts: {
  * driving adapters); we treat every applicable extractor as cached
  * when the node-level hashes match — preserves the pre-A.9 contract.
  */
+// eslint-disable-next-line complexity
 function computeCacheDecision(opts: {
   extractors: IExtractor[];
   kind: string;
@@ -878,6 +881,14 @@ function buildFreshNodeAndValidateFrontmatter(opts: {
   return { node, frontmatterIssues };
 }
 
+// Main scan loop — for each provider/raw node: hash, classify, decide
+// cache (full / partial / none), reuse or build, run extractors,
+// record runs. Helpers extracted (`computeCacheDecision`,
+// `cloneNodeAndReshapeLinks`, `reusePriorNode`,
+// `buildFreshNodeAndValidateFrontmatter`, `runExtractorsForNode`)
+// already encapsulate the heavy-lift; remaining branching is the
+// dispatch glue that ties them together per-iteration.
+// eslint-disable-next-line complexity
 async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExtractResult> {
   const {
     providers,
@@ -1145,6 +1156,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
  * extractor with the same short id; the map keeps every qualified id per
  * short id so this filter recognises any of them as "still cached".
  */
+// eslint-disable-next-line complexity
 function reuseCachedLink(
   link: Link,
   shortIdToQualified: Map<string, string[]>,
@@ -1529,6 +1541,7 @@ interface IHookDispatcher {
 function makeHookDispatcher(hooks: IHook[], emitter: ProgressEmitterPort): IHookDispatcher {
   if (hooks.length === 0) {
     // Cheap no-op fast path: most scans don't carry any hooks today.
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     return { dispatch: async () => {} };
   }
 
@@ -1591,6 +1604,7 @@ function matchesFilter(hook: IHook, event: ProgressEvent): boolean {
   return true;
 }
 
+// eslint-disable-next-line complexity
 function buildHookContext(
   _hook: IHook,
   trigger: THookTrigger,

@@ -221,6 +221,7 @@ interface IDetectProbRulesOptions {
  * skips the advisory entirely in that case (advising about nothing
  * would be noise).
  */
+// eslint-disable-next-line complexity
 async function detectProbRuleIds(opts: IDetectProbRulesOptions): Promise<string[]> {
   const pluginRuntime = opts.noPlugins
     ? emptyPluginRuntime()

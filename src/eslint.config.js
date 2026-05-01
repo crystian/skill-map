@@ -25,6 +25,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/**',
+      '**/dist/**',
       'node_modules/**',
       'coverage/**',
       'migrations/**',
@@ -67,11 +68,11 @@ export default tseslint.config(
     },
     rules: {
       // --- Project rules (from legacy .eslintrc.json) ----------------------
-      // TODO: re-raise to 'error' once the orchestrator / scan / sqlite
-      // adapters are split (audit code-quality items). Today 66 sites
-      // exceed the limit; tracking as warnings keeps signal alive
-      // without blocking CI.
-      complexity: ['warn', { max: 8 }],
+      // Promoted to 'error' after the complexity sweep; functions that
+      // are inherently complex (CLI orchestrators, parsers,
+      // multi-accumulator folds) carry an `eslint-disable-next-line
+      // complexity` with rationale.
+      complexity: ['error', { max: 8 }],
       eqeqeq: ['error', 'always'],
       'no-var': 'error',
       'no-eval': 'error',
@@ -82,7 +83,7 @@ export default tseslint.config(
       'no-else-return': ['error', { allowElseIf: true }],
       'no-extra-boolean-cast': ['error', { enforceForLogicalOperands: true }],
       curly: ['error', 'multi-line', 'consistent'],
-      'no-console': ['warn', { allow: ['warn', 'error', 'log'] }],
+      'no-console': ['error', { allow: ['warn', 'error', 'log'] }],
 
       // --- TS rules (from legacy .eslintrc.json) --------------------------
       '@typescript-eslint/explicit-module-boundary-types': [
@@ -90,27 +91,27 @@ export default tseslint.config(
         { allowArgumentsExplicitlyTypedAsAny: true },
       ],
       '@typescript-eslint/ban-ts-comment': 'off',
-      // 'warn' for now: 6 sites use empty `{}` bodies as default no-ops
-      // (e.g. SilentLogger methods, default hook callbacks). Audit + add
-      // void return comments where intentional, eliminate the rest.
-      '@typescript-eslint/no-empty-function': 'warn',
+      '@typescript-eslint/no-empty-function': 'error',
       '@typescript-eslint/no-unused-vars': 'off',
       '@typescript-eslint/no-explicit-any': 'off',
 
-      // --- Quality rules surfaced by the audit (warn for now) -------------
-      // Adding `cause` to 4 re-thrown errors is a real refactor; tracked
-      // as warnings until we can audit each site.
-      'preserve-caught-error': 'warn',
-      // Targeted fix or disable per site once the orchestrator splits.
-      'no-irregular-whitespace': 'warn',
-      'no-useless-assignment': 'warn',
+      // --- Quality rules surfaced by the audit -----------------------------
+      'preserve-caught-error': 'error',
+      // Allow ZWSP / BOM / NBSP inside string literals, regex, and
+      // JSDoc — these come up legitimately in YAML BOM detection,
+      // block-comment escaping, etc. Identifier whitespace stays an error.
+      'no-irregular-whitespace': [
+        'error',
+        { skipStrings: true, skipComments: true, skipRegExps: true, skipTemplates: true },
+      ],
+      'no-useless-assignment': 'error',
       'no-unused-private-class-members': 'warn',
 
       // --- Stylistic (moved out of ESLint core in v9) ---------------------
       '@stylistic/quotes': [
         'error',
         'single',
-        { avoidEscape: true, allowTemplateLiterals: true },
+        { avoidEscape: true, allowTemplateLiterals: 'always' },
       ],
       '@stylistic/semi': ['error', 'always'],
       '@stylistic/linebreak-style': ['error', 'unix'],

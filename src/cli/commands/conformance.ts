@@ -121,6 +121,9 @@ export class ConformanceRunCommand extends Command {
       "Suite selector: 'all' (default), 'spec', or 'provider:<id>'.",
   });
 
+  // CLI orchestrator: scope resolution + per-case run loop +
+  // per-result render branches + global pass/fail decision.
+  // eslint-disable-next-line complexity
   async execute(): Promise<TExitCode> {
     let scopes: IConformanceScope[];
     try {

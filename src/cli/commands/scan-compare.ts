@@ -194,14 +194,14 @@ function loadAndValidateDump(path: string): ScanResult {
     raw = readFileSync(path, 'utf8');
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(tx(SCAN_TEXTS.compareDumpReadFailed, { path, message }));
+    throw new Error(tx(SCAN_TEXTS.compareDumpReadFailed, { path, message }), { cause: err });
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new Error(tx(SCAN_TEXTS.compareDumpInvalidJson, { message }));
+    throw new Error(tx(SCAN_TEXTS.compareDumpInvalidJson, { message }), { cause: err });
   }
   const validators = loadSchemaValidators();
   const result = validators.validate<ScanResult>('scan-result', parsed);
@@ -211,10 +211,6 @@ function loadAndValidateDump(path: string): ScanResult {
   return result.data;
 }
 
-// Three parallel sections (nodes / links / issues), each guarded by
-// "any items?" + per-side added/removed/changed loops. Splitting per
-// section would multiply boilerplate without improving readability.
-// eslint-disable-next-line complexity
 function renderDeltaHuman(delta: IScanDelta): string {
   const out: string[] = [];
   const totalAdded = delta.nodes.added.length + delta.links.added.length + delta.issues.added.length;
@@ -233,24 +229,33 @@ function renderDeltaHuman(delta: IScanDelta): string {
     return out.join('\n') + '\n';
   }
 
-  if (delta.nodes.added.length + delta.nodes.removed.length + delta.nodes.changed.length > 0) {
-    out.push('', '## nodes');
-    for (const n of delta.nodes.added) out.push(`+ ${n.path} (${n.kind})`);
-    for (const n of delta.nodes.removed) out.push(`- ${n.path} (${n.kind})`);
-    for (const c of delta.nodes.changed) out.push(`~ ${c.after.path} (${c.reason} changed)`);
-  }
-
-  if (delta.links.added.length + delta.links.removed.length > 0) {
-    out.push('', '## links');
-    for (const l of delta.links.added) out.push(`+ ${l.source} --${l.kind}--> ${l.target}`);
-    for (const l of delta.links.removed) out.push(`- ${l.source} --${l.kind}--> ${l.target}`);
-  }
-
-  if (delta.issues.added.length + delta.issues.removed.length > 0) {
-    out.push('', '## issues');
-    for (const i of delta.issues.added) out.push(`+ [${i.severity}] ${i.ruleId}: ${i.message}`);
-    for (const i of delta.issues.removed) out.push(`- [${i.severity}] ${i.ruleId}: ${i.message}`);
-  }
-
+  out.push(...renderDeltaNodes(delta.nodes));
+  out.push(...renderDeltaLinks(delta.links));
+  out.push(...renderDeltaIssues(delta.issues));
   return out.join('\n') + '\n';
+}
+
+function renderDeltaNodes(nodes: IScanDelta['nodes']): string[] {
+  if (nodes.added.length + nodes.removed.length + nodes.changed.length === 0) return [];
+  const lines: string[] = ['', '## nodes'];
+  for (const n of nodes.added) lines.push(`+ ${n.path} (${n.kind})`);
+  for (const n of nodes.removed) lines.push(`- ${n.path} (${n.kind})`);
+  for (const c of nodes.changed) lines.push(`~ ${c.after.path} (${c.reason} changed)`);
+  return lines;
+}
+
+function renderDeltaLinks(links: IScanDelta['links']): string[] {
+  if (links.added.length + links.removed.length === 0) return [];
+  const lines: string[] = ['', '## links'];
+  for (const l of links.added) lines.push(`+ ${l.source} --${l.kind}--> ${l.target}`);
+  for (const l of links.removed) lines.push(`- ${l.source} --${l.kind}--> ${l.target}`);
+  return lines;
+}
+
+function renderDeltaIssues(issues: IScanDelta['issues']): string[] {
+  if (issues.added.length + issues.removed.length === 0) return [];
+  const lines: string[] = ['', '## issues'];
+  for (const i of issues.added) lines.push(`+ [${i.severity}] ${i.ruleId}: ${i.message}`);
+  for (const i of issues.removed) lines.push(`- [${i.severity}] ${i.ruleId}: ${i.message}`);
+  return lines;
 }

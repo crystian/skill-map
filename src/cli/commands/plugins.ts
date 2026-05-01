@@ -308,7 +308,10 @@ function renderBuiltInDetail(builtIn: IBuiltInBundleRow): string[] {
   return lines;
 }
 
-/** Detail rendering for one user plugin (manifest + extensions list). */
+// Optional manifest fields (`version`, `specCompat`, `granularity`,
+// `description`, `reason`) each fall back via `??` — every coalesce is
+// one cyclomatic branch, none is a real control-flow decision.
+// eslint-disable-next-line complexity
 function renderPluginDetail(match: IDiscoveredPlugin): string[] {
   const lines = [
     `id:           ${match.id}`,
@@ -321,11 +324,15 @@ function renderPluginDetail(match: IDiscoveredPlugin): string[] {
   if (match.manifest?.description) lines.push(`summary:      ${match.manifest.description}`);
   if (match.reason) lines.push(`reason:       ${match.reason}`);
   if (match.extensions && match.extensions.length > 0) {
-    lines.push('extensions:');
-    for (const ext of match.extensions) {
-      lines.push(`  - ${ext.kind}:${ext.pluginId}/${ext.id}@${ext.version}`);
-    }
+    lines.push(...renderExtensionsList(match.extensions));
   }
+  return lines;
+}
+
+/** Indented `extensions:` block listing one bullet per loaded extension. */
+function renderExtensionsList(exts: ILoadedExtension[]): string[] {
+  const lines: string[] = ['extensions:'];
+  for (const ext of exts) lines.push(`  - ${ext.kind}:${ext.pluginId}/${ext.id}@${ext.version}`);
   return lines;
 }
 
@@ -392,6 +399,10 @@ function collectKnownKinds(plugins: IDiscoveredPlugin[]): Set<string> {
  * Providers (whose runtime shape is not type-checked) and built-in
  * Providers share the same callback signature.
  */
+// Two parallel iteration sources (built-in bundles + user plugins),
+// each with a kind/instance guard. Centralised here so doctor helpers
+// stay focused on per-Provider logic.
+// eslint-disable-next-line complexity
 function forEachProviderInstance(
   plugins: IDiscoveredPlugin[],
   callback: (entry: { id: string; pluginId: string; instance: Record<string, unknown> }) => void,
@@ -425,6 +436,10 @@ function forEachProviderInstance(
  * kinds). Iteration order is deterministic so the rendered doctor output
  * stays stable across runs.
  */
+// Two parallel iteration sources (built-in extractors + user plugin
+// extractors) with kind/applicableKinds guards. The shared inner loop
+// is `appendUnknownKindWarnings`.
+// eslint-disable-next-line complexity
 function collectApplicableKindWarnings(
   plugins: IDiscoveredPlugin[],
   knownKinds: Set<string>,
@@ -549,6 +564,13 @@ export class PluginsDoctorCommand extends Command {
   global = Option.Boolean('-g,--global', false);
   pluginDir = Option.String('--plugin-dir', { required: false });
 
+  // Doctor verb: counts by status + applicableKinds warnings +
+  // explorationDir warnings + bad-plugins issues, each with its own
+  // gated render. Branching is intrinsic to the multi-section diagnostic
+  // output; the per-section helpers (`collectKnownKinds`,
+  // `collectApplicableKindWarnings`, `collectExplorationDirWarnings`)
+  // already encapsulate the data gathering.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     const resolveEnabled = await buildResolver(this.global);
@@ -683,6 +705,7 @@ interface IResolvedTarget {
  * id was rejected (granularity mismatch, unknown bundle, unknown
  * extension under a known bundle).
  */
+// eslint-disable-next-line complexity
 function resolveToggleTarget(
   id: string,
   catalogue: IBundleSlim[],
@@ -738,6 +761,7 @@ abstract class TogglePluginsBase extends Command {
   all = Option.Boolean('--all', false);
   id = Option.String({ required: false });
 
+  // eslint-disable-next-line complexity
   protected async toggle(enabled: boolean): Promise<number> {
     const elapsed = startElapsed();
     const verb = enabled ? 'enable' : 'disable';

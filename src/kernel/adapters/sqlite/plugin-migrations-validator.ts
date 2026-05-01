@@ -27,7 +27,10 @@
  * narrow because plugins are small and migrations should be auditable.
  *
  * Comment handling: SQL line comments (`-- ...`) and block comments
- * (`/* ... *​/`) are stripped before any other processing. A clever
+ * (`/* ... *​/`) are stripped before any other processing. The ZWSP
+ * (U+200B) inside the close fence above is intentional — without it
+ * the docstring's own block-comment delimiter would close prematurely.
+ * A clever
  * attacker who hides DDL inside a comment is defeated by stripping
  * first; once stripped, the hidden DDL becomes visible to the regex.
  *
@@ -199,6 +202,7 @@ const STATEMENT_PATTERNS: Array<{ kind: string; re: RegExp; targets: ('first' | 
  * normalized identifier or `null` if the schema qualifier is anything
  * other than the default `main`.
  */
+// eslint-disable-next-line complexity
 export function objectName(token: string): { name: string; schema: string | null } | null {
   // Strip everything from the first opening paren onward — handles
   // `CREATE TABLE name(col INTEGER)` where the captured token has no
@@ -324,6 +328,9 @@ export function splitStatements(sql: string): string[] {
  * the default schema (no `temp.*`, no attached-DB references), and (d)
  * not contain a forbidden keyword (transaction control, pragma, etc.).
  */
+// 4 validation layers (forbidden keywords + per-statement shape + name
+// prefix + cross-schema references); each is its own branch.
+// eslint-disable-next-line complexity
 export function validatePluginMigrationSql(sql: string, normalizedId: string): IValidationResult {
   const violations: string[] = [];
   const prefix = `plugin_${normalizedId}_`;

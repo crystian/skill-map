@@ -87,6 +87,11 @@ export class InitCommand extends Command {
     description: 'Preview the scope provisioning without touching the filesystem or the DB. Honours --force for the would-overwrite preview. Skips the first scan unconditionally — dry-run never persists.',
   });
 
+  // CLI orchestrator: paths setup + dry-run branch (delegated to
+  // `writeDryRunPlan`) + real provision (mkdir + 4 file writes +
+  // gitignore management + DB provision + first scan delegation).
+  // The first-scan branch already lives in `runFirstScan`.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const elapsed = startElapsed();
     const cwd = process.cwd();
@@ -183,33 +188,23 @@ function writeDryRunPlan(
   if (!existsSync(opts.skillMapDir)) {
     stdout.write(tx(INIT_TEXTS.dryRunWouldCreateDir, { path: opts.skillMapDir }));
   }
-  // settingsPath: always written; existsSync → overwrite (only here under
-  // --force; the no-force path short-circuited above).
-  stdout.write(
-    existsSync(opts.settingsPath)
-      ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: opts.settingsPath })
-      : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: opts.settingsPath }),
-  );
+  // settingsPath: always written (caller gated --force above).
+  stdout.write(dryRunFileMessage(opts.settingsPath));
   // Local + ignore: written only when missing OR --force.
-  if (!existsSync(opts.localPath) || opts.force) {
-    stdout.write(
-      existsSync(opts.localPath)
-        ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: opts.localPath })
-        : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: opts.localPath }),
-    );
-  }
-  if (!existsSync(opts.ignorePath) || opts.force) {
-    stdout.write(
-      existsSync(opts.ignorePath)
-        ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path: opts.ignorePath })
-        : tx(INIT_TEXTS.dryRunWouldWriteFile, { path: opts.ignorePath }),
-    );
-  }
+  if (!existsSync(opts.localPath) || opts.force) stdout.write(dryRunFileMessage(opts.localPath));
+  if (!existsSync(opts.ignorePath) || opts.force) stdout.write(dryRunFileMessage(opts.ignorePath));
   if (!opts.global) writeDryRunGitignorePlan(stdout, opts.scopeRoot);
   stdout.write(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: opts.dbPath }));
   stdout.write(
     opts.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
   );
+}
+
+/** "would overwrite X" if the file exists, else "would write X". */
+function dryRunFileMessage(path: string): string {
+  return existsSync(path)
+    ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path })
+    : tx(INIT_TEXTS.dryRunWouldWriteFile, { path });
 }
 
 /**
@@ -239,6 +234,7 @@ function writeDryRunGitignorePlan(stdout: NodeJS.WritableStream, scopeRoot: stri
   }
 }
 
+// eslint-disable-next-line complexity
 async function runFirstScan(
   scopeRoot: string,
   dbPath: string,

@@ -117,7 +117,7 @@ export async function listOrphanJobFiles(
     if (row.filePath !== null) referencedPaths.add(resolve(row.filePath));
   }
 
-  let entries: string[] = [];
+  let entries: string[];
   try {
     const stat = statSync(jobsDir);
     if (!stat.isDirectory()) {

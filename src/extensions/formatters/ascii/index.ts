@@ -38,6 +38,10 @@ export const asciiFormatter: IFormatter = {
   stability: 'stable',
   formatId: 'ascii',
 
+  // ASCII tree formatter — header + per-kind sections + per-issue
+  // section. Each section iterates and renders; splitting per section
+  // would multiply the for-loop boilerplate.
+  // eslint-disable-next-line complexity
   format(ctx: IFormatterContext): string {
     const out: string[] = [];
     out.push(

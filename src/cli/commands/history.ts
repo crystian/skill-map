@@ -207,6 +207,10 @@ export class HistoryStatsCommand extends Command {
   json = Option.Boolean('--json', false);
   quiet = Option.Boolean('--quiet', false);
 
+  // CLI stats verb: range parsing + window flags + period flag + JSON
+  // branch + per-period iteration. Each branch is a single-purpose
+  // gate; the data work lives in `aggregateHistoryStats`.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const elapsed = startElapsed();
 
@@ -321,6 +325,7 @@ function toExecutionRecord(r: ExecutionRecord): ExecutionRecord {
   return r;
 }
 
+// eslint-disable-next-line complexity
 function renderTable(rows: ExecutionRecord[]): string {
   const header = formatRow(
     'ID', 'STARTED', 'ACTION', 'STATUS', 'DURATION', 'TOKENS', 'NODES',

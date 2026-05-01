@@ -102,6 +102,7 @@ type Assertion =
   | { type: 'file-matches-schema'; path: string; schema: string }
   | { type: 'stderr-matches'; pattern: string };
 
+// eslint-disable-next-line complexity
 export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
   const raw = readFileSync(options.casePath, 'utf8');
   const c: ConformanceCase = JSON.parse(raw);
@@ -167,6 +168,10 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
  * with a single `priorScan` failure assertion (caller returns it
  * unchanged).
  */
+// Per-step replay: replace fixture, spawn `sm scan`, check exit. The
+// failure-result construction is verbose because it carries every
+// stream the caller reports back.
+// eslint-disable-next-line complexity
 function runPriorScansSetup(
   c: ConformanceCase,
   options: RunCaseOptions,
@@ -230,6 +235,11 @@ interface AssertionContext {
   fixturesRoot: string;
 }
 
+// Switch over assertion types (`exit-code` / `stdout-matches` /
+// `file-exists` / `file-contains-verbatim` / `file-matches-schema` /
+// `stderr-matches` / `json-path`) with one branch per type. Splitting
+// per type would scatter the discriminated-union dispatch.
+// eslint-disable-next-line complexity
 function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult {
   switch (a.type) {
     case 'exit-code':
@@ -394,6 +404,7 @@ function parsePath(path: string): Array<string | number> | null {
   return segments;
 }
 
+// eslint-disable-next-line complexity
 function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;

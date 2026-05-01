@@ -71,6 +71,7 @@ export async function insertExecution(
   await db.insertInto('state_executions').values(executionToRow(exec)).execute();
 }
 
+// eslint-disable-next-line complexity
 function executionToRow(exec: ExecutionRecord): Insertable<IStateExecutionsTable> {
   return {
     id: exec.id,
@@ -95,6 +96,7 @@ function executionToRow(exec: ExecutionRecord): Insertable<IStateExecutionsTable
 
 // --- Reads -----------------------------------------------------------------
 
+// eslint-disable-next-line complexity
 export async function listExecutions(
   db: DbOrTx,
   filter: IListExecutionsFilter = {},
@@ -498,6 +500,7 @@ function medianDuration(values: number[]): number | null {
  *
  * Returns paths in deterministic lex-asc order.
  */
+// eslint-disable-next-line complexity
 export async function findStrandedStateOrphans(
   trx: DbOrTx,
   livePaths: Set<string>,
@@ -605,6 +608,7 @@ export interface IMigrateNodeFksReport {
  * `state_plugin_kvs.node_id` defaults to '' (sentinel for plugin-global
  * keys); we explicitly skip the sentinel when migrating.
  */
+// eslint-disable-next-line complexity
 export async function migrateNodeFks(
   trx: DbOrTx,
   fromPath: string,

@@ -296,6 +296,7 @@ function deepMerge(
   return out;
 }
 
+// eslint-disable-next-line complexity
 function recordSources(
   prefix: string,
   value: unknown,

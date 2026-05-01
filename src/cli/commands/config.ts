@@ -177,6 +177,7 @@ function tryLoadConfig(
   }
 }
 
+// eslint-disable-next-line complexity
 function* iterDotPaths(
   obj: unknown,
   prefix = '',
