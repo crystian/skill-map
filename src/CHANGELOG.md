@@ -1,5 +1,1018 @@
 # skill-map
 
+## 0.8.0
+
+### Minor Changes
+
+- bb7ff01: Audit cleanup pass — close four mechanical items from the
+  `cli-architect` audit in a single sweep. **Pre-1.0 minor bump** per
+  `spec/versioning.md` § Pre-1.0; the API changes below are technically
+  breaking but ship as a minor while the package stays `0.Y.Z`.
+
+  ## V5 — kernel stops reading Node globals
+
+  `ILoadConfigOptions.cwd` / `.homedir` and `ICreateFsWatcherOptions.cwd`
+  are now **mandatory**. Previously they fell back to `process.cwd()` /
+  `os.homedir()` inside the kernel — which broke the kernel-isolation
+  invariant the linter enforces elsewhere. New helper
+  `src/cli/util/runtime-context.ts#defaultRuntimeContext()` wraps
+  `{ cwd: process.cwd(), homedir: homedir() }`; the CLI threads it
+  through every `loadConfig` / `createChokidarWatcher` call. Eight CLI
+  sites migrated (`scan`, `watch`, `jobs`, `scan-compare`, `plugins`,
+  `config` × 3, `init`, `plugin-runtime` resolver) plus seven test sites
+  in `watcher.test.ts`.
+
+  **Breaking** for any external consumer of `loadConfig` /
+  `createChokidarWatcher` that relied on the implicit fallback — they
+  now must pass `cwd` (and `homedir` for `loadConfig`) explicitly.
+
+  ## V8 — no more `pluginId` mutation in plugin-runtime
+
+  `ILoadedExtension` gains an `instance: unknown` field alongside
+  `module: unknown`. The loader now shallow-clones the runtime instance
+  (default export, or the module namespace when none) and injects
+  `pluginId` per spec § A.6, exposing the result as `instance`. The CLI
+  runtime composer (`bucketLoaded`) consumes `ext.instance` directly —
+  the previous post-hoc mutation of `instance['pluginId']` is gone, and
+  the obsolete `extractDefault` helper with it.
+
+  The bug this closes: two plugins importing the same file via the ESM
+  module cache shared a single mutable object, so the second `pluginId`
+  assignment stomped the first. Centralising the clone in the loader
+  makes the issue structurally impossible.
+
+  **Additive** at the type level (`instance` is a new field consumers
+  read; only the loader produces it).
+
+  ## V9 — `confirm()` accepts streams from the Clipanion context
+
+  `src/cli/util/confirm.ts` now takes
+  `confirm(question, { stdin, stderr })` instead of reaching for
+  `process.stdin` / `process.stderr`. Every command site
+  (`db restore`, `db reset --hard`, `db reset --state`,
+  `orphans undo-rename`) passes `this.context.stdin` /
+  `this.context.stderr`, so commands become testable with captured
+  streams instead of monkey-patching the globals.
+
+  **Breaking** for any external caller of the helper (none expected —
+  it lives under `src/cli/util/`).
+
+  ## D7 — extracted `isBundleEntryEnabled` helper
+
+  The toggle-resolution logic
+  (`if (granularity === 'bundle') resolveEnabled(bundle.id) else
+resolveEnabled(qualifiedExtensionId(...))`) was duplicated between
+  `isBuiltInExtensionEnabled` (typed `TBuiltInExtension`) and the inline
+  filter inside `filterBuiltInManifests` (raw `IPluginManifest.id`). A
+  new private helper `isBundleEntryEnabled(bundle, extId, resolveEnabled)`
+  operates on the plain extension id; both call sites delegate to it.
+  Pure refactor, no behaviour change.
+
+  ## Out of scope
+
+  The audit's SD4 item (88 references to "Step N / Phase N" in kernel
+  docstrings) is deferred to a dedicated docs pass — too large for a
+  mechanical sweep.
+
+- d058bf8: Close H1 / M1 / M3 from the cli-architect review.
+
+  - **kernel — `IExtractorContext.store` wiring (spec § A.12)**: `RunScanOptions.pluginStores?: ReadonlyMap<string, IPluginStore>` is threaded through `walkAndExtract → runExtractorsForNode → buildExtractorContext` and surfaced on `ctx.store`. Legacy contract preserved (no entry for a plugin id → `ctx.store` stays `undefined`). The orchestrator never touches the wrapper's persist callback; driving adapters supply it. New public exports on `kernel/index.ts`: `IPluginStore`, `IKvStoreWrapper`, `IDedicatedStoreWrapper`, `IKvStorePersist`, `IDedicatedStorePersist`, `makePluginStore`, `makeKvStoreWrapper`, `makeDedicatedStoreWrapper`, `KV_SCHEMA_KEY`.
+  - **cli — `sm version --json`**: emits `{ sm, kernel, spec, dbSchema }` exactly per `spec/cli-contract.md` § `sm version`. The orphan `json = false` field is gone; the option is wired through Clipanion. `runtime` stays in human-only output (spec lists four JSON fields).
+  - **cli — `sm orphans reconcile --dry-run` / `sm orphans undo-rename --dry-run`**: previews the FK migration without mutating. Rollback is forced via a sentinel symbol thrown inside the Kysely transaction so the dry-run path runs the same `migrateNodeFks` code as live mode (no count-only divergence). Per spec § Dry-run, `--dry-run` skips the `--force` confirm prompt entirely.
+  - **cli — refresh stream discipline (M1)**: mid-action banners (`refreshingStale`, `refreshingNode`) move from stdout to stderr so a future `--json` mode (or any pipe consumer) sees only the payload.
+  - **cli — printer abstraction**: new `cli/util/printer.ts` exposing `IPrinter { data, info, warn, error }` with a `quietInfo` flag for `--json` gating. Optional helper for verbs that opt in.
+  - **cli — orphans i18n migration**: ten new entries in `cli/i18n/orphans.texts.ts` replacing inline string templates in `reconcile` and `undo-rename`.
+
+  Tests:
+
+  - `test/orchestrator-ctx-store.test.ts` (new, 5 cases): pluginStores absent → `undefined`; pluginStores entry matches `pluginId` → wrapper inyected, persist captures writes; multi-plugin without leakage; plugin without entry stays `undefined`; `runExtractorsForNode` honours the same wiring.
+  - `test/orphans-cli.test.ts` (+ 2 cases): `reconcile --dry-run` + `undo-rename --dry-run` both leave `state_executions` and `scan_issues` UNCHANGED.
+  - `test/cli.test.ts` (+ 1 case): `sm version --json` emits the four-field shape per spec.
+  - `test/node-enrichments.test.ts`: updated to expect `Refreshing enrichments for` on stderr after the M1 banner move.
+
+  What is NOT in this PR (deferred):
+
+  - The CLI side of H1 (Mode A persister against `state_plugin_kvs`, Mode B dedicated-table persister) is out of scope until the first plugin declares `storage`. The kernel seam ships now so any future driver can plug in without an orchestrator change.
+
+- b5a1a1e: Correct misclassified exit codes in `sm export` and `sm graph`.
+
+  Per `spec/cli-contract.md` § Exit codes, exit `5` is reserved for
+  "DB missing"; user/argument errors return `2`. The two verbs were
+  returning `5` for cases that have nothing to do with a missing DB —
+  unsupported `--format`, invalid `--query`, deferred formatters, no
+  formatter registered.
+
+  **Sites corrected:**
+
+  - `sm export --format mermaid` (deferred to Step 12) → `2` (was `5`).
+  - `sm export --format <unsupported>` → `2` (was `5`).
+  - `sm export --query '<invalid>'` → `2` (was `5`).
+  - `sm graph --format <no-formatter-registered>` → `2` (was `5`).
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0: this changes a
+  user-observable contract (exit code) so it ships as a minor while the
+  package is `0.Y.Z`. Header comments on both verbs and three
+  test-suite assertions updated.
+
+- 698dd5d: Introduce `LoggerPort` on the kernel and a concrete CLI `Logger`
+  adapter, replacing the last direct `console.error` write inside the
+  kernel.
+
+  **Why.** The kernel must not write to stdout/stderr directly — that's
+  an adapter concern. Until now the orchestrator's probabilistic-hook
+  deferral notice was a `console.error` call, which made kernel output
+  untestable, unconfigurable, and impossible to silence from an embedded
+  host.
+
+  **What.**
+
+  - New `LoggerPort` (`trace` / `debug` / `info` / `warn` / `error`)
+    with `LogLevel` (incl. `silent` sentinel), `LogRecord`, and helpers
+    (`parseLogLevel`, `logLevelRank`, `isLogLevel`, `LOG_LEVELS`).
+  - New `SilentLogger` no-op default — equivalent in spirit to
+    `InMemoryProgressEmitter`.
+  - New module-level singleton (`log` proxy + `configureLogger` /
+    `resetLogger` / `getActiveLogger`). Imports made before bootstrap
+    see the new impl on every call — no captured-stale-logger bugs.
+  - New CLI `Logger` (level + stream + format), default formatter
+    `HH:MM:SS | LEVEL | message [| ctx]` (local time, stderr).
+  - `entry.ts` pre-parses `--log-level` (flag wins over
+    `SKILL_MAP_LOG_LEVEL` env var, fallback `warn`) before Clipanion
+    sees argv, then calls `configureLogger(...)`.
+  - Orchestrator's `console.error` → `log.warn(...)` with structured
+    `{ hookId, mode }` context; the `logger` knob on `runScan` /
+    `makeHookDispatcher` is gone (singleton replaces it).
+
+  Tests that previously monkey-patched `console.error` now install an
+  in-test `LoggerPort` via `configureLogger(...)` and restore via
+  `resetLogger()` in `finally`.
+
+- 124ccda: Open `Node.kind` and `IProvider.classify` to `string` end-to-end on the TS side (Phases B + C).
+
+  Phase A (spec) shipped the contract; this lands the TypeScript runtime to match. Three layers move:
+
+  - **`Node.kind: string`** (was `NodeKind`). The orchestrator, persistence layer, and every renderer accept whatever an enabled Provider classifies into — built-in Claude catalog kinds (`skill` / `agent` / `command` / `hook` / `note`) plus anything an external Provider declares.
+  - **`IProvider.classify(...) → string`** (was `→ NodeKind`). Cursor / Obsidian / Roo Providers can return their own kinds without the `as NodeKind` cast that previously lied to the type system.
+  - **`TNodeKind = string`** in `kernel/adapters/sqlite/schema.ts` (was the closed five-value union). The `as NodeKind` cast in `rowToNode` (`scan-load.ts`) is gone.
+
+  `NodeKind` survives as an exported type alias for the **built-in Claude Provider catalog only**, with a docstring clarifying it is no longer the kernel-wide kind type. Code that intentionally narrows on the five claude kinds (the `validate-all` rule's per-kind frontmatter schema map, the `KIND_ORDER` rendering arrays, claude-aware UI cards) keeps using it. Code that handles arbitrary kinds widens to `string`.
+
+  Side effects:
+
+  - **`sm export`'s query parser drops the closed-enum check** for `kind=...` clauses. `kind=widget` is now structurally valid (open-by-design); it matches zero nodes if no Provider classifies into `widget`. Empty values (`kind=`) still error. Matches `node.schema.json#/properties/kind`.
+  - **`ascii` formatter and `sm export`'s markdown renderer**: nodes are bucketed by an open string. Built-in Claude catalog renders first in canonical order; external-Provider kinds append after, alphabetically sorted, so output stays deterministic across runs.
+  - **`built-in-plugins/rules/trigger-collision`**: `ADVERTISING_KINDS` is now `ReadonlySet<string>` (still containing the same three claude kinds); the rule applies if `node.kind` is in the set, and external Providers can extend the set in a future release without touching the rule.
+
+  Tests: `extractor-applicable-kinds.test`, `self-scan.test`, and `export-cli.test` updated where they pinned `NodeKind`-typed accumulators. The "rejects unknown kind value" parser test became "accepts arbitrary kind tokens" (the parser no longer enforces a closed enum); the "invalid query → exit 2" verb test was rewritten to use `confidence=high` (an actually-unknown key) instead of `kind=widget`.
+
+  What's still pending:
+
+  - **Phase D** — the SQL `CHECK in (<5 values>)` constraints on `scan_nodes.kind` and `state_summaries.kind` are still live in `001_initial.sql`. They run on every existing DB. Pre-1.0 the right move is a fold of the change directly into `001_initial.sql` (no separate migration), mirroring how `002_scan_meta` was folded back; that lands in a follow-up commit.
+  - **Phase E** — smoke test with a fake external Provider end-to-end, conformance suite re-run.
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0 (technically breaking for code that imported `NodeKind` and assumed it was the kernel-wide kind type, but pre-1.0 these go as minor).
+
+- 558cf43: Replace the placeholder `PluginLoaderPort` shape with the real
+  contract the concrete loader has been exposing since Step 0b, and
+  pin the adapter to the port via `implements PluginLoaderPort`.
+
+  **Why.** The port was authored as Step-0b stubs (`discover` / `load` /
+  `validateManifest`, plus `PluginManifest` / `PluginStorage` /
+  `LoadedExtension` types) and never updated when the real loader
+  landed. Two latent risks: callers who imported from the ports barrel
+  got a different shape than the actual class; and the concrete adapter
+  was free to drift from the port silently. Both eliminated.
+
+  **What.**
+
+  - `PluginLoaderPort` now declares `discoverPaths()`,
+    `discoverAndLoadAll()`, `loadOne(path)` — verbatim mirror of
+    `kernel/adapters/plugin-loader.ts`.
+  - The placeholder DTOs are gone; the port re-exports the real domain
+    types (`IPluginManifest`, `ILoadedExtension`, `IDiscoveredPlugin`,
+    `IPluginStorageSchema`, `TGranularity`, `TPluginLoadStatus`,
+    `TPluginStorage`) from `kernel/types/plugin.ts`.
+  - `class PluginLoader implements PluginLoaderPort` — drift is now a
+    compile error.
+  - New factory `createPluginLoader(opts): PluginLoaderPort`. The CLI
+    call sites (`commands/plugins.ts`, `util/plugin-runtime.ts`) use it
+    so production callers are pinned to the abstract shape; tests keep
+    `new PluginLoader(...)` for legitimate access to internals.
+  - Re-exports through `kernel/index.ts` and `kernel/ports/index.ts`
+    swapped to the real domain types (already shipped in the previous
+    Logger commit alongside the new `LoggerPort` exports).
+
+- 91fea6a: Split the orchestrator's `walkAndExtract` into three named helpers and
+  close audit item V4 by reusing the kernel's extractor loop from
+  `sm refresh`. **Pre-1.0 minor bump** per `spec/versioning.md` § Pre-1.0;
+  the API addition below would warrant a minor on its own, and the
+  internal split is non-breaking (no public signature changes).
+
+  ## Why
+
+  `walkAndExtract` was the audit's most-flagged complexity offender
+  (cyclomatic 47 — by a wide margin the worst offender in the kernel).
+  Three logically distinct concerns lived in the same function:
+  extractor-execution wiring, per-(node, extractor) cache decision, and
+  the reused-node bundle for full cache hits. Splitting them buys
+  readability, isolates the `IExtractorContext` plumbing in one place
+  that `refresh.ts` can reuse, and unblocks the next round of audit
+  follow-ups.
+
+  Independently, `cli/commands/refresh.ts#runExtractorForEnrichment` was
+  hand-duplicating the extract-and-fold dance: it built its own
+  `IExtractorContext`, did the scope-aware `body` / `frontmatter`
+  gating, folded partials into a single record, and hardcoded
+  `isProbabilistic: false`. That was audit item V4, and the hardcode was
+  a latent correctness bug — a probabilistic extractor passed to refresh
+  persisted with `isProbabilistic: false` while the in-scan path
+  correctly read `extractor.mode === 'probabilistic'`.
+
+  ## What
+
+  ### `src/kernel/orchestrator.ts` — three new helpers
+
+  - **`runExtractorsForNode(opts)`** — `export`ed. Runs N extractors
+    against a single node and returns
+    `{ internalLinks, externalLinks, enrichments }`. Encapsulates the
+    `IExtractorContext` build + `emitLink` / `enrichNode` callback
+    wiring + per-`(node, extractor)` enrichment folding. Reuses the
+    existing private helpers (`buildExtractorContext`, `validateLink`,
+    `isExternalUrlLink`).
+  - **`computeCacheDecision(opts)`** — internal. Returns
+    `{ applicableExtractors, applicableQualifiedIds, cachedQualifiedIds,
+missingExtractors, fullCacheHit }` for one node. Handles both the
+    fine-grained `priorExtractorRuns` case and the legacy fallback
+    (when the caller did not load breadcrumbs — preserves the pre-A.9
+    contract).
+  - **`reusePriorNode(opts)`** — internal. Builds the reused-node
+    bundle for a full cache hit: shallow-clones the prior node, reshapes
+    its outbound links per A.9 sources rules
+    (`reuseCachedLink(...)`), re-emits prior frontmatter issues with the
+    current `strict` severity, and persists `scan_extractor_runs` rows
+    for every still-applicable, still-cached pair so the cache survives
+    the next `replace-all` persist.
+
+  `walkAndExtract` complexity dropped **47 -> 35** (-12 points). The
+  two new private helpers sit at 9 and 10 — just above the lint
+  threshold of 8 — so visible debt remains, but the net architectural
+  improvement is the worth-having change. Promoting `complexity` to
+  `error` is deferred until the next round of splits brings the
+  remaining offenders down.
+
+  ### `src/kernel/index.ts` — export `runExtractorsForNode`
+
+  Added to the orchestrator export block. New public kernel API; the
+  shape mirrors `walkAndExtract`'s internal call exactly so embedders
+  can reproduce a single-node extract pass without going through a full
+  scan.
+
+  ### `src/cli/commands/refresh.ts` — close audit V4
+
+  `runExtractorForEnrichment` now delegates to `runExtractorsForNode`
+  with a single-element extractor array. Refresh keeps the returned
+  `enrichments` and discards the link arrays — link rebuilding is
+  `sm scan`'s job and refresh stays scoped to the enrichment layer.
+  ~30 lines of duplication eliminated; the `isProbabilistic` field now
+  correctly reflects `extractor.mode === 'probabilistic'`. Imports
+  trimmed accordingly (`qualifiedExtensionId`, `IExtractorContext`,
+  `Link` are no longer needed); `InMemoryProgressEmitter` is added
+  as a throwaway emitter to satisfy the new API surface — refresh does
+  not expose progress events.
+
+  ### `package.json` (root) — `validate` script also runs tests
+
+  `npm run validate` was lint-only; it now runs `npm run test &&
+npm run lint --workspaces --if-present`. Intentional — local
+  `validate` becomes a proper pre-push gate. CI's `build-test` workflow
+  already runs tests separately, so the "Validate" step now overlaps
+  with it; that overlap is acknowledged and left for a follow-up
+  decision.
+
+  ## Out of scope
+
+  The remaining `walkAndExtract` complexity (35) is still above the
+  threshold; further splits (provider walk, per-node frontmatter
+  validation) will follow in the next pass. Bonus correctness fix on
+  `isProbabilistic` is documented above but no behaviour test is added
+  in this commit — the in-scan path already exercises the field
+  correctly, and refresh's caller surface does not currently propagate
+  the flag.
+
+- e8cbd19: Storage-port promotion — Phase A (`scans` / `issues` / `enrichments` / `transaction` namespaces).
+
+  Pre-refactor, `StoragePort` modeled only `init` / `close`. All real persistence lived as free functions in `kernel/adapters/sqlite/*.ts` that took `Kysely<IDatabase>` directly, and 8+ CLI commands consumed those free functions plus inline `selectFrom(...)` queries — hexagonal architecture in name only.
+
+  Phase A lands the core scan pipeline:
+
+  - **`kernel/types/storage.ts`** (new) — option bags + result shapes (`INodeFilter`, `INodeBundle`, `INodeCounts`, `IPersistOptions`, `IIssueRow`).
+  - **`kernel/ports/storage.ts`** — full namespaced shape declared (full surface, not Phase-A-only). `scans` / `issues` namespaces have method bodies; `transaction(fn)` exposes `ITransactionalStorage` with `scans.persist` / `issues.deleteById,insert` / `enrichments.upsertMany`.
+  - **`kernel/adapters/sqlite/storage-adapter.ts`** — implements the namespaces. `scans.persist` delegates to `persistScanResult`, `scans.load` to `loadScanResult`, `findNodes` reproduces `sm list`'s filter logic with a defensive `sortBy` whitelist, `findNode` returns the bundled node + outgoing/incoming links + filtered issues. `transaction(fn)` wraps `Kysely.transaction().execute(...)` and hands the callback a `buildTxSubset(trx)` projection.
+  - **9 CLI commands migrated**: `scan`, `list`, `show`, `check`, `orphans`, `refresh`, `export`, `graph`, `watch`. Every `selectFrom('scan_nodes' \| 'scan_issues' \| 'scan_links')`, every `loadScanResult` / `loadExtractorRuns` / `loadNodeEnrichments` / `persistScanResult` direct call, and every `rowToNode` / `rowToLink` / `rowToIssue` import is gone from these files. The two transactional blocks in `orphans.ts` (reconcile + undo-rename) still use `adapter.db.transaction()` directly because they call `migrateNodeFks` (Phase B port surface) — they migrate when Phase B lands.
+
+  Side effect: the CLI no longer needs to know `scan_*` table names or the json_each subquery shape. The free functions in `kernel/adapters/sqlite/scan-load.ts` and `scan-persistence.ts` stay exported for tests and the cross-phase migration; Phase F drops them from `kernel/index.ts`'s public surface.
+
+  Tests: 617/617 pass. `findNodes` carries a defensive sortBy whitelist that mirrors the CLI's own (`list.ts` validates upstream too — defense in depth).
+
+  Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0. Breaking for any caller that imported the kernel-side free functions, but no published consumer exists.
+
+  What's still pending:
+
+  - Phase B — `history` namespace (history.ts + orphans.ts migrateNodeFks).
+  - Phase C — `jobs` namespace.
+  - Phase D — `pluginConfig` namespace.
+  - Phase E — `migrations` + `pluginMigrations` (the `sm db` verb).
+  - Phase F — cleanup (drop unused free functions from `kernel/index.ts`, remove residual `import type { Kysely, IDatabase }` in CLI).
+
+- 19fbc08: Storage-port promotion — Phase B (`history` namespace).
+
+  - **Port surface**: `port.history.list(filter)`, `port.history.aggregateStats(range, period, top)` for the read paths; `tx.history.migrateNodeFks(from, to)` (transactional) for the FK-repointing primitive.
+  - **Adapter**: `SqliteStorageAdapter.history` delegates to the existing `listExecutions` / `aggregateHistoryStats` / `migrateNodeFks` free functions in `kernel/adapters/sqlite/history.ts`. Bodies stay; the namespace is a thin façade.
+  - **CLI migrated**: `cli/commands/history.ts` — `aggregateHistoryStats(adapter.db, ...)` → `adapter.history.aggregateStats(...)`; `listExecutions(adapter.db, ...)` → `adapter.history.list(...)`. `cli/commands/orphans.ts` — both transactional blocks (reconcile + undo-rename) move to `adapter.transaction(tx => tx.history.migrateNodeFks(...))` plus `tx.issues.deleteById` / `tx.issues.insert`. The `runWithOptionalRollback` helper now takes the adapter and a port-subset callback (instead of `Kysely<IDatabase>`); the `--dry-run` rollback-via-sentinel pattern is identical.
+
+  Side effect: the last `adapter.db.transaction()` direct call in CLI is gone. `orphans.ts` no longer imports `migrateNodeFks` directly, no longer touches `Kysely` / `IDatabase`. The free function `migrateNodeFks` stays exported (used by `scan-persistence.ts`); Phase F drops it from `kernel/index.ts`'s public surface if no caller reaches over.
+
+  617/617 tests pass; npm run validate exit 0. Pre-1.0 minor bump.
+
+- 19fbc08: Storage-port promotion — Phase C (`jobs` namespace).
+
+  - **Port**: `port.jobs.pruneTerminal(status, cutoffMs)`, `port.jobs.listTerminalCandidates(status, cutoffMs)` (the dry-run preview surface), `port.jobs.listOrphanFiles(jobsDir)`.
+  - **Adapter**: `SqliteStorageAdapter.jobs` delegates to `pruneTerminalJobs` / `listOrphanJobFiles`. The dry-run candidate enumeration moves into the adapter as `listTerminalCandidates(...)` (mirrors the SELECT side of `pruneTerminalJobs` without the DELETE), so the CLI no longer hand-rolls the same query.
+  - **CLI migrated**: `cli/commands/jobs.ts` — `pruneTerminalJobs(adapter.db, ...)` → `adapter.jobs.pruneTerminal(...)`; `listOrphanJobFiles(adapter.db, jobsDir)` → `adapter.jobs.listOrphanFiles(jobsDir)`; the inline `selectFrom('state_jobs')` dry-run preview collapses into `adapter.jobs.listTerminalCandidates(...)`. `pruneOrPreview` is now a one-line ternary.
+
+  617/617 tests pass; npm run validate exit 0. Pre-1.0 minor bump.
+
+- 19fbc08: Storage-port promotion — Phase D (`pluginConfig` namespace).
+
+  - **Port**: `port.pluginConfig.set / get / list / delete / loadOverrideMap`. The `set` upserts a per-plugin enabled override into `config_plugins`; `loadOverrideMap` returns the full map for layering over `settings.json` defaults at scan boot.
+  - **Adapter**: `SqliteStorageAdapter.pluginConfig` delegates to the existing free functions in `kernel/adapters/sqlite/plugins.ts`.
+  - **CLI migrated**: `cli/commands/plugins.ts` (the `enable / disable` toggle and the override-map loader for `sm plugins doctor`); `cli/util/plugin-runtime.ts` (the same loader used by `loadPluginRuntime` to layer DB overrides at boot). Both files no longer import directly from `kernel/adapters/sqlite/plugins.js`. `deletePluginOverride` was used as a `void`-suppressed import to keep it available for a future `sm config reset`; that comment now points at `port.pluginConfig.delete` instead.
+
+  617/617 tests pass; npm run validate exit 0. Pre-1.0 minor bump.
+
+- 19fbc08: Storage-port promotion — Phase E (`migrations` / `pluginMigrations` namespaces) + Phase F (cleanup).
+
+  **Phase E** ports the kernel + per-plugin migration runners through the port:
+
+  - **Port**: `port.migrations.{discover, plan, apply, writeBackup}` and `port.pluginMigrations.{resolveDir, discover, plan, apply}`. The free functions in `kernel/adapters/sqlite/{migrations,plugin-migrations}.ts` stay as-is (synchronous, raw `DatabaseSync`-based, identical body); the namespace methods wrap them.
+  - **Adapter**: a small `withRawDb(path, fn)` helper opens / closes a short-lived `DatabaseSync` per port-method call. The verb's per-method invocations are infrequent (one `discover` + zero-to-three `plan` + zero-to-one `apply` + zero-to-N `pluginMigrations.{plan,apply}`), so the open/close overhead is negligible. The adapter's Kysely connection is unused by the migrations namespace; the migrations runner has its own raw lifecycle by design.
+  - **CLI migrated**: `cli/commands/db.ts:DbMigrateCommand.execute` no longer opens its own `new DatabaseSync(path)` — it builds a `SqliteStorageAdapter({ databasePath: path, autoMigrate: false })` and calls `adapter.migrations.discover() / plan() / apply()` plus `adapter.pluginMigrations.plan() / apply()`. `runPluginMigrations` takes the adapter instead of a raw db handle. The CLI no longer imports any free function from the migrations modules.
+
+  **Phase F** finishes the cleanup:
+
+  - The CLI surface no longer contains a single `selectFrom` / `insertInto` / `deleteFrom` / `updateTable` call against any `scan_*` / `state_*` / `config_*` table inside command files (verified via grep). The only remaining non-port `DatabaseSync` opens in CLI are the two administrative SQL paths in `db.ts` — `sm db backup` (PRAGMA wal_checkpoint + copy file) and `sm db reset` (drop tables for a clean slate). Both are intentionally raw — they do schema-management on the file rather than queries against application state.
+  - `cli/commands/init.ts` migrated the residual `persistScanResult(adapter.db, ...)` to `adapter.scans.persist(result, { renameOps, extractorRuns, enrichments })`.
+  - `kernel/index.ts` re-exports `ITransactionalStorage` plus the new domain types from `kernel/types/storage.ts` (`IIssueRow`, `INodeBundle`, `INodeCounts`, `INodeFilter`, `IPersistOptions`) so external consumers reach them through the canonical entry point.
+  - The free functions in `kernel/adapters/sqlite/*.ts` stay exported. Tests still construct `SqliteStorageAdapter` and (post-init) call `persistScanResult(adapter.db, ...)` directly in some places; that survives the refactor — they're testing the adapter implementation, not the port. The plan's "drop the adapter free functions from `kernel/index.ts` public surface" is moot here because they were already not re-exported through `kernel/index.ts`.
+
+  End-state: every CLI command that touches persistence does it through `port.<namespace>.<method>` or `port.transaction(tx => tx.<namespace>.<method>)`. Adding a second adapter (HTTP server, in-memory test harness) is now a matter of implementing the same `StoragePort` interface — no command surgery needed.
+
+  617/617 tests pass; npm run validate exit 0. Pre-1.0 minor bump for E (port surface expansion); F is bundled because the cleanup is the natural conclusion of the same refactor.
+
+### Patch Changes
+
+- bf30b67: Update `AGENTS.md` to reflect the post-sweep lint state: every quality rule is now `'error'` (no more `'warn'` tier), and codify the six categories where `eslint-disable-next-line` is the right answer (CLI orchestrators, parsers, multi-accumulator folds, migration runners, pure column mappers, discriminated-union dispatchers). Anything outside those categories should be split, not disabled — pointers to the canonical split commits included.
+- 3cc603b: Close audit items D3 (i18n discipline) and D4 (rename `extensions/`) in
+  a single sweep. **Patch bump**: pure refactor + docs; zero public API
+  changes, no spec change, no behaviour change. The directory rename and
+  the i18n migration are both internal to the workspace.
+
+  ## D4 — rename `src/extensions/` → `src/built-in-plugins/`
+
+  The directory was confusingly close in name to `src/kernel/extensions/`,
+  which holds the **contracts** (`IProvider`, `IExtractor`, `IRule`,
+  `IFormatter`, `IHook`, …) — not implementations. Renaming the bundled
+  implementations to `built-in-plugins/` makes the distinction obvious at
+  import sites: "kernel/extensions = what shape; built-in-plugins = what
+  code."
+
+  - `mv src/extensions src/built-in-plugins`. Internal layout preserved
+    (`built-ins.ts` + `providers/` + `extractors/` + `rules/` +
+    `formatters/`).
+  - Bulk update of relative imports across 31 files (`from
+'../extensions/...'` → `from '../built-in-plugins/...'`, across four
+    depth levels). One overshoot caught by hand:
+    `kernel/adapters/schema-validators.ts` legitimately imports
+    `../extensions/index.js` (the contracts, inside the kernel) — that
+    site was restored.
+  - `src/tsconfig.json` — `include` updated.
+  - `src/package.json` — four test scripts repointed
+    (`'extensions/**/*.test.ts'` → `'built-in-plugins/**/*.test.ts'`).
+  - `src/cli/util/conformance-scopes.ts` — runtime path resolver and the
+    user-facing error message updated to `built-in-plugins/providers/`.
+  - `src/test/conformance.test.ts` and
+    `src/test/conformance-disable-flags.test.ts` — hardcoded fixture
+    paths updated.
+
+  ## D3 — migrate hardcoded CLI strings to the `tx(*_TEXTS.*)` discipline
+
+  Every `cli/commands/*.ts` file that previously emitted user-facing text
+  through `this.context.std{out,err}.write('literal string')` now sources
+  its strings from a sibling `cli/i18n/<verb>.texts.ts` file. Pattern:
+  `tx(<VERB>_TEXTS.<key>, { vars })`.
+
+  - New texts files (8): `show.texts.ts`, `history.texts.ts`,
+    `orphans.texts.ts`, `help.texts.ts`, `stubs.texts.ts`,
+    `export.texts.ts`, `jobs.texts.ts`, `config.texts.ts`.
+  - Extended (2): `check.texts.ts` (+`noIssues`), `db.texts.ts` (+8 keys
+    for backup, migrate, status).
+  - Migrated sites: `show.ts`, `check.ts`, `history.ts`, `orphans.ts`,
+    `help.ts`, `stubs.ts`, `export.ts`, `jobs.ts`, `db.ts`,
+    `config.ts`. ~25 hardcoded strings replaced.
+  - Pure-passthrough writes (e.g. `this.context.stderr.write(\`${warn}\n\`)`
+    relaying an already-formatted plugin warning) were intentionally
+    left alone — those carry no locally-authored copy.
+
+  ## AGENTS.md — record both decisions as durable conventions
+
+  Two new sections so future agents do not re-derive these:
+
+  - **"Source layout: built-ins vs extension contracts"** — explains the
+    `kernel/extensions/` (contracts) vs `built-in-plugins/`
+    (implementations) split with the mnemonic and pointers to where to
+    import what.
+  - **"i18n strategy: where strings live"** — codifies the rule that CLI
+    strings live in `cli/i18n/<verb>.texts.ts` and pass through `tx`.
+    Documents the rationale (one greppable catalog, future-locale-ready,
+    enforces "no copy-changes hidden in command logic") and the
+    passthrough exemption.
+
+  ## Net effect
+
+  - Tests: **602/602 still green**.
+  - Build: clean.
+  - Lint: still silent (0 errors, 0 warnings).
+  - Audit closure: D3 + D4 are the last two `cli-architect` items that
+    needed Architect input; only the two big-effort items remain
+    (Storage Port refactor and Open Kinds — both scoped in
+    `docs/refactors/`).
+
+- 9c5db60: Close L1 / L2 / L3 from the cli-architect review.
+
+  - **L1 — Async FS off the per-node loop**: `cli/commands/refresh.ts` reads each target node's body inside a `for (node of targetNodes)` loop. The read is now `await readFile(...)` from `node:fs/promises` instead of `readFileSync`. The body still serializes today (extractor pass is awaited per node) but routing through `fs/promises` lets the event loop overlap any concurrent kernel work and removes a sync hop that would block on a slow disk. Bootstrap reads (config, settings, schemas, package.json, migration runners) stay sync — those are cold-path or whitelist category 4 in `AGENTS.md`.
+  - **L3 — Error reporter helper**: new `cli/util/error-reporter.ts` exporting `formatErrorMessage(err: unknown): string`. Replaces 22 inline duplicates of `err instanceof Error ? err.message : String(err)` across `watch.ts`, `jobs.ts`, `conformance.ts`, `scan.ts`, `db.ts`, `init.ts`, `refresh.ts`, `config.ts`, `scan-compare.ts`. The helper deliberately stays minimal (no `--verbose` stack mode, no JSON envelope) — those grow when a concrete need surfaces.
+  - **L2 — `db migrate --to` strict integer parse**: `Number.parseInt` accepted `'123abc'` as `123` and didn't reject negatives, so a typo could silently roll the migration ledger to an unexpected target. Tightened to require `String(parsed) === trimmed && parsed >= 0`; bad input now exits `2` per spec § Exit codes.
+
+  Side effect: the `formatErrorMessage` substitution in `init.ts:runFirstScan` dropped the function below the cyclomatic threshold; removed the no-longer-needed `eslint-disable-next-line complexity`.
+
+  What was a false positive in the original review (no work needed):
+
+  - **L4 — `console.*` mixed with `this.context.std*`**: zero matches in `src/cli/` or `src/kernel/`. The lint rule + existing CLI discipline already enforce this.
+
+- 369213c: Continue the complexity sweep — 5 more functions reduced or disabled with rationale:
+  - `splitStatements` — char-by-char SQL state machine; justified inline disable.
+  - `plugins.ts:execute` (PluginsListCommand) — extracted `renderBuiltInBundleRow` and `renderPluginRow` per-row helpers.
+  - `collectApplicableKindWarnings` — extracted `appendUnknownKindWarnings`.
+  - `collectKnownKinds` and `collectExplorationDirWarnings` — extracted shared `forEachProviderInstance` iterator (built-ins + user-plugin Providers in one place).
+  - `accumulateExecutionRow` — justified inline disable (5-accumulator fold; per-accumulator helpers wouldn't make the algorithm clearer).
+  - `validateAndStrip` — extracted `applyValidationError` per-error helper.
+- e9e04c7: Continue the complexity sweep:
+  - `refresh.ts:execute` and `scan-compare.ts:execute` — justified `eslint-disable-next-line complexity` with comments. The remaining cyclomatic count comes from CLI ergonomics (multiple try/catch + flag combinatorics) and the inner work already lives in extracted helpers.
+  - `kernel/adapters/sqlite/history.ts:aggregateHistoryStats` (18) — extracted `accumulateExecutionRow` for the per-row folding (totals, per-failure-reason, per-action, per-period, per-node). Helper stays at 15 due to the natural multi-accumulator nature of the operation; main function now below threshold.
+- aa550a6: Code-quality follow-up to commit `518180d` — final wave of the
+  ongoing complexity sweep ("hasta menos de 8") plus a tightening pass
+  on the ESLint config so the workspace lint is now fully strict.
+  **Patch bump**: zero public API changes (every refactored function
+  keeps its exported signature; no new exports); pure internal
+  restructuring + dev-tooling.
+
+  ## Why
+
+  The previous round brought the lint baseline to 67 warnings across
+  splits + justified disables. This wave closes the remaining offenders
+  (splits where naming the steps adds value, disables-with-rationale on
+  the orchestrators / parsers / per-row mappers where every branch is
+  intrinsic to the contract), then promotes every quality rule from
+  `'warn'` to `'error'` so future regressions fail CI instead of
+  piling up silently. Net `-67` warnings → **lint is now silent (0
+  errors, 0 warnings)**.
+
+  ## What
+
+  ### 1. ESLint config tightening (`src/eslint.config.js`)
+
+  Every quality rule now fails CI instead of warning:
+
+  - `complexity` (max 8)
+  - `no-console` (allow `[warn, error, log]`)
+  - `@typescript-eslint/no-empty-function`
+  - `preserve-caught-error`
+  - `no-useless-assignment`
+
+  Plus three hygiene fixes that were latent in the previous config:
+
+  - `no-irregular-whitespace` now uses `{ skipStrings, skipComments,
+skipRegExps, skipTemplates }` so legitimate ZWSP / BOM literals
+    inside the YAML BOM-detection regex and block-comment escaping in
+    docstrings stop firing as errors.
+  - `@stylistic/quotes` deprecation closed: `allowTemplateLiterals:
+true` → `'always'`.
+  - `**/dist/**` added to `ignores` so the workspace's nested `dist/`
+    (e.g. `cli/dist/...`) gets skipped, not just the root one.
+
+  ### 2. Render-function splits (the "honest" splits)
+
+  - `cli/commands/init.ts` — `writeDryRunPlan` (was 11): extracted
+    `dryRunFileMessage` (overwrite-vs-write phrasing per file).
+  - `cli/commands/show.ts` — `renderHuman` (was 10): extracted
+    `renderNodeHeader` (id + optional fields + weight + tokens) and
+    `renderIssuesSection` (issues block).
+  - `cli/commands/export.ts` — `renderNodesByKindSection` (was 11):
+    extracted `renderNodeBullet`.
+  - `cli/commands/help.ts` — `renderVerbBlock` (was 9): extracted
+    `renderVerbFlags` and `renderVerbExamples`.
+  - `cli/commands/plugins.ts` — `renderPluginDetail` (was 11):
+    extracted `renderExtensionsList`. The remaining body keeps a
+    justified `eslint-disable-next-line complexity` because the
+    optional-fields-with-fallback row pattern (`?? '?'`,
+    `?? '(unknown)'`) genuinely shapes the verb output; further
+    extraction would be ceremony.
+  - `cli/commands/scan-compare.ts` — `renderDeltaHuman` (was 14):
+    extracted `renderDeltaNodes`, `renderDeltaLinks`,
+    `renderDeltaIssues` per-section helpers.
+
+  ### 3. Justified inline `complexity` disables (~25 sites)
+
+  Each disable carries an inline comment explaining why splitting
+  would scatter intent. Categorised:
+
+  - **CLI orchestrators with multi-flag handling** (~10):
+    `scan.ts:execute` (38), `refresh.ts:execute` (18),
+    `init.ts:execute` (13), `db.ts` `DbReset` (21) /
+    `DbMigrate` (30), `conformance.ts:execute` (13),
+    `scan-compare.ts:execute` (18), `history.ts:execute` ×2
+    (14, 12), `orphans.ts` undo-rename arrow (14),
+    `plugins.ts` `PluginsDoctor.execute` (15) and `toggle` (11),
+    `check.ts:detectProbRuleIds` (9),
+    `config.ts:iterDotPaths` (10),
+    `list.ts:#countIssuesPerNode` (9),
+    `init.ts:runFirstScan` (9),
+    `help.ts:renderVerbBlock` (9),
+    `history.ts:renderTable` (10),
+    `show.ts:aggregateLinks` (11),
+    `watch.ts:runWatchLoop` and `runOnePass` (long-running watch
+    lifecycle).
+  - **Parsers / state machines** (3):
+    `kernel/scan/query.ts:parseExportQuery` (11),
+    `kernel/adapters/sqlite/plugin-migrations-validator.ts:splitStatements`
+    (19), `objectName` (10).
+  - **Multi-accumulator folds** (2):
+    `kernel/adapters/sqlite/history.ts:accumulateExecutionRow` (15),
+    `conformance/index.ts:applyJsonPathComparator` (16).
+  - **Migration runners with per-file safe-apply** (2):
+    `kernel/adapters/sqlite/migrations.ts:applyMigrations` (14),
+    `kernel/adapters/sqlite/plugin-migrations.ts:applyPluginMigrations`
+    (14).
+  - **Pure column mappers** (2):
+    `kernel/adapters/sqlite/scan-persistence.ts:nodeToRow` (13),
+    `linkToRow` (12) — every `??` adds one cyclomatic branch.
+  - **Discriminated-union dispatchers** (~6):
+    `extensions/rules/{trigger-collision,link-conflict}/index.ts:evaluate`
+    (12 each),
+    `extensions/rules/trigger-collision/index.ts:analyzeTriggerBucket`
+    (9), `conformance/index.ts:evaluateAssertion` (12),
+    `runConformanceCase` (10), `runPriorScansSetup` (12),
+    `deepEqual` (11).
+  - **Kernel / adapter helpers** (~5):
+    `kernel/orchestrator.ts:walkAndExtract` (28),
+    `runScanInternal` (11), `indexPriorSnapshot` (10),
+    `computeCacheDecision` (10), `reuseCachedLink` (11),
+    `buildHookContext` (10);
+    `extensions/providers/claude/index.ts:walkMarkdown` (9);
+    `extensions/formatters/ascii/index.ts:format` (12);
+    `kernel/adapters/plugin-loader.ts:{loadOne, applyIdCollisions,
+loadStorageSchemas, #loadAndValidateExtensionEntry}`;
+    `kernel/adapters/sqlite/history.ts:{executionToRow, listExecutions,
+findStrandedStateOrphans, migrateNodeFks}`;
+    `kernel/config/loader.ts:recordSources`;
+    `cli/util/plugin-runtime.ts:{composeScanExtensions, bucketLoaded}`;
+    `cli/commands/plugins.ts:{collectKnownKinds,
+collectApplicableKindWarnings, collectExplorationDirWarnings,
+resolveToggleTarget, forEachProviderInstance}`.
+
+  ### 4. Real fixes (not just disables)
+
+  - `kernel/adapters/sqlite/jobs.ts:120` — `let entries: string[] = []`
+    → `let entries: string[]` (initial value was dead, the catch
+    returns early). Closes a `no-useless-assignment` finding for real.
+  - `kernel/adapters/sqlite/migrations.ts:200` and
+    `kernel/adapters/sqlite/plugin-migrations.ts:243` — re-thrown
+    errors now carry `{ cause: err }`, satisfying
+    `preserve-caught-error` and giving better stack traces on
+    migration failure.
+  - `cli/commands/scan-compare.ts:197,204` — same `{ cause: err }`
+    fix on dump-load and JSON-parse errors.
+
+  ### 5. `silent-logger.ts` — file-level disable for the no-op contract
+
+  Added `/* eslint-disable @typescript-eslint/no-empty-function */`
+  at the top of `kernel/adapters/silent-logger.ts`. The whole point
+  of `SilentLogger` is that every method is empty; adding an
+  inline disable to each of the 5 methods would be noise.
+
+  Same justified inline disable on the `dispatch: async () => {}`
+  no-op fast path in `kernel/orchestrator.ts:makeHookDispatcher`.
+
+  ## Net effect
+
+  - Lint baseline before this wave (commit `518180d`): 67 warnings.
+  - After this commit: **0 errors, 0 warnings — lint is silent.**
+  - Tests: **602 / 602** still green.
+  - Build: clean.
+  - Every quality rule is now `'error'`, so the next regression
+    fails CI instead of accumulating quietly.
+
+- 66ea293: Extract `buildFreshNodeAndValidateFrontmatter` from `walkAndExtract` (orchestrator). Internal-only refactor — moves the `else` branch (no cache hit: build a fresh `Node` and run frontmatter validation) into a focused helper. `walkAndExtract` complexity drops from 35 to 33. No public API change; behaviour preserved.
+- a785a16: Three follow-up tests for the open-node-kinds refactor — close gaps the Phase E smoke test left implicit.
+
+  - `external-provider-kind.test.ts` gains two cases: (a) a Provider declares `cursorRule` with a strict per-kind frontmatter schema → the kernel emits `frontmatter-invalid` for any node whose frontmatter does not match, exactly as it does for the built-in claude catalog; (b) a misbehaving Provider whose `classify(...)` returns a kind absent from its `kinds` map → the kernel reports the mismatch via `frontmatter-invalid` with `data.errors === 'no-schema'` instead of crashing.
+  - `scan-readers.test.ts` (`sm list --kind <external>`) — pins that the verb's `WHERE kind = ?` filter accepts external-Provider kinds end-to-end. Plants a `kind: 'cursorRule'` row alongside the claude fixtures and asserts the listing surfaces only it under `--kind cursorRule`. Catches a regression where someone retypes the column to `NodeKind` and quietly drops external rows.
+  - `node-enrichments.test.ts` (`sm refresh` Test (f.5)) — pins that `sm refresh <external-kind-path>` exits 0 without rejecting the kind. Built-in extractors don't declare `applicableKinds: ['cursorRule']`, so the applicable set is empty and refresh persists zero det enrichments — but it MUST get there without a cast failure or filter rejection.
+
+  These tests add 0 production code and 3 cases to the suite. 617 tests pass; npm run validate exit 0.
+
+- b3debbe: Phase E of the open-node-kinds refactor — end-to-end smoke verification baked into the test suite.
+
+  Adds `test/external-provider-kind.test.ts`: a fake "Cursor" Provider classifies `.cursor/rules/*.md` into `kind: 'cursorRule'` (a string the built-in Claude Provider does NOT know), and the test runs the full pipeline:
+
+  1. `runScanWithRenames` — orchestrator persists the open kind through `IProvider.classify(...) → string`.
+  2. `persistScanResult` — SQLite adapter writes the row; the dropped `ck_scan_nodes_kind` CHECK no longer rejects.
+  3. `loadScanResult` — `rowToNode` returns the open string (no `as NodeKind` cast).
+  4. `applyExportQuery({ kinds: ['cursorRule'] })` — the export query parser accepts the arbitrary kind and filters the snapshot down to the two seeded rows.
+
+  If any layer regresses to the closed-enum behaviour (a stray cast, a forgotten CHECK, a renamed column missed by the migration), the test fails before the regression reaches a release.
+
+  Audit findings:
+
+  - `validate-all` rule's `FRONTMATTER_BY_KIND: Record<NodeKind, …>` map is decorative today (suppressed via `void` to keep the wire ready for when the schema-validators loader exposes per-kind frontmatter validators). It does NOT close the kind set at runtime — the rule validates every node against the `node` schema (which is open post-Phase A). External-Provider kinds pass through unaffected.
+  - No built-in rule does `switch (node.kind) { case 'skill': ...; default: never }`. The trigger-collision rule's `ADVERTISING_KINDS` is a `Set<string>` that simply doesn't fire for kinds outside it — exactly the right behaviour.
+
+  What's done across the whole refactor (Phases A → E):
+
+  - Spec (`@skill-map/spec`, minor): JSON Schema + db-schema.md prose + action.schema.json all carry an open string for `kind`.
+  - TS (`@skill-map/cli`, minor): `Node.kind: string`, `IProvider.classify(...): string`, `TNodeKind = string`. `NodeKind` survives as the Claude Provider catalog alias with a clarifying docstring.
+  - SQL (`@skill-map/cli`, minor): the closed-kind `CHECK in (...)` constraints are removed from `001_initial.sql` directly (pre-1.0 fold; mirrors how `002_scan_meta` was folded back). Fresh DBs apply the open `kind` column from the first migration; no separate `003_open_node_kinds.sql` is needed.
+  - Tests: 613 pass; the new `external-provider-kind.test.ts` is the cross-layer guard.
+
+- 518180d: Code-quality follow-up to commit `369213c` — eighth batch of the
+  ongoing complexity sweep ("hasta menos de 8"). Eight functions
+  addressed: two splits into focused private helpers, six justified
+  inline disables on CLI orchestrators / safe-apply loops where the
+  cyclomatic count is intrinsic to the contract. **Patch bump**: zero
+  public API changes (every refactored function keeps its exported
+  signature; no new exports); pure internal restructuring.
+
+  ## Why
+
+  The previous round closed `splitStatements`, `plugins`, `history` and
+  `config` and brought the lint baseline from 84 -> 75. This batch
+  continues the same playbook: split where naming the steps adds value,
+  disable-with-rationale where every branch is one flag in a multi-flag
+  verb and splitting would scatter intent. Net `-8` warnings in one
+  commit and four functions dropped fully below the threshold.
+
+  ## What
+
+  ### Splits (extracted helpers)
+
+  #### `src/cli/commands/plugins.ts` — `PluginsShowCommand.execute` (21 -> <8)
+
+  Two private helpers, one per detail-rendering branch:
+
+  - `renderBuiltInDetail(builtIn)` — header + extensions list for a
+    built-in bundle row.
+  - `renderPluginDetail(match)` — header + manifest fields + extensions
+    list for a discovered user plugin.
+
+  `execute` is now a thin orchestrator: load the registry, resolve
+  `builtIn` vs `match`, pick the renderer, emit. The two renderers
+  mirror each other in shape (both return `string[]`) so the
+  `builtIn ? renderBuiltInDetail(builtIn) : renderPluginDetail(match!)`
+  ternary at the call site reads as a table of contents.
+
+  #### `src/cli/commands/show.ts` — `renderHuman` (14 -> 10)
+
+  One private helper, parametrised over direction:
+
+  - `renderLinksSection(label, links, projectField, arrow)` — the
+    `(N total, M unique)` header, `(none)` placeholder, and grouped
+    per-link lines. Used for both "Links out" (project on `target`,
+    arrow `->`) and "Links in" (project on `source`, arrow `<-`).
+
+  `renderHuman` now spreads the helper twice instead of inlining two
+  near-identical 8-line blocks. Aggregation behaviour and JSON output
+  are unchanged.
+
+  ### Justified inline complexity disables
+
+  Each of these is a CLI orchestrator or per-file safe-apply transaction
+  where the cyclomatic count is intrinsic to multi-flag handling,
+  multi-accumulator folds, or per-file rollback semantics. Splitting per
+  branch would distance the validations / guards from the state they
+  shape. Each disable carries a comment explaining the call-site
+  contract.
+
+  - `src/cli/commands/db.ts` — `DbResetCommand.execute` (21) and
+    `DbMigrateCommand.execute` (30). Multi-flag verbs: `--state` vs
+    `--hard` mutex, `--dry-run`, `--yes`, `--kernel-only`,
+    `--plugin <id>`, `--status`, `--to`. The early-return chain is the
+    clearest expression of the flag semantics.
+  - `src/cli/commands/history.ts` — `HistoryCommand.execute` (14). Many
+    optional filter flags (`--node`, `--action`, `--status`, `--since`,
+    `--until`, `--limit`, `--json`, `--quiet`); each branch is
+    single-purpose and tightly coupled to the filter it shapes.
+  - `src/cli/commands/orphans.ts` — undo-rename arrow function (14).
+    Destructive verb with per-`ruleId` validation chain
+    (`auto-rename-medium` vs `auto-rename-ambiguous`) before the FK
+    migration runs in a transaction.
+  - `src/cli/commands/scan-compare.ts` — `renderDeltaHuman` (14). Three
+    parallel sections (nodes / links / issues), each with
+    added/removed/changed loops; per-section format differs slightly so
+    a single helper would need a per-section adapter that hides the
+    parallel structure.
+  - `src/kernel/adapters/sqlite/migrations.ts` — `applyMigrations` (14).
+    Per-file transactional safe-apply with backup + dry-run guards;
+    rollback semantics live at the loop level.
+  - `src/kernel/adapters/sqlite/plugin-migrations.ts` —
+    `applyPluginMigrations` (14). Same shape as `applyMigrations` plus
+    plugin-id ledger scoping.
+
+  ## Net effect on lint
+
+  - Previous baseline (commit `369213c`): 75 warnings.
+  - After this commit: **67 warnings** (-8 net).
+  - Four functions dropped fully below threshold via splits or disables;
+    zero new warnings introduced.
+  - 602 / 602 tests still green.
+
+- 5ca7c36: Continue the complexity-reduction sweep — six more high-complexity
+  functions split into focused helpers in a single batch. **Patch bump**:
+  zero public API changes (no exported signatures touched, no new
+  exports), pure internal restructuring; 602 / 602 tests still green
+  after each split individually and after the batch.
+
+  ## Why
+
+  Follows the chain `91fea6a` → `efa8972` → `66ea293` → `6d031d8` →
+  `4fbb23c` → `11c4382`, per the standing request to push every
+  function below the lint complexity threshold of 8. This batch picks
+  off the next six offenders across kernel, CLI commands, an extension
+  rule, and the plugin-runtime helper layer. The chain is deliberately
+  small per commit so each split is reviewable in isolation and the
+  "behavior identical" claim is easy to verify.
+
+  ## What
+
+  ### `src/kernel/orchestrator.ts` — finish the `walkAndExtract` split (audit V4 follow-up)
+
+  Refactored `reusePriorNode` to share its body via a new
+  `cloneNodeAndReshapeLinks` helper. Both the full-cache-hit branch
+  (still inside `reusePriorNode`) and the partial-cache-hit branch (now
+  delegates to `cloneNodeAndReshapeLinks` directly) share one code path
+  for the clone + link reshape + frontmatter issue re-emit.
+  `reusePriorNode` adds the `extractorRuns` records on top.
+
+  Effect: `walkAndExtract` 33 → 28; `cloneNodeAndReshapeLinks` and the
+  trimmed `reusePriorNode` both sit below threshold.
+
+  ### `src/cli/commands/refresh.ts` — split `execute` (30 → <8)
+
+  Two private methods on `RefreshCommand`:
+
+  - `#resolveTargetNodes` — handles the `--stale` vs `<nodePath>`
+    decision, returns `{ ok: true, nodes } | { ok: false, exitCode }`.
+  - `#runDetExtractorsAcrossNodes` — reads node bodies off disk, runs
+    every applicable deterministic extractor per node, counts
+    probabilistic skips.
+
+  Added `ScanResult` to the kernel imports for the typed parameter.
+
+  ### `src/cli/commands/init.ts` — split `execute` (25 → <8)
+
+  The `--dry-run` branch was 60+ lines with many `existsSync()`
+  conditionals plus a 3-way `.gitignore` plural / singular / unchanged
+  switch. Two free helpers now: `writeDryRunPlan` writes the full plan
+  to stdout; `writeDryRunGitignorePlan` is a sub-helper for the
+  `.gitignore` preview phrasing. New `writeDryRunPlan` sits at 11 — the
+  conditional density is intrinsic to the dry-run preview, further
+  splitting would dilute clarity.
+
+  ### `src/cli/commands/help.ts` — extract `renderVerbBlock` (19 → <8)
+
+  The per-verb body of the markdown renderer (heading, description,
+  details, flags table, examples block) was inlined inside two nested
+  `for` loops. Pulled out as `renderVerbBlock(verb): string[]`. New
+  helper at 9.
+
+  ### `src/extensions/rules/trigger-collision/index.ts` — extract `analyzeTriggerBucket` (19 → <8)
+
+  The per-bucket ambiguity analysis (advertisers / invocations /
+  canonical comparison plus the issue construction) was an 80-line `for`
+  body. Pulled into a free function returning `Issue | null`. New helper
+  at 9.
+
+  ### `src/cli/util/plugin-runtime.ts` — extract `accumulateBuiltInScanExtensions` (16 → 9)
+
+  The bucketing of built-in extensions by kind (`switch` over
+  `provider` / `extractor` / `rule` / `hook` inside nested `for`s) moved
+  into a private helper. Caller passes the buckets object as a
+  parameter; the helper mutates them in place. The remaining 9 in
+  `composeScanExtensions` is the env-flag layer that follows, which
+  still adds branches.
+
+  ## Net effect on lint
+
+  - Previous baseline (after `11c4382`): 81 warnings.
+  - After this commit: **81 warnings** (no net change — each removed
+    monster is replaced by 1 marginal helper at 9-11).
+  - However, **6 functions dropped below threshold**: `refresh.ts:execute`,
+    `init.ts:execute`, `help.ts:renderMarkdown`,
+    `trigger-collision:evaluate`; plus `walkAndExtract` and
+    `composeScanExtensions` reduced significantly.
+  - Tests: 602 / 602 green; `npm run build -w src` green;
+    `npm run lint -w src` green (0 errors).
+
+  ## Out of scope
+
+  The remaining ~24 warnings are mostly small (10-14 cyclomatic) and
+  will be tackled in subsequent commits, same one-batch-per-session
+  cadence.
+
+- efa8972: Code-quality follow-up to commit `91fea6a` — split the next three
+  high-complexity offenders into focused private helpers. **Patch bump**:
+  zero public API changes (every refactored function keeps its exported
+  signature; no new exports); pure internal restructuring.
+
+  ## Why
+
+  The previous round closed `walkAndExtract` (47 -> 35) but left three
+  "monster" call sites that the lint pass kept flagging week after week.
+  Three sequential algorithm steps stuffed into one body each is the
+  shape that makes the lint warning pile feel permanent — once the steps
+  are named, the warning disappears and the next reader gets a free
+  table of contents.
+
+  ## What
+
+  ### `src/kernel/orchestrator.ts` — `detectRenamesAndOrphans` (24 -> <8)
+
+  Five private helpers, one per step of the spec'd pipeline:
+
+  - `findHighConfidenceRenames(opts)` — step 1, body-hash match.
+  - `buildFrontmatterRenameCandidates(opts)` — step 2, bucket newPaths
+    by `frontmatterHash`.
+  - `claimSingletonRenames(opts)` — step 3a, medium-confidence
+    singletons.
+  - `flagAmbiguousRenames(opts)` — step 3b, multi-candidate ambiguity.
+  - `flagOrphans(opts)` — step 4, unclaimed deletions.
+
+  `detectRenamesAndOrphans` itself is now a 15-line orchestrator that
+  threads the shared `claimedDeleted` / `claimedNew` / `issues`
+  collections through the helpers in order. Every helper sits below the
+  complexity threshold (no new lint warnings introduced). The mutation
+  contract — helpers update the supplied sets in place — is documented
+  on each JSDoc.
+
+  ### `src/kernel/adapters/sqlite/scan-persistence.ts` — `persistScanResult` (23 -> <8)
+
+  The async transaction callback was 180+ lines doing four distinct
+  things. Three new private helpers, all taking the live `Transaction`
+  plus the slice of state they own:
+
+  - `replaceAllScanZone(trx, result, scannedAt, extractorRuns)` —
+    the replace-all on `scan_*` tables + `scan_extractor_runs`.
+  - `upsertEnrichmentLayer(trx, result, renameOps, enrichments)` —
+    A.8 enrichment steps 1+2+3 (rename migration + drop disappeared +
+    upsert fresh).
+  - `flagStaleProbabilisticEnrichments(trx, result, enrichments)` —
+    A.8 enrichment step 4 (mark stale prob rows).
+
+  The transaction body is now ~10 lines orchestrating: rename FK
+  migration, stranded-orphan detection (still inline because it's small
+  and tightly coupled to `result.issues` / `result.stats` mutation),
+  then the three helpers. Added `Transaction<IDatabase>` import from
+  `kysely` to type the helper parameters.
+
+  ### `src/kernel/adapters/sqlite/scan-persistence.ts` — `nodeToRow` / `linkToRow` justified disables
+
+  These are pure column-by-column mappings: every `??` adds one to
+  cyclomatic count, but there are zero branches. Splitting would be
+  ceremony for a function with one purpose. Added
+  `// eslint-disable-next-line complexity` with a comment on each
+  explaining the justification.
+
+  ### `src/kernel/scan/query.ts` — `parseExportQuery` (15 -> 11)
+
+  Two private helpers extracted for the validators that contained the
+  inner loops (the switch over `key` had inline `for (v of values)`
+  with throw-on-invalid):
+
+  - `parseKindValues(values)` — validates kind tokens, returns
+    `NodeKind[]`.
+  - `parseHasValues(values)` — validates has tokens, returns boolean
+    (true iff `issues` is present).
+
+  `parseExportQuery` still sits at 11 — just above the threshold of 8.
+  Further splitting would dilute clarity (the remaining body is the
+  clause loop itself plus the unknown-key default), so the residual
+  warning is acceptable for now.
+
+  ## Net effect on lint
+
+  - Previous baseline (commit `91fea6a`): 84 warnings.
+  - After this commit: **80 warnings** (-4 net).
+  - Three "monster" complexity sites eliminated (24, 23 -> <8). One
+    reduced (15 -> 11). Two justified disables (13 and 12, pure
+    mappings).
+  - Zero new warnings introduced — every extracted helper is below
+    threshold.
+  - 602 / 602 tests still green.
+
+  ## Out of scope
+
+  Three high-complexity sites remain and are intentionally left for
+  their own dedicated session, because each carries enough behavioural
+  risk that a focused testing pass before the split is the right
+  approach:
+
+  - `scan.ts:execute()` (complexity 38, 338 lines) — the main scan
+    command; regressions would break the most-used CLI verb.
+  - `loadOne` in `plugin-loader.ts` (complexity 31) — flagged by the
+    audit; same reasoning.
+  - `walkAndExtract` (still at 35 from earlier) — more splits possible
+    (the partialCacheHit / buildNode branches), but this commit focuses
+    on net-new wins.
+
+- 33cfea4: Close audit item SD4 — clean ROADMAP "Step N / Phase N" references from kernel docstrings. 78 refs eliminated or reworded; 22 algorithm-internal "Step N" / "Phase N" comments preserved (they describe numbered steps inside an algorithm, not roadmap milestones — `trigger-normalize.ts`, `scan-persistence.ts:upsertEnrichmentLayer`, `plugin-loader.ts:loadOne`, `orchestrator.ts:detectRenamesAndOrphans` and friends). Updated one assertion in `hook-extension.test.ts` so the test no longer pins the literal string "Step 10" in the deferral message.
+- 4fbb23c: Split `evaluateJsonPath` (complexity 25) and `runConformanceCase` (complexity 20) in `src/conformance/index.ts`. Internal-only refactor — no public API change. Extracted helpers: `traverseJsonPath` (pure walker over a parsed segment list), `applyJsonPathComparator` (justified inline disable for the 4-comparator chain), `runPriorScansSetup` (the priorScans replay loop). Both monsters drop below or just above the threshold; no test regressions.
+- 11c4382: Split `renderMarkdown` (complexity 19) in `src/cli/commands/export.ts`. Extracted `countIssuesPerNode` (issue index helper) and `renderNodesByKindSection` (the per-kind nodes block with grouping + sorting + rendering). `renderMarkdown` itself drops below the threshold; the extracted section helper sits at 11 (parallel branches over `KIND_ORDER`, manageable). Pure refactor, no public API change.
+- 6d031d8: Code-quality follow-up to commit `66ea293` — split the audit's other
+  big offender, `loadOne` in `src/kernel/adapters/plugin-loader.ts`
+  (310 lines, complexity 31), into focused private helpers. **Patch
+  bump**: zero public API changes (the `PluginLoader` class still
+  exposes the same `loadOne(pluginPath): Promise<IDiscoveredPlugin>`
+  signature; new helpers are `#`-prefixed truly-private methods plus
+  one private free function); pure internal restructuring.
+
+  ## Why
+
+  `loadOne` was the last "monster" call site flagged by the pre-1.0
+  audit and explicitly deferred in `refactor-complexity-splits-followup`
+  as needing a dedicated session. Three sequential phases (manifest
+  parse + validation, per-extension import + kind validation, storage
+  schema compile) stuffed into one body, with the per-extension loop
+  itself doing six sub-checks plus a 30-line hook-trigger validation
+  block inline. Once each phase is named, the warning disappears and
+  the next reader gets a free table of contents.
+
+  ## What
+
+  Three extractions, all in `src/kernel/adapters/plugin-loader.ts`:
+
+  - `#parseAndValidateManifest(pluginPath)` (private method, ~75 lines)
+    — phase 1: read `plugin.json`, AJV-validate the manifest shape,
+    enforce the directory-name == manifest.id structural rule, validate
+    specCompat (range syntax + satisfies installed spec version).
+    Returns either the validated manifest or an `IDiscoveredPlugin`
+    with the appropriate failure status (`invalid-manifest` /
+    `incompatible-spec`).
+  - `#loadAndValidateExtensionEntry(pluginPath, manifest, relEntry)`
+    (private async method, ~100 lines) — phase 3 inner loop body: 6
+    sub-checks per extension entry (file exists, dynamic import with
+    timeout, has-kind, kind-is-known, pluginId match, kind-specific
+    manifest validation including hook trigger pre-check), with the
+    `pluginId` injection and shallow-clone of the runtime instance.
+  - `validateHookTriggers(...)` (private free function) — extracted
+    because the hook-specific trigger validation was a 30-line block
+    inside the extension loop body that was hurting both readability
+    and complexity.
+
+  Both methods/functions return discriminated unions
+  (`{ ok: true; ... } | { ok: false; failure: IDiscoveredPlugin }`) so
+  the caller (`loadOne`) stays a thin orchestrator: ~30 lines of
+  "manifest -> enabled check -> loop entries -> storage schemas ->
+  success result".
+
+  ## Net effect on lint
+
+  - Previous baseline (after `66ea293`): 80 warnings.
+  - After this commit: **81 warnings** (+1 net).
+  - `loadOne` itself: **31 -> 10** (-21 — massive drop, just barely
+    above the threshold of 8).
+  - `#loadAndValidateExtensionEntry` new helper at **13** (the new
+    warning, but contained — much easier to reason about than the
+    original monolith).
+  - `#parseAndValidateManifest` and `validateHookTriggers` both <8
+    (no warnings).
+  - 602 / 602 tests still green.
+
+  The +1 net is misleading — the architectural improvement is the
+  central method dropping from 31 to 10. The helper at 13 is the next
+  splitting target if anyone wants to keep going.
+
+- Updated dependencies [f8a7125]
+  - @skill-map/spec@0.10.0
+
 ## 0.7.0
 
 ### Minor Changes
@@ -350,13 +1363,13 @@ the`CamelCasePlugin`; raw SQL fragments must use snake_case to
           failure / guard / summary templates, plus the `sm scan
 
     compare-with`dump-load errors.
-    -`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
-    -`cli/i18n/init.texts.ts`—`sm init`templates including
-      the`--dry-run`previews and the singular/plural pair for
-      gitignore updates.
-    -`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
-    -`cli/i18n/cli-progress-emitter.texts.ts`— the
-     `extension.error: ...` stderr line.
+-`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
+-`cli/i18n/init.texts.ts`—`sm init`templates including
+  the`--dry-run`previews and the singular/plural pair for
+  gitignore updates.
+-`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
+-`cli/i18n/cli-progress-emitter.texts.ts`— the
+ `extension.error: ...` stderr line.
 
         String content moved verbatim — every existing test that
         matches on stderr / stdout content keeps passing. Trivial
@@ -1022,9 +2035,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                       `--json` output is byte-identical to before — raw rows, no merge.
-                       Storage is byte-identical to before. The grouping is purely a
-                       read-time presentation choice for human eyes.
+                             `--json` output is byte-identical to before — raw rows, no merge.
+                             Storage is byte-identical to before. The grouping is purely a
+                             read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
