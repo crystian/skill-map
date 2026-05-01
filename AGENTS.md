@@ -39,6 +39,7 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
 - **All artifacts in English** — code, commits, PRs, docs. Conversation language follows the activation rule at the top.
 - **Paths**: prefer relative over absolute in bash commands and agent prompts.
 - **Temp files AND scratch directories**: use `.tmp/` (project-local, gitignored), not `/tmp/` or `/var/tmp/`. This applies to every temp path an AI agent writes, including intermediate files for `awk`, `sed`, `diff`, `grep`, piped scripts, and extracted snippets. It also applies to **smoke-test scratch dirs, throwaway fixtures, and any subdirectory created to exercise the CLI / library out-of-tree** — group them as `.tmp/<scope>/` (e.g. `.tmp/graph-smoke/`, `.tmp/fixture-foo/`). If `.tmp/` does not exist, create it (`mkdir -p .tmp`). Never write a temp file or working directory outside the repo.
+- **Planned refactors → `docs/refactors/<slug>.md`**. Multi-hour refactors that get scoped but not executed in the same session live as self-contained markdown files: status, decision rationale, complete inventory, proposed shape, phased plan with cost/risk, open questions, and "how to resume" steps. The file must be sufficient for a fresh agent (or future-you) to pick up without re-reading the conversation. See `docs/refactors/storage-port-promotion.md` as the template.
 - **Every feature**: update `spec/` first, then `src/`. No impl feature without a matching spec change.
 - **Pin every dependency in `package.json`** — no `^` or `~` ranges. Applies to `package.json` at root, `ui/`, and `src/` (while `src/` stays `private: true`). `spec/` has no dependencies. When adding a new package, use `npm install <pkg>@<exact-version>` or edit the manifest to the exact version from the lockfile. Reason: reproducible installs across contributors and CI, and zero surprise upgrades on `npm install` even if the lockfile is regenerated. Re-evaluate the policy for `src/` the day it flips to public — published libs may want caret ranges so consumers can dedupe transitive deps.
 - **CI green, always** — extensions ship with tests or do not boot.
@@ -101,6 +102,42 @@ The kernel uses four naming buckets for TypeScript types / interfaces. The full 
 Two known edge cases kept on purpose: `RunScanOptions` and `RenameOp` are category 4 but lack the `I` prefix because they're part of the public kernel surface and renaming is a breaking change for plugin authors. They are grandfathered; new public option bags should still take `I*`.
 
 When in doubt: "does this shape exist in the spec?". Yes → no prefix, name from schema. No → `I*` prefix.
+
+## Kernel boundaries & adapter wiring
+
+The kernel is NOT allowed to know about its drivers. The CLI is one such driver; future drivers (HTTP server, in-memory test harness) should drop in without the kernel changing. The lint config (`src/eslint.config.js`) enforces these invariants structurally — they cannot regress silently.
+
+1. **No `console.*` in `src/kernel/**`**. Use the singleton logger: `import { log } from '<.../>kernel/util/logger.js'`. The CLI installs the active impl at boot via `configureLogger(new Logger({ level, stream }))`. The default is `SilentLogger`. Tests install a capture logger and call `resetLogger()` in `try/finally` (or `afterEach`) to avoid cross-test bleed. The port shape (`LoggerPort`, `LogLevel`, `LogRecord`) lives in `src/kernel/ports/logger.ts`; the proxy + setters in `src/kernel/util/logger.ts`.
+
+2. **No `process.cwd()` / `process.env` / `os.homedir()` in `src/kernel/**`**. Kernel APIs that need a runtime context take it through their options bag, **mandatory** (not optional with a fallback). The CLI bridges via `defaultRuntimeContext()` in `src/cli/util/runtime-context.ts` — returns `{ cwd: process.cwd(), homedir: homedir() }`. Pattern: `loadConfig({ scope: 'project', ...defaultRuntimeContext() })`.
+
+3. **No imports from `src/cli/**` inside `src/kernel/**`**. The reverse direction is fine. Enforced by `no-restricted-imports`.
+
+4. **Adapter classes MUST `implements`-declare their port**: `class PluginLoader implements PluginLoaderPort`, `class SqliteStorageAdapter implements StoragePort`. Drift between port shape and concrete adapter becomes a TS compile error, not a hand-audit.
+
+5. **The CLI consumes adapters via factory functions**, not `new` constructors. The factory returns the port type (the abstract contract), not the concrete class:
+   - `createPluginLoader(opts): PluginLoaderPort` exported from `src/kernel/adapters/plugin-loader.ts`.
+   - **Tests are the exception**: they construct the concrete class directly (`new PluginLoader(...)`) when they need to assert against implementation internals (timeouts, schema compilation, private state).
+
+6. **CLI commands MUST receive their `stdin` / `stdout` / `stderr` from the Clipanion `this.context`**, not Node globals. Helpers that need streams take them as a parameter (`confirm(question, { stdin, stderr })`, etc.). This keeps every command testable with captured streams instead of monkey-patched `process.*`.
+
+## Linting & validation
+
+ESLint v10 flat config lives at `src/eslint.config.js`. Run from any cwd:
+
+- `npm run lint` — lints every workspace that declares a `lint` script (today: `src/` only; `ui/` joins later).
+- `npm run lint:fix` — same with `--fix`.
+- `npm run validate` — semantic alias for "all static checks". Currently delegates to lint across workspaces; expand here when more static checks land (typecheck-all, doctest, etc.).
+
+CI (`.github/workflows/ci.yml` → `build-test` job) runs `npm run validate` after typecheck, before build. Fails on errors, allows warnings.
+
+**Rule severity policy**:
+- **Architectural invariants are `error`** and block CI: no `console.*` / `process.cwd` / `process.env` in kernel; no `cli/**` imports from `kernel/**`; relative ESM imports terminate in `.js`; the legacy hand-curated rules (`eqeqeq`, `no-var`, `no-eval`, `no-throw-literal`, `block-scoped-var`, etc.). These cannot regress.
+- **Code-quality rules are `warn`**: `complexity > 8`, `@typescript-eslint/no-empty-function`, `preserve-caught-error`, `no-irregular-whitespace`, etc. Visible as debt without blocking CI. Promote a rule to `error` only after fixing the existing violations (e.g. `complexity` once the orchestrator splits land).
+
+**Disabling a rule inline** (`// eslint-disable-next-line <rule>`) is acceptable when the warning is wrong for the site (`\x00` sentinel intentionally trips `no-control-regex`; CJS subpath imports without `.cjs` trip `import-x/extensions`). Always include a comment explaining the rationale.
+
+**`ui/` workspace**: no lint config yet. When configuring it, add `lint` / `lint:fix` scripts to `ui/package.json` and an `ui/eslint.config.js` (probably with `@angular-eslint`). `npm run validate` picks them up automatically via `--workspaces --if-present`.
 
 ## UI library reference
 
