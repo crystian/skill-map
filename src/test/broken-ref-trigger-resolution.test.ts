@@ -29,7 +29,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createKernel, runScan } from '../kernel/index.js';
-import { builtIns } from '../extensions/built-ins.js';
+import { builtIns } from '../built-in-plugins/built-ins.js';
 
 let tmpRoot: string;
 let counter = 0;

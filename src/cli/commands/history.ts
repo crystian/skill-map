@@ -30,6 +30,7 @@ import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { emitDoneStderr, formatElapsed, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { withSqlite } from '../util/with-sqlite.js';
+import { HISTORY_TEXTS } from '../i18n/history.texts.js';
 
 const STATUSES: readonly ExecutionStatus[] = ['completed', 'failed', 'cancelled'];
 const PERIODS: readonly THistoryStatsPeriod[] = ['day', 'week', 'month'];
@@ -163,7 +164,7 @@ export class HistoryCommand extends Command {
         // §Elapsed time. The `done in <…>` stderr line still fires.
         this.context.stdout.write(JSON.stringify(rows.map(toExecutionRecord)) + '\n');
       } else if (rows.length === 0) {
-        this.context.stdout.write('No executions found.\n');
+        this.context.stdout.write(HISTORY_TEXTS.noExecutionsFound);
       } else {
         this.context.stdout.write(renderTable(rows));
       }

@@ -25,7 +25,7 @@ import { join } from 'node:path';
 import { createKernel, runScan } from '../kernel/index.js';
 import { configureLogger, resetLogger } from '../kernel/util/logger.js';
 import type { LoggerPort } from '../kernel/ports/logger.js';
-import { builtIns } from '../extensions/built-ins.js';
+import { builtIns } from '../built-in-plugins/built-ins.js';
 import {
   PluginLoader,
   installedSpecVersion,

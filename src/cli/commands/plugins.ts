@@ -37,7 +37,7 @@ import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
-import { builtInBundles } from '../../extensions/built-ins.js';
+import { builtInBundles } from '../../built-in-plugins/built-ins.js';
 import type {
   IProvider,
   IExtractor,

@@ -21,6 +21,8 @@ import { Command, Option } from 'clipanion';
 
 import { ExitCode } from '../util/exit-codes.js';
 import { VERSION } from '../version.js';
+import { tx } from '../../kernel/util/tx.js';
+import { HELP_TEXTS } from '../i18n/help.texts.js';
 
 type THelpFormat = 'human' | 'md' | 'json';
 
@@ -84,7 +86,7 @@ export class HelpCommand extends Command {
   async execute(): Promise<number> {
     const format = normalizeFormat(this.format);
     if (!format) {
-      this.context.stderr.write(`--format expects one of: human | md | json. Got: ${this.format}\n`);
+      this.context.stderr.write(tx(HELP_TEXTS.invalidFormat, { format: this.format }));
       return ExitCode.Error;
     }
 
@@ -98,7 +100,7 @@ export class HelpCommand extends Command {
     if (this.verb) {
       const target = verbs.find((v) => v.name === this.verb);
       if (!target) {
-        this.context.stderr.write(`Unknown verb: ${this.verb}\n`);
+        this.context.stderr.write(tx(HELP_TEXTS.unknownVerb, { verb: this.verb }));
         return ExitCode.NotFound;
       }
       this.context.stdout.write(renderSingle(target, format));

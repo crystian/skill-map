@@ -160,7 +160,7 @@ export class CheckCommand extends Command {
       if (this.json) {
         this.context.stdout.write(JSON.stringify(issues) + '\n');
       } else if (issues.length === 0) {
-        this.context.stdout.write('No issues.\n');
+        this.context.stdout.write(CHECK_TEXTS.noIssues);
       } else {
         this.context.stdout.write(renderHuman(issues));
       }

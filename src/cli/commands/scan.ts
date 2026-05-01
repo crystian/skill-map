@@ -12,7 +12,7 @@ import type {
   ScanResult,
 } from '../../kernel/index.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { listBuiltIns } from '../../extensions/built-ins.js';
+import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
 import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';

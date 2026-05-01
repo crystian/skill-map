@@ -28,6 +28,18 @@ export const DB_TEXTS = {
 
   // --- shared ----------------------------------------------------------
   aborted: 'Aborted.\n',
+  backupWritten: 'Backup written: {{outPath}}\n',
+
+  // --- migrate (sm db migrate) -----------------------------------------
+  migrateKernelOnlyAndPluginMutex: '--kernel-only and --plugin are mutually exclusive.\n',
+  migratePluginNotFound:
+    '--plugin {{pluginId}}: no loaded plugin with that id and `storage.mode = "dedicated"`.\n',
+  migrateStatusKernelHeader: 'kernel · Applied: {{applied}} · Pending: {{pending}}\n',
+  migrateStatusPluginHeader:
+    '\nplugin {{pluginId}} · Applied: {{applied}} · Pending: {{pending}}\n',
+  migrateStatusPending: '  pending  {{name}}\n',
+  migrateStatusApplied: '  applied  {{name}}\n',
+  migrateInvalidTo: '--to expects an integer, got {{to}}\n',
 
   // --- dry-run previews ------------------------------------------------
   dryRunHeader: '(dry-run — no DB writes, no file unlinks)\n',

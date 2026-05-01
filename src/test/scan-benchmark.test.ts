@@ -37,7 +37,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { createKernel, runScan } from '../kernel/index.js';
-import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 
 // `src/test/` → `src/` → repo root.
 const HERE = dirname(fileURLToPath(import.meta.url));

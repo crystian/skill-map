@@ -30,6 +30,8 @@ import type { IExportSubset } from '../../kernel/scan/query.js';
 import type { Issue, Link, Node, NodeKind } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { tx } from '../../kernel/util/tx.js';
+import { EXPORT_TEXTS } from '../i18n/export.texts.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const KIND_ORDER: NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'];
@@ -91,7 +93,7 @@ export class ExportCommand extends Command {
       parsedQuery = parseExportQuery(this.query);
     } catch (err) {
       if (err instanceof ExportQueryError) {
-        this.context.stderr.write(`sm export: ${err.message}\n`);
+        this.context.stderr.write(tx(EXPORT_TEXTS.errorPrefix, { message: err.message }));
         return ExitCode.Error;
       }
       throw err;

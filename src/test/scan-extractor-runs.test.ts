@@ -51,7 +51,7 @@ import {
   type Link,
   type ScanResult,
 } from '../kernel/index.js';
-import { builtIns } from '../extensions/built-ins.js';
+import { builtIns } from '../built-in-plugins/built-ins.js';
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js';
 import {

@@ -38,7 +38,7 @@ import {
   builtInBundles,
   type IBuiltInBundle,
   type TBuiltInExtension,
-} from '../../extensions/built-ins.js';
+} from '../../built-in-plugins/built-ins.js';
 import {
   createPluginLoader,
   installedSpecVersion,

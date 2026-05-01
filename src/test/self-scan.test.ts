@@ -32,7 +32,7 @@ import { fileURLToPath } from 'node:url';
 
 import { createKernel, runScan } from '../kernel/index.js';
 import type { NodeKind } from '../kernel/index.js';
-import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../kernel/adapters/schema-validators.js';
 
 // `src/test/` → `src/` → repo root.

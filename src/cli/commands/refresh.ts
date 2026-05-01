@@ -39,7 +39,7 @@ import { resolve } from 'node:path';
 import { Command, Option } from 'clipanion';
 import type { Kysely } from 'kysely';
 
-import { listBuiltIns } from '../../extensions/built-ins.js';
+import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import {
   runExtractorsForNode,
   type IEnrichmentRecord,

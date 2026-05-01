@@ -91,7 +91,7 @@ function resolveCliWorkspaceRoot(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   let cursor = here;
   for (let depth = 0; depth < 6; depth += 1) {
-    const candidate = resolve(cursor, 'extensions', 'providers');
+    const candidate = resolve(cursor, 'built-in-plugins', 'providers');
     if (existsSync(candidate) && statSync(candidate).isDirectory()) {
       return cursor;
     }
@@ -101,7 +101,7 @@ function resolveCliWorkspaceRoot(): string {
   }
   throw new Error(
     'sm conformance: built-in Provider conformance assets not found ' +
-      "(expected an 'extensions/providers/' directory above " +
+      "(expected a 'built-in-plugins/providers/' directory above " +
       `${here}). The bundled CLI may not yet copy the assets — ` +
       'run from the source workspace, or rebuild after enabling the ' +
       'asset-copy step.',
@@ -123,7 +123,7 @@ function collectProviderScopes(specRoot: string): IConformanceScope[] {
   } catch {
     return out;
   }
-  const providersRoot = resolve(workspaceRoot, 'extensions', 'providers');
+  const providersRoot = resolve(workspaceRoot, 'built-in-plugins', 'providers');
   if (!existsSync(providersRoot)) return out;
   for (const entry of readdirSync(providersRoot)) {
     const providerDir = resolve(providersRoot, entry);

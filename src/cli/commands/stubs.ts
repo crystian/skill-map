@@ -31,6 +31,8 @@
 import { Command, Option } from 'clipanion';
 
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
+import { tx } from '../../kernel/util/tx.js';
+import { STUBS_TEXTS } from '../i18n/stubs.texts.js';
 
 /**
  * Tag a description as belonging to a planned-but-unimplemented verb.
@@ -42,7 +44,7 @@ function planned(description: string): string {
 }
 
 function notImplemented(cmd: Command, verb: string): TExitCode {
-  cmd.context.stderr.write(`${verb}: not yet implemented (planned).\n`);
+  cmd.context.stderr.write(tx(STUBS_TEXTS.notImplemented, { verb }));
   return ExitCode.Error;
 }
 

@@ -27,7 +27,7 @@ import {
   OrphansReconcileCommand,
   OrphansUndoRenameCommand,
 } from '../cli/commands/orphans.js';
-import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import {
   createKernel,
   runScanWithRenames,

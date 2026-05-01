@@ -24,7 +24,7 @@ import { join } from 'node:path';
 import { Command, Option } from 'clipanion';
 
 import { createKernel, runScanWithRenames } from '../../kernel/index.js';
-import { builtIns, listBuiltIns } from '../../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import {

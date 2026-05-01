@@ -25,6 +25,7 @@ import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { confirm } from '../util/confirm.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { ORPHANS_TEXTS } from '../i18n/orphans.texts.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import type { Kysely, Selectable } from 'kysely';
 
@@ -117,7 +118,7 @@ export class OrphansCommand extends Command {
           JSON.stringify(found.map((f) => f.issue)) + '\n',
         );
       } else if (found.length === 0) {
-        this.context.stdout.write('No orphan / auto-rename issues.\n');
+        this.context.stdout.write(ORPHANS_TEXTS.noIssues);
       } else {
         this.context.stdout.write(renderOrphans(found.map((f) => f.issue)));
       }
@@ -329,7 +330,7 @@ export class OrphansUndoRenameCommand extends Command {
           { stdin: this.context.stdin, stderr: this.context.stderr },
         );
         if (!ok) {
-          this.context.stderr.write('Aborted.\n');
+          this.context.stderr.write(ORPHANS_TEXTS.aborted);
           return ExitCode.Error;
         }
       }

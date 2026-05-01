@@ -81,7 +81,7 @@ export class DbBackupCommand extends Command {
     }
     copyFileSync(path, outPath);
 
-    this.context.stdout.write(`Backup written: ${outPath}\n`);
+    this.context.stdout.write(tx(DB_TEXTS.backupWritten, { outPath }));
     return ExitCode.Ok;
   }
 }
@@ -406,7 +406,7 @@ export class DbMigrateCommand extends Command {
   // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     if (this.kernelOnly && this.pluginId !== undefined) {
-      this.context.stderr.write('--kernel-only and --plugin are mutually exclusive.\n');
+      this.context.stderr.write(DB_TEXTS.migrateKernelOnlyAndPluginMutex);
       return ExitCode.Error;
     }
 
@@ -438,7 +438,7 @@ export class DbMigrateCommand extends Command {
 
       if (this.pluginId !== undefined && targetedPlugins.length === 0) {
         this.context.stderr.write(
-          `--plugin ${this.pluginId}: no loaded plugin with that id and \`storage.mode = "dedicated"\`.\n`,
+          tx(DB_TEXTS.migratePluginNotFound, { pluginId: this.pluginId }),
         );
         return ExitCode.NotFound;
       }
@@ -448,26 +448,40 @@ export class DbMigrateCommand extends Command {
         if (!this.pluginId) {
           const plan = planMigrations(raw, files);
           this.context.stdout.write(
-            `kernel · Applied: ${plan.applied.length} · Pending: ${plan.pending.length}\n`,
+            tx(DB_TEXTS.migrateStatusKernelHeader, {
+              applied: plan.applied.length, pending: plan.pending.length,
+            }),
           );
           for (const f of plan.pending) {
-            this.context.stdout.write(`  pending  ${formatKernelName(f.version, f.description)}\n`);
+            this.context.stdout.write(
+              tx(DB_TEXTS.migrateStatusPending, { name: formatKernelName(f.version, f.description) }),
+            );
           }
           for (const r of plan.applied) {
-            this.context.stdout.write(`  applied  ${formatKernelName(r.version, r.description)}\n`);
+            this.context.stdout.write(
+              tx(DB_TEXTS.migrateStatusApplied, { name: formatKernelName(r.version, r.description) }),
+            );
           }
         }
         if (!this.kernelOnly) {
           for (const plugin of targetedPlugins) {
             const plan = planPluginMigrations(raw, plugin);
             this.context.stdout.write(
-              `\nplugin ${plugin.id} · Applied: ${plan.applied.length} · Pending: ${plan.pending.length}\n`,
+              tx(DB_TEXTS.migrateStatusPluginHeader, {
+                pluginId: plugin.id,
+                applied: plan.applied.length,
+                pending: plan.pending.length,
+              }),
             );
             for (const f of plan.pending) {
-              this.context.stdout.write(`  pending  ${formatKernelName(f.version, f.description)}\n`);
+              this.context.stdout.write(
+                tx(DB_TEXTS.migrateStatusPending, { name: formatKernelName(f.version, f.description) }),
+              );
             }
             for (const r of plan.applied) {
-              this.context.stdout.write(`  applied  ${formatKernelName(r.version, r.description)}\n`);
+              this.context.stdout.write(
+                tx(DB_TEXTS.migrateStatusApplied, { name: formatKernelName(r.version, r.description) }),
+              );
             }
           }
         }
@@ -476,7 +490,7 @@ export class DbMigrateCommand extends Command {
 
       const toValue = this.to !== undefined ? Number.parseInt(this.to, 10) : undefined;
       if (this.to !== undefined && (Number.isNaN(toValue) || toValue === undefined)) {
-        this.context.stderr.write(`--to expects an integer, got ${this.to}\n`);
+        this.context.stderr.write(tx(DB_TEXTS.migrateInvalidTo, { to: this.to }));
         return ExitCode.Error;
       }
 

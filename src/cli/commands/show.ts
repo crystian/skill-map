@@ -24,6 +24,8 @@ import type { Issue, Link, Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { withSqlite } from '../util/with-sqlite.js';
+import { tx } from '../../kernel/util/tx.js';
+import { SHOW_TEXTS } from '../i18n/show.texts.js';
 
 interface IShowDocument {
   node: Node;
@@ -71,7 +73,7 @@ export class ShowCommand extends Command {
         .where('path', '=', this.nodePath)
         .executeTakeFirst();
       if (!nodeRow) {
-        this.context.stderr.write(`Node not found: ${this.nodePath}\n`);
+        this.context.stderr.write(tx(SHOW_TEXTS.nodeNotFound, { nodePath: this.nodePath }));
         return ExitCode.NotFound;
       }
 

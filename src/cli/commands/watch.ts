@@ -37,7 +37,7 @@ import type {
   RenameOp,
   ScanResult,
 } from '../../kernel/index.js';
-import { listBuiltIns } from '../../extensions/built-ins.js';
+import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import { loadExtractorRuns, loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';

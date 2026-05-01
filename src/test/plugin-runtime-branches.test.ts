@@ -27,7 +27,7 @@ import {
   filterBuiltInManifests,
   loadPluginRuntime,
 } from '../cli/util/plugin-runtime.js';
-import { listBuiltIns } from '../extensions/built-ins.js';
+import { listBuiltIns } from '../built-in-plugins/built-ins.js';
 
 let root: string;
 let counter = 0;

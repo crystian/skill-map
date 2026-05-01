@@ -49,6 +49,8 @@ import {
 } from '../../kernel/config/loader.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { tx } from '../../kernel/util/tx.js';
+import { CONFIG_TEXTS } from '../i18n/config.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 
 // -----------------------------------------------------------------------------
@@ -271,7 +273,7 @@ export class ConfigGetCommand extends Command {
     for (const w of warnings) this.context.stderr.write(w + '\n');
     const value = getAtPath(effective, this.key);
     if (value === undefined) {
-      this.context.stderr.write(`Unknown config key: ${this.key}\n`);
+      this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
       return ExitCode.NotFound;
     }
     if (this.json) {
@@ -312,7 +314,7 @@ export class ConfigShowCommand extends Command {
     for (const w of warnings) this.context.stderr.write(w + '\n');
     const value = getAtPath(effective, this.key);
     if (value === undefined) {
-      this.context.stderr.write(`Unknown config key: ${this.key}\n`);
+      this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
       return ExitCode.NotFound;
     }
     const layer = resolveSource(this.key, value, sources);
@@ -322,7 +324,7 @@ export class ConfigShowCommand extends Command {
       return ExitCode.Ok;
     }
     if (this.source) {
-      this.context.stdout.write(`${formatValueHuman(value)}  (from ${layer})\n`);
+      this.context.stdout.write(tx(CONFIG_TEXTS.valueWithLayer, { value: formatValueHuman(value), layer }));
     } else {
       this.context.stdout.write(formatValueHuman(value) + '\n');
     }
@@ -400,13 +402,13 @@ export class ConfigSetCommand extends Command {
     const validators = loadSchemaValidators();
     const result = validators.validate('project-config', current);
     if (!result.ok) {
-      this.context.stderr.write(`Invalid config after set: ${result.errors}\n`);
+      this.context.stderr.write(tx(CONFIG_TEXTS.invalidAfterSet, { errors: result.errors }));
       emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
 
     writeJsonAtomic(path, current);
-    this.context.stdout.write(`${this.key} = ${formatValueHuman(value)}  (wrote ${path})\n`);
+    this.context.stdout.write(tx(CONFIG_TEXTS.setWritten, { key: this.key, value: formatValueHuman(value), path }));
     emitDoneStderr(this.context.stderr, elapsed);
     return ExitCode.Ok;
   }
@@ -434,20 +436,20 @@ export class ConfigResetCommand extends Command {
     const path = targetSettingsPath(target, cwd, home);
 
     if (!existsSync(path)) {
-      this.context.stdout.write(`No override at ${path} for ${this.key}\n`);
+      this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
       emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Ok;
     }
     const current = readJsonObjectOrEmpty(path);
     const removed = deleteAtPath(current, this.key);
     if (!removed) {
-      this.context.stdout.write(`No override at ${path} for ${this.key}\n`);
+      this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
       emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Ok;
     }
 
     writeJsonAtomic(path, current);
-    this.context.stdout.write(`Removed ${this.key} from ${path}\n`);
+    this.context.stdout.write(tx(CONFIG_TEXTS.unsetRemoved, { key: this.key, path }));
     emitDoneStderr(this.context.stderr, elapsed);
     return ExitCode.Ok;
   }

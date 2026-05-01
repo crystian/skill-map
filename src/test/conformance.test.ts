@@ -16,7 +16,7 @@ const SPEC_FIXTURES_DIR = resolve(SPEC_ROOT, 'conformance', 'fixtures');
 
 const CLAUDE_CONFORMANCE_DIR = resolve(
   WORKSPACE,
-  'extensions',
+  'built-in-plugins',
   'providers',
   'claude',
   'conformance',

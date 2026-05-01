@@ -38,7 +38,7 @@ import { join } from 'node:path';
 
 import { createKernel, runScan, InMemoryProgressEmitter } from '../kernel/index.js';
 import type { ScanResult } from '../kernel/index.js';
-import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js';
 import { loadScanResult } from '../kernel/adapters/sqlite/scan-load.js';

@@ -25,7 +25,7 @@ import type { BaseContext } from 'clipanion';
 
 import { GraphCommand } from '../cli/commands/graph.js';
 import { createKernel, runScan } from '../kernel/index.js';
-import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js';
 

@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import { createKernel, runScan } from '../kernel/index.js';
-import { builtIns } from '../extensions/built-ins.js';
+import { builtIns } from '../built-in-plugins/built-ins.js';
 import {
   buildIgnoreFilter,
   readIgnoreFileText,

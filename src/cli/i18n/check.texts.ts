@@ -13,6 +13,8 @@
  */
 
 export const CHECK_TEXTS = {
+  noIssues: 'No issues.\n',
+
   // --- prob stub advisory ---------------------------------------------------
   probStubAdvisory:
     'sm check --include-prob: probabilistic Rule dispatch requires the job ' +

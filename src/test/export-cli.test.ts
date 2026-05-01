@@ -23,7 +23,7 @@ import { ExportCommand } from '../cli/commands/export.js';
 import { applyExportQuery, ExportQueryError, parseExportQuery } from '../kernel/scan/query.js';
 import { createKernel, runScan } from '../kernel/index.js';
 import type { Issue, Link, Node, NodeKind } from '../kernel/types.js';
-import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import { persistScanResult } from '../kernel/adapters/sqlite/scan-persistence.js';
 

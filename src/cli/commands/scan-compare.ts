@@ -41,7 +41,7 @@ import { Command, Option } from 'clipanion';
 
 import { computeScanDelta, createKernel, isEmptyDelta, runScan } from '../../kernel/index.js';
 import type { IScanDelta, ScanResult } from '../../kernel/index.js';
-import { listBuiltIns } from '../../extensions/built-ins.js';
+import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';

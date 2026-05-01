@@ -121,6 +121,26 @@ The kernel is NOT allowed to know about its drivers. The CLI is one such driver;
 
 6. **CLI commands MUST receive their `stdin` / `stdout` / `stderr` from the Clipanion `this.context`**, not Node globals. Helpers that need streams take them as a parameter (`confirm(question, { stdin, stderr })`, etc.). This keeps every command testable with captured streams instead of monkey-patched `process.*`.
 
+## Source layout: built-ins vs extension contracts
+
+Two directories with similar-sounding names; tell them apart by purpose:
+
+- **`src/kernel/extensions/`** — the **contracts** (`IProvider`, `IExtractor`, `IRule`, `IFormatter`, `IHook`, `IRawNode`, `IExtractorContext`, `IRuleContext`, `IFormatterContext`, etc.). Defines the shape any extension author (built-in or user plugin) must implement. Pure types + small helpers; no runtime data.
+- **`src/built-in-plugins/`** — the **bundled implementations**: the `claude` Provider, the `frontmatter` / `slash` / `at-directive` / `external-url-counter` Extractors, the `link-conflict` / `trigger-collision` / `orphan-detection` / `auto-rename` Rules, the `ascii` Formatter. Every one of these `implements` a contract from `kernel/extensions/`.
+
+Mnemonic: "kernel/extensions = what shape; built-in-plugins = what code." When wiring from the CLI: import the **runtime instance** from `built-in-plugins/built-ins.ts`; import the **type** from `kernel/extensions/<kind>.ts`.
+
+## i18n strategy: where strings live
+
+User-facing text in the **CLI** uses the `tx(*_TEXTS.*)` system end-to-end:
+
+- Every `cli/commands/<verb>.ts` that emits text to `stdout` / `stderr` MUST source its strings from a sibling `cli/i18n/<verb>.texts.ts` file via `tx(*_TEXTS.<key>, { vars })`.
+- Hardcoded inline strings (e.g. `this.context.stdout.write('No issues.\n')`) are forbidden in command files. The pattern goes through `tx(<VERB>_TEXTS.noIssues)`.
+- Pure passthrough of an external string (`this.context.stderr.write(\`${warn}\n\`)` for a plugin warning that already came formatted from the kernel) is allowed — the warning text was already authored elsewhere.
+- The kernel emits text via `kernel/i18n/<module>.texts.ts` for the same reason; mirroring the pattern keeps the future Transloco / message-format migration trivial.
+
+Why this discipline today even without a real i18n framework: it keeps every user-visible string in a flat, greppable, JSON-shaped catalog, ready to drop into a translator pipeline the day a non-English locale lands. Until then, it is also the cheapest way to enforce "no copy-changes hidden inside command logic" — every wording lives in one place.
+
 ## Linting & validation
 
 ESLint v10 flat config lives at `src/eslint.config.js`. Run from any cwd:

@@ -38,7 +38,7 @@ import type { BaseContext } from 'clipanion';
 
 import { ScanCompareCommand } from '../cli/commands/scan-compare.js';
 import { createKernel, runScan } from '../kernel/index.js';
-import { builtIns, listBuiltIns } from '../extensions/built-ins.js';
+import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
 
 let tmpRoot: string;
 let counter = 0;
