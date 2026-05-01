@@ -19,8 +19,9 @@ import { Command, Option } from 'clipanion';
 
 import { migrateNodeFks } from '../../kernel/adapters/sqlite/history.js';
 import type { IMigrateNodeFksReport } from '../../kernel/adapters/sqlite/history.js';
-import { rowToIssue } from '../../kernel/adapters/sqlite/scan-load.js';
-import type { IDatabase, IScanIssuesTable } from '../../kernel/adapters/sqlite/schema.js';
+import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { ITransactionalStorage } from '../../kernel/ports/storage.js';
+import type { IIssueRow } from '../../kernel/types/storage.js';
 import type { Issue } from '../../kernel/types.js';
 import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
@@ -29,30 +30,29 @@ import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { ORPHANS_TEXTS } from '../i18n/orphans.texts.js';
 import { withSqlite } from '../util/with-sqlite.js';
-import type { Kysely, Selectable } from 'kysely';
+import type { Kysely } from 'kysely';
+import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
 type OrphanRuleId = typeof ORPHAN_RULE_IDS[number];
 
 // --- shared helpers -------------------------------------------------------
 
-type IIssueRow = Selectable<IScanIssuesTable>;
-
-async function findActiveIssues(
-  db: Kysely<IDatabase>,
+/**
+ * Find every active orphan / auto-rename issue whose runtime shape
+ * passes `predicate`. Wraps `port.issues.findActive(...)` with the
+ * `ruleId in ORPHAN_RULE_IDS` gate, so callers only spell out the
+ * predicate they care about (path equality, candidate match, etc.).
+ */
+async function findActiveOrphanIssues(
+  adapter: SqliteStorageAdapter,
   predicate: (issue: Issue) => boolean,
-): Promise<Array<{ row: IIssueRow; issue: Issue }>> {
-  const rows = await db
-    .selectFrom('scan_issues')
-    .selectAll()
-    .where('ruleId', 'in', [...ORPHAN_RULE_IDS])
-    .execute();
-  const out: Array<{ row: IIssueRow; issue: Issue }> = [];
-  for (const row of rows) {
-    const issue = rowToIssue(row);
-    if (predicate(issue)) out.push({ row, issue });
-  }
-  return out;
+): Promise<IIssueRow[]> {
+  return adapter.issues.findActive(
+    (issue) =>
+      (ORPHAN_RULE_IDS as readonly string[]).includes(issue.ruleId) &&
+      predicate(issue),
+  );
 }
 
 function isStringArray(v: unknown): v is string[] {
@@ -108,7 +108,7 @@ export class OrphansCommand extends Command {
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const found = await findActiveIssues(adapter.db, (issue) => {
+      const found = await findActiveOrphanIssues(adapter, (issue) => {
         if (ruleFilter !== null) return issue.ruleId === ruleFilter;
         return true;
       });
@@ -166,12 +166,8 @@ export class OrphansReconcileCommand extends Command {
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // 1. Validate <new.path> is a live node.
-      const newNode = await adapter.db
-        .selectFrom('scan_nodes')
-        .select(['path'])
-        .where('path', '=', this.to)
-        .executeTakeFirst();
-      if (!newNode) {
+      const target = await adapter.scans.findNode(this.to);
+      if (!target) {
         this.context.stderr.write(
           tx(ORPHANS_TEXTS.reconcileTargetNotFound, { path: this.to }),
         );
@@ -179,7 +175,7 @@ export class OrphansReconcileCommand extends Command {
       }
 
       // 2. Find the active orphan issue for <orphan.path>.
-      const candidates = await findActiveIssues(adapter.db, (issue) => {
+      const candidates = await findActiveOrphanIssues(adapter, (issue) => {
         if (issue.ruleId !== 'orphan') return false;
         const dataPath = issue.data ? (issue.data['path'] as unknown) : undefined;
         return typeof dataPath === 'string' && dataPath === this.orphanPath;
@@ -212,7 +208,7 @@ export class OrphansReconcileCommand extends Command {
           const report = await migrateNodeFks(trx, orphanPath, toPath);
           if (!dryRun) {
             for (const cand of candidates) {
-              await trx.deleteFrom('scan_issues').where('id', '=', cand.row.id).execute();
+              await trx.deleteFrom('scan_issues').where('id', '=', cand.id).execute();
             }
           }
           return report;
@@ -295,7 +291,7 @@ export class OrphansUndoRenameCommand extends Command {
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Find the active auto-rename-medium / -ambiguous issue on <new.path>.
-      const candidates = await findActiveIssues(adapter.db, (issue) => {
+      const candidates = await findActiveOrphanIssues(adapter, (issue) => {
         if (issue.ruleId !== 'auto-rename-medium' && issue.ruleId !== 'auto-rename-ambiguous') {
           return false;
         }
@@ -359,7 +355,7 @@ export class OrphansUndoRenameCommand extends Command {
           if (!dryRun) {
             await trx
               .deleteFrom('scan_issues')
-              .where('id', '=', candidate.row.id)
+              .where('id', '=', candidate.id)
               .execute();
             // Per spec: "the previous path becomes an `orphan`". The new
             // path (which the file in FS still has) inherits no rows, so

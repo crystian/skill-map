@@ -12,10 +12,9 @@
  */
 
 import { Command, Option } from 'clipanion';
-import { sql } from 'kysely';
 
-import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
-import { rowToNode } from '../../kernel/adapters/sqlite/scan-load.js';
+import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { withSqlite } from '../util/with-sqlite.js';
@@ -103,32 +102,14 @@ export class ListCommand extends Command {
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      let query = adapter.db.selectFrom('scan_nodes').selectAll();
-      if (this.kind !== undefined) {
-        // Cast through unknown — the column is the union NodeKind, but we
-        // accept any string from the CLI and let the WHERE filter match
-        // (or not) without throwing on unknown kinds. An unknown kind
-        // simply yields zero rows.
-        query = query.where('kind', '=', this.kind as never);
-      }
-      if (this.issue) {
-        // Subquery: keep only nodes whose path is referenced by any
-        // scan_issue's nodeIdsJson array. node:sqlite ships JSON1 enabled,
-        // so json_each is available everywhere we run.
-        query = query.where(({ exists, selectFrom, ref }) =>
-          exists(
-            selectFrom(sql<{ value: string }>`json_each(scan_issues.node_ids_json)`.as('je'))
-              .innerJoin('scan_issues', (j) => j.onTrue())
-              .select(sql<number>`1`.as('one'))
-              .whereRef(sql.ref('je.value'), '=', ref('scan_nodes.path')),
-          ),
-        );
-      }
-      query = query.orderBy(sortColumn as never, sortDirection);
-      if (limitValue !== undefined) query = query.limit(limitValue);
-
-      const rows = await query.execute();
-      const nodes = rows.map(rowToNode);
+      const filter: { kind?: string; hasIssues?: boolean; sortBy: string; sortDirection: 'asc' | 'desc'; limit?: number } = {
+        sortBy: sortColumn,
+        sortDirection,
+      };
+      if (this.kind !== undefined) filter.kind = this.kind;
+      if (this.issue) filter.hasIssues = true;
+      if (limitValue !== undefined) filter.limit = limitValue;
+      const nodes = await adapter.scans.findNodes(filter);
 
       // Per-row issue count (used by both renderers). Keep it cheap by
       // computing once for every node returned rather than joining in SQL.
@@ -149,7 +130,6 @@ export class ListCommand extends Command {
     });
   }
 
-  // eslint-disable-next-line complexity
   async #countIssuesPerNode(
     adapter: SqliteStorageAdapter,
     paths: string[],
@@ -157,23 +137,13 @@ export class ListCommand extends Command {
     const out = new Map<string, number>();
     if (paths.length === 0) return out;
 
-    // Pull every issue's nodeIdsJson and tally locally. Dataset is small
-    // (issue counts are O(nodes), not O(N*M)) and avoids per-row subqueries.
-    const issueRows = await adapter.db
-      .selectFrom('scan_issues')
-      .select(['nodeIdsJson'])
-      .execute();
+    // Pull every issue and tally locally. Dataset is small (issue
+    // counts are O(nodes), not O(N*M)) and avoids per-row subqueries.
+    const issues = await adapter.issues.listAll();
     const wanted = new Set(paths);
-    for (const row of issueRows) {
-      let ids: unknown;
-      try {
-        ids = JSON.parse(row.nodeIdsJson);
-      } catch {
-        continue;
-      }
-      if (!Array.isArray(ids)) continue;
-      for (const id of ids) {
-        if (typeof id !== 'string' || !wanted.has(id)) continue;
+    for (const issue of issues) {
+      for (const id of issue.nodeIds) {
+        if (!wanted.has(id)) continue;
         out.set(id, (out.get(id) ?? 0) + 1);
       }
     }
@@ -184,7 +154,7 @@ export class ListCommand extends Command {
 // --- human renderer -------------------------------------------------------
 
 function renderTable(
-  nodes: ReturnType<typeof rowToNode>[],
+  nodes: Node[],
   issuesByNode: Map<string, number>,
 ): string {
   // Fixed-width columns. The path column truncates with an ellipsis to

@@ -20,7 +20,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import {
   applyExportQuery,
   ExportQueryError,
@@ -106,7 +105,7 @@ export class ExportCommand extends Command {
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const scan = await loadScanResult(adapter.db);
+      const scan = await adapter.scans.load();
       const subset = applyExportQuery(
         { nodes: scan.nodes, links: scan.links, issues: scan.issues },
         parsedQuery,

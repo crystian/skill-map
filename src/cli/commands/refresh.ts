@@ -37,7 +37,6 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
-import type { Kysely } from 'kysely';
 
 import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import {
@@ -49,11 +48,6 @@ import {
   type ScanResult,
 } from '../../kernel/index.js';
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
-import {
-  loadNodeEnrichments,
-  loadScanResult,
-} from '../../kernel/adapters/sqlite/scan-load.js';
-import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -151,8 +145,8 @@ export class RefreshCommand extends Command {
     const persisted = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (adapter) => {
-        const result = await loadScanResult(adapter.db);
-        const enrichments = await loadNodeEnrichments(adapter.db);
+        const result = await adapter.scans.load();
+        const enrichments = await adapter.scans.loadNodeEnrichments();
         return { result, enrichments };
       },
     );
@@ -183,7 +177,9 @@ export class RefreshCommand extends Command {
     if (freshDetEnrichments.length > 0) {
       try {
         await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-          await upsertEnrichments(adapter.db, freshDetEnrichments);
+          await adapter.transaction(async (txStore) => {
+            await txStore.enrichments.upsertMany(freshDetEnrichments);
+          });
         });
       } catch (err) {
         const message = formatErrorMessage(err);
@@ -351,44 +347,6 @@ export async function runExtractorForEnrichment(
   return result.enrichments;
 }
 
-/**
- * Upsert a batch of enrichment records into `node_enrichments`. Mirrors
- * the orchestrator's persist path but stays scoped to `sm refresh`'s
- * single-table footprint — no replace-all, no stale flagging across
- * unrelated rows. Each record always lands with `stale = 0`: the verb
- * just refreshed it.
- */
-async function upsertEnrichments(
-  db: Kysely<IDatabase>,
-  enrichments: IEnrichmentRecord[],
-): Promise<void> {
-  await db.transaction().execute(async (trx) => {
-    for (const enrichment of enrichments) {
-      const row = {
-        nodePath: enrichment.nodePath,
-        extractorId: enrichment.extractorId,
-        bodyHashAtEnrichment: enrichment.bodyHashAtEnrichment,
-        valueJson: JSON.stringify(enrichment.value ?? {}),
-        stale: 0,
-        enrichedAt: enrichment.enrichedAt,
-        isProbabilistic: enrichment.isProbabilistic ? 1 : 0,
-      };
-      await trx
-        .insertInto('node_enrichments')
-        .values(row)
-        .onConflict((oc) =>
-          oc.columns(['nodePath', 'extractorId']).doUpdateSet({
-            bodyHashAtEnrichment: row.bodyHashAtEnrichment,
-            valueJson: row.valueJson,
-            stale: 0,
-            enrichedAt: row.enrichedAt,
-            isProbabilistic: row.isProbabilistic,
-          }),
-        )
-        .execute();
-    }
-  });
-}
 
 /**
  * Strip a leading YAML frontmatter fence from `text`. Mirrors the

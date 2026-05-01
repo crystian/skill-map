@@ -22,7 +22,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
@@ -86,7 +85,7 @@ export class GraphCommand extends Command {
     }
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const scan = await loadScanResult(adapter.db);
+      const scan = await adapter.scans.load();
       const text = formatter.format({
         nodes: scan.nodes,
         links: scan.links,

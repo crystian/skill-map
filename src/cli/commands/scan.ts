@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
-import type { Kysely } from 'kysely';
 
 import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
 import type {
@@ -14,9 +13,6 @@ import type {
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import type { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
-import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
-import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
-import { loadExtractorRuns, loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -247,7 +243,7 @@ export class ScanCommand extends Command {
       adapter: SqliteStorageAdapter,
     ): Promise<ScanResult | null> => {
       if (this.noBuiltIns) return null;
-      const loaded = await loadScanResult(adapter.db);
+      const loaded = await adapter.scans.load();
       if (loaded.nodes.length === 0) return null;
       // H6 — under `--strict`, validate the prior we just hydrated from
       // SQLite against `scan-result.schema.json` before letting the
@@ -344,7 +340,7 @@ export class ScanCommand extends Command {
           // orchestrator never hits the cache path so the runs map is
           // wasted I/O.
           const priorExtractorRuns =
-            this.changed && prior ? await loadExtractorRuns(adapter.db) : undefined;
+            this.changed && prior ? await adapter.scans.loadExtractorRuns() : undefined;
           let scanned: {
             result: ScanResult;
             renameOps: RenameOp[];
@@ -365,16 +361,15 @@ export class ScanCommand extends Command {
           // natural case of "empty repo on first scan" is not affected
           // (DB starts empty, scan returns 0 rows, persist proceeds).
           if (scanned.result.stats.nodesCount === 0 && !this.allowEmpty) {
-            const existing = await countExistingScanRows(adapter.db);
+            const counts = await adapter.scans.countRows();
+            const existing = counts.nodes + counts.links + counts.issues;
             if (existing > 0) return { kind: 'guard', existing };
           }
-          await persistScanResult(
-            adapter.db,
-            scanned.result,
-            scanned.renameOps,
-            scanned.extractorRuns,
-            scanned.enrichments,
-          );
+          await adapter.scans.persist(scanned.result, {
+            renameOps: scanned.renameOps,
+            extractorRuns: scanned.extractorRuns,
+            enrichments: scanned.enrichments,
+          });
           return { kind: 'ok', ...scanned };
         });
       } catch (err) {
@@ -478,20 +473,3 @@ export class ScanCommand extends Command {
   }
 }
 
-/**
- * Sum of `scan_nodes + scan_links + scan_issues` row counts. Used by the
- * Layer-3 defensive guard in `ScanCommand.execute` to detect that a
- * zero-result scan is about to wipe a populated snapshot. Three small
- * `COUNT(*)` queries on tables that have at most a few thousand rows
- * each — cheap enough to skip a UNION ALL.
- */
-async function countExistingScanRows(db: Kysely<IDatabase>): Promise<number> {
-  const rows = await Promise.all([
-    db.selectFrom('scan_nodes').select((eb) => eb.fn.countAll<number>().as('c')).executeTakeFirst(),
-    db.selectFrom('scan_links').select((eb) => eb.fn.countAll<number>().as('c')).executeTakeFirst(),
-    db.selectFrom('scan_issues').select((eb) => eb.fn.countAll<number>().as('c')).executeTakeFirst(),
-  ]);
-  let total = 0;
-  for (const r of rows) total += Number(r?.c ?? 0);
-  return total;
-}

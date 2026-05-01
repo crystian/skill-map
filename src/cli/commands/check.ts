@@ -44,7 +44,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import { rowToIssue } from '../../kernel/adapters/sqlite/scan-load.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
@@ -144,8 +143,7 @@ export class CheckCommand extends Command {
     }
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const rows = await adapter.db.selectFrom('scan_issues').selectAll().execute();
-      let issues = rows.map(rowToIssue);
+      let issues = await adapter.issues.listAll();
 
       // Filters apply to the persisted issue list. They do NOT affect the
       // prob-rule advisory above (which already honoured `--rules`).

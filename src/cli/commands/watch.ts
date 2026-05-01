@@ -39,8 +39,6 @@ import type {
 } from '../../kernel/index.js';
 import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
-import { loadExtractorRuns, loadScanResult } from '../../kernel/adapters/sqlite/scan-load.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -134,7 +132,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     const priorState = await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
       async (reader) => {
-        const loaded = await loadScanResult(reader.db);
+        const loaded = await reader.scans.load();
         if (loaded.nodes.length === 0) return null;
         // H6 — under `--strict`, validate the prior against
         // `scan-result.schema.json` before handing it to the
@@ -148,7 +146,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
             throw new Error(tx(WATCH_TEXTS.priorSchemaValidationFailed, { errors: result.errors }));
           }
         }
-        const extractorRuns = await loadExtractorRuns(reader.db);
+        const extractorRuns = await reader.scans.loadExtractorRuns();
         return { snapshot: loaded, extractorRuns };
       },
     );
@@ -190,7 +188,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     }
 
     await withSqlite({ databasePath: dbPath }, (writer) =>
-      persistScanResult(writer.db, result, renameOps, extractorRuns, enrichments),
+      writer.scans.persist(result, { renameOps, extractorRuns, enrichments }),
     );
 
     if (opts.json) {

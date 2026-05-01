@@ -15,11 +15,6 @@
 
 import { Command, Option } from 'clipanion';
 
-import {
-  rowToIssue,
-  rowToLink,
-  rowToNode,
-} from '../../kernel/adapters/sqlite/scan-load.js';
 import type { Issue, Link, Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -67,46 +62,17 @@ export class ShowCommand extends Command {
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
-      const nodeRow = await adapter.db
-        .selectFrom('scan_nodes')
-        .selectAll()
-        .where('path', '=', this.nodePath)
-        .executeTakeFirst();
-      if (!nodeRow) {
+      const bundle = await adapter.scans.findNode(this.nodePath);
+      if (!bundle) {
         this.context.stderr.write(tx(SHOW_TEXTS.nodeNotFound, { nodePath: this.nodePath }));
         return ExitCode.NotFound;
       }
 
-      const [outRows, inRows, issueRows] = await Promise.all([
-        adapter.db
-          .selectFrom('scan_links')
-          .selectAll()
-          .where('sourcePath', '=', this.nodePath)
-          .execute(),
-        adapter.db
-          .selectFrom('scan_links')
-          .selectAll()
-          .where('targetPath', '=', this.nodePath)
-          .execute(),
-        // No json_each on the LHS of `=` here — pull every issue, decode
-        // its node_ids_json client-side, keep the ones that touch this
-        // node. Issue counts are small; this is cheaper than wiring a
-        // raw json_each subquery in Kysely.
-        adapter.db.selectFrom('scan_issues').selectAll().execute(),
-      ]);
-
-      const node = rowToNode(nodeRow);
-      const linksOut = outRows.map(rowToLink);
-      const linksIn = inRows.map(rowToLink);
-      const issues = issueRows
-        .map(rowToIssue)
-        .filter((i) => i.nodeIds.includes(this.nodePath));
-
       const doc: IShowDocument = {
-        node,
-        linksOut,
-        linksIn,
-        issues,
+        node: bundle.node,
+        linksOut: bundle.linksOut,
+        linksIn: bundle.linksIn,
+        issues: bundle.issues,
         findings: [],
         summary: null,
       };
