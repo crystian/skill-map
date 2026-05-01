@@ -282,46 +282,51 @@ export class PluginsShowCommand extends Command {
       return ExitCode.Ok;
     }
 
-    if (builtIn) {
-      const lines = [
-        `id:           ${builtIn.id}`,
-        `path:         (built-in)`,
-        `status:       ${builtIn.enabled ? 'enabled' : 'disabled'}`,
-        `granularity:  ${builtIn.granularity}`,
-        'extensions:',
-      ];
-      for (const ext of builtIn.extensions) {
-        const tag = builtIn.granularity === 'extension'
-          ? ` [${ext.enabled ? 'on' : 'off'}]`
-          : '';
-        lines.push(`  - ${ext.kind}:${qualifiedExtensionId(builtIn.id, ext.id)}@${ext.version}${tag}`);
-      }
-      this.context.stdout.write(lines.join('\n') + '\n');
-      return ExitCode.Ok;
-    }
-
-    const lines = [
-      `id:           ${match!.id}`,
-      `path:         ${match!.path}`,
-      `status:       ${match!.status}`,
-      `version:      ${match!.manifest?.version ?? '?'}`,
-      `compat:       ${match!.manifest?.specCompat ?? '?'}`,
-      `granularity:  ${match!.granularity ?? '(unknown — manifest invalid)'}`,
-    ];
-    if (match!.manifest?.description) lines.push(`summary:      ${match!.manifest.description}`);
-    if (match!.reason) lines.push(`reason:       ${match!.reason}`);
-    if (match!.extensions && match!.extensions.length > 0) {
-      lines.push('extensions:');
-      for (const ext of match!.extensions) {
-        // Show the qualified id (`<pluginId>/<id>`) so the rendered
-        // identifier matches the registry key — what the user pastes
-        // into `defaultRefreshAction` or future `composes[]`.
-        lines.push(`  - ${ext.kind}:${ext.pluginId}/${ext.id}@${ext.version}`);
-      }
-    }
+    const lines = builtIn
+      ? renderBuiltInDetail(builtIn)
+      : renderPluginDetail(match!);
     this.context.stdout.write(lines.join('\n') + '\n');
     return ExitCode.Ok;
   }
+}
+
+/** Detail rendering for one built-in bundle (header + extensions list). */
+function renderBuiltInDetail(builtIn: IBuiltInBundleRow): string[] {
+  const lines = [
+    `id:           ${builtIn.id}`,
+    `path:         (built-in)`,
+    `status:       ${builtIn.enabled ? 'enabled' : 'disabled'}`,
+    `granularity:  ${builtIn.granularity}`,
+    'extensions:',
+  ];
+  for (const ext of builtIn.extensions) {
+    const tag = builtIn.granularity === 'extension'
+      ? ` [${ext.enabled ? 'on' : 'off'}]`
+      : '';
+    lines.push(`  - ${ext.kind}:${qualifiedExtensionId(builtIn.id, ext.id)}@${ext.version}${tag}`);
+  }
+  return lines;
+}
+
+/** Detail rendering for one user plugin (manifest + extensions list). */
+function renderPluginDetail(match: IDiscoveredPlugin): string[] {
+  const lines = [
+    `id:           ${match.id}`,
+    `path:         ${match.path}`,
+    `status:       ${match.status}`,
+    `version:      ${match.manifest?.version ?? '?'}`,
+    `compat:       ${match.manifest?.specCompat ?? '?'}`,
+    `granularity:  ${match.granularity ?? '(unknown — manifest invalid)'}`,
+  ];
+  if (match.manifest?.description) lines.push(`summary:      ${match.manifest.description}`);
+  if (match.reason) lines.push(`reason:       ${match.reason}`);
+  if (match.extensions && match.extensions.length > 0) {
+    lines.push('extensions:');
+    for (const ext of match.extensions) {
+      lines.push(`  - ${ext.kind}:${ext.pluginId}/${ext.id}@${ext.version}`);
+    }
+  }
+  return lines;
 }
 
 // --- applicableKinds doctor warnings (Spec § A.10) -----------------------

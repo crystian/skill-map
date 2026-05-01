@@ -188,6 +188,11 @@ export class DbResetCommand extends Command {
     description: 'Preview the reset without dropping any tables or unlinking any files.',
   });
 
+  // CLI orchestrator: --state vs --hard flag combo + --dry-run + --yes
+  // confirm + per-mode actions. The early-return chain is the clearest
+  // expression of the flag semantics; splitting per branch would
+  // distance the validations from their guards.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     if (this.state && this.hard) {
       this.context.stderr.write(DB_TEXTS.resetStateAndHardMutex);
@@ -393,6 +398,12 @@ export class DbMigrateCommand extends Command {
   kernelOnly = Option.Boolean('--kernel-only', false);
   pluginId = Option.String('--plugin', { required: false });
 
+  // Multi-flag CLI orchestrator: validates flag combos, optionally
+  // discovers plugins, fans out into status / apply branches against
+  // both the kernel ledger and per-plugin ledgers. Splitting per branch
+  // would scatter the close-to-call-site flag handling without making
+  // the verb easier to follow.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     if (this.kernelOnly && this.pluginId !== undefined) {
       this.context.stderr.write('--kernel-only and --plugin are mutually exclusive.\n');

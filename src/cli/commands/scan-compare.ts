@@ -211,6 +211,10 @@ function loadAndValidateDump(path: string): ScanResult {
   return result.data;
 }
 
+// Three parallel sections (nodes / links / issues), each guarded by
+// "any items?" + per-side added/removed/changed loops. Splitting per
+// section would multiply boilerplate without improving readability.
+// eslint-disable-next-line complexity
 function renderDeltaHuman(delta: IScanDelta): string {
   const out: string[] = [];
   const totalAdded = delta.nodes.added.length + delta.links.added.length + delta.issues.added.length;

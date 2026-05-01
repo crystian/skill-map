@@ -122,6 +122,27 @@ export class ShowCommand extends Command {
 
 // --- human renderer -------------------------------------------------------
 
+/**
+ * Render one "Links out" / "Links in" section: aggregated count
+ * header, `(none)` placeholder, or one line per grouped link with the
+ * directional arrow. Used for both directions in `renderHuman`.
+ */
+function renderLinksSection(
+  label: string,
+  links: Link[],
+  projectField: 'target' | 'source',
+  arrow: '→' | '←',
+): string[] {
+  const aggregated = aggregateLinks(links, projectField);
+  const lines: string[] = ['', `${label} (${links.length}, ${aggregated.length} unique):`];
+  if (aggregated.length === 0) {
+    lines.push('  (none)');
+  } else {
+    for (const grp of aggregated) lines.push(formatGroupedLink(arrow, grp));
+  }
+  return lines;
+}
+
 function renderHuman(doc: IShowDocument): string {
   const { node, linksOut, linksIn, issues } = doc;
   const out: string[] = [];
@@ -158,25 +179,8 @@ function renderHuman(doc: IShowDocument): string {
   // duplicated rows. The total row count is preserved in the header
   // so authors notice when N extractors emit the same link. `--json`
   // output stays raw for machines (no behavioural change).
-  const aggregatedOut = aggregateLinks(linksOut, 'target');
-  out.push('', `Links out (${linksOut.length}, ${aggregatedOut.length} unique):`);
-  if (aggregatedOut.length === 0) {
-    out.push('  (none)');
-  } else {
-    for (const grp of aggregatedOut) {
-      out.push(formatGroupedLink('→', grp));
-    }
-  }
-
-  const aggregatedIn = aggregateLinks(linksIn, 'source');
-  out.push('', `Links in (${linksIn.length}, ${aggregatedIn.length} unique):`);
-  if (aggregatedIn.length === 0) {
-    out.push('  (none)');
-  } else {
-    for (const grp of aggregatedIn) {
-      out.push(formatGroupedLink('←', grp));
-    }
-  }
+  out.push(...renderLinksSection('Links out', linksOut, 'target', '→'));
+  out.push(...renderLinksSection('Links in', linksIn, 'source', '←'));
 
   out.push('', `Issues (${issues.length}):`);
   if (issues.length === 0) {

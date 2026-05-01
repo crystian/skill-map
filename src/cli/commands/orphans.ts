@@ -257,6 +257,12 @@ export class OrphansUndoRenameCommand extends Command {
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
+    // Destructive verb: validates the active rename issue, resolves
+    // `from`, confirms (unless --force), runs the FK migration in a
+    // transaction. Multi-branch validation by issue ruleId is intrinsic
+    // to the contract; splitting per branch would distance the guards
+    // from the resolved `from` they assemble.
+    // eslint-disable-next-line complexity
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Find the active auto-rename-medium / -ambiguous issue on <new.path>.
       const candidates = await findActiveIssues(adapter.db, (issue) => {

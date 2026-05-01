@@ -175,6 +175,10 @@ export interface IPluginApplyOptions {
  * inserted in the same transaction so a partial failure rolls back
  * cleanly.
  */
+// Plugin migration runner — same shape as `applyMigrations` (per-file
+// transactional apply with rollback) plus the plugin-id ledger
+// scoping. Branching is intrinsic to the safe-apply contract.
+// eslint-disable-next-line complexity
 export function applyPluginMigrations(
   db: DatabaseSync,
   plugin: IDiscoveredPlugin,

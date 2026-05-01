@@ -112,6 +112,12 @@ export class HistoryCommand extends Command {
   json = Option.Boolean('--json', false);
   quiet = Option.Boolean('--quiet', false);
 
+  // CLI list verb: many optional filter flags (`--node`, `--action`,
+  // `--status`, `--since`, `--until`, `--limit`, `--json`, `--quiet`)
+  // each adding a guarded mutation to the filter or render path. Each
+  // branch is single-purpose; splitting per flag would distance the
+  // validations from the filter they shape.
+  // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const elapsed = startElapsed();
 

@@ -154,6 +154,11 @@ export function planMigrations(
  * `BEGIN / COMMIT` transaction; failure rolls back and throws, leaving
  * the DB and ledger in the last good state.
  */
+// Migration runner with backup + dry-run + per-file transactional
+// apply. Each guard (`backup` / `dryRun` / `to` / per-file try/catch)
+// is one branch; the file-by-file loop with rollback is the natural
+// shape of "apply N migrations safely".
+// eslint-disable-next-line complexity
 export function applyMigrations(
   db: DatabaseSync,
   dbPath: string,
