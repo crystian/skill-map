@@ -26,7 +26,6 @@ import { Command, Option } from 'clipanion';
 import { createKernel, runScanWithRenames } from '../../kernel/index.js';
 import { builtIns, listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { persistScanResult } from '../../kernel/adapters/sqlite/scan-persistence.js';
 import {
   buildIgnoreFilter,
   loadBundledIgnoreText,
@@ -286,7 +285,7 @@ async function runFirstScan(
   }
 
   await withSqlite({ databasePath: dbPath, autoBackup: false }, (adapter) =>
-    persistScanResult(adapter.db, result, renameOps, extractorRuns, enrichments),
+    adapter.scans.persist(result, { renameOps, extractorRuns, enrichments }),
   );
 
   stdout.write(

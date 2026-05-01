@@ -63,7 +63,18 @@ import type {
   THistoryStatsPeriod,
 } from './history.js';
 import { listOrphanJobFiles, pruneTerminalJobs } from './jobs.js';
-import { applyMigrations, discoverMigrations } from './migrations.js';
+import {
+  applyMigrations,
+  discoverMigrations,
+  planMigrations,
+  writeBackup,
+} from './migrations.js';
+import {
+  applyPluginMigrations,
+  discoverPluginMigrations,
+  planPluginMigrations,
+  resolvePluginMigrationsDir,
+} from './plugin-migrations.js';
 import {
   deletePluginOverride,
   getPluginEnabled,
@@ -144,6 +155,8 @@ export class SqliteStorageAdapter implements StoragePort {
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
   pluginConfig!: StoragePort['pluginConfig'];
+  migrations!: StoragePort['migrations'];
+  pluginMigrations!: StoragePort['pluginMigrations'];
 
   constructor(options: ISqliteStorageAdapterOptions) {
     this.#options = options;
@@ -263,6 +276,31 @@ export class SqliteStorageAdapter implements StoragePort {
       list: () => listPluginOverrides(this.db),
       delete: (pluginId) => deletePluginOverride(this.db, pluginId),
       loadOverrideMap: () => loadPluginOverrideMap(this.db),
+    };
+
+    const path = this.#options.databasePath;
+
+    this.migrations = {
+      discover: () => discoverMigrations(),
+      plan: (files) => withRawDb(path, (raw) => planMigrations(raw, files)),
+      apply: (options, files) =>
+        withRawDb(path, (raw) => {
+          raw.exec('PRAGMA foreign_keys = ON');
+          return applyMigrations(raw, path, options, files);
+        }),
+      writeBackup: (targetVersion) => writeBackup(path, targetVersion),
+    };
+
+    this.pluginMigrations = {
+      resolveDir: (plugin) => resolvePluginMigrationsDir(plugin),
+      discover: (plugin) => discoverPluginMigrations(plugin),
+      plan: (plugin, files) =>
+        withRawDb(path, (raw) => planPluginMigrations(raw, plugin, files)),
+      apply: (plugin, options, files) =>
+        withRawDb(path, (raw) => {
+          raw.exec('PRAGMA foreign_keys = ON');
+          return applyPluginMigrations(raw, plugin, options, files);
+        }),
     };
   }
 }
@@ -531,6 +569,23 @@ async function listTerminalCandidates(
       .map((r) => r.filePath)
       .filter((p): p is string => p !== null),
   };
+}
+
+/**
+ * Open a raw `node:sqlite` handle for migration runs, invoke `fn`,
+ * and close it. Each port-method call gets its own handle (the
+ * verb's per-method calls are infrequent, so the open/close
+ * overhead is negligible). The synchronous `fn` matches the
+ * underlying free functions, which run BEGIN/COMMIT on the raw
+ * handle directly per `migrations.ts` / `plugin-migrations.ts`.
+ */
+function withRawDb<T>(path: string, fn: (raw: DatabaseSync) => T): T {
+  const raw = new DatabaseSync(path);
+  try {
+    return fn(raw);
+  } finally {
+    raw.close();
+  }
 }
 
 // `IExtractorRunRecord` re-exported for adapter consumers that don't

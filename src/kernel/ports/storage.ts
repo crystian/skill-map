@@ -44,6 +44,19 @@ import type {
 } from '../adapters/sqlite/jobs.js';
 import type { IPluginConfigRow } from '../adapters/sqlite/plugins.js';
 import type {
+  IApplyOptions,
+  IApplyResult,
+  IMigrationFile,
+  IMigrationPlan,
+} from '../adapters/sqlite/migrations.js';
+import type {
+  IPluginApplyOptions,
+  IPluginApplyResult,
+  IPluginMigrationFile,
+  IPluginMigrationPlan,
+} from '../adapters/sqlite/plugin-migrations.js';
+import type { IDiscoveredPlugin } from './plugin-loader.js';
+import type {
   IIssueRow,
   INodeBundle,
   INodeCounts,
@@ -226,6 +239,48 @@ export interface StoragePort {
         rangeMs: { sinceMs: number | null; untilMs: number };
       }
     >;
+  };
+
+  // --- migrations namespace (sm db verb) --------------------------------
+  migrations: {
+    /** Enumerate kernel migration files bundled with this build. */
+    discover(): IMigrationFile[];
+    /**
+     * Compute the apply / pending plan against the current `config_
+     * schema_versions` ledger. Read-only; safe under `--dry-run`.
+     */
+    plan(files?: IMigrationFile[]): IMigrationPlan;
+    /**
+     * Apply pending migrations in order. Each runs inside its own
+     * `BEGIN/COMMIT` (per `kernel/adapters/sqlite/migrations.ts`); a
+     * partial failure rolls back to the prior state. Returns the
+     * applied list + backup path (when `backup: true`).
+     */
+    apply(options?: IApplyOptions, files?: IMigrationFile[]): IApplyResult;
+    /** WAL-checkpoint + file copy of the DB to `backups/`; returns the path. */
+    writeBackup(targetVersion: number): string | null;
+  };
+
+  // --- pluginMigrations namespace (sm db verb, per-plugin) --------------
+  pluginMigrations: {
+    /** Path to the plugin's `migrations/` directory, or `null` when absent. */
+    resolveDir(plugin: IDiscoveredPlugin): string | null;
+    /** Discover the plugin's migration files. */
+    discover(plugin: IDiscoveredPlugin): IPluginMigrationFile[];
+    /**
+     * Plan against `config_schema_versions` for the plugin's
+     * `(scope='plugin', ownerId=plugin.id)`.
+     */
+    plan(
+      plugin: IDiscoveredPlugin,
+      files?: IPluginMigrationFile[],
+    ): IPluginMigrationPlan;
+    /** Apply pending plugin migrations. Same per-file BEGIN/COMMIT pattern. */
+    apply(
+      plugin: IDiscoveredPlugin,
+      options?: IPluginApplyOptions,
+      files?: IPluginMigrationFile[],
+    ): IPluginApplyResult;
   };
 
   // --- transactions ------------------------------------------------------

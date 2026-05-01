@@ -26,17 +26,8 @@ import { DB_TEXTS } from '../i18n/db.texts.js';
 
 import { Command, Option } from 'clipanion';
 
-import {
-  applyMigrations,
-  discoverMigrations,
-  planMigrations,
-  writeBackup,
-} from '../../kernel/adapters/sqlite/migrations.js';
-import {
-  applyPluginMigrations,
-  planPluginMigrations,
-  type IPluginApplyResult,
-} from '../../kernel/adapters/sqlite/plugin-migrations.js';
+import { SqliteStorageAdapter } from '../../kernel/adapters/sqlite/index.js';
+import type { IPluginApplyResult } from '../../kernel/adapters/sqlite/plugin-migrations.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -415,10 +406,19 @@ export class DbMigrateCommand extends Command {
 
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
 
-    const files = discoverMigrations();
-    const raw = new DatabaseSync(path);
+    // `autoMigrate: false` keeps the adapter from running migrations
+    // on init() — the verb itself orchestrates the apply (or skips it
+    // for `--status` / `--dry-run`). The migrations namespace's
+    // methods open their own short-lived raw `DatabaseSync` handles
+    // internally; the adapter's Kysely connection is unused by this
+    // verb.
+    const adapter = new SqliteStorageAdapter({
+      databasePath: path,
+      autoMigrate: false,
+    });
+    await adapter.init();
     try {
-      raw.exec('PRAGMA foreign_keys = ON');
+      const files = adapter.migrations.discover();
 
       // --- discover plugins for everything but --kernel-only -----------
       // We always need the plugin set for `--status` and the apply path
@@ -447,7 +447,7 @@ export class DbMigrateCommand extends Command {
       // --- status branch (read-only summary) ---------------------------
       if (this.status) {
         if (!this.pluginId) {
-          const plan = planMigrations(raw, files);
+          const plan = adapter.migrations.plan(files);
           this.context.stdout.write(
             tx(DB_TEXTS.migrateStatusKernelHeader, {
               applied: plan.applied.length, pending: plan.pending.length,
@@ -466,7 +466,7 @@ export class DbMigrateCommand extends Command {
         }
         if (!this.kernelOnly) {
           for (const plugin of targetedPlugins) {
-            const plan = planPluginMigrations(raw, plugin);
+            const plan = adapter.pluginMigrations.plan(plugin);
             this.context.stdout.write(
               tx(DB_TEXTS.migrateStatusPluginHeader, {
                 pluginId: plugin.id,
@@ -516,7 +516,7 @@ export class DbMigrateCommand extends Command {
         };
         if (toValue !== undefined) options.to = toValue;
 
-        const result = applyMigrations(raw, path, options, files);
+        const result = adapter.migrations.apply(options, files);
         kernelApplied = result.applied.length;
         backupPath = result.backupPath;
 
@@ -543,7 +543,7 @@ export class DbMigrateCommand extends Command {
       // --- plugin pass --------------------------------------------------
       if (!this.kernelOnly) {
         const exitCode = await runPluginMigrations({
-          db: raw,
+          adapter,
           plugins: targetedPlugins,
           dryRun: this.dryRun,
           stdout: this.context.stdout,
@@ -554,13 +554,13 @@ export class DbMigrateCommand extends Command {
 
       return ExitCode.Ok;
     } finally {
-      raw.close();
+      await adapter.close();
     }
   }
 }
 
 interface IRunPluginMigrationsOpts {
-  db: DatabaseSync;
+  adapter: SqliteStorageAdapter;
   plugins: IDiscoveredPlugin[];
   dryRun: boolean;
   stdout: NodeJS.WritableStream;
@@ -576,12 +576,12 @@ interface IRunPluginMigrationsOpts {
  * silently revert, surface the breach loud and clear.
  */
 async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<number> {
-  const { db, plugins, dryRun, stdout, stderr } = opts;
+  const { adapter, plugins, dryRun, stdout, stderr } = opts;
   let exit = 0;
   for (const plugin of plugins) {
     let result: IPluginApplyResult;
     try {
-      result = applyPluginMigrations(db, plugin, { dryRun });
+      result = adapter.pluginMigrations.apply(plugin, { dryRun });
     } catch (err) {
       const reason = formatErrorMessage(err);
       stderr.write(`plugin ${plugin.id} · ${reason}\n`);

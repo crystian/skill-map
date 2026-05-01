@@ -109,7 +109,14 @@ export { parseExportQuery, applyExportQuery, ExportQueryError } from './scan/que
 export type { IExportQuery, IExportSubset } from './scan/query.js';
 
 // --- ports (./ports/...) -----------------------------------------------
-export type { StoragePort } from './ports/storage.js';
+export type { ITransactionalStorage, StoragePort } from './ports/storage.js';
+export type {
+  IIssueRow,
+  INodeBundle,
+  INodeCounts,
+  INodeFilter,
+  IPersistOptions,
+} from './types/storage.js';
 export type { FilesystemPort, NodeStat, WalkOptions } from './ports/filesystem.js';
 export type {
   PluginLoaderPort,
