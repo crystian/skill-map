@@ -117,7 +117,13 @@ describe('SqliteStorageAdapter', () => {
     }
   });
 
-  it('rejects CHECK constraint violations at the DB layer', async () => {
+  it('rejects CHECK constraint violations at the DB layer (stability whitelist)', async () => {
+    // Post-`003_open_node_kinds.sql`, `kind` is open string at the DB
+    // layer too — only `stability` keeps a CHECK whitelist on
+    // `scan_nodes`. Use that one to prove the CHECK mechanism still
+    // bites for the constraints that remain. (The kind CHECK was
+    // dropped intentionally; an external Provider must be able to
+    // persist its own kinds.)
     const path = freshDbPath('ck-violation');
     const adapter = new SqliteStorageAdapter({ databasePath: path });
     await adapter.init();
@@ -127,8 +133,9 @@ describe('SqliteStorageAdapter', () => {
           .insertInto('scan_nodes')
           .values({
             path: 'x.md',
-            kind: 'not-a-kind' as never,
-            provider: 'claude',
+            kind: 'cursorRule',
+            provider: 'cursor',
+            stability: 'not-a-stability' as never,
             frontmatterJson: '{}',
             bodyHash: 'a'.repeat(64),
             frontmatterHash: 'b'.repeat(64),
@@ -139,6 +146,41 @@ describe('SqliteStorageAdapter', () => {
           })
           .execute();
       }, /CHECK constraint failed/);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('accepts external-Provider kinds (open kind contract, post-002)', async () => {
+    // Companion to the test above: the kind CHECK is gone (003), so
+    // a row with `kind: 'cursorRule'` (no built-in Provider classifies
+    // into it) MUST persist successfully. This is the spec § Phase 3
+    // promise the open-node-kinds refactor honours.
+    const path = freshDbPath('open-kind-accept');
+    const adapter = new SqliteStorageAdapter({ databasePath: path });
+    await adapter.init();
+    try {
+      await adapter.db
+        .insertInto('scan_nodes')
+        .values({
+          path: 'cursor/rule.md',
+          kind: 'cursorRule',
+          provider: 'cursor',
+          frontmatterJson: '{}',
+          bodyHash: 'a'.repeat(64),
+          frontmatterHash: 'b'.repeat(64),
+          bytesFrontmatter: 0,
+          bytesBody: 0,
+          bytesTotal: 0,
+          scannedAt: Date.now(),
+        })
+        .execute();
+      const row = await adapter.db
+        .selectFrom('scan_nodes')
+        .selectAll()
+        .where('path', '=', 'cursor/rule.md')
+        .executeTakeFirst();
+      strictEqual(row?.kind, 'cursorRule');
     } finally {
       await adapter.close();
     }
