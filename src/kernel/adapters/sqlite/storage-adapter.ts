@@ -65,6 +65,13 @@ import type {
 import { listOrphanJobFiles, pruneTerminalJobs } from './jobs.js';
 import { applyMigrations, discoverMigrations } from './migrations.js';
 import {
+  deletePluginOverride,
+  getPluginEnabled,
+  listPluginOverrides,
+  loadPluginOverrideMap,
+  setPluginEnabled,
+} from './plugins.js';
+import {
   loadExtractorRuns,
   loadNodeEnrichments,
   loadScanResult,
@@ -136,6 +143,7 @@ export class SqliteStorageAdapter implements StoragePort {
   issues!: StoragePort['issues'];
   history!: StoragePort['history'];
   jobs!: StoragePort['jobs'];
+  pluginConfig!: StoragePort['pluginConfig'];
 
   constructor(options: ISqliteStorageAdapterOptions) {
     this.#options = options;
@@ -247,6 +255,14 @@ export class SqliteStorageAdapter implements StoragePort {
       listTerminalCandidates: (status, cutoffMs) =>
         listTerminalCandidates(this.db, status, cutoffMs),
       listOrphanFiles: (jobsDir) => listOrphanJobFiles(this.db, jobsDir),
+    };
+
+    this.pluginConfig = {
+      set: (pluginId, enabled) => setPluginEnabled(this.db, pluginId, enabled),
+      get: (pluginId) => getPluginEnabled(this.db, pluginId),
+      list: () => listPluginOverrides(this.db),
+      delete: (pluginId) => deletePluginOverride(this.db, pluginId),
+      loadOverrideMap: () => loadPluginOverrideMap(this.db),
     };
   }
 }

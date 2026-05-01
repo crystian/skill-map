@@ -45,7 +45,6 @@ import {
   type IPluginLoaderOptions,
 } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
-import { loadPluginOverrideMap } from '../../kernel/adapters/sqlite/plugins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
 import { qualifiedExtensionId } from '../../kernel/registry.js';
@@ -430,7 +429,7 @@ async function buildEnabledResolver(
   const dbOverrides =
     (await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
-      (adapter) => loadPluginOverrideMap(adapter.db),
+      (adapter) => adapter.pluginConfig.loadOverrideMap(),
     )) ?? new Map<string, boolean>();
   return makeEnabledResolver(cfg, dbOverrides);
 }

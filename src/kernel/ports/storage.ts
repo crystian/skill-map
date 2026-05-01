@@ -42,6 +42,7 @@ import type {
   IOrphanFilesResult,
   IPruneResult,
 } from '../adapters/sqlite/jobs.js';
+import type { IPluginConfigRow } from '../adapters/sqlite/plugins.js';
 import type {
   IIssueRow,
   INodeBundle,
@@ -153,6 +154,27 @@ export interface StoragePort {
   // canonical caller and it always wraps in a tx. A non-transactional
   // read shape lands when a non-refresh consumer surfaces; the
   // contract starts minimal on purpose.
+
+  // --- pluginConfig namespace -------------------------------------------
+  pluginConfig: {
+    /**
+     * Upsert the per-plugin enabled override into `config_plugins`.
+     * Caller is `sm plugins enable / disable`.
+     */
+    set(pluginId: string, enabled: boolean): Promise<void>;
+    /** Read a single override; `undefined` when no row exists. */
+    get(pluginId: string): Promise<boolean | undefined>;
+    /** Every override row, sorted by `pluginId` for stable rendering. */
+    list(): Promise<IPluginConfigRow[]>;
+    /** Drop a single override row (no-op when absent). */
+    delete(pluginId: string): Promise<void>;
+    /**
+     * Load every override into a map for quick lookup by id. Used by
+     * `loadPluginRuntime` to layer the DB overrides over the
+     * `settings.json` defaults at scan boot.
+     */
+    loadOverrideMap(): Promise<Map<string, boolean>>;
+  };
 
   // --- jobs namespace ----------------------------------------------------
   jobs: {

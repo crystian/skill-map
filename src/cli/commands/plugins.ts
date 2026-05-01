@@ -50,9 +50,6 @@ import {
 } from '../../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import {
-  deletePluginOverride,
-  loadPluginOverrideMap,
-  setPluginEnabled,
 } from '../../kernel/adapters/sqlite/plugins.js';
 import { loadConfig } from '../../kernel/config/loader.js';
 import { makeEnabledResolver } from '../../kernel/config/plugin-resolver.js';
@@ -103,7 +100,7 @@ async function buildResolver(global: boolean): Promise<(id: string) => boolean> 
   const dbOverrides =
     (await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
-      (adapter) => loadPluginOverrideMap(adapter.db),
+      (adapter) => adapter.pluginConfig.loadOverrideMap(),
     )) ?? new Map<string, boolean>();
   return makeEnabledResolver(cfg, dbOverrides);
 }
@@ -812,7 +809,7 @@ abstract class TogglePluginsBase extends Command {
     const dbPath = resolveDbPath(this.global);
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       for (const id of targets) {
-        await setPluginEnabled(adapter.db, id, enabled);
+        await adapter.pluginConfig.set(id, enabled);
       }
     });
 
@@ -876,8 +873,8 @@ export class PluginsDisableCommand extends TogglePluginsBase {
   }
 }
 
-/* deletePluginOverride is kept available for sm config reset to use later. */
-void deletePluginOverride;
+/* `port.pluginConfig.delete` is on the StoragePort surface, kept
+ * available for `sm config reset` once that verb lands. */
 
 /**
  * JSON-serializer replacer: the ILoadedExtension.module field is a live
