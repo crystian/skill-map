@@ -54,7 +54,6 @@ import type {
   LinkLocation,
   LinkTrigger,
   Node,
-  NodeKind,
   ScanResult,
   ScanScannedBy,
   Severity,
@@ -153,7 +152,7 @@ export function rowToNode(row: Selectable<IScanNodesTable>): Node {
   };
   const node: Node = {
     path: row.path,
-    kind: row.kind as NodeKind,
+    kind: row.kind,
     provider: row.provider,
     bodyHash: row.bodyHash,
     frontmatterHash: row.frontmatterHash,

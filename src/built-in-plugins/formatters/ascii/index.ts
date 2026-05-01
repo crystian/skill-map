@@ -24,10 +24,13 @@
  */
 
 import type { IFormatter, IFormatterContext } from '../../../kernel/extensions/index.js';
-import type { NodeKind } from '../../../kernel/types.js';
 
 const ID = 'ascii';
-const KIND_ORDER: NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'];
+// Built-in Claude Provider catalog rendered first, in this canonical
+// order. Anything else (`'cursorRule'`, `'daily'`, … from external
+// Providers) is rendered after, sorted alphabetically — the formatter
+// no longer assumes the closed enum and the order stays deterministic.
+const KIND_ORDER: readonly string[] = ['agent', 'command', 'hook', 'skill', 'note'];
 
 export const asciiFormatter: IFormatter = {
   id: ID,
@@ -49,23 +52,31 @@ export const asciiFormatter: IFormatter = {
       '',
     );
 
-    // Group nodes by kind.
-    const byKind = new Map<NodeKind, typeof ctx.nodes>();
+    // Group nodes by kind. `kind` is an open string — the formatter
+    // accepts whatever an enabled Provider classified into.
+    const byKind = new Map<string, typeof ctx.nodes>();
     for (const node of ctx.nodes) {
       if (!byKind.has(node.kind)) byKind.set(node.kind, []);
       byKind.get(node.kind)!.push(node);
     }
 
+    // Built-in Claude catalog first in canonical order, then any extra
+    // kinds an external Provider emitted, sorted alphabetically so the
+    // output stays deterministic across runs.
+    const renderedKinds = new Set<string>();
     for (const kind of KIND_ORDER) {
       const group = byKind.get(kind);
       if (!group || group.length === 0) continue;
-      const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
-      out.push(`## ${kind} (${sorted.length})`);
-      for (const node of sorted) {
-        const title = pickTitle(node);
-        out.push(`- ${node.path}${title ? ` — "${title}"` : ''}`);
-      }
-      out.push('');
+      renderSection(out, kind, group);
+      renderedKinds.add(kind);
+    }
+    const extraKinds = [...byKind.keys()]
+      .filter((k) => !renderedKinds.has(k))
+      .sort();
+    for (const kind of extraKinds) {
+      const group = byKind.get(kind);
+      if (!group || group.length === 0) continue;
+      renderSection(out, kind, group);
     }
 
     if (ctx.links.length > 0) {
@@ -99,4 +110,18 @@ function pickTitle(node: { title?: string | null; frontmatter?: Record<string, u
   if (node.title) return node.title;
   const name = node.frontmatter?.['name'];
   return typeof name === 'string' ? name : null;
+}
+
+function renderSection(
+  out: string[],
+  kind: string,
+  group: ReadonlyArray<{ path: string; title?: string | null; frontmatter?: Record<string, unknown> }>,
+): void {
+  const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
+  out.push(`## ${kind} (${sorted.length})`);
+  for (const node of sorted) {
+    const title = pickTitle(node);
+    out.push(`- ${node.path}${title ? ` — "${title}"` : ''}`);
+  }
+  out.push('');
 }

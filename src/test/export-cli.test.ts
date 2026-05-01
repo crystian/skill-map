@@ -186,8 +186,16 @@ describe('parseExportQuery', () => {
     throws(() => parseExportQuery('confidence=high'), /unknown key "confidence"/);
   });
 
-  it('rejects unknown kind value', () => {
-    throws(() => parseExportQuery('kind=widget'), /not a valid node kind/);
+  it('accepts arbitrary kind tokens (open-by-design — external Providers may emit their own kinds)', () => {
+    // Per `node.schema.json#/properties/kind`, kinds are an open
+    // string. The parser no longer rejects unknown tokens — it only
+    // requires non-empty values. `kind=widget` is structurally valid;
+    // it simply matches zero nodes when no Provider classifies into
+    // `widget`. (The upstream value-list splitter already drops
+    // whitespace/empty entries, so `kind=,skill` is equivalent to
+    // `kind=skill` rather than an error.)
+    const q = parseExportQuery('kind=widget');
+    deepStrictEqual(q.kinds, ['widget']);
   });
 
   it('rejects unknown has value', () => {
@@ -376,10 +384,15 @@ describe('sm export', () => {
     match(cap.stderr(), /Supported: json, md/);
   });
 
-  it('invalid query → exit 2 with parser hint', async () => {
-    const fixture = freshFixture('export-bad-query');
+  it('arbitrary kind token → exit 0, zero nodes match (open-by-design)', async () => {
+    // Post-refactor `kind=widget` is a valid query (kinds are open
+    // string); it simply matches zero nodes since no Provider
+    // classifies into `widget`. Previous behavior (exit 2 with
+    // "not a valid node kind") is gone — parser no longer enforces
+    // a closed enum.
+    const fixture = freshFixture('export-open-kind');
     plantMixedFixture(fixture);
-    const dbPath = freshDbPath('export-bad-query');
+    const dbPath = freshDbPath('export-open-kind');
     await primeDb(fixture, dbPath);
 
     const cap = captureContext();
@@ -387,8 +400,24 @@ describe('sm export', () => {
     cmd.context = cap.context;
     const code = await cmd.execute();
 
+    strictEqual(code, 0);
+  });
+
+  it('truly malformed query → exit 2 with parser hint', async () => {
+    // Empty key=value pairs and unknown keys still fail the parser;
+    // only the closed-kind enum was lifted.
+    const fixture = freshFixture('export-bad-query');
+    plantMixedFixture(fixture);
+    const dbPath = freshDbPath('export-bad-query');
+    await primeDb(fixture, dbPath);
+
+    const cap = captureContext();
+    const cmd = buildExport({ query: 'confidence=high', db: dbPath });
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+
     strictEqual(code, 2);
-    match(cap.stderr(), /not a valid node kind/);
+    match(cap.stderr(), /unknown key/);
   });
 
   it('missing DB → exit 5', async () => {

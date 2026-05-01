@@ -27,14 +27,17 @@ import {
   parseExportQuery,
 } from '../../kernel/scan/query.js';
 import type { IExportSubset } from '../../kernel/scan/query.js';
-import type { Issue, Link, Node, NodeKind } from '../../kernel/types.js';
+import type { Issue, Link, Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tx } from '../../kernel/util/tx.js';
 import { EXPORT_TEXTS } from '../i18n/export.texts.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
-const KIND_ORDER: NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'];
+// Built-in Claude Provider catalog rendered first, in this canonical
+// order. External Providers may emit additional kinds; those are
+// rendered after, sorted alphabetically (see `renderNodesByKindSection`).
+const KIND_ORDER: readonly string[] = ['agent', 'command', 'hook', 'skill', 'note'];
 const SUPPORTED_FORMATS = ['json', 'md'] as const;
 const DEFERRED_FORMATS: Record<string, string> = {
   mermaid: 'lands at Step 12 with the mermaid formatter',
@@ -122,7 +125,7 @@ export class ExportCommand extends Command {
 
 function serialiseSubset(subset: IExportSubset): {
   query: string;
-  filters: { kinds?: NodeKind[]; hasIssues?: boolean; pathGlobs?: string[] };
+  filters: { kinds?: string[]; hasIssues?: boolean; pathGlobs?: string[] };
   counts: { nodes: number; links: number; issues: number };
   nodes: Node[];
   links: Link[];
@@ -206,23 +209,42 @@ function renderNodesByKindSection(
   nodes: Node[],
   issuesPerNode: Map<string, number>,
 ): string[] {
-  const byKind = new Map<NodeKind, Node[]>();
+  const byKind = new Map<string, Node[]>();
   for (const node of nodes) {
     if (!byKind.has(node.kind)) byKind.set(node.kind, []);
     byKind.get(node.kind)!.push(node);
   }
 
+  // Built-in Claude catalog first in canonical order; external-Provider
+  // kinds appended after, alphabetically sorted, so the output is
+  // deterministic across runs even with arbitrary kind sets.
   const lines: string[] = [];
-  for (const kind of KIND_ORDER) {
+  const renderedKinds = new Set<string>();
+  const orderedKinds: string[] = [
+    ...KIND_ORDER,
+    ...[...byKind.keys()].filter((k) => !KIND_ORDER.includes(k)).sort(),
+  ];
+  for (const kind of orderedKinds) {
+    if (renderedKinds.has(kind)) continue;
     const group = byKind.get(kind);
     if (!group || group.length === 0) continue;
-    const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
-    lines.push(`## ${kind} (${sorted.length})`);
-    lines.push('');
-    for (const node of sorted) lines.push(renderNodeBullet(node, issuesPerNode));
-    lines.push('');
+    appendKindSection(lines, kind, group, issuesPerNode);
+    renderedKinds.add(kind);
   }
   return lines;
+}
+
+function appendKindSection(
+  lines: string[],
+  kind: string,
+  group: Node[],
+  issuesPerNode: Map<string, number>,
+): void {
+  const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
+  lines.push(`## ${kind} (${sorted.length})`);
+  lines.push('');
+  for (const node of sorted) lines.push(renderNodeBullet(node, issuesPerNode));
+  lines.push('');
 }
 
 /** Render one node as a markdown bullet, with optional title + issue count. */

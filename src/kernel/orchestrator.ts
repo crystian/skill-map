@@ -71,7 +71,6 @@ import type {
   Link,
   LinkKind,
   Node,
-  NodeKind,
   ScanResult,
   ScanScannedBy,
   Severity,
@@ -877,7 +876,7 @@ function reusePriorNode(opts: {
  */
 function buildFreshNodeAndValidateFrontmatter(opts: {
   raw: IRawNode;
-  kind: NodeKind;
+  kind: string;
   provider: IProvider;
   bodyHash: string;
   frontmatterHash: string;
@@ -1857,7 +1856,7 @@ function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitte
 function validateFrontmatter(
   providerFrontmatter: IProviderFrontmatterValidator,
   provider: IProvider,
-  kind: NodeKind,
+  kind: string,
   frontmatter: Record<string, unknown>,
   path: string,
   strict: boolean,

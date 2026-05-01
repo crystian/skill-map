@@ -104,8 +104,10 @@ export interface IProvider extends IExtensionBase {
    * because the value space is open by design: a future Cursor Provider
    * could declare `rule`, an Obsidian Provider could declare `daily`.
    * The kernel's hard-coded `NodeKind` union represents the kinds the
-   * built-in Claude Provider emits; widening it is a kernel change, not
-   * a spec change.
+   * built-in Claude Provider emits; it is NOT the kernel-wide kind type
+   * (see `kernel/types.ts:NodeKind` docstring). `Node.kind`, the AJV
+   * `node.schema.json` validator, and the SQLite `scan_nodes.kind`
+   * column all accept any non-empty string an enabled Provider returns.
    */
   kinds: Record<string, IProviderKind>;
 
@@ -130,6 +132,11 @@ export interface IProvider extends IExtensionBase {
    * classifier is called after walk() yields — Providers MAY embed the
    * logic inside walk itself, but exposing it lets the kernel rebuild
    * classification during partial scans without re-walking.
+   *
+   * Returns an open `string`. The returned value MUST be a key of the
+   * Provider's own `kinds` catalog; the orchestrator does not validate
+   * the kind against `NodeKind`. External Providers (Cursor, Obsidian,
+   * …) freely return their own kinds (e.g. `'cursorRule'`, `'daily'`).
    */
-  classify(path: string, frontmatter: Record<string, unknown>): NodeKind;
+  classify(path: string, frontmatter: Record<string, unknown>): string;
 }

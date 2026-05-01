@@ -79,8 +79,8 @@ after(() => {
  */
 function buildProbeExtractor(
   applicableKinds?: NodeKind[],
-): { extractor: IExtractor; seenKinds: NodeKind[] } {
-  const seenKinds: NodeKind[] = [];
+): { extractor: IExtractor; seenKinds: string[] } {
+  const seenKinds: string[] = [];
   const extractor: IExtractor = {
     kind: 'extractor',
     id: 'probe',

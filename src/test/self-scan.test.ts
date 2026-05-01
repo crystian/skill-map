@@ -92,7 +92,13 @@ describe('self-scan acceptance', () => {
     // Tolerated-missing list is the SUBSET of ALL_KINDS that may legitimately
     // be absent today. Any other missing kind is a regression.
     const TOLERATED_MISSING: ReadonlySet<NodeKind> = new Set<NodeKind>(['command', 'hook']);
-    const presentKinds = new Set<NodeKind>(result.nodes.map((n) => n.kind));
+    // `node.kind` is open string post-refactor; the assertion still
+    // runs against the closed `NodeKind` catalog because that's the
+    // built-in Claude Provider's catalog and the only thing this
+    // self-scan should produce. An external Provider showing up here
+    // would itself be a finding worth flagging — `ALL_KINDS.filter`
+    // below ensures it.
+    const presentKinds = new Set<string>(result.nodes.map((n) => n.kind));
     const missingKinds = ALL_KINDS.filter((k) => !presentKinds.has(k));
     const unexpectedMissing = missingKinds.filter((k) => !TOLERATED_MISSING.has(k));
     if (unexpectedMissing.length > 0) {

@@ -53,6 +53,29 @@
  * prefix.
  */
 
+/**
+ * The five node kinds the **built-in Claude Provider** declares — `skill`,
+ * `agent`, `command`, `hook`, `note`. **NOT** the kernel-wide kind type.
+ *
+ * `Node.kind` is `string`. An external Provider (Cursor, Obsidian, …)
+ * MAY classify into its own kinds (e.g. `'cursorRule'`, `'daily'`); the
+ * orchestrator, persistence layer, and AJV `node.schema.json` accept any
+ * non-empty string. Per `spec/db-schema.md` § scan_nodes and
+ * `node.schema.json#/properties/kind`, the contract is open-by-design
+ * (matches `IProvider.kinds` "open by design" docstring).
+ *
+ * This alias survives because:
+ *   - claude-specific code legitimately wants to switch on the five
+ *     hard-coded values (filter widgets, kind-aware UI cards, the
+ *     `validate-all` built-in rule that maps each kind to its
+ *     frontmatter schema);
+ *   - sorting helpers want a stable `KIND_ORDER` for the canonical
+ *     catalog;
+ *   - tests expect to enumerate the five kinds when seeding fixtures.
+ *
+ * For "any kind a Provider could declare", use plain `string`. Only use
+ * `NodeKind` when the code is intentionally claude-catalog-specific.
+ */
 export type NodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
 
 export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
@@ -98,7 +121,15 @@ export interface LinkLocation {
 
 export interface Node {
   path: string;
-  kind: NodeKind;
+  /**
+   * Provider-declared category. Open string (matches
+   * `node.schema.json#/properties/kind`): the built-in Claude Provider
+   * emits one of `NodeKind`'s values, but external Providers MAY emit
+   * their own. Code that intentionally switches on the claude catalog
+   * narrows via `if (kind === 'skill' \| ... )`; everything else
+   * accepts the open string and treats unknown values as opaque labels.
+   */
+  kind: string;
   provider: string;
   bodyHash: string;
   frontmatterHash: string;

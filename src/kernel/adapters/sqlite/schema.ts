@@ -22,7 +22,15 @@ import type { Severity } from '../../types.js';
 
 // --- Enum unions mirroring spec CHECK constraints --------------------------
 
-export type TNodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
+/**
+ * SQLite-side kind type. Open `string` to mirror `Node.kind` (open by
+ * design — Providers may declare their own kinds). The `kernel/types.ts`
+ * `NodeKind` alias still exists for code that intentionally narrows on
+ * the built-in Claude Provider catalog (`skill` / `agent` / `command` /
+ * `hook` / `note`); use that there. For everything else — column types,
+ * loaders, persisters — `TNodeKind = string` is the right contract.
+ */
+export type TNodeKind = string;
 export type TStability = 'experimental' | 'stable' | 'deprecated';
 
 export type TLinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';

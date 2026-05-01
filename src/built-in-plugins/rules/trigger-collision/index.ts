@@ -34,11 +34,16 @@
 
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
 import { normalizeTrigger } from '../../../kernel/trigger-normalize.js';
-import type { Issue, NodeKind } from '../../../kernel/types.js';
+import type { Issue } from '../../../kernel/types.js';
 
 const ID = 'trigger-collision';
 
-const ADVERTISING_KINDS: ReadonlySet<NodeKind> = new Set<NodeKind>([
+// Kinds whose nodes "advertise" a trigger (slash command name, skill
+// trigger, etc.). The set is keyed by string because `node.kind` is an
+// open string — external Providers may declare additional advertising
+// kinds in the future, and the rule applies if and only if the kind
+// is in this set. Built-in Claude catalog covers the three values today.
+const ADVERTISING_KINDS: ReadonlySet<string> = new Set<string>([
   'command',
   'skill',
   'agent',
