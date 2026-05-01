@@ -22,5 +22,5 @@ What's done across the whole refactor (Phases A → E):
 
 - Spec (`@skill-map/spec`, minor): JSON Schema + db-schema.md prose + action.schema.json all carry an open string for `kind`.
 - TS (`@skill-map/cli`, minor): `Node.kind: string`, `IProvider.classify(...): string`, `TNodeKind = string`. `NodeKind` survives as the Claude Provider catalog alias with a clarifying docstring.
-- SQL (`@skill-map/cli`, minor): migration `003_open_node_kinds.sql` drops both CHECK constraints via the table-recreate dance.
+- SQL (`@skill-map/cli`, minor): the closed-kind `CHECK in (...)` constraints are removed from `001_initial.sql` directly (pre-1.0 fold; mirrors how `002_scan_meta` was folded back). Fresh DBs apply the open `kind` column from the first migration; no separate `003_open_node_kinds.sql` is needed.
 - Tests: 613 pass; the new `external-provider-kind.test.ts` is the cross-layer guard.

@@ -25,7 +25,11 @@ CREATE TABLE scan_nodes (
   links_in_count INTEGER NOT NULL DEFAULT 0,
   external_refs_count INTEGER NOT NULL DEFAULT 0,
   scanned_at INTEGER NOT NULL,
-  CONSTRAINT ck_scan_nodes_kind CHECK (kind IN ('skill','agent','command','hook','note')),
+  -- `kind` is open-by-design (Provider-declared string; the built-in
+  -- Claude Provider emits `skill` / `agent` / `command` / `hook` /
+  -- `note`, but external Providers may declare their own — see
+  -- `node.schema.json#/properties/kind` and `db-schema.md` § scan_nodes).
+  -- A CHECK whitelist would close what the spec keeps open.
   CONSTRAINT ck_scan_nodes_stability CHECK (stability IS NULL OR stability IN ('experimental','stable','deprecated'))
 );
 CREATE INDEX ix_scan_nodes_kind ON scan_nodes(kind);
@@ -125,14 +129,15 @@ CREATE INDEX ix_state_executions_job_id ON state_executions(job_id);
 
 CREATE TABLE state_summaries (
   node_id TEXT NOT NULL,
+  -- `kind` is open-by-design (mirrors `scan_nodes.kind` — see the
+  -- comment there for the spec rationale).
   kind TEXT NOT NULL,
   summarizer_action_id TEXT NOT NULL,
   summarizer_version TEXT NOT NULL,
   body_hash_at_generation TEXT NOT NULL,
   generated_at INTEGER NOT NULL,
   summary_json TEXT NOT NULL,
-  PRIMARY KEY (node_id, summarizer_action_id),
-  CONSTRAINT ck_state_summaries_kind CHECK (kind IN ('skill','agent','command','hook','note'))
+  PRIMARY KEY (node_id, summarizer_action_id)
 );
 CREATE INDEX ix_state_summaries_generated_at ON state_summaries(generated_at);
 

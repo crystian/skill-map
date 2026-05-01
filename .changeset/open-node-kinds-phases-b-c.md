@@ -22,7 +22,7 @@ Tests: `extractor-applicable-kinds.test`, `self-scan.test`, and `export-cli.test
 
 What's still pending:
 
-- **Phase D** — the SQL `CHECK in (<5 values>)` constraints on `scan_nodes.kind` and `state_summaries.kind` are still live in `001_initial.sql`. They run on every existing DB. A new `002_open_node_kinds.sql` table-recreate migration is needed before an external-kind row can actually persist.
+- **Phase D** — the SQL `CHECK in (<5 values>)` constraints on `scan_nodes.kind` and `state_summaries.kind` are still live in `001_initial.sql`. They run on every existing DB. Pre-1.0 the right move is a fold of the change directly into `001_initial.sql` (no separate migration), mirroring how `002_scan_meta` was folded back; that lands in a follow-up commit.
 - **Phase E** — smoke test with a fake external Provider end-to-end, conformance suite re-run.
 
 Pre-1.0 minor bump per `spec/versioning.md` § Pre-1.0 (technically breaking for code that imported `NodeKind` and assumed it was the kernel-wide kind type, but pre-1.0 these go as minor).

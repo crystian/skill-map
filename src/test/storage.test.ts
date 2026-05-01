@@ -118,8 +118,9 @@ describe('SqliteStorageAdapter', () => {
   });
 
   it('rejects CHECK constraint violations at the DB layer (stability whitelist)', async () => {
-    // Post-`003_open_node_kinds.sql`, `kind` is open string at the DB
-    // layer too — only `stability` keeps a CHECK whitelist on
+    // `kind` is open string at the DB layer (per
+    // `node.schema.json#/properties/kind` and the build of
+    // `001_initial.sql`); only `stability` keeps a CHECK whitelist on
     // `scan_nodes`. Use that one to prove the CHECK mechanism still
     // bites for the constraints that remain. (The kind CHECK was
     // dropped intentionally; an external Provider must be able to
@@ -151,11 +152,11 @@ describe('SqliteStorageAdapter', () => {
     }
   });
 
-  it('accepts external-Provider kinds (open kind contract, post-002)', async () => {
-    // Companion to the test above: the kind CHECK is gone (003), so
-    // a row with `kind: 'cursorRule'` (no built-in Provider classifies
-    // into it) MUST persist successfully. This is the spec § Phase 3
-    // promise the open-node-kinds refactor honours.
+  it('accepts external-Provider kinds (open kind contract)', async () => {
+    // Companion to the test above: `001_initial.sql` declares no
+    // CHECK on `kind`, so a row with `kind: 'cursorRule'` (no built-in
+    // Provider classifies into it) MUST persist successfully. This is
+    // the spec § Phase 3 promise the open-node-kinds refactor honours.
     const path = freshDbPath('open-kind-accept');
     const adapter = new SqliteStorageAdapter({ databasePath: path });
     await adapter.init();
