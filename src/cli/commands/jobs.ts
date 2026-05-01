@@ -57,6 +57,7 @@ import {
 import { loadConfig } from '../../kernel/config/loader.js';
 import { assertDbExists } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import { tx } from '../../kernel/util/tx.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -133,7 +134,7 @@ export class JobPruneCommand extends Command {
     try {
       cfg = loadConfig({ scope: 'project', ...defaultRuntimeContext() }).effective;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
       return ExitCode.Error;
     }
@@ -182,7 +183,7 @@ export class JobPruneCommand extends Command {
         }
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(JOBS_TEXTS.pruneErrorPrefix, { message }));
       return ExitCode.Error;
     }

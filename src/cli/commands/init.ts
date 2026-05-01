@@ -37,6 +37,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { INIT_TEXTS } from '../i18n/init.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const GITIGNORE_ENTRIES: readonly string[] = [
@@ -234,7 +235,6 @@ function writeDryRunGitignorePlan(stdout: NodeJS.WritableStream, scopeRoot: stri
   }
 }
 
-// eslint-disable-next-line complexity
 async function runFirstScan(
   scopeRoot: string,
   dbPath: string,
@@ -251,7 +251,7 @@ async function runFirstScan(
   try {
     cfg = loadConfig({ scope: 'project', cwd: scopeRoot, homedir: osHomedir(), strict }).effective;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatErrorMessage(err);
     stderr.write(tx(INIT_TEXTS.configLoadFailure, { message }));
     return ExitCode.Error;
   }
@@ -280,7 +280,7 @@ async function runFirstScan(
     extractorRuns = ran.extractorRuns;
     enrichments = ran.enrichments;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatErrorMessage(err);
     stderr.write(tx(INIT_TEXTS.scanFailed, { message }));
     return ExitCode.Error;
   }

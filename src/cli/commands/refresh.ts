@@ -33,7 +33,7 @@
  *     stale workflow it ultimately serves is partial.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -57,6 +57,7 @@ import type { IDatabase } from '../../kernel/adapters/sqlite/schema.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
@@ -172,7 +173,7 @@ export class RefreshCommand extends Command {
     try {
       extractResult = await this.#runDetExtractorsAcrossNodes(targetNodes, allExtractors);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(REFRESH_TEXTS.refreshFailed, { message }));
       return ExitCode.Error;
     }
@@ -185,7 +186,7 @@ export class RefreshCommand extends Command {
           await upsertEnrichments(adapter.db, freshDetEnrichments);
         });
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatErrorMessage(err);
         this.context.stderr.write(tx(REFRESH_TEXTS.refreshFailed, { message }));
         return ExitCode.Error;
       }
@@ -280,12 +281,18 @@ export class RefreshCommand extends Command {
     for (const node of targetNodes) {
       let body: string;
       try {
-        const raw = readFileSync(resolve(process.cwd(), node.path), 'utf8');
+        // Async read inside a sequential per-node loop. Today the loop
+        // body still serializes (the extractor pass is awaited per
+        // node), but routing the read through `fs/promises` lets the
+        // event loop overlap any concurrent kernel work and keeps the
+        // door open for a future parallel-by-node refresh without a
+        // second sweep.
+        const raw = await readFile(resolve(process.cwd(), node.path), 'utf8');
         body = stripFrontmatterFence(raw);
       } catch (err) {
         this.context.stderr.write(
           tx(REFRESH_TEXTS.refreshFailed, {
-            message: `read failed for ${node.path}: ${err instanceof Error ? err.message : String(err)}`,
+            message: `read failed for ${node.path}: ${formatErrorMessage(err)}`,
           }),
         );
         continue;

@@ -47,6 +47,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import {
   composeScanExtensions,
@@ -91,7 +92,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   try {
     cfg = loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatErrorMessage(err);
     context.stderr.write(tx(WATCH_TEXTS.configLoadFailure, { message }));
     return ExitCode.Error;
   }
@@ -183,7 +184,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       extractorRuns = ran.extractorRuns;
       enrichments = ran.enrichments;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       context.stderr.write(tx(WATCH_TEXTS.scanFailed, { message }));
       return;
     }
@@ -209,7 +210,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   try {
     await runOnePass();
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatErrorMessage(err);
     context.stderr.write(tx(WATCH_TEXTS.initialScanFailed, { message }));
     return ExitCode.Error;
   }
@@ -233,7 +234,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       try {
         await runOnePass();
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatErrorMessage(err);
         context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message }));
       }
       if (opts.maxBatches !== undefined && batchCount >= opts.maxBatches) {

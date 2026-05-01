@@ -48,6 +48,7 @@ import { runConformanceCase } from '../../conformance/index.js';
 import { tx } from '../../kernel/util/tx.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import {
   listCaseFiles,
   selectConformanceScopes,
@@ -129,7 +130,7 @@ export class ConformanceRunCommand extends Command {
     try {
       scopes = selectConformanceScopes(this.scope);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(CONFORMANCE_TEXTS.unknownScope, { message }));
       return ExitCode.Error;
     }
@@ -203,7 +204,7 @@ export class ConformanceRunCommand extends Command {
           }
         } catch (err) {
           anyFailure = true;
-          const message = err instanceof Error ? err.message : String(err);
+          const message = formatErrorMessage(err);
           this.context.stderr.write(
             tx(CONFORMANCE_TEXTS.runtimeError, { message }),
           );

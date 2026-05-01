@@ -40,6 +40,7 @@ import {
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import {
   emptyPluginRuntime,
   loadPluginRuntime,
@@ -488,10 +489,19 @@ export class DbMigrateCommand extends Command {
         return ExitCode.Ok;
       }
 
-      const toValue = this.to !== undefined ? Number.parseInt(this.to, 10) : undefined;
-      if (this.to !== undefined && (Number.isNaN(toValue) || toValue === undefined)) {
-        this.context.stderr.write(tx(DB_TEXTS.migrateInvalidTo, { to: this.to }));
-        return ExitCode.Error;
+      // `Number.parseInt` is permissive: it accepts `'123abc'` as `123`
+      // and negatives. Reject anything that isn't a clean non-negative
+      // integer so a typo doesn't silently roll the migration ledger to
+      // an unexpected target.
+      let toValue: number | undefined;
+      if (this.to !== undefined) {
+        const trimmed = this.to.trim();
+        const parsed = Number.parseInt(trimmed, 10);
+        if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
+          this.context.stderr.write(tx(DB_TEXTS.migrateInvalidTo, { to: this.to }));
+          return ExitCode.Error;
+        }
+        toValue = parsed;
       }
 
       // --- kernel pass --------------------------------------------------
@@ -573,7 +583,7 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
     try {
       result = applyPluginMigrations(db, plugin, { dryRun });
     } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
+      const reason = formatErrorMessage(err);
       stderr.write(`plugin ${plugin.id} · ${reason}\n`);
       exit = 2;
       continue;

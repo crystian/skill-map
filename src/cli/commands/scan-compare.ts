@@ -49,6 +49,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import {
   composeScanExtensions,
@@ -122,7 +123,7 @@ export class ScanCompareCommand extends Command {
     try {
       prior = loadAndValidateDump(this.dump);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
@@ -142,7 +143,7 @@ export class ScanCompareCommand extends Command {
     try {
       cfg = loadConfig({ scope: 'project', strict: this.strict, ...defaultRuntimeContext() }).effective;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
@@ -167,7 +168,7 @@ export class ScanCompareCommand extends Command {
       if (composedExtensions) compareRunOpts.extensions = composedExtensions;
       current = await runScan(kernel, compareRunOpts);
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
@@ -193,14 +194,14 @@ function loadAndValidateDump(path: string): ScanResult {
   try {
     raw = readFileSync(path, 'utf8');
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatErrorMessage(err);
     throw new Error(tx(SCAN_TEXTS.compareDumpReadFailed, { path, message }), { cause: err });
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatErrorMessage(err);
     throw new Error(tx(SCAN_TEXTS.compareDumpInvalidJson, { message }), { cause: err });
   }
   const validators = loadSchemaValidators();

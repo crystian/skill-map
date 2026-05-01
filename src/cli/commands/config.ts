@@ -49,6 +49,7 @@ import {
 } from '../../kernel/config/loader.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import { tx } from '../../kernel/util/tx.js';
 import { CONFIG_TEXTS } from '../i18n/config.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -173,7 +174,7 @@ function tryLoadConfig(
   try {
     return { ok: true, loaded: loadConfig(opts) };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = formatErrorMessage(err);
     stderr.write(`sm config: ${message}\n`);
     return { ok: false, exitCode: 2 };
   }

@@ -23,6 +23,7 @@ import { tx } from '../../kernel/util/tx.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import {
   composeScanExtensions,
@@ -215,7 +216,7 @@ export class ScanCommand extends Command {
     try {
       cfg = loadConfig({ scope: 'project', strict: this.strict, ...defaultRuntimeContext() }).effective;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = formatErrorMessage(err);
       this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
       return ExitCode.Error;
     }
@@ -353,7 +354,7 @@ export class ScanCommand extends Command {
           try {
             scanned = await runScanWith(prior, priorExtractorRuns);
           } catch (err) {
-            const message = err instanceof Error ? err.message : String(err);
+            const message = formatErrorMessage(err);
             return { kind: 'scan-error', message };
           }
           // Defensive guard: refuse to wipe a populated DB with a
@@ -378,7 +379,7 @@ export class ScanCommand extends Command {
         });
       } catch (err) {
         // Open / migration / persist failures bubble out of withSqlite.
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatErrorMessage(err);
         this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
         return ExitCode.Error;
       }
@@ -409,7 +410,7 @@ export class ScanCommand extends Command {
         // `loadPrior` throws under `--strict` if the DB-resident
         // scan-result fails schema validation. Surface it the same way
         // we surface a runScan failure.
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatErrorMessage(err);
         this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
         return ExitCode.Error;
       }
@@ -418,7 +419,7 @@ export class ScanCommand extends Command {
         result = scanned.result;
         renameOps = scanned.renameOps;
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = formatErrorMessage(err);
         this.context.stderr.write(tx(SCAN_TEXTS.scanFailure, { message }));
         return ExitCode.Error;
       }
