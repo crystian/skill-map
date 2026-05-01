@@ -111,36 +111,11 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
   const scope = mkdtempSync(join(tmpdir(), `sm-conformance-${c.id}-`));
   const setupEnv = disableEnv(c.setup);
   try {
-    // 1. Run every priorScan in order. Each step replaces every non-
-    //    `.skill-map/` directory with the named fixture, then runs
-    //    `sm scan` so the snapshot persists into the scope DB. The
-    //    scope DB survives across steps because we never delete
-    //    `.skill-map/`.
-    for (const step of c.setup?.priorScans ?? []) {
-      replaceFixture(scope, fixturesRoot, step.fixture);
-      const stepArgv = ['scan', ...(step.flags ?? [])];
-      const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
-        cwd: scope,
-        env: { ...process.env, ...options.env, ...setupEnv },
-        encoding: 'utf8',
-      });
-      if ((stepChild.status ?? 0) !== 0) {
-        return {
-          caseId: c.id,
-          passed: false,
-          exitCode: stepChild.status ?? 0,
-          stdout: stepChild.stdout ?? '',
-          stderr: stepChild.stderr ?? '',
-          assertions: [
-            {
-              ok: false,
-              type: 'priorScan',
-              reason: `setup.priorScans step \`${step.fixture}\` failed with exit ${stepChild.status ?? 0}: ${stepChild.stderr ?? ''}`,
-            },
-          ],
-        };
-      }
-    }
+    // 1. Replay every `setup.priorScans` step into the scope DB before
+    //    the main invoke runs. Returns the failure result early if any
+    //    step exits non-zero.
+    const priorFailure = runPriorScansSetup(c, options, scope, fixturesRoot, setupEnv);
+    if (priorFailure) return priorFailure;
 
     // 2. Copy the main fixture (replacing prior fixture content but
     //    preserving the DB), then run the case's `invoke`.
@@ -179,6 +154,52 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
   } finally {
     rmSync(scope, { recursive: true, force: true });
   }
+}
+
+/**
+ * Phase 1 of `runConformanceCase` — replay every `setup.priorScans`
+ * step in order. Each step replaces every non-`.skill-map/` directory
+ * with the named fixture, then runs `sm scan` so the snapshot persists
+ * into the scope DB. The scope DB survives across steps (we never
+ * delete `.skill-map/`).
+ *
+ * Returns `null` on success (caller continues) or a `RunCaseResult`
+ * with a single `priorScan` failure assertion (caller returns it
+ * unchanged).
+ */
+function runPriorScansSetup(
+  c: ConformanceCase,
+  options: RunCaseOptions,
+  scope: string,
+  fixturesRoot: string,
+  setupEnv: NodeJS.ProcessEnv,
+): RunCaseResult | null {
+  for (const step of c.setup?.priorScans ?? []) {
+    replaceFixture(scope, fixturesRoot, step.fixture);
+    const stepArgv = ['scan', ...(step.flags ?? [])];
+    const stepChild = spawnSync(process.execPath, [options.binary, ...stepArgv], {
+      cwd: scope,
+      env: { ...process.env, ...options.env, ...setupEnv },
+      encoding: 'utf8',
+    });
+    if ((stepChild.status ?? 0) !== 0) {
+      return {
+        caseId: c.id,
+        passed: false,
+        exitCode: stepChild.status ?? 0,
+        stdout: stepChild.stdout ?? '',
+        stderr: stepChild.stderr ?? '',
+        assertions: [
+          {
+            ok: false,
+            type: 'priorScan',
+            reason: `setup.priorScans step \`${step.fixture}\` failed with exit ${stepChild.status ?? 0}: ${stepChild.stderr ?? ''}`,
+          },
+        ],
+      };
+    }
+  }
+  return null;
 }
 
 /**
@@ -283,26 +304,51 @@ function evaluateJsonPath(
     return { ok: false, type: a.type, reason: `unsupported jsonpath: ${a.path}` };
   }
 
+  const walked = traverseJsonPath(doc, segments, a.path);
+  if (!walked.ok) return { ok: false, type: a.type, reason: walked.reason };
+
+  return applyJsonPathComparator(a, walked.value);
+}
+
+/**
+ * Walk a parsed JSONPath segment list against a JSON document. Returns
+ * the resolved value or a structured failure (caller maps to
+ * `AssertionResult`). Pure — no IO, no shared state.
+ */
+function traverseJsonPath(
+  doc: unknown,
+  segments: Array<string | number>,
+  path: string,
+): { ok: true; value: unknown } | { ok: false; reason: string } {
   let current: unknown = doc;
   for (const seg of segments) {
     if (typeof seg === 'number') {
-      if (!Array.isArray(current)) {
-        return { ok: false, type: a.type, reason: `expected array at ${a.path}` };
-      }
+      if (!Array.isArray(current)) return { ok: false, reason: `expected array at ${path}` };
       current = current[seg];
     } else if (seg === 'length' && Array.isArray(current)) {
       current = current.length;
     } else if (typeof current === 'object' && current !== null) {
       current = (current as Record<string, unknown>)[seg];
     } else {
-      return {
-        ok: false,
-        type: a.type,
-        reason: `cannot traverse ${typeof current} at segment '${String(seg)}'`,
-      };
+      return { ok: false, reason: `cannot traverse ${typeof current} at segment '${String(seg)}'` };
     }
   }
+  return { ok: true, value: current };
+}
 
+/**
+ * Apply the comparator clause (`equals` / `greaterThan` / `lessThan` /
+ * `matches`) of a `json-path` assertion against the value resolved at
+ * the requested path. Returns the final `AssertionResult` directly.
+ *
+ * Complexity from the four parallel comparator branches; splitting into
+ * one helper per comparator would be ceremony.
+ */
+// eslint-disable-next-line complexity
+function applyJsonPathComparator(
+  a: Extract<Assertion, { type: 'json-path' }>,
+  current: unknown,
+): AssertionResult {
   if ('equals' in a && a.equals !== undefined) {
     return deepEqual(current, a.equals)
       ? { ok: true, type: a.type }
