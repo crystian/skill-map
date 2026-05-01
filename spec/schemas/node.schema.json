@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/node.schema.json",
   "title": "Node",
-  "description": "A single markdown file in the graph (skill, agent, command, hook, note). Identified by its relative path from the scope root.",
+  "description": "A single markdown file in the graph. Identified by its relative path from the scope root. The `kind` is whatever the classifying Provider declares; built-in kinds today are `skill`, `agent`, `command`, `hook`, `note`, but external Providers (Cursor, Obsidian, …) MAY emit their own.",
   "type": "object",
   "required": ["path", "kind", "provider", "bodyHash", "frontmatterHash", "bytes", "linksOutCount", "linksInCount", "externalRefsCount"],
   "additionalProperties": false,
@@ -13,8 +13,8 @@
     },
     "kind": {
       "type": "string",
-      "enum": ["skill", "agent", "command", "hook", "note"],
-      "description": "Category assigned by the Provider. Stability: stable. New kinds may be added in a minor bump."
+      "minLength": 1,
+      "description": "Category assigned by the Provider. Open-by-design — any non-empty string an enabled Provider declares is valid (built-in Claude Provider catalog: `skill` / `agent` / `command` / `hook` / `note`; external Providers MAY declare their own). Per-kind frontmatter schemas live with the Provider that emits the kind. Stability: stable."
     },
     "provider": {
       "type": "string",

@@ -78,6 +78,29 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
 
 ### Minor (breaking, pre-1.0)
 
+- **`Node.kind` opens to any non-empty string (was the closed enum
+  `skill` / `agent` / `command` / `hook` / `note`).** The kernel always
+  permitted external Providers — `IProvider.kinds` is documented as
+  "open by design" so a future Cursor / Obsidian / Roo Provider can
+  declare its own kinds — but the `node.schema.json` enum + the
+  `scan_nodes.kind` SQL CHECK + the closed TS `NodeKind` union closed
+  three layers underneath. Effects:
+  - `node.schema.json#/properties/kind` switches from `enum: [...5
+    values]` to `{ "type": "string", "minLength": 1 }`. The
+    description still names the built-in Claude Provider catalog so
+    consumers know what to expect from the default install.
+  - `db-schema.md` drops the `CHECK in (...)` constraint on
+    `scan_nodes.kind` and `state_summaries.kind`. Both columns stay
+    `TEXT NOT NULL`.
+  - `extensions/action.schema.json#/.../filter/kind` (the per-kind
+    filter for action applicability) widens the same way: `items:
+    { type: 'string', minLength: 1 }` instead of the closed enum.
+  Migration: consumers who validate exported `Node` JSON against
+  `node.schema.json` will now accept external-Provider kinds. Any
+  consumer that hard-coded the closed enum elsewhere (UI filter chip
+  set, scripted assertions) needs to widen to "string". The TS +
+  SQL counterpart lands in `@skill-map/cli` (kernel TS contract +
+  migration `002_open_node_kinds`).
 - **`conformance-case.schema.json` — rename `setup.disableAllDetectors`
   → `setup.disableAllExtractors`.** Finishes the kind rename Detector →
   Extractor introduced in 0.8.0 (Phase 2 of the plug-in model

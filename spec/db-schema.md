@@ -72,7 +72,7 @@ One row per detected node, matching [`schemas/node.schema.json`](./schemas/node.
 | Column | Type | Constraint | Notes |
 |---|---|---|---|
 | `path` | TEXT | PRIMARY KEY | Relative path from scope root. Canonical node identifier. |
-| `kind` | TEXT | NOT NULL, CHECK in (`skill`, `agent`, `command`, `hook`, `note`) | |
+| `kind` | TEXT | NOT NULL | Open-by-design (`node.schema.json#/properties/kind`): the value is whatever the classifying Provider declares. Built-in Claude Provider catalog: `skill` / `agent` / `command` / `hook` / `note`. External Providers MAY emit their own. |
 | `provider` | TEXT | NOT NULL | Provider extension id. |
 | `title` | TEXT | NULL | |
 | `description` | TEXT | NULL | |
@@ -274,7 +274,7 @@ One row per `(node_id, summarizer_action_id)`. See [`schemas/summaries/`](./sche
 | Column | Type | Constraint |
 |---|---|---|
 | `node_id` | TEXT | NOT NULL |
-| `kind` | TEXT | NOT NULL, CHECK in kind enum |
+| `kind` | TEXT | NOT NULL |
 | `summarizer_action_id` | TEXT | NOT NULL |
 | `summarizer_version` | TEXT | NOT NULL |
 | `body_hash_at_generation` | TEXT | NOT NULL |
