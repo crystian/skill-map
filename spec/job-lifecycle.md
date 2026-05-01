@@ -39,7 +39,7 @@ Terminal states: `completed`, `failed`. Once terminal, a job MUST NOT transition
 | `queued` | `running` | Atomic claim by a runner. |
 | `queued` | `failed` | `sm job cancel <id>` (reason `user-cancelled`). |
 | `running` | `completed` | `sm record --status completed` with valid nonce. |
-| `running` | `failed` | `sm record --status failed`, OR TTL expired (reason `abandoned`), OR runner subprocess returned non-zero (reason `runner-error`), OR report failed schema validation (reason `report-invalid`), OR job file missing at runtime (reason `job-file-missing`). |
+| `running` | `failed` | `sm record --status failed`, OR TTL expired (reason `abandoned`), OR runner subprocess returned non-zero (reason `runner-error`), OR report failed schema validation (reason `report-invalid`), OR rendered content row missing at runtime (reason `content-missing` — DB corruption only; the runtime invariant is that `state_jobs.content_hash` always resolves in `state_job_contents`). |
 
 Any other transition attempt MUST be rejected and MUST NOT mutate state. Implementations SHOULD log the attempt.
 
@@ -56,8 +56,8 @@ Any other transition attempt MUST be rejected and MUST NOT mutate state. Impleme
 5. Compute `ttlSeconds` per §TTL resolution below. Frozen on `state_jobs.ttlSeconds` for the life of this job.
 6. Resolve `priority` (integer, default `0`). Precedence (lowest → highest): action manifest `defaultPriority` → user config `jobs.perActionPriority.<actionId>` → flag `--priority <n>`. Higher runs first; ties broken by `createdAt ASC`. Negative values are permitted and run after the default bucket. The resolved value is frozen on `state_jobs.priority` at submit time and is immutable for the life of the job.
 7. Generate `nonce` (implementation-chosen; MUST be cryptographically random, ≥ 128 bits of entropy).
-8. Render the job file at `.skill-map/jobs/<id>.md`, applying the canonical preamble (see [`prompt-preamble.md`](./prompt-preamble.md)).
-9. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`.
+8. Render the rendered job content (canonical preamble + action template + interpolated user content per [`prompt-preamble.md`](./prompt-preamble.md)) and write it to `state_job_contents` via `INSERT OR IGNORE` keyed by `content_hash`. Multiple `state_jobs` rows MAY share the same `content_hash` row: the content is stored exactly once and refcounted by reference. Implementations MUST NOT persist the rendered content to a filesystem path — the DB row is the canonical artifact.
+9. Insert a row in `state_jobs` with `status = 'queued'`, `createdAt = now`. The row's `content_hash` references the just-stored `state_job_contents.content_hash`. Steps 8 and 9 MUST run inside one transaction.
 10. Return the job id.
 
 `--all` fans out one job per node matching the action's `preconditions`. Each fan-out job is independent: some may be duplicates and be refused, others succeed. The CLI reports a summary.
@@ -90,6 +90,8 @@ The second `AND status = 'queued'` guards against a race where two runners selec
 **Non-SQLite implementations**: MUST provide an equivalent single-statement atomic transition. A two-step `SELECT then UPDATE` is NOT acceptable — it is observable as a double-claim bug.
 
 `sm job claim` exposes this primitive to Skill agents (and any driving adapter that wants to drain from outside a CLI-runner loop): returns the id on stdout (exit 0) or exits 1 if the queue is empty.
+
+In `--json` mode, `sm job claim` instead returns the document `{ "id": "<id>", "nonce": "<nonce>", "content": "<rendered MD content>" }`. Drivers MUST use the `--json` form when they intend to call `sm record` afterwards: the nonce is the sole credential the callback verb checks, and embedding it in the claim's structured response is the contracted handover. The plain stdout form (id only) is preserved for legacy scripts that just want to know what id was claimed.
 
 ---
 
@@ -165,12 +167,14 @@ Negative or zero values MUST be rejected with exit 2 at submit time.
 1. Load the job by id. If not found → exit 5.
 2. Compare the supplied nonce against `state_jobs.nonce`. Mismatch → exit 4 without mutation.
 3. If `state_jobs.status != 'running'` → exit 2 with message "job not in running state". This catches late callbacks after a reap.
-4. If `--status completed`: validate the report file against the action's declared report schema. On validation failure → transition to `failed` with reason `report-invalid`; DO NOT stay `running`.
-5. Write the execution record (see [`schemas/execution-record.schema.json`](./schemas/execution-record.schema.json)) with the full metrics.
+4. If `--status completed`: read the report payload from the path passed to `--report` (the path is implementation-input only; the kernel reads its contents and stores them inline — there is no canonical on-disk report artifact), validate the parsed JSON against the action's declared report schema. On validation failure → transition to `failed` with reason `report-invalid`; DO NOT stay `running`.
+5. Write the execution record (see [`schemas/execution-record.schema.json`](./schemas/execution-record.schema.json)) with the full metrics. The report payload (if any) is stored inline in `state_executions.report_json` as the parsed JSON; the input path is NOT retained.
 6. Transition the job to the terminal state.
 7. Emit `job.callback.received` followed by `job.completed` or `job.failed` (see [`job-events.md`](./job-events.md)).
 
 The nonce is the sole authentication factor. A compromised nonce allows forged callbacks for that single job. Nonces MUST be generated per-job; never reused; never logged at info level or above.
+
+`--report` accepts either a file path or `-` (stdin). Drivers MAY choose either form; the kernel ingests both into `report_json` identically. The on-disk file the runner authored is ephemeral — implementations SHOULD remove it after the kernel acknowledges the callback (this is a courtesy GC, not a normative requirement).
 
 ---
 
@@ -204,11 +208,9 @@ Implementations MUST handle each of the following:
 
 | Scenario | Required handling |
 |---|---|
-| DB says `queued` or `running`, but the job MD file is missing on disk. | Mark `failed` with `failureReason = job-file-missing`. `sm doctor` MUST report these proactively. |
-| MD file present in `.skill-map/jobs/`, no matching DB row. | `sm doctor` MUST list them. Implementations MUST NOT auto-delete. `sm job prune --orphan-files` removes them explicitly. |
-| User edited the MD file between submit and run. | By design: the runner uses the current file contents. The user owns the consequences. Event stream MAY note the mtime change. |
-| Job `completed`, MD file still present. | Normal. Retention policy (`sm job prune` per `jobs.retention.*` config) eventually cleans up. |
-| Runner crashes between `claim` and reading the file. | Covered by TTL/reap: when `expiresAt` passes, the next reap marks the job `failed` with `abandoned`. |
+| `state_jobs` row exists but its `content_hash` is missing from `state_job_contents` (DB corruption — the content row was deleted by external means). | Mark `failed` with `failureReason = content-missing`. `sm doctor` MUST report these proactively. The kernel does NOT itself produce this state under normal operation; the contract is that submit and prune both keep the two tables consistent. |
+| `state_job_contents` row references no live `state_jobs` row (GC straggler). | `sm doctor` MUST list them. `sm job prune` MUST collect them in the same transaction that prunes terminal jobs. |
+| Runner crashes between `claim` and reading the content. | Covered by TTL/reap: when `expiresAt` passes, the next reap marks the job `failed` with `abandoned`. |
 | Callback arrives after reap already failed the job. | Reject with exit 2 (see Record step 3). The runner should treat this as an error and log it. |
 
 ---
@@ -234,13 +236,15 @@ Config controls (`jobs.retention.completed`, `jobs.retention.failed`):
 
 `sm job prune` applies retention. Implementations MAY run this on a schedule (e.g., on `sm doctor`, or in a cron adapter) but MUST NOT prune implicitly during normal verb execution.
 
+`sm job prune` MUST also collect orphaned `state_job_contents` rows (no live `state_jobs` references) in the same transaction that prunes terminal jobs. The natural ordering is: delete terminal `state_jobs` rows in the retention window, then delete `state_job_contents` rows whose `content_hash` no longer appears in any `state_jobs` row. This keeps the two tables consistent without separate verbs.
+
 ---
 
 ## See also
 
 - [`architecture.md`](./architecture.md) — `RunnerPort` definition; driving-adapter peer rule for Skill agents.
 - [`job-events.md`](./job-events.md) — canonical event stream emitted during job execution.
-- [`prompt-preamble.md`](./prompt-preamble.md) — verbatim preamble prepended to every rendered job file.
+- [`prompt-preamble.md`](./prompt-preamble.md) — verbatim preamble prepended to every rendered job content row.
 - [`db-schema.md`](./db-schema.md) — `state_jobs` and `state_executions` table catalogs.
 - [`cli-contract.md`](./cli-contract.md) — `sm job` verb surface and exit codes.
 

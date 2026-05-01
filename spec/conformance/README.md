@@ -78,8 +78,7 @@ A case is a JSON document with this shape:
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
-    { "type": "file-exists", "path": ".skill-map/jobs/*.md" },
-    { "type": "file-contains-verbatim", "path": ".skill-map/jobs/*.md", "fixture": "preamble-v1.txt" }
+    { "type": "stdout-contains-verbatim", "fixture": "preamble-v1.txt" }
   ]
 }
 ```
@@ -125,7 +124,7 @@ Cases explicitly referenced elsewhere in the spec (landing before v1.0):
 
 | Id | Source | Verifies |
 |---|---|---|
-| `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job files contain `preamble-v1.txt` byte-for-byte. Deferred to Step 10 (requires `sm job preview`). |
+| `preamble-bitwise-match` | `prompt-preamble.md` | Rendered job content (printed by `sm job preview`) contains `preamble-v1.txt` byte-for-byte. Deferred to Step 10 (requires `sm job preview`). |
 
 ### Provider-owned (per `<plugin-dir>/conformance/`)
 

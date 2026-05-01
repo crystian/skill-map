@@ -123,7 +123,8 @@ Diagnostic report:
 - DB file integrity (PRAGMA quick_check equivalent).
 - Pending migrations (count + list).
 - Orphan history rows (count).
-- Orphan job files (count).
+- `state_jobs` rows whose `content_hash` is missing from `state_job_contents` (corrupt-state count).
+- `state_job_contents` GC stragglers (count of rows referenced by zero `state_jobs` rows; `sm job prune` collects these).
 - Plugins in error state (list).
 - LLM runner availability (`claude` binary on PATH, version).
 - Detected Providers that matched nothing, or whose `explorationDir` does not exist on disk (non-blocking warning).
@@ -235,15 +236,14 @@ See `job-lifecycle.md` for the state machine; this table is the CLI surface.
 | `sm job submit ... --priority <n>` | Override job priority. Integer; higher runs first. Default `0`. Negative allowed (deprioritize). Frozen on `state_jobs.priority` at submit time. |
 | `sm job list [--status ...] [--action ...] [--node ...]` | List jobs. |
 | `sm job show <job.id>` | Detail: current state, claim timestamp, TTL remaining, runner, content hash. |
-| `sm job preview <job.id>` | Render the job MD file without executing. |
-| `sm job claim [--filter <action>]` | Atomic primitive: return next queued job id, mark it running. Exit 0 with id on stdout; exit 1 if queue empty. |
+| `sm job preview <job.id>` | Print the rendered MD content of the job without executing. Reads from `state_job_contents`; there is no on-disk artifact. |
+| `sm job claim [--filter <action>]` | Atomic primitive: return next queued job id, mark it running. Exit 0 with id on stdout; exit 1 if queue empty. `--json` returns `{id, nonce, content}` — drivers that intend to call `sm record` afterwards MUST use the `--json` form to receive the nonce. |
 | `sm job run` | Full CLI-runner loop: claim + spawn + record. Runs one job. |
 | `sm job run --all` | Drain the queue (sequential through `v1.0`; in-runner parallelism deferred). |
 | `sm job run --max N` | Drain at most N jobs. |
 | `sm job status [<job.id>]` | Counts (per status) or single-job status. |
 | `sm job cancel <job.id> \| --all` | Force a running job to `failed` state with reason `user-cancelled`. `--all` cancels every `queued` and `running` job. |
-| `sm job prune` | Retention GC for completed/failed jobs (per config policy). |
-| `sm job prune --orphan-files` | Remove MD files with no matching DB row. |
+| `sm job prune` | Retention GC: deletes terminal jobs past the configured retention window AND collects orphaned `state_job_contents` rows in the same transaction. |
 
 Submit returns the job id on stdout in pretty mode, or a `Job` object conforming to `job.schema.json` in `--json` mode.
 
@@ -253,12 +253,12 @@ Submit returns the job id on stdout in pretty mode, or a `Job` object conforming
 
 ```
 sm record --id <job.id> --nonce <n> --status completed \
-         --report <path> \
+         --report <path-or-dash> \
          --tokens-in N --tokens-out N --duration-ms N \
          --model <name>
 ```
 
-Closes a running job with success.
+Closes a running job with success. `--report` accepts either a filesystem path the kernel reads, or `-` to read the JSON payload from stdin. The kernel stores the parsed JSON inline on `state_executions.report_json`; the path / stdin source is ingestion-only and not retained.
 
 ```
 sm record --id <job.id> --nonce <n> --status failed --error "..."

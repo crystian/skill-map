@@ -43,7 +43,7 @@ These have their own conformance cases even though they are not JSON Schemas.
 
 | # | Artifact | Case | Status | Notes |
 |---|---|---|---|---|
-| A | Preamble verbatim text | `preamble-bitwise-match` | 🟠 deferred | Deferred to Step 10 (needs `sm job preview` to render a job file). Fixture: `fixtures/preamble-v1.txt` (already present, byte-identical to `prompt-preamble.md` source). |
+| A | Preamble verbatim text | `preamble-bitwise-match` | 🟠 deferred | Deferred to Step 10 (needs `sm job preview` to print the rendered content from `state_job_contents`). Fixture: `fixtures/preamble-v1.txt` (already present, byte-identical to `prompt-preamble.md` source). |
 | B | Kernel empty-boot invariant | `kernel-empty-boot` | 🟢 covered | All extensions disabled → empty ScanResult. |
 | C | Atomic-claim race safety | — | 🔴 missing | Blocked by Step 10. Two concurrent `sm job claim` invocations against a single queued row — exactly one MUST succeed. |
 | D | Duplicate detection | — | 🔴 missing | Blocked by Step 10. Two `sm job submit` with same `(action, version, node, contentHash)` — second exits 3. |

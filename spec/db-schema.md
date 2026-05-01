@@ -229,10 +229,9 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | `nonce` | TEXT | NOT NULL |
 | `priority` | INTEGER | NOT NULL DEFAULT 0 |
 | `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`) |
-| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-cancelled`) |
+| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `content-missing`, `user-cancelled`) |
 | `runner` | TEXT | NULL, CHECK in (`cli`, `skill`, `in-process`) |
 | `ttl_seconds` | INTEGER | NOT NULL |
-| `file_path` | TEXT | NULL |
 | `created_at` | INTEGER | NOT NULL |
 | `claimed_at` | INTEGER | NULL |
 | `finished_at` | INTEGER | NULL |
@@ -240,6 +239,28 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | `submitted_by` | TEXT | NULL |
 
 Indexes: `ix_state_jobs_status`, `ix_state_jobs_action_node_hash` (unique partial index WHERE `status IN ('queued','running')` for duplicate detection).
+
+The rendered job content is NOT stored on this table. It lives in `state_job_contents` keyed by `content_hash` so multiple jobs with identical action + node + template pairs share a single physical blob. See `state_job_contents` below for the storage shape and GC contract.
+
+### `state_job_contents`
+
+Content-addressed store for the rendered MD content of every queued or completed job. Decouples the content from the lifecycle row in `state_jobs` so that retries / `--force` reruns / cross-node fan-out emissions of the same prompt all reference one blob.
+
+| Column | Type | Constraint |
+|---|---|---|
+| `content_hash` | TEXT | PRIMARY KEY |
+| `content` | TEXT | NOT NULL |
+| `created_at` | INTEGER | NOT NULL |
+
+No indexes (PK already covers lookup by hash; the table is keyed-by-hash exclusively).
+
+**Insertion semantics**: `INSERT OR IGNORE INTO state_job_contents(content_hash, content, created_at) VALUES (?, ?, ?)` — an existing row for the same hash is a no-op (the prior insert already paid the storage cost).
+
+**GC contract**: `sm job prune` MUST delete every row whose `content_hash` is no longer referenced by any `state_jobs` row, in the same transaction that prunes the job rows. Implementations MUST NOT delete `state_job_contents` rows on `sm job cancel` (a cancelled job's content is recoverable via `sm job submit --force` of the same content_hash and dedup is desirable).
+
+`content_hash` is the same hash that `state_jobs.content_hash` carries, computed at submit time as `sha256(actionId + actionVersion + bodyHash + frontmatterHash + promptTemplateHash)`. Two jobs with identical `content_hash` MUST render to identical content (the formula is deterministic over all rendering inputs); the table relies on this invariant to dedup.
+
+Honest note on FK enforcement: SQLite foreign keys are off by default and the kernel does not currently turn them on (per `dialect.ts`). The `state_jobs.content_hash → state_job_contents.content_hash` relationship is enforced procedurally by the storage adapter (insert content row before job row in the same transaction; never delete content while jobs reference it). A future foreign-key push may upgrade this to a true FK without breaking the contract.
 
 ### `state_executions`
 
@@ -262,10 +283,12 @@ Matching [`schemas/execution-record.schema.json`](./schemas/execution-record.sch
 | `duration_ms` | INTEGER | NULL |
 | `tokens_in` | INTEGER | NULL |
 | `tokens_out` | INTEGER | NULL |
-| `report_path` | TEXT | NULL |
+| `report_json` | TEXT | NULL |
 | `job_id` | TEXT | NULL |
 
 Indexes: `ix_state_executions_extension_id`, `ix_state_executions_started_at`, `ix_state_executions_job_id`.
+
+The full report payload (the JSON the model returned, validated against the action's `reportSchemaRef`) is stored inline in `report_json`. There is no on-disk report file. `sm job show <id>` and `sm history --json` read the column directly.
 
 ### `state_summaries`
 
@@ -463,11 +486,11 @@ Both verbs operate on FK ownership only; neither edits files on disk.
 - DB file exists and is readable.
 - `PRAGMA quick_check` (or equivalent) returns OK.
 - Applied migration version matches code-bundled migrations.
-- No orphan job files (`.skill-map/jobs/*.md` without a matching DB row).
-- No orphan DB rows (jobs whose `file_path` does not exist).
+- No `state_jobs` rows whose `content_hash` is missing from `state_job_contents` (corrupt state — the content row was deleted out from under a live job).
+- No `state_job_contents` rows whose `content_hash` is referenced by zero `state_jobs` rows (GC stragglers — `sm job prune` should have collected these).
 - No plugin in `load-error` or `incompatible-spec` status.
 
-Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "run `sm job prune --orphan-files`").
+Failures are reported with suggested remediation (e.g., "run `sm db migrate`", "run `sm job prune`").
 
 ---
 

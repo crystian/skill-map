@@ -173,67 +173,86 @@ The full normative contract lives in [`spec/architecture.md`](./spec/architectur
 
 ## Visual roadmap
 
+Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHASES`). Five phases (0 / A / B / C / D); 0 ships highlights, A/B/C ship numbered steps, D ships sketches.
+
 ```text
 ═══════════════════════════════════════════════════════════════════════════
-  PHASE A · DETERMINISTIC CORE (no LLM)
+  PHASE 0 · DEFINITION (project shape and the standard)
 ═══════════════════════════════════════════════════════════════════════════
-✅ 0a  Spec bootstrap          schemas, conformance, @skill-map/spec published
-✅ 0b  Implementation          workspace + kernel shell + CLI + CI green
-✅ 0c  UI prototype            Flavor A with mocked data (iteration checkpoint)
-✅ 1a  Storage + migrations    SQLite adapter, kernel migrations, auto-backup, sm db *
-✅ 1b  Registry + loader       6 kinds, drop-in plugin discovery, sm plugins list/show/doctor
-✅ 1c  Orchestrator + CLI      scan skeleton, Clipanion dispatcher, cli-reference.md autogen, self-boot green
-✅ 2   First extensions        1 adapter, 3 detectors, 3 rules, 1 renderer, 1 audit
-✅ 3   UI design refinement    node cards, connections, inspector, dark mode parity
-✅ 4   Scan end-to-end         sm scan / list / show / check
-✅ 5   History + orphans       state_executions, history, rename heuristic via body_hash
-✅ 6   Project config          .skill-map/settings(.local).json, .skill-mapignore, sm init,
-                               sm config *, sm plugins enable/disable, frontmatter strict
-✅ 7   Robustness              conflict resolution, perf, chokidar, GC
-✅ 8   Diff + export           sm scan --compare-with, sm export, sm graph
-✅ 9   Plugin author UX        drop-in workflow, @skill-map/testkit, docs, hello-world example
+✅ Hexagonal architecture · kernel + ports + adapters + 6 plugin kinds
+✅ Persistence model · 2 scopes × 3 zones
+✅ Job subsystem · atomic claim, nonce, kernel-enforced preamble
+✅ Plugin model · 2 storage modes, triple protection
+✅ Frontmatter standard · universal base · provider-owned kind schemas
+✅ Trigger normalization · 6-step pipeline
+✅ Config hierarchy · defaults → global → project → local → env
+✅ Versioning policy · changesets, independent semver per package
+✅ Spec as a standard · separable from reference impl
+✅ 29 schemas + 9 prose contracts + conformance suite
+✅ 117 architectural decisions, logged
+✅ @skill-map/spec published on npm
   ────────────────────────────────────────────────────────────────────────
-   ▶ YOU ARE HERE (2026-04-28) — complete through 9 · next: 10
-  ────────────────────────────────────────────────────────────────────────
-   ▶ v0.5.0 — deterministic, offline, zero LLM
+   ▶ @skill-map/spec released
 
 ═══════════════════════════════════════════════════════════════════════════
-  PHASE B · JOB SUBSYSTEM + LLM VERBS (LLM optional, never required)
+  PHASE A · DETERMINISTIC CORE (scan, model, query — no LLM)
 ═══════════════════════════════════════════════════════════════════════════
-  10   Job subsystem           state_jobs, flat-folder job files, atomic
-                               claim, nonce, preamble, CLI runner loop +
-                               Skill agent, first summarizer (skill-summarizer)
-  11   Remaining summarizers   agent / command / hook / note. First LLM verbs
-                               (sm what, sm cluster-triggers). sm findings.
-                               /skill-map:explore meta-skill.
+✅ 0b   Implementation bootstrap     workspace, kernel shell, CLI binary, conformance harness, CI green
+✅ 0c   UI prototype (Flavor A)      Angular + Foblex Flow + PrimeNG, mock collection, list / graph / inspector
+✅ 1a   Storage + migrations         SQLite via node:sqlite, kernel migrations, auto-backup, sm db * verbs
+✅ 1b   Registry + plugin loader     six kinds enforced, drop-in discovery, sm plugins list/show/doctor
+✅ 1c   Orchestrator + dispatcher    scan skeleton, full Clipanion verb registration, sm help, autogen reference
+✅ 2    First extensions             claude provider · 3 extractors · 3 rules · ASCII formatter · validate-all
+✅ 3    UI design refinement         node cards, connection styling, inspector layout, dark mode parity
+✅ 4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
+✅ 5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
+✅ 6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skill-mapignore · sm init · scan strict
+✅ 7    Robustness                   sm watch + chokidar · link-conflict rule · sm job prune · trigger normalization
+✅ 8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
+✅ 9    Plugin author UX             plugin runtime · plugin migrations · @skill-map/testkit on npm · author guide + reference plugin
   ────────────────────────────────────────────────────────────────────────
-   ▶ v0.8.0 — LLM optional layer
-
-═══════════════════════════════════════════════════════════════════════════
-  PHASE C · SURFACE & DISTRIBUTION (renderers, UI, docs, marketplace)
-═══════════════════════════════════════════════════════════════════════════
-  12  Extra renderers          mermaid, dot, subgraph export
-  13  More adapters            Codex, Gemini, Copilot, generic
-  14  Web UI full              Flavor B vertical slice, graph + inspector,
-                               WebSocket live events, command submit from UI
-  15  Distribution polish      releases, docs site, marketplace, sm doctor,
-                               telemetry opt-in, compatibility matrix
+   ▶ YOU ARE HERE (2026-05-02) — Phase A complete · in flight: Phase B (Step 10 Phase 0 done in code, spec B2 decision locked)
   ────────────────────────────────────────────────────────────────────────
-   ▶ v1.0.0 — full distributable
+   ▶ skill-map@0.5 · testkit@0.2
 
 ═══════════════════════════════════════════════════════════════════════════
-  PHASE D · DEFERRED (post v1.0, on-demand)
+  PHASE B · LLM AS AN OPTIONAL LAYER (plugin overhaul, summaries, semantic verbs)
 ═══════════════════════════════════════════════════════════════════════════
-  16+  Write-back              edit / create / refactor from UI
-  17+  Test harness            dry-run / real / subprocess
-  18+  Richer workflows        Node-pipe, JSON declarative, DAG
-  19+  Additional lenses       Obsidian-vault, docs-site
-  20+  URL liveness            optional plugin for broken-external-ref
-  21+  Schema v2 + migration
-  22+  Density / token-economy drop-in bundle closing scan → optimize loop
+✅ 9.5  Plugin model overhaul        Provider/Extractor/Formatter renames · Hook kind added · Audit absorbed into Rule · qualified ids
+✅ 9.6  Foundation refactors         Open node kinds · storage port promotion (5 namespaces) · universal enrichment · incremental scan cache
+   10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview/claim/cancel/status · sm record + nonce
+   10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run full loop · sm doctor runner probe · /skill-map:run-queue Skill agent
+   10c  First probabilistic ext      skill-summarizer · extension-mode-derivation + preamble-bitwise-match · github-enrichment plugin
+   11a  Per-kind summarizers         agent · command · hook · note
+   11b  Semantic LLM verbs           sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm recommend-optimization · sm findings
+   11c  /skill-map:explore meta      cross-extension orchestration over the queue + summaries
+  ────────────────────────────────────────────────────────────────────────
+   ▶ target: v0.8.0 — LLM optional layer
+
+═══════════════════════════════════════════════════════════════════════════
+  PHASE C · SURFACE & DISTRIBUTION (formatters, full web UI, single-binary release)
+═══════════════════════════════════════════════════════════════════════════
+   12   Additional formatters        Mermaid · DOT/Graphviz · subgraph export with filters
+   13   Multi-host adapters          Codex · Gemini · Copilot · generic provider · per-host sm-<host>-* skill namespace · adapter conformance
+   14a  Web UI: BFF + transport      Hono BFF · WebSocket /ws · single-port mandate · Angular SPA + REST + WS under one listener · sm serve --port N
+   14b  Web UI: Flavor B slice       Inspector with enrichment + summaries + findings · command submit from UI · chokidar live updates · MD body renderer pick
+   14c  Web UI: polish & budgets     URL-synced filter state · responsive scope · bundle budget · dark mode tri-state · Foblex types reassessment
+   15a  Single package distrib       @skill-map/cli with UI bundled · sm + skill-map binary aliases · sm ui sub-command · settings loader + runtime-settings schema
+   15b  Documentation site           Astro Starlight · plugin API reference (JSDoc → Starlight) · llms.txt + llms-full.txt · skill-map.dev launch · context7
+   15c  Release infrastructure       GH Actions release + changelog · telemetry opt-in · compatibility matrix · breaking-changes policy · sm doctor diagnostics · Claude Code wrapper
+  ────────────────────────────────────────────────────────────────────────
+   ▶ target: v1.0.0 — full distributable
+
+═══════════════════════════════════════════════════════════════════════════
+  PHASE D · REAL-TIME (pending — watch execution as it happens)
+═══════════════════════════════════════════════════════════════════════════
+   ~    Event stream                 live WebSocket from the kernel to the UI
+   ~    Execution snapshot           immutable audit of every run
+   ~    Real-time exploration        watch agents and skills as they run
+   ~    Marketplace ?                plugin discovery and distribution — to evaluate
 ═══════════════════════════════════════════════════════════════════════════
 
-  Rule: the LLM is never required. Product is complete offline through step 9.
+  Rule: the LLM is never required. Product is complete offline through Phase A.
 ```
 
 ---
@@ -1622,21 +1641,20 @@ The last deterministic-half step before wave 2 begins. Drop-in plugin discovery 
 
 This is where **wave 2 — probabilistic extensions** begins. Steps 0–7 shipped the deterministic half of the dual-mode model (Adapter, three Detectors, three Rules, ASCII Renderer, validate-all Audit, all running synchronously inside `sm scan` / `sm check`). Step 10 turns on the second half: queued jobs, LLM runner, and the first probabilistic extension (`skill-summarizer`, an Action of `mode: 'probabilistic'`). The kernel surface (`ctx.runner`, the queue, the preamble, the safety/confidence contract on outputs) is what unlocks every subsequent probabilistic extension across all four dual-mode kinds — Detector, Rule, Action, Audit.
 
-- `state_jobs` table + atomic claim via `UPDATE ... RETURNING id`.
-- Job file rendering with kernel-enforced preamble + `<user-content>` delimiters.
-- `sm job submit / list / show / preview / claim / run / run --all / status / cancel / prune`.
-- `sm record` with nonce authentication.
-- CLI runner loop (`sm job run`) + `ClaudeCliRunner` (`claude -p` subprocess) as the default `RunnerPort` impl. Submission and claim MUST succeed even when `claude` is absent; only `sm job run` requires it, and MUST fail fast with a clear error (exit 2) pointing the user at installation docs when the binary is missing.
-- `sm doctor` learns to probe LLM runner availability here (lands with the first runner, even though verbs that use it arrive progressively through Step 11).
-- Skill agent (`/skill-map:run-queue` + `sm-cli-run-queue` skill package).
-- `skill-summarizer` built-in — the first probabilistic Action. Its existence proves the full pipeline (manifest declaration of `mode: 'probabilistic'`, kernel routing through `RunnerPort`, prompt rendering, `sm record` callback). Subsequent probabilistic extensions reuse the same infrastructure.
-- `ctx.runner` injection plumbed through the invocation context for probabilistic extensions (per `spec/architecture.md` §Execution modes).
-- Duplicate detection via `contentHash` + `--force`.
-- Per-action TTL + auto-reap.
-- Progress events (pretty / `--stream-output` / `--json`).
-- `github-enrichment` bundled plugin (hash verification).
-- Close conformance case `preamble-bitwise-match` (deferred from Step 0a — needs `sm job preview` to render a job file for byte-exact comparison against `spec/conformance/fixtures/preamble-v1.txt`).
-- New conformance case `extension-mode-derivation`: an audit composing one deterministic primitive + one probabilistic primitive resolves to effective mode `probabilistic`.
+**Storage decision (B2 — DB-only, content-addressed)**: rendered job content lives in a new `state_job_contents` table keyed by `content_hash`; report payloads live inline in `state_executions.report_json`. There are no `.skill-map/jobs/<id>.md` or `.skill-map/reports/<id>.json` filesystem artifacts. Multiple jobs that resolve to the same `content_hash` (retries, `--force` reruns, fan-outs that happen to render identically) share one content row, so DB-only does not blow up storage on heavy users. The decision lands as a spec change ahead of the implementation phases below; see `.changeset/job-subsystem-db-only-content.md` for the full diff and rationale.
+
+The work splits into seven phases that ship as separate changesets:
+
+- **Phase 0 — `IAction` runtime contract**. New `src/kernel/extensions/action.ts` mirroring `extensions/action.schema.json`. Plugin loader accepts `kind: 'action'`. Manifest validation tests. No runtime invocation yet (the dispatcher lands with the queue in Phase A).
+- **Phase A — Queue infrastructure**. Storage helpers for `state_jobs` + `state_job_contents` (insert in one transaction, content-addressed dedup via `INSERT OR IGNORE`). TTL resolution + priority resolution + `contentHash` computation. Real bodies for `sm job submit / list / show` (fan-out + duplicate detection + `--force` + `--ttl` + `--priority`, no rendering yet).
+- **Phase B — Preamble render + `sm job preview`**. Kernel helper produces preamble + `<user-content>` + interpolated body, persists to `state_job_contents`. Real body for `sm job preview` (reads from DB). Closes conformance case `preamble-bitwise-match` (deferred from Step 0a).
+- **Phase C — Atomic claim + cancel + status + reap**. `UPDATE ... RETURNING id` claim primitive. Real bodies for `sm job claim` (with `--json` returning `{id, nonce, content}` per the Skill-agent handover contract), `sm job cancel`, `sm job status`. Reap runs at the start of every `sm job run`.
+- **Phase D — `sm record` + nonce auth**. Validate id + nonce, parse `--report` (path or `-` stdin), validate report payload against `reportSchemaRef`, transition the job, write `state_executions` with `report_json` inline. Exit-code matrix (3, 4, 5).
+- **Phase E — `RunnerPort` impls + `sm job run` + `ctx.runner`**. `ClaudeCliRunner` (subprocess + temp-file dance for the `claude -p` interface; missing binary → exit 2). `MockRunner` for tests. Full `sm job run` loop (reap → claim → spawn → record). `sm doctor` learns to probe runner availability. `ctx.runner` plumbed through invocation contexts (per `spec/architecture.md` §Execution modes).
+- **Phase F — `skill-summarizer` built-in + `state_summaries` write-through**. First probabilistic Action. Its existence proves the full pipeline (manifest with `mode: 'probabilistic'`, kernel routing through `RunnerPort`, prompt rendering, `sm record` callback, `state_summaries` upsert). Real bodies for `sm actions list / show`.
+- **Phase G — Conformance, Skill agent, events, polish**. New conformance case `extension-mode-derivation` (an audit composing one deterministic + one probabilistic primitive resolves to effective mode `probabilistic`). `/skill-map:run-queue` + `sm-cli-run-queue` Skill agent package. Job event emission per `spec/job-events.md` (`run.*`, `job.*`, `model.*`, `run.reap.*`). `github-enrichment` bundled plugin (hash verification). ROADMAP + `coverage.md` updated.
+
+Phase 0 has already landed in code (staged/committed under separate concerns); the rest land in order, each with its own changeset, build verification, and tests.
 
 ### Step 11 — Remaining probabilistic extensions + LLM verbs + findings
 

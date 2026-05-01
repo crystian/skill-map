@@ -41,8 +41,8 @@
     },
     "failureReason": {
       "type": ["string", "null"],
-      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-cancelled", null],
-      "description": "Normalized reason when `status = failed` or `cancelled`. Null for `completed`."
+      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "content-missing", "user-cancelled", null],
+      "description": "Normalized reason when `status = failed` or `cancelled`. Null for `completed`. `content-missing` mirrors the same enum value on `Job.failureReason`."
     },
     "exitCode": {
       "type": ["integer", "null"],
@@ -76,9 +76,9 @@
       "minimum": 0,
       "description": "Output tokens reported by the runner."
     },
-    "reportPath": {
-      "type": ["string", "null"],
-      "description": "Path to the written report, relative to scope root. Null for actions that don't produce a report file."
+    "report": {
+      "type": ["object", "null"],
+      "description": "Inline report payload — the parsed JSON the runner produced, validated against the action's `reportSchemaRef` at `sm record` time. Null for actions that don't produce a report (e.g., a `failed` execution before the report could be written). Stored on `state_executions.report_json` as serialized JSON."
     },
     "jobId": {
       "type": ["string", "null"],

@@ -145,7 +145,7 @@ Emitted when a drain attempts to claim but finds no eligible job.
 
 ### `job.spawning`
 
-Emitted when the runner is about to execute the job file.
+Emitted when the runner is about to execute the job content.
 
 ```json
 {
@@ -156,12 +156,12 @@ Emitted when the runner is about to execute the job file.
   "data": {
     "runner": "cli | skill | in-process",
     "command": "claude -p",
-    "jobFilePath": ".skill-map/jobs/d-20260420-143055-b001.md"
+    "contentHash": "0a3f…"
   }
 }
 ```
 
-`command` is implementation-defined free-form; it is descriptive, not invokable.
+`command` is implementation-defined free-form; it is descriptive, not invokable. `contentHash` references the row in `state_job_contents` the runner is about to execute against — useful for downstream observers that want to correlate the spawn with the rendered content (which is in DB, not on disk).
 
 > **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). Plugins MAY subscribe a `hook` extension to this event for pre-flight checks or audit logging. Reactions only — hooks cannot block the spawn.
 
@@ -197,10 +197,12 @@ Emitted inside `sm record` when the callback arrives and passes nonce validation
   "data": {
     "status": "completed | failed",
     "model": "claude-opus-4-7",
-    "reportPath": ".skill-map/reports/d-20260420-143055-b001.json"
+    "executionId": "e-20260420-143104-b001"
   }
 }
 ```
+
+`executionId` references the just-written `state_executions` row whose `report_json` carries the report payload. Consumers that need the content fetch it via `sm history --json` or directly from the DB; the event itself stays small.
 
 `runId` on this event is the run that originally claimed the job. If the record is called from outside a CLI run — the canonical case being a Skill agent that called `sm job claim` + `sm record` without ever entering `sm job run` — the kernel MUST synthesize a `runId` of the form `r-ext-YYYYMMDD-HHMMSS-XXXX` (same timestamp + 4-hex shape as real run ids, with the `r-ext-` prefix reserved for externally-driven claims).
 
@@ -232,10 +234,12 @@ Emitted when a job transitions to `completed`.
     "tokensIn": 2431,
     "tokensOut": 1072,
     "model": "claude-opus-4-7",
-    "reportPath": ".skill-map/reports/d-20260420-143055-b001.json"
+    "executionId": "e-20260420-143104-b001"
   }
 }
 ```
+
+`executionId` references the `state_executions` row that holds the report payload (in `report_json`). The full report is intentionally NOT inlined in the event — keep events small and let consumers query the row when they want the body.
 
 > **Hookable** — see [`architecture.md` §Hook · curated trigger set](./architecture.md#hook--curated-trigger-set). The most common hookable event: notification, billing, downstream dispatch.
 
@@ -250,7 +254,7 @@ Emitted when a job transitions to `failed` by any path.
   "runId": "...",
   "jobId": "...",
   "data": {
-    "reason": "runner-error | report-invalid | timeout | abandoned | job-file-missing | user-cancelled",
+    "reason": "runner-error | report-invalid | timeout | abandoned | content-missing | user-cancelled",
     "message": "Subprocess exited with code 127",
     "exitCode": 127,
     "durationMs": 180000

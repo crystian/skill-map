@@ -78,12 +78,16 @@ Each plugin (and each built-in bundle) declares a **granularity** that controls 
 
 ### `RunnerPort`
 
-Executes an action against a job file. Returns a report reference (or an error) plus runner-side metrics (duration, tokens, exit code).
+Executes an action against rendered job content. Returns the produced report (or an error) plus runner-side metrics (duration, tokens, exit code).
 
-Operations: `run(jobFilePath, options)` → `{ reportPath, tokensIn, tokensOut, durationMs, exitCode } | Error`.
+Operations: `run(jobContent, options)` → `{ report, tokensIn, tokensOut, durationMs, exitCode } | Error`.
+
+`jobContent` is a string: the kernel reads `state_job_contents` for the job and passes the content directly. There is no on-disk job file as part of the contract — runners that need an actual file (the `claude -p` subprocess, for example) materialize a temporary file inside `run()` and remove it after spawn. The temp file is operational, not normative.
+
+`report` is the parsed JSON the runner produced; the kernel ingests it into `state_executions.report_json`. Path-based reporting is not part of the port contract.
 
 Two reference implementations:
-- `ClaudeCliRunner` — subprocess `claude -p < jobfile`.
+- `ClaudeCliRunner` — subprocess `claude -p` with the content piped into a temp file or stdin.
 - `MockRunner` — deterministic fake for tests.
 
 The **Skill agent** does NOT implement this port: it is a peer driving adapter (alongside CLI and Server) that runs inside an LLM session and consumes `sm job claim` + `sm record` as a kernel client. The name "Skill runner" is descriptive, not structural — only the `ClaudeCliRunner` (and its test fake) implement `RunnerPort`. See [`job-lifecycle.md`](./job-lifecycle.md).

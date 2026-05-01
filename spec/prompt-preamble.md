@@ -1,6 +1,6 @@
 # Prompt preamble
 
-Canonical text the kernel prepends to every rendered job file before the action-specific template. The preamble exists to mitigate prompt injection from user-authored node content. This document defines:
+Canonical text the kernel prepends to every rendered job content blob before the action-specific template. The preamble exists to mitigate prompt injection from user-authored node content. This document defines:
 
 1. The **delimiter contract** that wraps user content.
 2. The **verbatim preamble text** (the only normative text in the spec).
@@ -116,7 +116,7 @@ On `sm job submit`:
 2. The kernel validates that the template does not interpolate user text outside of `<user-content>` blocks.
 3. The kernel prepends the verbatim preamble text above.
 4. The kernel renders the template by interpolating the node content, wrapping it in `<user-content>`.
-5. The kernel writes the result to `.skill-map/jobs/<id>.md`.
+5. The kernel stores the result in `state_job_contents` keyed by `contentHash` (content-addressed: multiple jobs that resolve to the same `contentHash` share one row). There is no canonical filesystem artifact — `sm job preview` and `sm job claim --json` both read directly from this table. Subprocess runners that need a file (e.g., `claude -p` reading stdin from a path) materialize a temporary file from the DB row and remove it after spawn; the temp file is operationally ephemeral, not part of the contract.
 6. The kernel computes `contentHash` over (among other things) the concatenation of preamble + template. A changed preamble (e.g., spec bump) MUST produce a different hash and therefore MUST NOT collide with prior jobs.
 
 Implementations MUST NOT modify the preamble text at runtime (e.g., based on locale, model, or config). The text is universal and invariant.
@@ -158,4 +158,4 @@ Defense-in-depth: the deterministic rule `injection-pattern` (shipped as a built
 
 ## Stability
 
-The verbatim text above is **stable** as of spec v1.0.0. It is reproduced in the conformance suite as [`conformance/fixtures/preamble-v1.txt`](./conformance/fixtures/preamble-v1.txt). Any implementation whose rendered job files do not contain this text verbatim fails the conformance check `preamble-bitwise-match`.
+The verbatim text above is **stable** as of spec v1.0.0. It is reproduced in the conformance suite as [`conformance/fixtures/preamble-v1.txt`](./conformance/fixtures/preamble-v1.txt). Any implementation whose rendered job content (read via `sm job preview` or `sm job claim --json`) does not contain this text verbatim fails the conformance check `preamble-bitwise-match`.

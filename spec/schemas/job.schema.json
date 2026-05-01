@@ -44,8 +44,8 @@
     },
     "failureReason": {
       "type": ["string", "null"],
-      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-cancelled", null],
-      "description": "Populated when `status = failed`."
+      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "content-missing", "user-cancelled", null],
+      "description": "Populated when `status = failed`. `content-missing` covers DB corruption where `state_jobs.content_hash` no longer resolves in `state_job_contents` (the runtime invariant should keep this state unreachable; the enum value exists as a defensive failure-mode label)."
     },
     "runner": {
       "type": ["string", "null"],
@@ -55,10 +55,6 @@
       "type": "integer",
       "minimum": 1,
       "description": "Resolved TTL at submit time: max(expectedDurationSeconds × graceMultiplier, minimumTtlSeconds). Frozen."
-    },
-    "filePath": {
-      "type": ["string", "null"],
-      "description": "Relative path to the rendered job file (usually `.skill-map/jobs/<id>.md`). Null before rendering."
     },
     "createdAt": { "type": "integer", "description": "Unix ms. Submit time." },
     "claimedAt": { "type": ["integer", "null"], "description": "Unix ms. Null while queued." },

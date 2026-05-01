@@ -2216,6 +2216,7 @@ svg    { display: block; max-width: 100%; }
   background: linear-gradient(180deg, rgba(0,200,83,.10), rgba(0,200,83,.02));
 }
 .roadmap__seg[aria-current="true"][data-status="planned"],
+.roadmap__seg[aria-current="true"][data-status="pending"],
 .roadmap__seg[aria-current="true"][data-status="open"] {
   background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.01));
 }
@@ -2288,6 +2289,7 @@ svg    { display: block; max-width: 100%; }
 .roadmap__seg[data-status="done"]    .roadmap__seg-status { color: var(--green-400); }
 .roadmap__seg[data-status="current"] .roadmap__seg-status { color: var(--violet-400); }
 .roadmap__seg[data-status="planned"] .roadmap__seg-status { color: rgba(255,255,255,.45); }
+.roadmap__seg[data-status="pending"] .roadmap__seg-status { color: rgba(255,255,255,.40); font-style: italic; }
 .roadmap__seg[data-status="open"]    .roadmap__seg-status { color: rgba(255,255,255,.45); font-style: italic; }
 
 /* Pulse on the current segment's id (CSS-only, GPU compositor). */
@@ -2332,6 +2334,7 @@ svg    { display: block; max-width: 100%; }
   background: linear-gradient(135deg, rgba(124,58,237,.10), rgba(124,58,237,.02));
   border-color: rgba(124,58,237,.25);
 }
+.roadmap__detail[data-status="pending"],
 .roadmap__detail[data-status="open"] {
   border-style: dashed;
 }
