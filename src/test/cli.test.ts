@@ -43,6 +43,26 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /^db-schema\s+—\s*$/m);
   });
 
+  it('`sm version --json` emits the four-field shape (sm, kernel, spec, dbSchema) per spec', () => {
+    // `cli-contract.md` § `sm version`: `--json` emits exactly
+    // `{ sm, kernel, spec, dbSchema }`. `runtime` is intentionally
+    // absent from the JSON surface; expanding it is a spec change.
+    const r = sm(['version', '--json'], EMPTY_DIR);
+    assert.equal(r.status, 0);
+    const payload = JSON.parse(r.stdout) as Record<string, unknown>;
+    assert.deepEqual(
+      [...Object.keys(payload)].sort(),
+      ['dbSchema', 'kernel', 'sm', 'spec'],
+    );
+    assert.match(String(payload['sm']), /^\d+\.\d+\.\d+/);
+    assert.match(String(payload['kernel']), /^\d+\.\d+\.\d+/);
+    assert.equal(typeof payload['spec'], 'string');
+    // `dbSchema` is the em-dash sentinel when no DB is provisioned.
+    assert.equal(payload['dbSchema'], '—');
+    // Nothing else lands on stdout.
+    assert.equal(r.stderr, '');
+  });
+
   it('`sm version` reports the applied migration version once a DB is provisioned', () => {
     const tmpDir = mkdtempSync(join(tmpdir(), 'skill-map-version-cli-'));
     try {

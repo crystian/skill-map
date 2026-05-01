@@ -65,6 +65,14 @@ export interface IKvStoreWrapper {
   set(key: string, value: unknown): Promise<void>;
 }
 
+/**
+ * Union shape exposed to extractors via `ctx.store`. Spec § A.12 — Mode A
+ * (`kv`) returns a `set(key, value)` surface; Mode B (`dedicated`) returns
+ * `write(table, row)`. Plugin authors narrow at the call site based on
+ * the storage mode declared in their `plugin.json`.
+ */
+export type IPluginStore = IKvStoreWrapper | IDedicatedStoreWrapper;
+
 export function makeKvStoreWrapper(opts: {
   pluginId: string;
   schema: IPluginStorageSchema | undefined;
@@ -142,7 +150,7 @@ export function makePluginStore(opts: {
   plugin: IDiscoveredPlugin;
   persistKv?: IKvStorePersist;
   persistDedicated?: IDedicatedStorePersist;
-}): IKvStoreWrapper | IDedicatedStoreWrapper | undefined {
+}): IPluginStore | undefined {
   const manifest = opts.plugin.manifest;
   if (!manifest?.storage) return undefined;
   const storageSchemas = opts.plugin.storageSchemas;

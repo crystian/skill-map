@@ -61,12 +61,17 @@ export interface IExtractorContext extends IExtractorCallbacks {
   frontmatter: Record<string, unknown>;
   /**
    * Plugin-scoped persistence. Optional because not every plugin declares
-   * a `storage.mode` in `plugin.json`. Shape: KV accessor for mode A,
-   * scoped `Database` for mode B. See `spec/plugin-kv-api.md`.
+   * a `storage.mode` in `plugin.json`. Shape: `KvStoreWrapper` for mode A
+   * (`set(key, value)`), `DedicatedStoreWrapper` for mode B
+   * (`write(table, row)`). See `spec/plugin-kv-api.md`.
    *
-   * Typed as `unknown` here because the concrete `PluginStore` shape is
-   * defined alongside the plugin storage runtime (which has not landed
-   * in this kernel yet); narrowing happens at the callsite.
+   * Typed as `unknown` so this contract module stays free of any
+   * adapter-side imports — the concrete `IPluginStore` lives in
+   * `kernel/adapters/plugin-store.js`. Plugin authors narrow at the
+   * call site based on the storage mode declared in their manifest.
+   * The orchestrator looks up the wrapper per-extractor in
+   * `RunScanOptions.pluginStores` (keyed by `pluginId`) and attaches
+   * it here.
    */
   store?: unknown;
   /**

@@ -41,8 +41,12 @@
  *     frontmatter on `node.frontmatter` stays immutable from any Extractor
  *     — the enrichment layer is the only writable surface, and rules /
  *     formatters consume it via `mergeNodeWithEnrichments`.
- *   - `ctx.store` → plugin's own KV / dedicated tables (out of scope
- *     here — the orchestrator never inspects it).
+ *   - `ctx.store` → plugin's own KV / dedicated tables (spec § A.12).
+ *     Wired by the driving adapter via `RunScanOptions.pluginStores`,
+ *     which the orchestrator looks up per-extractor by `pluginId` and
+ *     attaches to the context. The orchestrator never inspects what
+ *     plugins write through it; the wrapper handles AJV validation
+ *     when the manifest declared an output schema.
  */
 
 import { createHash } from 'node:crypto';
@@ -80,6 +84,7 @@ import type {
 import { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
 import { log } from './util/logger.js';
 import { installedSpecVersion } from './adapters/plugin-loader.js';
+import type { IPluginStore } from './adapters/plugin-store.js';
 import {
   buildProviderFrontmatterValidator,
   type IProviderFrontmatterValidator,
@@ -233,6 +238,19 @@ export interface RunScanOptions {
    *     missing extractor or to an extractor that is no longer registered.
    */
   priorExtractorRuns?: Map<string, Map<string, string>>;
+  /**
+   * Spec § A.12 — per-plugin storage wrappers exposed to extractors via
+   * `ctx.store`. Keyed by `pluginId`; absent / missing entry leaves
+   * `ctx.store` undefined for that extractor (the existing contract).
+   *
+   * The kernel does not construct these — the driving adapter (CLI,
+   * future server) builds them with `makePluginStore` from
+   * `kernel/adapters/plugin-store.js` and threads them through. This
+   * keeps the orchestrator persistence-agnostic (the wrapper supplies
+   * its own persist callback) and lets tests inject a captured-call
+   * mock without spinning up a DB.
+   */
+  pluginStores?: ReadonlyMap<string, IPluginStore>;
 }
 
 /**
@@ -377,6 +395,7 @@ async function runScanInternal(
     priorIndex,
     priorExtractorRuns,
     providerFrontmatter,
+    pluginStores: options.pluginStores,
   });
 
   // External pseudo-links (target is http(s)://) drive `externalRefsCount`
@@ -548,6 +567,13 @@ interface IWalkAndExtractOptions {
    */
   priorExtractorRuns: Map<string, Map<string, string>> | undefined;
   providerFrontmatter: IProviderFrontmatterValidator;
+  /**
+   * Spec § A.12 — per-plugin `ctx.store` wrappers, keyed by `pluginId`.
+   * Threaded through to `runExtractorsForNode → buildExtractorContext`
+   * unchanged. `undefined` keeps `ctx.store` undefined for every
+   * extractor (the legacy contract).
+   */
+  pluginStores: ReadonlyMap<string, IPluginStore> | undefined;
 }
 
 interface IWalkAndExtractResult {
@@ -614,6 +640,13 @@ export async function runExtractorsForNode(opts: {
   frontmatter: Record<string, unknown>;
   bodyHash: string;
   emitter: ProgressEmitterPort;
+  /**
+   * Spec § A.12 — per-plugin `ctx.store` wrappers keyed by `pluginId`.
+   * The map's lookup is per-extractor inside the loop, so callers that
+   * don't track plugin storage can omit it; the resulting `ctx.store`
+   * stays `undefined` (the existing contract).
+   */
+  pluginStores?: ReadonlyMap<string, IPluginStore>;
 }): Promise<{
   internalLinks: Link[];
   externalLinks: Link[];
@@ -649,6 +682,7 @@ export async function runExtractorsForNode(opts: {
         });
       }
     };
+    const store = opts.pluginStores?.get(extractor.pluginId);
     const ctx = buildExtractorContext(
       extractor,
       opts.node,
@@ -656,6 +690,7 @@ export async function runExtractorsForNode(opts: {
       opts.frontmatter,
       emitLink,
       enrichNode,
+      store,
     );
     await extractor.extract(ctx);
   }
@@ -903,6 +938,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
     priorIndex,
     priorExtractorRuns,
     providerFrontmatter,
+    pluginStores,
   } = opts;
   const { priorNodesByPath, priorLinksByOriginating, priorFrontmatterIssuesByNode } = priorIndex;
 
@@ -1082,6 +1118,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
         frontmatter: raw.frontmatter,
         bodyHash,
         emitter,
+        ...(pluginStores ? { pluginStores } : {}),
       });
       for (const link of extractResult.internalLinks) internalLinks.push(link);
       for (const link of extractResult.externalLinks) externalLinks.push(link);
@@ -1748,14 +1785,21 @@ function buildExtractorContext(
   frontmatter: Record<string, unknown>,
   emitLink: (link: Link) => void,
   enrichNode: (partial: Partial<Node>) => void,
+  store: IPluginStore | undefined,
 ): IExtractorContext {
   const scope = extractor.scope;
+  // Spread `store` only when present so the resulting context stays
+  // strictly-shaped under `exactOptionalPropertyTypes` — assigning
+  // `store: undefined` would publish the property with an `undefined`
+  // value, which is observably different from the field being absent
+  // (the legacy contract for plugins without declared storage).
   return {
     node,
     body: scope === 'frontmatter' ? '' : body,
     frontmatter: scope === 'body' ? {} : frontmatter,
     emitLink,
     enrichNode,
+    ...(store !== undefined ? { store } : {}),
   };
 }
 

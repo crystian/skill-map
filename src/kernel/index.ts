@@ -80,6 +80,19 @@ export type {
 
 // --- adapters (./adapters/...) -----------------------------------------
 export { InMemoryProgressEmitter } from './adapters/in-memory-progress.js';
+export {
+  KV_SCHEMA_KEY,
+  makeDedicatedStoreWrapper,
+  makeKvStoreWrapper,
+  makePluginStore,
+} from './adapters/plugin-store.js';
+export type {
+  IDedicatedStorePersist,
+  IDedicatedStoreWrapper,
+  IKvStorePersist,
+  IKvStoreWrapper,
+  IPluginStore,
+} from './adapters/plugin-store.js';
 
 // --- scan utilities (./scan/...) ---------------------------------------
 export { createChokidarWatcher } from './scan/watcher.js';

@@ -325,6 +325,42 @@ describe('sm orphans reconcile', () => {
     strictEqual(await cmd2.execute(), 5);
     match(cap2.stderr(), /no active orphan issue/);
   });
+
+  it('--dry-run: previews the migration; state_executions and scan_issues UNCHANGED', async () => {
+    const { dbPath } = await setup();
+    const cap = captureContext();
+    const cmd = new OrphansReconcileCommand();
+    cmd.global = false; cmd.db = dbPath;
+    cmd.orphanPath = '.claude/skills/foo.md';
+    cmd.to = '.claude/skills/keep.md';
+    cmd.dryRun = true;
+    cmd.quiet = true;
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 0);
+
+    // Stdout reports a `(dry-run)` plan, NOT a confirmation of work done.
+    match(cap.stdout(), /\(dry-run\) Would reconcile/);
+    match(cap.stdout(), /Would migrate \d+ state rows/);
+
+    // No mutation happened: the execution still references the orphan
+    // path AND the orphan issue is still active.
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      const rows = await listExecutions(adapter.db);
+      strictEqual(rows.length, 1);
+      deepStrictEqual(rows[0]!.nodeIds, ['.claude/skills/foo.md']);
+
+      const issuesAfter = await adapter.db
+        .selectFrom('scan_issues')
+        .selectAll()
+        .where('ruleId', '=', 'orphan')
+        .execute();
+      strictEqual(issuesAfter.length, 1, 'dry-run must leave the orphan issue intact');
+    } finally {
+      await adapter.close();
+    }
+  });
 });
 
 // --- sm orphans undo-rename ----------------------------------------------
@@ -456,5 +492,43 @@ describe('sm orphans undo-rename', () => {
     cmd3.from = '.claude/skills/a.md'; cmd3.force = true; cmd3.quiet = true;
     cmd3.context = cap3.context;
     strictEqual(await cmd3.execute(), 0);
+  });
+
+  it('--dry-run: previews the revert; state_executions and scan_issues UNCHANGED', async () => {
+    const { dbPath } = await setupMedium();
+
+    const cap = captureContext();
+    const cmd = new OrphansUndoRenameCommand();
+    cmd.global = false; cmd.db = dbPath;
+    cmd.newPath = '.claude/skills/bar.md';
+    cmd.from = undefined;
+    // No --force needed: per spec § Dry-run, dry-run skips the confirm
+    // prompt entirely (nothing is being destroyed).
+    cmd.dryRun = true;
+    cmd.quiet = true;
+    cmd.context = cap.context;
+    strictEqual(await cmd.execute(), 0);
+
+    match(cap.stdout(), /\(dry-run\) Would revert/);
+
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      // FK still on `bar.md` (the migrating-direction target was the old
+      // path, but dry-run rolled back).
+      const rows = await listExecutions(adapter.db);
+      deepStrictEqual(rows[0]!.nodeIds, ['.claude/skills/bar.md']);
+
+      const ruleIds = (
+        await adapter.db.selectFrom('scan_issues').select('ruleId').execute()
+      ).map((r) => r.ruleId);
+      ok(
+        ruleIds.includes('auto-rename-medium'),
+        'medium issue must remain after dry-run',
+      );
+      ok(!ruleIds.includes('orphan'), 'no new orphan issue must be inserted');
+    } finally {
+      await adapter.close();
+    }
   });
 });

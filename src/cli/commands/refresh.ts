@@ -222,6 +222,8 @@ export class RefreshCommand extends Command {
     if (this.stale) {
       const staleEnrichments = persisted.enrichments.filter((e) => e.stale);
       if (staleEnrichments.length === 0) {
+        // Terminal "nothing to do" message — the answer to the user's
+        // request — stays on stdout.
         this.context.stdout.write(REFRESH_TEXTS.refreshingStaleNone);
         return { ok: false, exitCode: ExitCode.Ok };
       }
@@ -231,7 +233,9 @@ export class RefreshCommand extends Command {
         const node = nodesByPath.get(path);
         if (node) nodes.push(node);
       }
-      this.context.stdout.write(
+      // Mid-action banner — `info` channel, goes to stderr so a future
+      // `--json` mode (or any pipe consumer) sees only the payload.
+      this.context.stderr.write(
         tx(REFRESH_TEXTS.refreshingStale, {
           count: staleEnrichments.length,
           nodeCount: nodes.length,
@@ -247,7 +251,8 @@ export class RefreshCommand extends Command {
       );
       return { ok: false, exitCode: ExitCode.NotFound };
     }
-    this.context.stdout.write(
+    // Mid-action banner — stderr, same reasoning as above.
+    this.context.stderr.write(
       tx(REFRESH_TEXTS.refreshingNode, { nodePath: node.path }),
     );
     return { ok: true, nodes: [node] };

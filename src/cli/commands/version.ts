@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
-import { Command } from 'clipanion';
+import { Command, Option } from 'clipanion';
 
 import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -17,6 +17,13 @@ import { VERSION } from '../version.js';
  *   spec         <spec version implemented>
  *   runtime      Node v<n>.<n>.<n>
  *   db-schema    <applied migration version | —>
+ *
+ * `runtime` is rendered in human mode but absent from `--json` —
+ * `cli-contract.md` § `sm version` lists exactly four JSON fields
+ * (`{ sm, kernel, spec, dbSchema }`); the runtime line is
+ * informational only and stays out of the machine surface to keep the
+ * spec contract literal. Promoting it would require a spec PR + a
+ * changeset.
  *
  * The Clipanion built-in `--version` flag remains for the single-line form.
  *
@@ -38,13 +45,28 @@ export class VersionCommand extends Command {
     description: 'Print the CLI / kernel / spec / runtime / db-schema version matrix.',
   });
 
-  json = false;
+  json = Option.Boolean('--json', false);
 
   async execute(): Promise<number> {
     const runtime = `Node ${process.version}`;
     const kernelVersion = VERSION;
     const specVersion = await resolveSpecVersion();
     const dbSchema = resolveDbSchemaVersion();
+
+    if (this.json) {
+      // Spec § `sm version`: exactly `{ sm, kernel, spec, dbSchema }`.
+      // `dbSchema` keeps the human-rendered `—` sentinel for "no DB
+      // yet" so consumers branch on the literal once instead of having
+      // to remember a separate JSON-only convention.
+      const payload = {
+        sm: VERSION,
+        kernel: kernelVersion,
+        spec: specVersion,
+        dbSchema,
+      };
+      this.context.stdout.write(JSON.stringify(payload) + '\n');
+      return ExitCode.Ok;
+    }
 
     const lines: Array<[string, string]> = [
       ['sm', VERSION],

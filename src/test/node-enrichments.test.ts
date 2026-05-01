@@ -639,9 +639,12 @@ describe('sm refresh — Step 6 stub (A.8)', () => {
       0,
       `refresh failed: stderr=${refreshResult.stderr} stdout=${refreshResult.stdout}`,
     );
+    // M1 stream discipline: mid-action banner moved to stderr so a
+    // future `--json` mode (or any pipe consumer) sees only the
+    // payload. Post-action confirmation stays on stdout.
     ok(
-      refreshResult.stdout.includes('Refreshing enrichments for'),
-      `expected "Refreshing enrichments for" in stdout, got: ${refreshResult.stdout}`,
+      refreshResult.stderr.includes('Refreshing enrichments for'),
+      `expected "Refreshing enrichments for" in stderr, got: ${refreshResult.stderr}`,
     );
     ok(
       refreshResult.stdout.includes('Persisted'),

@@ -18,9 +18,11 @@
 import { Command, Option } from 'clipanion';
 
 import { migrateNodeFks } from '../../kernel/adapters/sqlite/history.js';
+import type { IMigrateNodeFksReport } from '../../kernel/adapters/sqlite/history.js';
 import { rowToIssue } from '../../kernel/adapters/sqlite/scan-load.js';
 import type { IDatabase, IScanIssuesTable } from '../../kernel/adapters/sqlite/schema.js';
 import type { Issue } from '../../kernel/types.js';
+import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { confirm } from '../util/confirm.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
@@ -96,9 +98,7 @@ export class OrphansCommand extends Command {
       };
       const resolved = map[this.kind];
       if (!resolved) {
-        this.context.stderr.write(
-          `--kind: invalid value "${this.kind}". Allowed: orphan, medium, ambiguous.\n`,
-        );
+        this.context.stderr.write(tx(ORPHANS_TEXTS.invalidKind, { kind: this.kind }));
         return ExitCode.Error;
       }
       ruleFilter = resolved;
@@ -155,6 +155,7 @@ export class OrphansReconcileCommand extends Command {
   db = Option.String('--db', { required: false });
   orphanPath = Option.String({ required: true });
   to = Option.String('--to', { required: true });
+  dryRun = Option.Boolean('-n,--dry-run', false);
   quiet = Option.Boolean('--quiet', false);
 
   async execute(): Promise<number> {
@@ -172,7 +173,7 @@ export class OrphansReconcileCommand extends Command {
         .executeTakeFirst();
       if (!newNode) {
         this.context.stderr.write(
-          `sm orphans reconcile: target node "${this.to}" not found in scan_nodes.\n`,
+          tx(ORPHANS_TEXTS.reconcileTargetNotFound, { path: this.to }),
         );
         return ExitCode.NotFound;
       }
@@ -185,32 +186,65 @@ export class OrphansReconcileCommand extends Command {
       });
       if (candidates.length === 0) {
         this.context.stderr.write(
-          `sm orphans reconcile: no active orphan issue found for "${this.orphanPath}".\n`,
+          tx(ORPHANS_TEXTS.reconcileNoActiveIssue, { path: this.orphanPath }),
         );
         return ExitCode.NotFound;
       }
 
       // 3. Migrate FKs and resolve every matching issue inside one tx.
+      // `--dry-run` runs the same migration inside the transaction so the
+      // same code path produces the report, then forces a rollback via
+      // a sentinel throw — the spec § Dry-run contract is "no observable
+      // side effects" and rolling back the transaction guarantees that
+      // even if SQLite touched any pages they are reverted before commit.
       const orphanPath = this.orphanPath;
       const toPath = this.to;
-      const summary = await adapter.db.transaction().execute(async (trx) => {
-        const report = await migrateNodeFks(trx, orphanPath, toPath);
-        for (const cand of candidates) {
-          await trx.deleteFrom('scan_issues').where('id', '=', cand.row.id).execute();
-        }
-        return report;
-      });
+      // Strict-equality check: Clipanion's `Option.Boolean` evaluator
+      // returns a placeholder symbol BEFORE the parser runs (the field
+      // type stays `boolean` from TS's view but the runtime value is
+      // not `true` / `false`). Direct `if (this.dryRun)` would treat
+      // that placeholder as truthy and silently flip every test that
+      // constructs the command without going through Clipanion.
+      const dryRun = this.dryRun === true;
+      const summary = await runWithOptionalRollback(
+        adapter.db,
+        async (trx) => {
+          const report = await migrateNodeFks(trx, orphanPath, toPath);
+          if (!dryRun) {
+            for (const cand of candidates) {
+              await trx.deleteFrom('scan_issues').where('id', '=', cand.row.id).execute();
+            }
+          }
+          return report;
+        },
+        dryRun,
+      );
 
+      const totalRows = summaryTotal(summary);
+      const summaryVars = {
+        from: this.orphanPath,
+        to: this.to,
+        rows: totalRows,
+        jobs: summary.jobs,
+        execs: summary.executions,
+        summaries: summary.summaries,
+        enrichments: summary.enrichments,
+        kv: summary.pluginKvs,
+      };
       this.context.stdout.write(
-        `Reconciled ${this.orphanPath} → ${this.to}. ` +
-          `Migrated ${summary.jobs + summary.executions + summary.summaries + summary.enrichments + summary.pluginKvs} ` +
-          `state rows ` +
-          `(jobs:${summary.jobs}, execs:${summary.executions}, summaries:${summary.summaries}, ` +
-          `enrichments:${summary.enrichments}, kv:${summary.pluginKvs}).\n`,
+        tx(
+          dryRun ? ORPHANS_TEXTS.reconcileWouldMigrate : ORPHANS_TEXTS.reconcileSummary,
+          summaryVars,
+        ),
       );
       if (summary.collisions.length > 0) {
         this.context.stderr.write(
-          `Note: ${summary.collisions.length} composite-PK collision(s); destination rows preserved (see spec/db-schema.md §Rename detection).\n`,
+          tx(
+            dryRun
+              ? ORPHANS_TEXTS.reconcileCollisionsNoteDryRun
+              : ORPHANS_TEXTS.reconcileCollisionsNote,
+            { count: summary.collisions.length },
+          ),
         );
       }
       emitDoneStderr(this.context.stderr, elapsed, this.quiet);
@@ -250,6 +284,7 @@ export class OrphansUndoRenameCommand extends Command {
   newPath = Option.String({ required: true });
   from = Option.String('--from', { required: false });
   force = Option.Boolean('--force', false);
+  dryRun = Option.Boolean('-n,--dry-run', false);
   quiet = Option.Boolean('--quiet', false);
 
   async execute(): Promise<number> {
@@ -258,12 +293,6 @@ export class OrphansUndoRenameCommand extends Command {
     const dbPath = resolveDbPath({ global: this.global, db: this.db });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
-    // Destructive verb: validates the active rename issue, resolves
-    // `from`, confirms (unless --force), runs the FK migration in a
-    // transaction. Multi-branch validation by issue ruleId is intrinsic
-    // to the contract; splitting per branch would distance the guards
-    // from the resolved `from` they assemble.
-    // eslint-disable-next-line complexity
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       // Find the active auto-rename-medium / -ambiguous issue on <new.path>.
       const candidates = await findActiveIssues(adapter.db, (issue) => {
@@ -275,13 +304,16 @@ export class OrphansUndoRenameCommand extends Command {
 
       if (candidates.length === 0) {
         this.context.stderr.write(
-          `sm orphans undo-rename: no active auto-rename issue targets "${this.newPath}".\n`,
+          tx(ORPHANS_TEXTS.undoNoActiveIssue, { path: this.newPath }),
         );
         return ExitCode.NotFound;
       }
       if (candidates.length > 1) {
         this.context.stderr.write(
-          `sm orphans undo-rename: ${candidates.length} active auto-rename issues target "${this.newPath}"; the rename heuristic should have produced at most one. Run \`sm scan\` and retry.\n`,
+          tx(ORPHANS_TEXTS.undoMultipleActive, {
+            count: candidates.length,
+            path: this.newPath,
+          }),
         );
         return ExitCode.Error;
       }
@@ -289,44 +321,20 @@ export class OrphansUndoRenameCommand extends Command {
       const candidate = candidates[0]!;
       const issue = candidate.issue;
 
-      let resolvedFrom: string;
-      if (issue.ruleId === 'auto-rename-medium') {
-        const dataFrom = issue.data ? (issue.data['from'] as unknown) : undefined;
-        if (typeof dataFrom !== 'string') {
-          this.context.stderr.write(
-            `sm orphans undo-rename: auto-rename-medium issue is missing data.from; cannot revert without --from.\n`,
-          );
-          return ExitCode.Error;
-        }
-        if (this.from !== undefined && this.from !== dataFrom) {
-          this.context.stderr.write(
-            `sm orphans undo-rename: --from "${this.from}" does not match auto-rename-medium data.from "${dataFrom}".\n`,
-          );
-          return ExitCode.Error;
-        }
-        resolvedFrom = dataFrom;
-      } else {
-        // ambiguous
-        if (this.from === undefined) {
-          this.context.stderr.write(
-            `sm orphans undo-rename: --from <old.path> is REQUIRED for auto-rename-ambiguous (pick one of data.candidates).\n`,
-          );
-          return ExitCode.NotFound;
-        }
-        const dataCandidates = issue.data ? issue.data['candidates'] : undefined;
-        if (!isStringArray(dataCandidates) || !dataCandidates.includes(this.from)) {
-          this.context.stderr.write(
-            `sm orphans undo-rename: --from "${this.from}" not in auto-rename-ambiguous candidates.\n`,
-          );
-          return ExitCode.NotFound;
-        }
-        resolvedFrom = this.from;
-      }
+      const resolved = this.#resolveFrom(issue);
+      if (!resolved.ok) return resolved.exitCode;
+      const resolvedFrom = resolved.from;
 
-      // Destructive — confirm unless --force.
-      if (!this.force) {
+      // Destructive — confirm unless --force OR --dry-run. Per spec
+      // § Dry-run: "Dry-run MUST NOT depend on --yes / --force ...
+      // (no confirmation needed when nothing is being destroyed)".
+      // Strict equality: see the placeholder note further down.
+      if (this.force !== true && this.dryRun !== true) {
         const ok = await confirm(
-          `Undo auto-rename: migrate state_* FKs from ${this.newPath} back to ${resolvedFrom}?`,
+          tx(ORPHANS_TEXTS.undoConfirmPrompt, {
+            newPath: this.newPath,
+            from: resolvedFrom,
+          }),
           { stdin: this.context.stdin, stderr: this.context.stderr },
         );
         if (!ok) {
@@ -337,40 +345,151 @@ export class OrphansUndoRenameCommand extends Command {
 
       const newPath = this.newPath;
       const toPath = resolvedFrom;
-      const summary = await adapter.db.transaction().execute(async (trx) => {
-        const report = await migrateNodeFks(trx, newPath, toPath);
-        await trx
-          .deleteFrom('scan_issues')
-          .where('id', '=', candidate.row.id)
-          .execute();
-        // Per spec: "the previous path becomes an `orphan`". The new path
-        // (which the file in FS still has) inherits no rows, so the
-        // orphan path is the OLD path the FKs just landed on.
-        await trx
-          .insertInto('scan_issues')
-          .values({
-            ruleId: 'orphan',
-            severity: 'info',
-            nodeIdsJson: JSON.stringify([toPath]),
-            linkIndicesJson: null,
-            message: `Orphan history: ${toPath} (was reverted from auto-rename to ${newPath}).`,
-            detail: null,
-            fixJson: null,
-            dataJson: JSON.stringify({ path: toPath }),
-          })
-          .execute();
-        return report;
-      });
+      // Strict-equality check: Clipanion's `Option.Boolean` evaluator
+      // returns a placeholder symbol BEFORE the parser runs (the field
+      // type stays `boolean` from TS's view but the runtime value is
+      // not `true` / `false`). Direct `if (this.dryRun)` would treat
+      // that placeholder as truthy and silently flip every test that
+      // constructs the command without going through Clipanion.
+      const dryRun = this.dryRun === true;
+      const summary = await runWithOptionalRollback(
+        adapter.db,
+        async (trx) => {
+          const report = await migrateNodeFks(trx, newPath, toPath);
+          if (!dryRun) {
+            await trx
+              .deleteFrom('scan_issues')
+              .where('id', '=', candidate.row.id)
+              .execute();
+            // Per spec: "the previous path becomes an `orphan`". The new
+            // path (which the file in FS still has) inherits no rows, so
+            // the orphan path is the OLD path the FKs just landed on.
+            await trx
+              .insertInto('scan_issues')
+              .values({
+                ruleId: 'orphan',
+                severity: 'info',
+                nodeIdsJson: JSON.stringify([toPath]),
+                linkIndicesJson: null,
+                message: `Orphan history: ${toPath} (was reverted from auto-rename to ${newPath}).`,
+                detail: null,
+                fixJson: null,
+                dataJson: JSON.stringify({ path: toPath }),
+              })
+              .execute();
+          }
+          return report;
+        },
+        dryRun,
+      );
 
       this.context.stdout.write(
-        `Reverted ${this.newPath} → ${resolvedFrom}. ` +
-          `Migrated ${summary.jobs + summary.executions + summary.summaries + summary.enrichments + summary.pluginKvs} ` +
-          `state rows; new orphan issue emitted on ${resolvedFrom}.\n`,
+        tx(dryRun ? ORPHANS_TEXTS.undoWouldMigrate : ORPHANS_TEXTS.undoSummary, {
+          newPath: this.newPath,
+          from: resolvedFrom,
+          rows: summaryTotal(summary),
+        }),
       );
       emitDoneStderr(this.context.stderr, elapsed, this.quiet);
       return ExitCode.Ok;
     });
   }
+
+  /**
+   * Resolve the prior path the FK migration should target. Pulled out of
+   * `execute()` so the destructive verb's main control flow stays
+   * linear (validate → resolve → confirm → migrate). Dispatches to a
+   * per-ruleId helper to keep cyclomatic complexity below the lint
+   * threshold; the dispatcher itself is the discriminated-union pattern
+   * AGENTS.md whitelists, but here we keep it simple.
+   */
+  #resolveFrom(
+    issue: Issue,
+  ): { ok: true; from: string } | { ok: false; exitCode: number } {
+    if (issue.ruleId === 'auto-rename-medium') return this.#resolveFromMedium(issue);
+    return this.#resolveFromAmbiguous(issue);
+  }
+
+  #resolveFromMedium(
+    issue: Issue,
+  ): { ok: true; from: string } | { ok: false; exitCode: number } {
+    const dataFrom = issue.data ? (issue.data['from'] as unknown) : undefined;
+    if (typeof dataFrom !== 'string') {
+      this.context.stderr.write(ORPHANS_TEXTS.undoMediumMissingFrom);
+      return { ok: false, exitCode: ExitCode.Error };
+    }
+    if (this.from !== undefined && this.from !== dataFrom) {
+      this.context.stderr.write(
+        tx(ORPHANS_TEXTS.undoMediumFromMismatch, { from: this.from, dataFrom }),
+      );
+      return { ok: false, exitCode: ExitCode.Error };
+    }
+    return { ok: true, from: dataFrom };
+  }
+
+  #resolveFromAmbiguous(
+    issue: Issue,
+  ): { ok: true; from: string } | { ok: false; exitCode: number } {
+    if (this.from === undefined) {
+      this.context.stderr.write(ORPHANS_TEXTS.undoAmbiguousRequiresFrom);
+      return { ok: false, exitCode: ExitCode.NotFound };
+    }
+    const dataCandidates = issue.data ? issue.data['candidates'] : undefined;
+    if (!isStringArray(dataCandidates) || !dataCandidates.includes(this.from)) {
+      this.context.stderr.write(
+        tx(ORPHANS_TEXTS.undoAmbiguousNotInCandidates, { from: this.from }),
+      );
+      return { ok: false, exitCode: ExitCode.NotFound };
+    }
+    return { ok: true, from: this.from };
+  }
+}
+
+// --- shared dry-run helper ------------------------------------------------
+
+/**
+ * Sentinel symbol used to force a Kysely transaction rollback in
+ * `--dry-run` mode without conflating with real errors. The caller
+ * captures it after the transaction promise rejects and rethrows
+ * anything else.
+ */
+const DRY_RUN_ROLLBACK = Symbol('orphans:dry-run-rollback');
+
+/**
+ * Run `body` inside a Kysely transaction. When `dryRun` is true, the
+ * helper throws the rollback sentinel after capturing `body`'s return
+ * value so SQLite reverts every page touched by the body — the spec
+ * § Dry-run "no observable side effects" guarantee. The return value
+ * is propagated either way.
+ *
+ * Reasoning: `migrateNodeFks` is a complex multi-table mutation; we
+ * want the dry-run preview to come from the SAME code path as the
+ * live mode (no parallel "count" implementation that could drift).
+ * A throw-to-rollback gives that for free.
+ */
+async function runWithOptionalRollback(
+  db: Kysely<IDatabase>,
+  body: (trx: Parameters<Parameters<ReturnType<Kysely<IDatabase>['transaction']>['execute']>[0]>[0]) => Promise<IMigrateNodeFksReport>,
+  dryRun: boolean,
+): Promise<IMigrateNodeFksReport> {
+  let captured: IMigrateNodeFksReport | undefined;
+  try {
+    return await db.transaction().execute(async (trx) => {
+      const report = await body(trx);
+      if (dryRun) {
+        captured = report;
+        throw DRY_RUN_ROLLBACK;
+      }
+      return report;
+    });
+  } catch (err) {
+    if (err === DRY_RUN_ROLLBACK && captured !== undefined) return captured;
+    throw err;
+  }
+}
+
+function summaryTotal(s: IMigrateNodeFksReport): number {
+  return s.jobs + s.executions + s.summaries + s.enrichments + s.pluginKvs;
 }
 
 // --- renderers ------------------------------------------------------------
