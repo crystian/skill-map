@@ -1,7 +1,7 @@
 /**
  * Scan delta — pure comparison of two `ScanResult` snapshots. Drives
- * `sm scan --compare-with <path>` (Step 8.2) and is the single place
- * the kernel knows how to identify "the same" entity across two scans.
+ * `sm scan --compare-with <path>` and is the single place the kernel
+ * knows how to identify "the same" entity across two scans.
  *
  * **Identity contract** (mirrors decisions made at earlier sub-steps):
  *
@@ -12,7 +12,7 @@
  *     a reason narrowing what diverged.
  *
  *   - **Link**: `(source, target, kind, normalizedTrigger ?? '')`. This
- *     mirrors Step 7.2's link-conflict rule and `sm show` aggregation —
+ *     mirrors the link-conflict rule and `sm show` aggregation —
  *     two links with identical endpoints, kind, and (optional) trigger
  *     are the same link, even if emitted by different extractors. The
  *     `sources[]` union and confidence are NOT part of identity; they
@@ -175,7 +175,7 @@ function diffLinks(
 function linkIdentity(link: Link): string {
   // NUL separator — collision-free against any path (POSIX paths cannot
   // contain NUL) or trigger string. Same rule used by `sm show`'s
-  // aggregation and by Step 7.2's link-conflict rule.
+  // aggregation and by the link-conflict rule.
   const trigger = link.trigger?.normalizedTrigger ?? '';
   return `${link.source}\x00${link.target}\x00${link.kind}\x00${trigger}`;
 }

@@ -5,7 +5,7 @@
  * `sm plugins enable/disable`.
  *
  * The table schema is shipped in the kernel's initial migration (see
- * `src/migrations/001_initial.sql`). Step 6.6 only adds the helpers.
+ * `src/migrations/001_initial.sql`). This module only adds the helpers.
  */
 
 import { sql, type Kysely, type Transaction } from 'kysely';

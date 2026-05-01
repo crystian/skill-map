@@ -17,9 +17,9 @@
  *   `load()` so the kernel fails fast on a spec corruption instead of
  *   crashing the first time a plugin tries to register.
  *
- * **Phase 3 (spec 0.8.0).** Per-kind frontmatter schemas (`skill`,
- * `agent`, `command`, `hook`, `note`) relocated from spec to the
- * Provider that owns them. Spec-only validators no longer cover those
+ * **Spec 0.8.0**. Per-kind frontmatter schemas (`skill`, `agent`,
+ * `command`, `hook`, `note`) relocated from spec to the Provider that
+ * owns them. Spec-only validators no longer cover those
  * five names. `buildProviderFrontmatterValidator(providers)` produces a
  * dedicated AJV instance pre-loaded with `frontmatter/base` (from spec)
  * plus every Provider's per-kind schemas — the kernel composes it once
@@ -104,7 +104,7 @@ export interface ISchemaValidators {
   validatePluginManifest<T = unknown>(data: unknown): { ok: true; data: T } | { ok: false; errors: string };
 }
 
-// Step 5.12 — module-level cache. Cold load compiles ~17 validators
+// Module-level cache. Cold load compiles ~17 validators
 // (~20 schemas counting supporting refs) which is ~100 ms cold for a CLI
 // startup. Subsequent calls in the same process return the same instance,
 // so future verbs that validate at multiple boundaries pay the cost once.

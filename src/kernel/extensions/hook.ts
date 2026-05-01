@@ -1,5 +1,5 @@
 /**
- * Hook runtime contract. The sixth plugin kind (Phase 4d / spec § A.11).
+ * Hook runtime contract. The sixth plugin kind (spec § A.11).
  *
  * Hooks subscribe declaratively to a curated set of kernel lifecycle
  * events and react to them. Reaction-only by design: a hook cannot
@@ -22,8 +22,8 @@
  *     by the dispatcher, logged via `extension.error`, and never
  *     block the main flow.
  *   - `probabilistic`: the hook is enqueued as a job. Until the job
- *     subsystem ships at Step 10, probabilistic hooks load but skip
- *     dispatch with a stderr advisory (Decision #114 in `ROADMAP.md`).
+ *     subsystem ships, probabilistic hooks load but skip dispatch
+ *     with a stderr advisory (Decision #114 in `ROADMAP.md`).
  *
  * Curated trigger set (per spec § A.11):
  *
@@ -32,9 +32,9 @@
  *   3. `extractor.completed`  — aggregated per-Extractor outputs.
  *   4. `rule.completed`       — aggregated per-Rule outputs.
  *   5. `action.completed`     — Action executed on a node.
- *   6. `job.spawning`         — pre-spawn of runner subprocess (Step 10).
- *   7. `job.completed`        — most common trigger (Step 10).
- *   8. `job.failed`           — alerts, retry triggers (Step 10).
+ *   6. `job.spawning`         — pre-spawn of runner subprocess.
+ *   7. `job.completed`        — most common trigger.
+ *   8. `job.failed`           — alerts, retry triggers.
  */
 
 import type { IExtensionBase } from './base.js';
@@ -114,16 +114,16 @@ export interface IHookContext {
    */
   actionId?: string;
   /**
-   * Set on `job.*` events once the job subsystem lands (Step 10). Carries
-   * the report payload for `job.completed`, the failure record for
+   * Set on `job.*` events once the job subsystem lands. Carries the
+   * report payload for `job.completed`, the failure record for
    * `job.failed`, and the spawn metadata for `job.spawning`.
    */
   jobResult?: unknown;
   /**
    * `RunnerPort` injection for `probabilistic` hooks. `undefined` for
    * `deterministic` mode (the default). Probabilistic hooks land with
-   * the job subsystem (Step 10); the field is reserved here so the
-   * runtime contract is forward-compatible without a major bump.
+   * the job subsystem; the field is reserved here so the runtime
+   * contract is forward-compatible without a major bump.
    */
   runner?: unknown;
 }
@@ -152,7 +152,7 @@ export interface IHook extends IExtensionBase {
    * Execution mode. Optional in the manifest with a default of
    * `deterministic` per `spec/schemas/extensions/hook.schema.json`.
    * Probabilistic hooks load but skip dispatch with a stderr advisory
-   * until the job subsystem ships at Step 10 (Decision #114).
+   * until the job subsystem ships (Decision #114).
    */
   mode?: TExecutionMode;
   /**

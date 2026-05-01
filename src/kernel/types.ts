@@ -3,8 +3,8 @@
  *
  * The kernel is the reference consumer of the spec; these types are therefore
  * derived from the schemas, not invented. When a schema changes, this file
- * follows. Step 2 introduces ajv + automatic derivation; until then the mapping
- * is hand-maintained, and the release gate is the conformance suite.
+ * follows. Until automatic AJV-driven derivation lands, the mapping is
+ * hand-maintained and the release gate is the conformance suite.
  *
  * --- Naming convention (kernel-wide) -------------------------------------
  *
@@ -160,7 +160,7 @@ export interface ScanStats {
    * Files walked but not classified by any Provider. Today every walked
    * file is classified by its Provider (the `claude` Provider falls back to
    * `'note'`), so this is always 0; the field will matter once multiple
-   * Providers compete in Step 9+.
+   * Providers can claim the same file.
    */
   filesSkipped: number;
   nodesCount: number;

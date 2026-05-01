@@ -1,5 +1,5 @@
 /**
- * Plugin migration SQL validator — Step 9.2 triple protection.
+ * Plugin migration SQL validator — triple protection layer.
  *
  * Plugins MAY ship their own SQL migrations (`<plugin-dir>/migrations/`).
  * To keep a malicious or buggy plugin from clobbering kernel state, every

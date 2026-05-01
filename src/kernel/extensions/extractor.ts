@@ -11,10 +11,8 @@
  *     kind drops the link and surfaces an `extension.error` event.
  *   - `ctx.enrichNode(partial)` — merge canonical, kernel-curated properties
  *     onto the node. Strictly separate from the author-supplied frontmatter
- *     (the latter remains immutable and survives verbatim). Persistence of
- *     the enrichment layer to the DB lands in Phase 4 (A.8 stale tracking);
- *     B.1 only sets the API contract — the orchestrator collects the partials
- *     in memory and currently discards them at scan completion.
+ *     (the latter remains immutable and survives verbatim). Persistence and
+ *     stale-tracking are spec'd in § A.8.
  *   - `ctx.store` — plugin-scoped persistence. Present only when the
  *     plugin declares `storage.mode` in `plugin.json`; shape depends on the
  *     mode (`KvStore` for mode A, scoped `Database` for mode B). See
@@ -50,10 +48,9 @@ export interface IExtractorCallbacks {
   /**
    * Merge canonical, kernel-curated properties onto the current node's
    * enrichment layer. The author-supplied frontmatter stays untouched
-   * (Decision #109 in `ROADMAP.md`). B.1 sets the API contract only;
-   * persistence to the DB is deferred to Phase 4 (A.8 stale tracking).
-   * In-memory merges are still observable inside the same scan via the
-   * orchestrator's enrichment buffer; cross-scan persistence lands later.
+   * (Decision #109 in `ROADMAP.md`). Persistence and stale-tracking
+   * semantics live in spec § A.8; the orchestrator already buffers the
+   * partials and `persistScanResult` upserts them.
    */
   enrichNode(partial: Partial<Node>): void;
 }

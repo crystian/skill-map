@@ -1,8 +1,8 @@
 /**
  * `PluginLoader` — default `PluginLoaderPort` implementation.
  *
- * Responsibilities (per spec §Plugin discovery + Step 1b acceptance +
- * spec v0.8.0 § A.5 — id uniqueness):
+ * Responsibilities (per spec §Plugin discovery + spec v0.8.0 § A.5 —
+ * id uniqueness):
  *
  * 1. Discover plugin directories under one or more search paths, each
  *    containing a `plugin.json` at its root.
@@ -597,7 +597,7 @@ function extractDefault(mod: unknown): unknown {
  * the whole export. Same posture for `pluginId` — per spec § A.6 it's a
  * runtime concern injected by the loader, not a manifest field.
  *
- * Phase 3 (spec 0.8.0): Provider runtime instances carry an additional
+ * Spec 0.8.0: Provider runtime instances carry an additional
  * runtime-only field per `kinds` entry — `schemaJson`, the loaded JSON
  * Schema for the kind. The manifest declares `schema` (a relative path
  * string); `schemaJson` is loaded by the kernel/loader at boot. Strip

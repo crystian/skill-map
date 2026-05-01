@@ -1,5 +1,5 @@
 /**
- * Plugin migrations runner — Step 9.2.
+ * Plugin migrations runner.
  *
  * Mirrors the kernel migrations runner (`migrations.ts`) but scopes its
  * ledger writes to `(scope='plugin', owner_id=<pluginId>)` and gates

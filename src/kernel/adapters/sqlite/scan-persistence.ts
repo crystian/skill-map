@@ -5,9 +5,9 @@
  * a single transaction so a partial failure leaves the DB on the previous
  * snapshot.
  *
- * Incremental scans (`sm scan --changed`, Step 4.4) load the prior
- * snapshot, merge unchanged nodes back in, recompute counts, and call
- * this with the merged ScanResult. The replace-all stays — the merge
+ * Incremental scans (`sm scan --changed`) load the prior snapshot,
+ * merge unchanged nodes back in, recompute counts, and call this with
+ * the merged ScanResult. The replace-all stays — the merge
  * happens upstream.
  *
  * After the transaction commits we run `PRAGMA wal_checkpoint(TRUNCATE)`
@@ -72,7 +72,7 @@ export async function persistScanResult(
       renames.push(report);
     }
 
-    // Step 5.9 — orphan persistence. Sweep `state_*` for any node_id
+    // Orphan persistence. Sweep `state_*` for any node_id
     // not in the new live set and emit an `orphan` issue for it (unless
     // the per-scan rename heuristic already covered it). Without this
     // sweep, a state row stranded by a deletion 2+ scans ago becomes

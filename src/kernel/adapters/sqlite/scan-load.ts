@@ -1,8 +1,8 @@
 /**
  * `loadScanResult` — driving inverse of `persistScanResult`. Reads the
  * `scan_*` tables and reconstructs a `ScanResult` shape so the
- * orchestrator can run an incremental scan (`sm scan --changed`,
- * Step 4.4) on top of a prior snapshot.
+ * orchestrator can run an incremental scan (`sm scan --changed`) on
+ * top of a prior snapshot.
  *
  * The reconstruction is faithful for everything that was actually
  * persisted: nodes (with triple-split bytes / tokens, denormalised
@@ -20,12 +20,12 @@
  * preserves that count for "unchanged" nodes and re-derives it for
  * new / modified nodes from a fresh extractor pass.
  *
- * Meta envelope: since Step 5.1 the `scan_meta` table persists `scope` /
- * `roots` / `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked` /
- * `stats.filesSkipped` / `stats.durationMs`. When the row exists, those
- * fields come back authoritatively. When it does not (DB freshly migrated
- * but never scanned, or a pre-5.1 DB never re-persisted), the loader
- * degrades to a synthetic envelope:
+ * Meta envelope: the `scan_meta` table persists `scope` / `roots` /
+ * `scannedAt` / `scannedBy` / `providers` / `stats.filesWalked` /
+ * `stats.filesSkipped` / `stats.durationMs`. When the row exists,
+ * those fields come back authoritatively. When it does not (DB
+ * freshly migrated but never scanned, or a legacy DB never
+ * re-persisted), the loader degrades to a synthetic envelope:
  *
  *   - `scannedAt` ← max(`scan_nodes.scanned_at`); falls back to `Date.now()`
  *     for empty snapshots so the field stays a positive integer.
@@ -236,7 +236,7 @@ export function rowToIssue(row: Selectable<IScanIssuesTable>): Issue {
 }
 
 /**
- * Phase 4 / A.9 — load the fine-grained Extractor cache as a per-node map
+ * Spec § A.9 — load the fine-grained Extractor cache as a per-node map
  * from qualified extractor id (`<pluginId>/<id>`) to the body hash that
  * extractor saw on its last run. Empty map is the default when the table
  * is empty (fresh DB, never-scanned scope, or every extractor has been
@@ -266,7 +266,7 @@ export async function loadExtractorRuns(
 }
 
 /**
- * Phase 4 / A.8 — load enrichment rows from `node_enrichments`.
+ * Spec § A.8 — load enrichment rows from `node_enrichments`.
  *
  * Returned in the order required by `mergeNodeWithEnrichments` callers:
  * grouped by `nodePath`, then sorted by `enrichedAt` ASC so a spread

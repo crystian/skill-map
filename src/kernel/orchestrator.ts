@@ -19,7 +19,7 @@
  * that wiped a populated DB via `sm scan -- --dry-run` (clipanion's
  * `--` made `--dry-run` a positional root that did not exist).
  *
- * Incremental scans (Step 4.4): when `priorSnapshot` is supplied, the
+ * Incremental scans: when `priorSnapshot` is supplied, the
  * orchestrator walks the filesystem, hashes each file, and reuses the
  * prior node + its prior-extracted internal links whenever both
  * `bodyHash` and `frontmatterHash` match. New / modified files run
@@ -127,7 +127,7 @@ export interface IScanExtensions {
    * event payload. Absent → no hooks fire (the scan still emits its
    * lifecycle events to `ProgressEmitterPort` for observability).
    * Probabilistic hooks are loaded but skipped here with a stderr
-   * advisory until the job subsystem ships at Step 10.
+   * advisory until the job subsystem ships once the job subsystem ships.
    */
   hooks?: IHook[];
 }
@@ -155,7 +155,7 @@ export interface RunScanOptions {
   extensions?: IScanExtensions;
   /**
    * Scan scope. Defaults to `'project'`. The CLI flag wiring lands in
-   * Step 6 (config + onboarding); `runScan` already accepts the override
+   * the config layer wiring; `runScan` already accepts the override
    * so plugins / tests can opt into `'global'` today.
    */
   scope?: 'project' | 'global';
@@ -167,7 +167,7 @@ export interface RunScanOptions {
    */
   tokenize?: boolean;
   /**
-   * Prior snapshot for two purposes (decoupled at Step 5.8):
+   * Prior snapshot for two purposes (decoupled by design):
    *
    *   1. **Rename heuristic** (`spec/db-schema.md` §Rename detection):
    *      always evaluated when `priorSnapshot` is supplied. The
@@ -215,7 +215,7 @@ export interface RunScanOptions {
    */
   strict?: boolean;
   /**
-   * Phase 4 / A.9 — fine-grained Extractor cache breadcrumbs from the
+   * Spec § A.9 — fine-grained Extractor cache breadcrumbs from the
    * prior scan. Shape: `Map<nodePath, Map<qualifiedExtractorId, bodyHashAtRun>>`.
    * Loaded from the `scan_extractor_runs` table by the CLI before
    * invoking `runScan`; absent / empty for a fresh DB or an out-of-band
@@ -236,7 +236,7 @@ export interface RunScanOptions {
 }
 
 /**
- * Phase 4 / A.9 — runs to persist into `scan_extractor_runs`. One entry
+ * Spec § A.9 — runs to persist into `scan_extractor_runs`. One entry
  * per `(nodePath, qualifiedExtractorId)` pair the orchestrator decided
  * "this extractor is current for this body". Includes both freshly-run
  * pairs (extractor invoked this scan) and reused pairs (cached node, the
@@ -252,7 +252,7 @@ export interface IExtractorRunRecord {
 }
 
 /**
- * Phase 4 / A.8 — universal enrichment layer.
+ * Spec § A.8 — universal enrichment layer.
  *
  * One entry per `(nodePath, qualifiedExtractorId)` pair an Extractor
  * produced via `ctx.enrichNode(...)` during the walk. Attribution is
@@ -294,7 +294,7 @@ export interface IEnrichmentRecord {
  * `runScan` (which returns just `ScanResult`); the CLI's `sm scan`
  * uses this variant so it can hand the ops off to `persistScanResult`.
  *
- * Also returns `extractorRuns` — the Phase 4 / A.9 fine-grained cache
+ * Also returns `extractorRuns` — the Spec § A.9 fine-grained cache
  * breadcrumbs the CLI persists into `scan_extractor_runs` so the next
  * incremental scan can decide per-(node, extractor) whether re-running
  * is required.
@@ -344,7 +344,7 @@ async function runScanInternal(
   const encoder = tokenize ? new Tiktoken(cl100k_base) : null;
   const prior = options.priorSnapshot ?? null;
   const enableCache = options.enableCache === true;
-  // Phase 4 / A.9 — `priorExtractorRuns === undefined` means the caller
+  // Spec § A.9 — `priorExtractorRuns === undefined` means the caller
   // doesn't track the fine-grained Extractor cache (legacy behaviour: out-
   // of-band tests, alternate driving adapters that have no DB). In that
   // case we fall back to the pre-A.9 model where the node-level body /
@@ -355,7 +355,7 @@ async function runScanInternal(
 
   const priorIndex = indexPriorSnapshot(prior);
 
-  // Phase 3 (spec 0.8.0): each Provider owns its per-kind frontmatter
+  // Spec 0.8.0: each Provider owns its per-kind frontmatter
   // schemas. Compose a single AJV-backed validator over the live set of
   // Providers so the orchestrator can ask it directly during the walk.
   const providerFrontmatter = buildProviderFrontmatterValidator(exts.providers);
@@ -418,7 +418,7 @@ async function runScanInternal(
     // Today every walked file IS classified by its Provider (the `claude`
     // Provider's `classify()` always returns a kind, falling back to
     // `'note'`), so this is always 0. Wired now so the field shape is
-    // spec-conformant; meaningful once multiple Providers compete (Step 9+).
+    // spec-conformant; meaningful once multiple Providers compete.
     filesWalked: walked.filesWalked,
     filesSkipped: 0,
     nodesCount: walked.nodes.length,
@@ -540,7 +540,7 @@ interface IWalkAndExtractOptions {
   prior: ScanResult | null;
   priorIndex: IPriorIndex;
   /**
-   * Phase 4 / A.9 — fine-grained Extractor cache breadcrumbs from the
+   * Spec § A.9 — fine-grained Extractor cache breadcrumbs from the
    * prior scan, keyed `nodePath → qualifiedExtractorId → bodyHashAtRun`.
    * `undefined` opts out of the fine-grained path (legacy callers that
    * don't track the cache); the orchestrator falls back to the pre-A.9
@@ -562,7 +562,7 @@ interface IWalkAndExtractResult {
    *  final ordering stays "rules first, then derived issues". */
   frontmatterIssues: Issue[];
   /**
-   * Phase 4 / A.8 — per-extractor enrichment records collected from
+   * Spec § A.8 — per-extractor enrichment records collected from
    * `ctx.enrichNode(...)` calls during the walk. One entry per
    * `(nodePath, extractorId)` pair an Extractor enriched. The
    * persistence layer upserts these into `node_enrichments`; the
@@ -582,7 +582,7 @@ interface IWalkAndExtractResult {
    *  roots it can diverge. */
   filesWalked: number;
   /**
-   * Phase 4 / A.9 — the rows the persistence layer writes into
+   * Spec § A.9 — the rows the persistence layer writes into
    * `scan_extractor_runs`. Includes both freshly-run pairs (extractor
    * invoked this scan) and reused pairs (cached node, the extractor's
    * prior run still applies to the same body hash). Excludes obsolete
@@ -834,9 +834,9 @@ function reusePriorNode(opts: {
  * its frontmatter. Used by the "no cache hit" branch of
  * `walkAndExtract`. Two frontmatter issue paths:
  *   - With a frontmatter fence: AJV-validate against the Provider's
- *     per-kind schema (Step 6.7).
+ *     per-kind schema.
  *   - Without a fence but a body that opens with malformed `---`:
- *     emit `frontmatter-malformed` (Step 9.4 follow-up).
+ *     emit `frontmatter-malformed`.
  *
  * Severity defaults to `warn`; `strict` promotes everything to `error`.
  */
@@ -921,7 +921,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
   // Within a single `extract()` invocation, multiple enrichNode calls fold
   // into the same record's `value` (last-write-wins per field).
   const enrichmentBuffer = new Map<string, IEnrichmentRecord>();
-  // Phase 4 / A.9 — accumulator for `scan_extractor_runs`. One row per
+  // Spec § A.9 — accumulator for `scan_extractor_runs`. One row per
   // (nodePath, qualifiedExtractorId) pair the orchestrator decided "this
   // extractor is current for this body". Includes both freshly-run pairs
   // and pairs whose prior run was reused intact via the cache.
@@ -948,7 +948,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
     for await (const raw of provider.walk(roots, walkOptions)) {
       filesWalked += 1;
       const bodyHash = sha256(raw.body);
-      // Step 5.13 — hash a CANONICAL form of the frontmatter so a YAML
+      // Canonical-form rationale — hash a CANONICAL form of the frontmatter so a YAML
       // formatter pass (re-indent, sort keys, normalise trailing
       // newline, swap single↔double quotes) doesn't break the
       // medium-confidence rename heuristic. Fallback to raw text when
@@ -963,7 +963,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
       // `sm scan --changed` flips `enableCache` on. The rename heuristic
       // uses `prior` independently of `enableCache`.
       //
-      // Phase 4 / A.9 layered the per-(node, extractor) check on top of
+      // Spec § A.9 layered the per-(node, extractor) check on top of
       // the existing per-node body+frontmatter check. The node-level
       // hashes still gate cache eligibility (a body change forces a full
       // re-extract regardless of which extractors were registered);
@@ -1125,7 +1125,7 @@ async function walkAndExtract(opts: IWalkAndExtractOptions): Promise<IWalkAndExt
 }
 
 /**
- * Phase 4 / A.9 — decide whether a prior link can be reused on a cached
+ * Spec § A.9 — decide whether a prior link can be reused on a cached
  * node, and how its `sources` array should be reshaped.
  *
  * Three buckets per source short id:
@@ -1520,7 +1520,7 @@ function makeEvent(type: string, data: unknown): ProgressEvent {
  * trigger and fans the matching event out to every subscribed
  * deterministic hook in registration order. Probabilistic hooks are
  * skipped here with a stderr advisory; they will dispatch via the job
- * subsystem at Step 10.
+ * subsystem once the job subsystem ships.
  *
  * Filter handling: when the hook declares a `filter` map, the dispatcher
  * walks `event.data` for each declared key and short-circuits the
@@ -1551,13 +1551,13 @@ function makeHookDispatcher(hooks: IHook[], emitter: ProgressEmitterPort): IHook
   const byTrigger = new Map<THookTrigger, IHook[]>();
   for (const hook of hooks) {
     if (hook.mode === 'probabilistic') {
-      // Probabilistic hooks defer to the job subsystem (Step 10). Log
+      // Probabilistic hooks defer to the job subsystem (future job subsystem). Log
       // once per hook at composition time — not per-event — so a noisy
       // scan doesn't flood the logger. The hook still surfaces in
       // `sm plugins list`; it just doesn't fire today.
       const qualifiedId = qualifiedExtensionId(hook.pluginId, hook.id);
       log.warn(
-        `Probabilistic hook ${qualifiedId} deferred to job subsystem (Step 10). The hook is registered but will not dispatch in-scan.`,
+        `Probabilistic hook ${qualifiedId} deferred to job subsystem (future job subsystem). The hook is registered but will not dispatch in-scan.`,
         { hookId: qualifiedId, mode: 'probabilistic' },
       );
       continue;
@@ -1686,7 +1686,7 @@ function sha256(input: string): string {
 }
 
 /**
- * Step 5.13 — canonical YAML form for frontmatter hashing.
+ * Canonical-form rationale — canonical YAML form for frontmatter hashing.
  *
  * Goal: two `.md` files whose frontmatter parses to the same logical
  * value MUST produce the same `frontmatter_hash`, even if the raw bytes
@@ -1802,7 +1802,7 @@ function validateLink(extractor: IExtractor, link: Link, emitter: ProgressEmitte
  * is `warn` by default; `strict` flips it to `error` so the scan exit
  * code rises to 1.
  *
- * Phase 3 (spec 0.8.0): per-kind schemas live with the Provider, not in
+ * Spec 0.8.0: per-kind schemas live with the Provider, not in
  * spec. The orchestrator passes the live `IProviderFrontmatterValidator`
  * (composed from every loaded Provider's `kinds[<kind>].schemaJson`)
  * plus the active Provider so the lookup is `(provider.id, kind) →
@@ -1830,7 +1830,7 @@ function validateFrontmatter(
 }
 
 /**
- * Step 9.4 follow-up — detect cases where the user clearly meant
+ * Malformed-frontmatter detection — detect cases where the user clearly meant
  * frontmatter but the Provider's regex couldn't recognise the fence.
  * The Provider regex requires `^---\r?\n[\s\S]*?\r?\n---\r?\n?` —
  * column-0 open fence, column-0 close fence, CRLF or LF line endings.
@@ -1839,7 +1839,7 @@ function validateFrontmatter(
  *
  *   - `paste-with-indent`: terminal heredoc auto-indented every line,
  *     so the open fence is `<spaces>---`. The most common variant
- *     (surfaced during Step 9 manual QA).
+ *    .
  *   - `byte-order-mark`: a UTF-8 BOM (﻿) precedes the fence. Some
  *     editors (notably old VS Code on Windows) inject this; the YAML
  *     parser handles BOM, but the Provider regex doesn't anchor past it.
@@ -1997,7 +1997,7 @@ function recomputeExternalRefsCount(
 }
 
 /**
- * Phase 4 / A.8 — produce the merged read-time view of a Node.
+ * Spec § A.8 — produce the merged read-time view of a Node.
  *
  * Rules / `sm check` / `sm export` consume `node.frontmatter` directly
  * (deterministic CI-safe baseline — author intent, byte-stable). UI / future

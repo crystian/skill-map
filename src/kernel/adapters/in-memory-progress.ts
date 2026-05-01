@@ -1,8 +1,8 @@
 /**
  * In-memory `ProgressEmitterPort` adapter. No network, no DB — just a
  * synchronous fan-out to registered listeners. Used by the default scan
- * orchestrator in Step 1c; the WebSocket-backed emitter that streams to
- * the Web UI lands at Step 13.
+ * orchestrator; the WebSocket-backed emitter that streams to
+ * the Web UI lands.
  */
 
 import type {

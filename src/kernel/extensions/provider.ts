@@ -15,8 +15,8 @@
  * the path relative to the scan root; the kernel computes hashes, bytes,
  * and tokens on top.
  *
- * **Phase 3 (spec 0.8.0).** Per-kind frontmatter schemas relocated from
- * the spec to the Provider that owns them. The flat
+ * **Spec 0.8.0**. Per-kind frontmatter schemas relocated from the spec
+ * to the Provider that owns them. The flat
  * `defaultRefreshAction` map collapsed into the new `kinds` map: every
  * kind the Provider emits gets one entry that declares both its schema
  * and its refresh action. Spec keeps only `frontmatter/base.schema.json`
@@ -50,7 +50,7 @@ export interface IRawNode {
  * filesystem read at scan time. Built-in Providers populate `schemaJson`
  * via `import schema from './schemas/skill.schema.json' with { type: 'json' }`;
  * user-plugin Providers loaded by `PluginLoader` will have it filled in
- * by the loader after manifest validation (Phase 4 wiring).
+ * by the loader after manifest validation.
  */
 export interface IProviderKind {
   /**
@@ -112,9 +112,9 @@ export interface IProvider extends IExtensionBase {
   /**
    * Walk the given roots and yield every node the Provider recognises.
    * Non-matching files are silently skipped. Unreadable files produce
-   * a diagnostic via the emitter (Step 4+) but do not abort the walk.
+   * a diagnostic via the emitter but do not abort the walk.
    *
-   * `options.ignoreFilter` (Step 6.4) — when supplied, the Provider MUST
+   * `options.ignoreFilter` — when supplied, the Provider MUST
    * skip every directory and file whose path-relative-to-root the
    * filter reports as ignored. Providers MAY also keep their own
    * hard-coded skip list (e.g. `.git`) as a defensive measure, but the

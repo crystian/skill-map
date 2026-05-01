@@ -15,7 +15,7 @@
  * `persistScanResult`, optional rebuild of the ignore filter when
  * `.skill-mapignore` itself changes). Pulling that into the watcher
  * would couple the kernel module to `SqliteStorageAdapter`, which the
- * Server (Step 13) wouldn't want. Keep this module side-effect free
+ * Server wouldn't want. Keep this module side-effect free
  * apart from filesystem subscription.
  *
  * Ignore filter integration: the supplied `IIgnoreFilter` is consulted

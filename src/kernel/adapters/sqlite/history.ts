@@ -1,12 +1,12 @@
 /**
  * History readers, writers, and FK-migration helpers for the `state_*`
- * zone. Step 5.2 lays the storage contracts that `sm history` /
- * `sm history stats` (5.3 / 5.4) and the rename heuristic + `sm orphans`
- * (5.5 / 5.6) consume.
+ * zone. Backs `sm history`, `sm history stats`, the rename heuristic,
+ * and `sm orphans`.
  *
  * Three responsibilities:
  *   1. `insertExecution` — write a single `state_executions` row. Used by
- *      tests today; consumed by `sm record` / `sm job run` at Step 9.
+ *      tests today; consumed by `sm record` / `sm job run` once those
+ *      verbs ship.
  *   2. `listExecutions` — read with filters (node, action, status, time
  *      window). Backs `sm history`.
  *   3. `aggregateHistoryStats` — totals, per-action, per-period, top
@@ -492,7 +492,7 @@ function medianDuration(values: number[]): number | null {
 /**
  * Find every node path referenced from the `state_*` zone that is NOT in
  * the live snapshot. Used by `persistScanResult` to keep `orphan` issues
- * surface-visible across scans (Step 5.9): the per-scan rename heuristic
+ * surface-visible across scans: the per-scan rename heuristic
  * only sees paths in `prior \ current` of the *immediately preceding*
  * scan, so a stale reference from two scans ago becomes invisible after
  * one more scan. This sweep catches any `state_*` row whose `node_id`

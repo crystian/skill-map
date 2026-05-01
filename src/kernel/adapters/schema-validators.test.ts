@@ -1,5 +1,5 @@
 /**
- * Step 5.12 — module-level cache for `loadSchemaValidators`. The CLI
+ * Module-level cache for `loadSchemaValidators`. The CLI
  * pays ~100 ms cold to read + AJV-compile 17 schemas (plus 8 supporting
  * `$ref` targets) on every invocation. Caching lets a second call in
  * the same process return the same instance for free, which matters as
@@ -22,7 +22,7 @@ after(() => {
   _resetSchemaValidatorsCacheForTests();
 });
 
-describe('loadSchemaValidators (Step 5.12 cache)', () => {
+describe('loadSchemaValidators (module-level cache)', () => {
   it('returns the SAME instance across calls in the same process', () => {
     _resetSchemaValidatorsCacheForTests();
     const a = loadSchemaValidators();

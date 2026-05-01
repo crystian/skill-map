@@ -1,7 +1,7 @@
 /**
  * Decide whether a plugin is enabled, given the layered inputs.
  *
- * Decision (Step 6.6, recorded against the option-3 vote in the plan):
+ * Decision (recorded against the option-3 vote in the plan):
  *
  *   `.skill-map/settings.json#/plugins/<id>/enabled` is the **team-shared
  *   baseline** committed to the repo; `config_plugins.enabled` in the DB

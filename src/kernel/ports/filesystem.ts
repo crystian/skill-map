@@ -1,7 +1,7 @@
 /**
  * `FilesystemPort` — walks roots, reads nodes, writes job files.
  *
- * Step 0b: shape-only. The real adapter lands with Step 4 (scan end-to-end).
+ * Shape-only. The real adapter ships with the scan end-to-end pipeline.
  */
 
 export interface NodeStat {

@@ -13,7 +13,7 @@
  *   (d) Hook with filter — only invoked when event.data matches.
  *   (e) Hook that throws → extension.error meta-event, scan continues OK.
  *   (f) Probabilistic hook → skipped with logger.warn advisory until job
- *       subsystem ships at Step 10.
+ *       subsystem ships.
  */
 
 import { describe, it, before, after } from 'node:test';
@@ -320,8 +320,8 @@ describe('Hook extension kind (spec § A.11)', () => {
     strictEqual(fired, false, 'probabilistic hook must not dispatch in-scan');
     const advisory = warnings.find((w) => w.message.includes('test/prob'));
     ok(
-      advisory && advisory.message.includes('Step 10'),
-      'logger.warn advisory mentions the probabilistic deferral and Step 10',
+      advisory && advisory.message.includes('job subsystem'),
+      'logger.warn advisory mentions the probabilistic deferral to the job subsystem',
     );
     strictEqual(advisory?.context?.['hookId'], 'test/prob');
     strictEqual(advisory?.context?.['mode'], 'probabilistic');

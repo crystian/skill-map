@@ -1,5 +1,5 @@
 /**
- * Step 7.1 — chokidar watcher unit tests.
+ * Chokidar watcher unit tests.
  *
  * Real filesystem (mkdtemp) and real chokidar — the wrapper logic
  * (debounce, batch coalescing, ignore-filter integration, clean

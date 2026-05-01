@@ -120,7 +120,7 @@ export interface IScanMetaTable {
 }
 
 /**
- * Phase 4 / A.9 — fine-grained Extractor cache.
+ * Spec § A.9 — fine-grained Extractor cache.
  *
  * One row per `(node_path, extractor_id)` recording the body hash the
  * extractor saw when it last ran. The orchestrator consults this table on
@@ -146,7 +146,7 @@ export interface IScanExtractorRunsTable {
 }
 
 /**
- * Phase 4 / A.8 — universal enrichment layer.
+ * Spec § A.8 — universal enrichment layer.
  *
  * One row per `(node_path, extractor_id)` capturing the partial Node fields
  * a single Extractor merged onto the enrichment layer via `ctx.enrichNode`.

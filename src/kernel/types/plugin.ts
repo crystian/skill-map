@@ -4,7 +4,7 @@
  * extension-kind manifests under `spec/schemas/extensions/`.
  *
  * Per ROADMAP §DTO gap (review-pass decision): the proper emission of
- * typed DTOs from `@skill-map/spec` is deferred until Step 2, when a
+ * typed DTOs from `@skill-map/spec` is deferred to a future iteration when a
  * third consumer (real providers / extractors / rules) forces a single
  * source of truth. Until then, both `ui/src/models/` and `src/kernel/types/`
  * hand-curate their own local mirror — the risk of drift is accepted at
