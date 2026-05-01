@@ -9,11 +9,11 @@
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
- *   2  bad flag / unhandled error
- *   5  DB missing OR unsupported format OR invalid query
+ *   2  bad flag / unsupported format / invalid query / unhandled error
+ *   5  DB missing
  *
  * **Format support at v0.5.0**: `json` and `md` are real; `mermaid`
- * exits 5 with a clear pointer to Step 12, when the mermaid formatter
+ * exits 2 with a clear pointer to Step 12, when the mermaid formatter
  * lands as a built-in. Wiring the format here ahead of the formatter
  * would require a synthesis layer this verb shouldn't carry.
  */
@@ -76,14 +76,14 @@ export class ExportCommand extends Command {
       this.context.stderr.write(
         `format=${format} not yet implemented (${DEFERRED_FORMATS[format]}).\n`,
       );
-      return ExitCode.NotFound;
+      return ExitCode.Error;
     }
     if (!(SUPPORTED_FORMATS as readonly string[]).includes(format)) {
       this.context.stderr.write(
         `Unsupported format: ${format}. Supported: ${SUPPORTED_FORMATS.join(', ')}. ` +
           `Deferred: ${Object.keys(DEFERRED_FORMATS).join(', ')}.\n`,
       );
-      return ExitCode.NotFound;
+      return ExitCode.Error;
     }
 
     let parsedQuery;
@@ -92,7 +92,7 @@ export class ExportCommand extends Command {
     } catch (err) {
       if (err instanceof ExportQueryError) {
         this.context.stderr.write(`sm export: ${err.message}\n`);
-        return ExitCode.NotFound;
+        return ExitCode.Error;
       }
       throw err;
     }

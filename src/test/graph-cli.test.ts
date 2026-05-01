@@ -8,7 +8,7 @@
  * Coverage:
  *   - default `--format ascii` renders the persisted graph (happy path).
  *   - explicit `--format ascii` matches the same output as the default.
- *   - unknown `--format mermaid` exits 5 with a clear stderr listing
+ *   - unknown `--format mermaid` exits 2 with a clear stderr listing
  *     the available formats.
  *   - missing DB exits 5 (delegated to `assertDbExists`).
  *   - empty DB (migrated but never scanned) renders the zero-graph and
@@ -180,7 +180,7 @@ describe('sm graph', () => {
 
   // --- error paths ---------------------------------------------------------
 
-  it('unknown --format mermaid exits 5 with a clear hint', async () => {
+  it('unknown --format mermaid exits 2 with a clear hint', async () => {
     const fixture = freshFixture('graph-unknown');
     plantTinyFixture(fixture);
     const dbPath = freshDbPath('graph-unknown');
@@ -191,7 +191,7 @@ describe('sm graph', () => {
     cmd.context = cap.context;
     const code = await cmd.execute();
 
-    strictEqual(code, 5, `unexpected exit ${code}; stdout=${cap.stdout()}`);
+    strictEqual(code, 2, `unexpected exit ${code}; stdout=${cap.stdout()}`);
     match(cap.stderr(), /No formatter registered for format=mermaid/);
     match(cap.stderr(), /Available: ascii/);
   });

@@ -344,7 +344,7 @@ describe('sm export', () => {
     match(out, /\.claude\/commands\/deploy\.md/);
   });
 
-  it('--format mermaid → exit 5 with Step 12 pointer', async () => {
+  it('--format mermaid → exit 2 with Step 12 pointer', async () => {
     const fixture = freshFixture('export-mermaid');
     plantMixedFixture(fixture);
     const dbPath = freshDbPath('export-mermaid');
@@ -355,12 +355,12 @@ describe('sm export', () => {
     cmd.context = cap.context;
     const code = await cmd.execute();
 
-    strictEqual(code, 5);
+    strictEqual(code, 2);
     match(cap.stderr(), /format=mermaid not yet implemented/);
     match(cap.stderr(), /Step 12/);
   });
 
-  it('unsupported format → exit 5 with available list', async () => {
+  it('unsupported format → exit 2 with available list', async () => {
     const fixture = freshFixture('export-bogus-format');
     plantMixedFixture(fixture);
     const dbPath = freshDbPath('export-bogus-format');
@@ -371,12 +371,12 @@ describe('sm export', () => {
     cmd.context = cap.context;
     const code = await cmd.execute();
 
-    strictEqual(code, 5);
+    strictEqual(code, 2);
     match(cap.stderr(), /Unsupported format: xml/);
     match(cap.stderr(), /Supported: json, md/);
   });
 
-  it('invalid query → exit 5 with parser hint', async () => {
+  it('invalid query → exit 2 with parser hint', async () => {
     const fixture = freshFixture('export-bad-query');
     plantMixedFixture(fixture);
     const dbPath = freshDbPath('export-bad-query');
@@ -387,7 +387,7 @@ describe('sm export', () => {
     cmd.context = cap.context;
     const code = await cmd.execute();
 
-    strictEqual(code, 5);
+    strictEqual(code, 2);
     match(cap.stderr(), /not a valid node kind/);
   });
 

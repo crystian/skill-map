@@ -10,8 +10,8 @@
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
- *   2  bad flag / unhandled error
- *   5  DB missing OR no formatter registered for the requested format
+ *   2  bad flag / no formatter registered / unhandled error
+ *   5  DB missing
  *
  * Formatter registry: built-in formatters plus drop-in plugin formatters
  * discovered under `.skill-map/plugins/` and `~/.skill-map/plugins/`
@@ -82,7 +82,7 @@ export class GraphCommand extends Command {
       this.context.stderr.write(
         `No formatter registered for format=${this.format}. Available: ${available || '(none)'}.\n`,
       );
-      return ExitCode.NotFound;
+      return ExitCode.Error;
     }
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {

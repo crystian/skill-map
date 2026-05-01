@@ -342,7 +342,7 @@ describe('Step 9.1 — plugin runtime wiring', () => {
       const graphCmd = buildGraph({ format: 'hidden', noPlugins: true });
       graphCmd.context = graphCap.context;
       const code = await graphCmd.execute();
-      strictEqual(code, 5, 'plugin formatter must be invisible under --no-plugins');
+      strictEqual(code, 2, 'plugin formatter must be invisible under --no-plugins');
       match(graphCap.stderr(), /No formatter registered for format=hidden/);
     } finally {
       process.chdir(original);
