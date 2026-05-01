@@ -218,4 +218,113 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
     });
     strictEqual(empty.nodes.length, 0);
   });
+
+  it('Provider with a strict per-kind schema produces a frontmatter-invalid issue when frontmatter does not match', async () => {
+    // Variant of the smoke above with a stricter `cursorRule` schema —
+    // requires a `name` field of type string. The first fixture file
+    // satisfies it; we plant a second under a temporary root with a
+    // missing `name` to land a `frontmatter-invalid` issue. This proves
+    // the kernel's per-Provider validator path works for external kinds
+    // exactly the same way it works for the built-in claude catalog.
+    const strictFixture = mkdtempSync(join(tmpdir(), 'skill-map-external-kind-strict-'));
+    try {
+      const seed = (rel: string, body: string): void => {
+        const abs = join(strictFixture, rel);
+        mkdirSync(join(abs, '..'), { recursive: true });
+        writeFileSync(abs, body);
+      };
+      seed(
+        '.cursor/rules/has-name.md',
+        ['---', 'name: ok', 'description: fine.', '---', 'Body.'].join('\n'),
+      );
+      seed(
+        '.cursor/rules/missing-name.md',
+        ['---', 'description: lacks name.', '---', 'Body.'].join('\n'),
+      );
+
+      const strictProvider: IProvider = {
+        ...cursorProvider,
+        kinds: {
+          cursorRule: {
+            schema: 'schemas/cursorRule.schema.json',
+            schemaJson: {
+              type: 'object',
+              required: ['name'],
+              properties: { name: { type: 'string' } },
+              additionalProperties: true,
+            },
+            defaultRefreshAction: 'cursor/refresh-rule',
+          },
+        },
+      };
+
+      const kernel = createKernel();
+      const scan = await runScanWithRenames(kernel, {
+        roots: [strictFixture],
+        extensions: { providers: [strictProvider], extractors: [], rules: [] },
+        tokenize: false,
+      });
+
+      strictEqual(scan.result.nodes.length, 2);
+      const invalid = scan.result.issues.filter(
+        (i) => i.ruleId === 'frontmatter-invalid',
+      );
+      strictEqual(invalid.length, 1, 'exactly one node should fail per-kind frontmatter validation');
+      strictEqual(invalid[0]?.nodeIds[0], '.cursor/rules/missing-name.md');
+      // `cursorRule` shows up in the issue's `data.kind` so consumers
+      // can group / filter by external kind without reading the message.
+      strictEqual((invalid[0]?.data as { kind?: unknown })?.kind, 'cursorRule');
+    } finally {
+      rmSync(strictFixture, { recursive: true, force: true });
+    }
+  });
+
+  it('Provider classify returns a kind absent from its kinds catalog → no-schema issue, no crash', async () => {
+    // Defensive case: a misbehaving Provider classifies into a kind
+    // it never declared in `kinds`. The kernel must NOT crash; it
+    // should surface a `frontmatter-invalid` issue with
+    // `data.errors === 'no-schema'` so the plugin author sees the
+    // mismatch in `sm scan` output.
+    const sloppyFixture = mkdtempSync(join(tmpdir(), 'skill-map-external-kind-sloppy-'));
+    try {
+      mkdirSync(join(sloppyFixture, '.cursor', 'rules'), { recursive: true });
+      writeFileSync(
+        join(sloppyFixture, '.cursor', 'rules', 'one.md'),
+        ['---', 'name: solo', '---', 'Body.'].join('\n'),
+      );
+
+      const sloppyProvider: IProvider = {
+        ...cursorProvider,
+        kinds: {
+          // Declares `cursorRule` but classify returns `'undeclared'`.
+          cursorRule: {
+            schema: 'schemas/cursorRule.schema.json',
+            schemaJson: { type: 'object', additionalProperties: true },
+            defaultRefreshAction: 'cursor/refresh-rule',
+          },
+        },
+        classify(): string {
+          return 'undeclared';
+        },
+      };
+
+      const kernel = createKernel();
+      const scan = await runScanWithRenames(kernel, {
+        roots: [sloppyFixture],
+        extensions: { providers: [sloppyProvider], extractors: [], rules: [] },
+        tokenize: false,
+      });
+
+      strictEqual(scan.result.nodes.length, 1);
+      strictEqual(scan.result.nodes[0]?.kind, 'undeclared');
+      const noSchema = scan.result.issues.filter(
+        (i) =>
+          i.ruleId === 'frontmatter-invalid' &&
+          (i.data as { errors?: unknown })?.errors === 'no-schema',
+      );
+      strictEqual(noSchema.length, 1, 'kernel must report the no-schema mismatch as a directed issue');
+    } finally {
+      rmSync(sloppyFixture, { recursive: true, force: true });
+    }
+  });
 });

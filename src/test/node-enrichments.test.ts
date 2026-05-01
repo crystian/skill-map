@@ -706,4 +706,74 @@ describe('sm refresh — Step 6 stub (A.8)', () => {
       `expected mutex message; stderr=${refreshResult.stderr}`,
     );
   });
+
+  it('Test (f.5) — `sm refresh` accepts external-Provider kinds (open kind contract)', async () => {
+    // Defensive guard for the open-kind refactor: refresh loads the
+    // node via `loadScanResult` (which now returns `kind: string`), then
+    // walks `applicable = extractors.filter(...applicableKinds...)`. No
+    // built-in extractor is `applicableKinds: ['cursorRule']`, so the
+    // applicable set is empty — refresh persists zero det enrichments
+    // and exits 0 without rejecting the kind. A regression that retypes
+    // any layer to `NodeKind` would crash here either at load time
+    // (cast failure) or at runtime (filter dropping the row).
+    const fixture = freshFixture('refresh-external-kind');
+    // Plant a body file on disk so refresh's `readFile(node.path)`
+    // succeeds. The frontmatter shape is permissive — no built-in
+    // extractor reads it for a `cursorRule` node anyway.
+    const bodyPath = join(fixture, '.cursor', 'rules', 'strict-mode.md');
+    mkdirSync(join(bodyPath, '..'), { recursive: true });
+    writeFileSync(bodyPath, ['---', 'name: strict-mode', '---', 'Body.'].join('\n'));
+
+    // Initialise the project DB with `sm init --no-scan` (creates
+    // `.skill-map/skill-map.db` migrated to v1, with no rows).
+    const initResult = runCli(fixture, ['init', '--no-scan']);
+    strictEqual(initResult.status, 0, `init failed: ${initResult.stderr}`);
+
+    // Plant the external-kind row directly. The kernel's persist path
+    // would route through the Claude Provider only; raw insert is the
+    // simplest way to seed the contract under test.
+    const dbAdapter = new SqliteStorageAdapter({
+      databasePath: join(fixture, '.skill-map', 'skill-map.db'),
+      autoBackup: false,
+    });
+    await dbAdapter.init();
+    try {
+      const a64 = 'a'.repeat(64);
+      const b64 = 'b'.repeat(64);
+      await dbAdapter.db
+        .insertInto('scan_nodes')
+        .values({
+          path: '.cursor/rules/strict-mode.md',
+          kind: 'cursorRule',
+          provider: 'cursor',
+          frontmatterJson: '{}',
+          bodyHash: a64,
+          frontmatterHash: b64,
+          bytesFrontmatter: 0,
+          bytesBody: 0,
+          bytesTotal: 0,
+          linksOutCount: 0,
+          linksInCount: 0,
+          externalRefsCount: 0,
+          scannedAt: Date.now(),
+        })
+        .execute();
+    } finally {
+      await dbAdapter.close();
+    }
+
+    const refreshResult = runCli(fixture, ['refresh', '.cursor/rules/strict-mode.md']);
+    strictEqual(
+      refreshResult.status,
+      0,
+      `refresh of external-kind node failed: status=${refreshResult.status} stderr=${refreshResult.stderr} stdout=${refreshResult.stdout}`,
+    );
+    // Zero det extractors applied (no built-in extractor declares
+    // applicableKinds: ['cursorRule']); the verb still confirms it
+    // persisted the empty fresh-set in stdout.
+    ok(
+      refreshResult.stdout.includes('Persisted'),
+      `refresh should still print the Persisted summary even at zero count: stdout=${refreshResult.stdout}`,
+    );
+  });
 });

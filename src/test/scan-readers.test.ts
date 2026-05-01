@@ -299,6 +299,60 @@ describe('sm list', () => {
     ok(!cap.stdout().includes('.claude/commands/deploy.md'));
   });
 
+  it('--kind <external> filters external-Provider kinds (open kind contract)', async () => {
+    // Companion to the `--kind agent` test above. Plants a row with
+    // `kind: 'cursorRule'` (no built-in Provider classifies into it),
+    // then asserts the verb's `WHERE kind = ?` filter accepts the open
+    // string and surfaces only that row. Catches a regression where
+    // anyone retypes the column to `NodeKind` and quietly drops
+    // external kinds from the listing.
+    const fixture = freshFixture('list-external');
+    plantClaudeFixture(fixture);
+    const dbPath = freshDbPath('list-external');
+    await primeDb(fixture, dbPath);
+
+    // Manually insert a `cursorRule` row alongside the claude fixtures.
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      const a64 = 'a'.repeat(64);
+      const b64 = 'b'.repeat(64);
+      await adapter.db
+        .insertInto('scan_nodes')
+        .values({
+          path: '.cursor/rules/strict-mode.md',
+          kind: 'cursorRule',
+          provider: 'cursor',
+          frontmatterJson: '{}',
+          bodyHash: a64,
+          frontmatterHash: b64,
+          bytesFrontmatter: 0,
+          bytesBody: 0,
+          bytesTotal: 0,
+          linksOutCount: 0,
+          linksInCount: 0,
+          externalRefsCount: 0,
+          scannedAt: Date.now(),
+        })
+        .execute();
+    } finally {
+      await adapter.close();
+    }
+
+    const cap = captureContext();
+    const cmd = buildList({ db: dbPath, kind: 'cursorRule' });
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+
+    strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+    const stdout = cap.stdout();
+    ok(stdout.includes('.cursor/rules/strict-mode.md'), `expected cursor row, got: ${stdout}`);
+    ok(stdout.includes('cursorRule'), 'KIND column should render the open string verbatim');
+    // Negative: claude rows present in the DB do NOT leak through the filter.
+    ok(!stdout.includes('.claude/agents/architect.md'));
+    ok(!stdout.includes('.claude/commands/deploy.md'));
+  });
+
   it('--issue → only nodes touched by an issue', async () => {
     const fixture = freshFixture('list-issue');
     plantClaudeFixture(fixture);
