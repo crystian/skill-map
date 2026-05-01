@@ -1,6 +1,6 @@
 # Storage Port Promotion — Item 11 from `cli-architect` audit (2026-05)
 
-**Status**: planned, not started. Resume with the inventory + shape below.
+**Status**: DONE (2026-05-01). Landed across `e8cbd19` (Phase A — scans / issues / enrichments / transaction; 9 CLI commands migrated) → `40392fb` (B — history) → `0af76c1` (C — jobs) → `c7ca5e1` (D — pluginConfig) → `db4c851` (E + F — migrations / pluginMigrations + cleanup). Final state: every CLI command that touches persistence does it through `port.<namespace>.<method>` or `port.transaction(tx => ...)`. Zero `selectFrom` / `insertInto` / `deleteFrom` / `updateTable` against `scan_*` / `state_*` / `config_*` tables in `cli/commands/*.ts`. The only remaining raw `DatabaseSync` opens in CLI are `sm db backup` (PRAGMA wal_checkpoint + copyFileSync) and `sm db reset` (drop tables) — both schema-management on the file, not application queries. 617 tests pass. The plan below stays for cross-referencing the implementation.
 **Decision**: option 3 — promote `StoragePort` to a real domain repository.
 **Estimated effort**: 4-5h, split across 6 sequential commits.
 **Scope**: `src/kernel/` + `src/cli/` (does not touch `spec/` / `ui/` / `testkit/`).

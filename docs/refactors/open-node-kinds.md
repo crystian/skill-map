@@ -1,9 +1,9 @@
 # Open `Node.kind` to External Providers — Item 7 from `cli-architect` audit (2026-05)
 
-**Status**: planned, not started.
+**Status**: DONE (2026-05-01). Landed across `f8a7125` (Phase A — spec) → `124ccda` (B + C — TS / Kysely) → `fe47f45` (D — SQL migration `003_open_node_kinds.sql`) → `b3debbe` (E — end-to-end smoke) → `0457b53` (pre-1.0 fold of `003` back into `001_initial.sql`) → `a785a16` (three follow-up tests for full coverage). Final state: `Node.kind: string` (open), `IProvider.classify(): string`, `TNodeKind = string`, no SQL CHECK on the kind column. `NodeKind` survives as the Claude Provider catalog alias. Smoke test (`test/external-provider-kind.test.ts`) covers the cross-layer contract; 617 tests pass. The original plan below stays as an archive — leave it for cross-referencing the implementation later.
 **Decision**: open `kind` from a closed 5-value enum to an open string, end-to-end (spec → kernel → DB).
 **Estimated effort**: 3-4h, split across 5 sequential commits.
-**Scope**: `spec/` (normative — schema + prose), `src/kernel/` + `src/cli/` (TS), `src/migrations/` (new SQL migration).
+**Scope**: `spec/` (normative — schema + prose), `src/kernel/` + `src/cli/` (TS), `src/migrations/` (new SQL migration — folded back into `001_initial.sql` pre-1.0).
 
 ## Background
 
