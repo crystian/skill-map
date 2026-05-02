@@ -99,7 +99,12 @@ The kernel uses four naming buckets for TypeScript types / interfaces. The full 
 3. **Runtime extension contracts** — shapes a plugin author implements: `IProvider`, `IExtractor`, `IRule`, `IAction`, `IFormatter`. **`I` prefix.** Reads as "you supply this".
 4. **Internal shapes** — option bags, result records, config slices that live only in TS (never in JSON): `IPluginRuntimeBundle`, `IPruneResult`, `IDbLocationOptions`. **`I` prefix.**
 
-Two known edge cases kept on purpose: `RunScanOptions` and `RenameOp` are category 4 but lack the `I` prefix because they're part of the public kernel surface and renaming is a breaking change for plugin authors. They are grandfathered; new public option bags should still take `I*`.
+Several public-surface shapes are grandfathered without the `I` prefix because renaming would break downstream consumers:
+
+- **Category 4 option bags**: `RunScanOptions`, `RenameOp`.
+- **Category 4 TS-only exports from `kernel/index.ts` / `kernel/ports/*`**: `Kernel`, `ProgressEvent`, `LogRecord`, `NodeStat`.
+
+The list above is closed. New public option bags and new TS-only exports must still take `I*`. Removing a name from this list (i.e. renaming the shape to `I*`) is a breaking change and ships under the breaking-change rules in `spec/versioning.md`.
 
 When in doubt: "does this shape exist in the spec?". Yes → no prefix, name from schema. No → `I*` prefix.
 
@@ -118,6 +123,7 @@ The kernel is NOT allowed to know about its drivers. The CLI is one such driver;
 5. **The CLI consumes adapters via factory functions**, not `new` constructors. The factory returns the port type (the abstract contract), not the concrete class:
    - `createPluginLoader(opts): PluginLoaderPort` exported from `src/kernel/adapters/plugin-loader.ts`.
    - **Tests are the exception**: they construct the concrete class directly (`new PluginLoader(...)`) when they need to assert against implementation internals (timeouts, schema compilation, private state).
+   - **Zero-options adapters are exempt**: when an adapter has no constructor arguments and no configuration knobs (today only `InMemoryProgressEmitter`), it MAY be instantiated with `new` directly from CLI / kernel call sites. A factory adds no behavioral value when the constructor takes no inputs. The moment such an adapter grows even one option, it MUST switch to a `create*` factory before that option lands — every CLI / kernel caller updates in the same change.
 
 6. **CLI commands MUST receive their `stdin` / `stdout` / `stderr` from the Clipanion `this.context`**, not Node globals. Helpers that need streams take them as a parameter (`confirm(question, { stdin, stderr })`, etc.). This keeps every command testable with captured streams instead of monkey-patched `process.*`.
 
@@ -125,7 +131,7 @@ The kernel is NOT allowed to know about its drivers. The CLI is one such driver;
 
 Two directories with similar-sounding names; tell them apart by purpose:
 
-- **`src/kernel/extensions/`** — the **contracts** (`IProvider`, `IExtractor`, `IRule`, `IFormatter`, `IHook`, `IRawNode`, `IExtractorContext`, `IRuleContext`, `IFormatterContext`, etc.). Defines the shape any extension author (built-in or user plugin) must implement. Pure types + small helpers; no runtime data.
+- **`src/kernel/extensions/`** — the **contracts**: one file per extension kind (`provider.ts`, `extractor.ts`, `rule.ts`, `action.ts`, `formatter.ts`, `hook.ts`) plus a shared `base.ts` (`IExtensionBase`). Each kind file exports its main contract (`IProvider`, `IExtractor`, `IRule`, `IAction`, `IFormatter`, `IHook`) alongside the associated context / payload shapes that live next to it (`IRawNode` and `IProviderKind` in `provider.ts`; `IExtractorContext` / `IExtractorCallbacks` in `extractor.ts`; `IRuleContext` in `rule.ts`; `IActionPrecondition` in `action.ts`; `IFormatterContext` in `formatter.ts`; `IHookContext` / `THookTrigger` / `THookFilter` in `hook.ts`). Defines the shape any extension author (built-in or user plugin) must implement. Pure types + small helpers; no runtime data.
 - **`src/built-in-plugins/`** — the **bundled implementations**: the `claude` Provider, the `frontmatter` / `slash` / `at-directive` / `external-url-counter` Extractors, the `link-conflict` / `trigger-collision` / `orphan-detection` / `auto-rename` Rules, the `ascii` Formatter. Every one of these `implements` a contract from `kernel/extensions/`.
 
 Mnemonic: "kernel/extensions = what shape; built-in-plugins = what code." When wiring from the CLI: import the **runtime instance** from `built-in-plugins/built-ins.ts`; import the **type** from `kernel/extensions/<kind>.ts`.
@@ -142,6 +148,22 @@ User-facing text in the **CLI** uses the `tx(*_TEXTS.*)` system end-to-end:
 - **Conformance runner follows the same rule.** Assertion `reason` strings produced by `src/conformance/index.ts` are surfaced verbatim to stderr by `sm conformance run` — they are user-facing. Source them from `src/conformance/i18n/runner.texts.ts` via `tx(CONFORMANCE_RUNNER_TEXTS.*, { vars })`.
 
 Why this discipline today even without a real i18n framework: it keeps every user-visible string in a flat, greppable, JSON-shaped catalog, ready to drop into a translator pipeline the day a non-English locale lands. Until then, it is also the cheapest way to enforce "no copy-changes hidden inside command logic" — every wording lives in one place.
+
+## CLI output sanitization
+
+Every CLI sink that writes to `stdout` / `stderr` MUST pass strings sourced from **persisted DB rows**, **plugin-authored values** (rule messages, manifest fields, extension ids, failure reasons), or **filesystem entries** (file paths, frontmatter values, dirent names) through `sanitizeForTerminal()` from `src/kernel/util/safe-text.ts` before emission. The helper strips C0 control bytes (including `\x1B`) and prevents ANSI escape injection from masquerading as terminal control sequences in the user's terminal — `\x1b[2J` clearing the screen, fake-prompt injection, cursor manipulation that hides commands ahead of an unsuspecting paste.
+
+**Pure passthrough is forbidden** for the categories above: even fields that look "controlled" (a `ruleId` validated by regex, a `node.kind` from a fixed enum) go through `sanitizeForTerminal` for defense in depth — schemas drift, regexes loosen, the cost of wrapping is one function call. Reference implementations: `cli/commands/{check,history,list,orphans,plugins,refresh,export,show,scan-compare}.ts` all sanitize at the render layer.
+
+**Exceptions** (sanitization NOT required):
+
+- Strings the CLI itself authored in the current process — i18n catalog values reached via `tx(*_TEXTS.*, ...)` are trusted source. The `vars` interpolated INTO the catalog are NOT trusted; sanitize them at the call site.
+- Filesystem paths the CLI composed via `path.join` from trusted parts (e.g. `defaultProjectDbPath(cwd)`).
+- Numeric values, booleans, and other non-string primitives.
+
+When in doubt, sanitize. The cost is a function call; the cost of forgetting is a screen-clear or fake-prompt smuggled into the user's terminal via a hostile plugin's `Issue.message`.
+
+Note: `stripAnsi()` is also exported from `safe-text.ts` but is the wrong tool for this rule — it only removes well-formed ANSI sequences, not arbitrary C0 control bytes. Use `sanitizeForTerminal` for output safety; reserve `stripAnsi` for measuring visual length or comparing styled output in tests.
 
 ## Linting & validation
 

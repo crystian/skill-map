@@ -40,10 +40,14 @@
  *      "shapes that live in TypeScript only, never in JSON".
  *
  * Edge cases worth knowing:
- *   - `RunScanOptions` and `RenameOp` (orchestrator) lack the `I`
- *     prefix despite being category 4. Historical drift; kept as-is
- *     because they are part of the public surface and renaming is a
- *     breaking change for plugin authors.
+ *   - The following category-4 names lack the `I` prefix because
+ *     they are part of the public kernel surface and renaming is a
+ *     breaking change for downstream consumers. The list is closed:
+ *       option bags / records: `RunScanOptions`, `RenameOp`;
+ *       TS-only exports from `kernel/index.ts` / `kernel/ports/*`:
+ *         `Kernel`, `ProgressEvent`, `LogRecord`, `NodeStat`.
+ *     New public option bags and TS-only exports MUST still use
+ *     `I*`; removing a name from this list is a breaking change.
  *   - `IDatabase` (SQLite schema) is category 4 but lives in
  *     `adapters/sqlite/schema.ts`, not here. Same rule applies.
  *
