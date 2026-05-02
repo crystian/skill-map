@@ -1401,6 +1401,9 @@
   // Gesture state. `gesture` is the active mode: null, 'pinch', or 'pan'.
   // For pinch we remember the initial finger distance + midpoint; for pan
   // we remember the starting touch position and the translate at start.
+  // `imgCx/imgCy` is the image's untransformed center in client coords,
+  // captured once per pinch — the anchor math needs a stable reference
+  // that doesn't drift as we keep applying transforms frame to frame.
   let gesture = null;
   let startDist = 0;
   let startScale = 1;
@@ -1408,6 +1411,8 @@
   let startTy = 0;
   let startCx = 0;
   let startCy = 0;
+  let imgCx = 0;
+  let imgCy = 0;
 
   function applyTransform() {
     dialogImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
@@ -1441,6 +1446,14 @@
       startCy = mid.y;
       startTx = tx;
       startTy = ty;
+      // Capture the untransformed image center: BCR is the *transformed*
+      // rect, but with `transform-origin: 50% 50%` the scale doesn't shift
+      // the center — only the translate does. Subtracting startTx/startTy
+      // recovers the laid-out center, which stays valid for the whole
+      // gesture regardless of how many move events fire.
+      const rect = dialogImg.getBoundingClientRect();
+      imgCx = rect.left + rect.width / 2 - startTx;
+      imgCy = rect.top + rect.height / 2 - startTy;
       e.preventDefault();
     } else if (e.touches.length === 1 && scale > 1) {
       gesture = 'pan';
@@ -1458,12 +1471,13 @@
       const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, startScale * ratio));
       // Keep the midpoint anchored: as scale changes, translate so the
       // pixel under the midpoint stays under the (moving) midpoint.
+      // Derived from `clientX = imgCx + tx + scale * dx` where `dx` is the
+      // pixel's image-space offset from center; solve for the new tx that
+      // keeps the same `dx` under the current midpoint.
       const mid = midpoint(e.touches);
-      const dCx = mid.x - startCx;
-      const dCy = mid.y - startCy;
       const k = newScale / startScale;
-      tx = startTx + dCx + (1 - k) * (startCx - dialogImg.getBoundingClientRect().left - dialogImg.offsetWidth / 2);
-      ty = startTy + dCy + (1 - k) * (startCy - dialogImg.getBoundingClientRect().top - dialogImg.offsetHeight / 2);
+      tx = mid.x - imgCx - k * (startCx - imgCx - startTx);
+      ty = mid.y - imgCy - k * (startCy - imgCy - startTy);
       scale = newScale;
       applyTransform();
       e.preventDefault();
