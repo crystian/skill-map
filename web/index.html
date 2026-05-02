@@ -998,5 +998,18 @@
     </button>
     <img class="lightbox__img" src="" alt="">
   </dialog>
+
+  <!-- Cookie consent modal. Shown via showModal() from app.js when there's
+       no `cookieConsent` entry in localStorage. Accept loads Google
+       Analytics; Decline writes a marker and closes. The whole page is
+       blurred behind ::backdrop while the dialog is open. -->
+  <dialog class="cookie-consent" data-cookie-consent aria-labelledby="cookie-consent-title">
+    <h2 id="cookie-consent-title" class="cookie-consent__title" data-i18n="cookies.title">Cookies &amp; analytics</h2>
+    <p class="cookie-consent__body" data-i18n="cookies.body">We use Google Analytics to learn which parts of the site help. No personal info, no tracking across other sites.</p>
+    <div class="cookie-consent__actions">
+      <button type="button" class="cookie-consent__decline" data-cookie-decline data-i18n="cookies.decline">Decline</button>
+      <button type="button" class="cookie-consent__accept" data-cookie-accept data-i18n="cookies.accept" autofocus>Accept analytics</button>
+    </div>
+  </dialog>
 </body>
 </html>
