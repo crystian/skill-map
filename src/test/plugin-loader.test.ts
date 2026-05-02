@@ -258,6 +258,142 @@ describe('PluginLoader', () => {
     });
   });
 
+  // Step 10 prep — Action manifest contract. Phase 0 lifted `IAction` from
+  // `extensions/action.schema.json` into a runtime contract; the loader has
+  // to accept both modes (`deterministic` / `probabilistic`), enforce the
+  // conditional `promptTemplateRef` shape, and surface a directed diagnostic
+  // when the conditional fails. Runtime invocation lands later (Decision
+  // #114), but the manifest gate ships now.
+  describe('Step 10 prep — Action manifest contract', () => {
+    it('loads a deterministic action manifest', async () => {
+      const root = makePluginsDir('action-deterministic');
+      const actionSource = `
+        export default {
+          id: 'validate-frontmatter',
+          kind: 'action',
+          version: '1.0.0',
+          mode: 'deterministic',
+          reportSchemaRef: '../report.schema.json',
+        };
+      `;
+      writePlugin(
+        root,
+        'det-action',
+        {
+          id: 'det-action',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['action.mjs'],
+        },
+        { 'action.mjs': actionSource },
+      );
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'enabled');
+      const ext = result[0]?.extensions?.[0];
+      strictEqual(ext?.kind, 'action');
+      const instance = (ext as { instance?: Record<string, unknown> }).instance;
+      strictEqual(instance?.['mode'], 'deterministic');
+    });
+
+    it('loads a probabilistic action manifest with promptTemplateRef + expectedDurationSeconds', async () => {
+      const root = makePluginsDir('action-probabilistic');
+      const actionSource = `
+        export default {
+          id: 'skill-summarizer',
+          kind: 'action',
+          version: '1.0.0',
+          mode: 'probabilistic',
+          reportSchemaRef: '../summaries/skill.schema.json',
+          promptTemplateRef: './prompt.md',
+          expectedDurationSeconds: 30,
+        };
+      `;
+      writePlugin(
+        root,
+        'prob-action',
+        {
+          id: 'prob-action',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['action.mjs'],
+        },
+        { 'action.mjs': actionSource },
+      );
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'enabled');
+      const ext = result[0]?.extensions?.[0];
+      strictEqual(ext?.kind, 'action');
+      const instance = (ext as { instance?: Record<string, unknown> }).instance;
+      strictEqual(instance?.['mode'], 'probabilistic');
+      strictEqual(instance?.['promptTemplateRef'], './prompt.md');
+    });
+
+    it('rejects a probabilistic action without promptTemplateRef', async () => {
+      const root = makePluginsDir('action-prob-missing-template');
+      const actionSource = `
+        export default {
+          id: 'bad-prob',
+          kind: 'action',
+          version: '1.0.0',
+          mode: 'probabilistic',
+          reportSchemaRef: '../report.schema.json',
+          expectedDurationSeconds: 30,
+        };
+      `;
+      writePlugin(
+        root,
+        'bad-prob',
+        {
+          id: 'bad-prob',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['action.mjs'],
+        },
+        { 'action.mjs': actionSource },
+      );
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'load-error');
+      match(result[0]!.reason!, /spec\/schemas\/extensions\/action\.schema\.json/);
+      match(result[0]!.reason!, /promptTemplateRef/);
+    });
+
+    it('rejects a deterministic action with promptTemplateRef', async () => {
+      const root = makePluginsDir('action-det-with-template');
+      const actionSource = `
+        export default {
+          id: 'bad-det',
+          kind: 'action',
+          version: '1.0.0',
+          mode: 'deterministic',
+          reportSchemaRef: '../report.schema.json',
+          promptTemplateRef: './forbidden.md',
+        };
+      `;
+      writePlugin(
+        root,
+        'bad-det',
+        {
+          id: 'bad-det',
+          version: '1.0.0',
+          specCompat: '>=0.0.0',
+          extensions: ['action.mjs'],
+        },
+        { 'action.mjs': actionSource },
+      );
+
+      const result = await loaderFor(root).discoverAndLoadAll();
+      strictEqual(result.length, 1);
+      strictEqual(result[0]?.status, 'load-error');
+      match(result[0]!.reason!, /spec\/schemas\/extensions\/action\.schema\.json/);
+    });
+  });
+
   // H2 — Plugin loader timeout. A plugin whose top-level work hangs
   // (a never-resolving `await`, an infinite loop, a hanging network
   // call) used to block every host CLI command indefinitely. The

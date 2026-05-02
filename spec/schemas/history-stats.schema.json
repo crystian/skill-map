@@ -148,7 +148,7 @@
             "report-invalid",
             "timeout",
             "abandoned",
-            "content-missing",
+            "job-file-missing",
             "user-cancelled"
           ],
           "additionalProperties": false,
@@ -157,7 +157,7 @@
             "report-invalid":   { "type": "integer", "minimum": 0 },
             "timeout":          { "type": "integer", "minimum": 0 },
             "abandoned":        { "type": "integer", "minimum": 0 },
-            "content-missing":  { "type": "integer", "minimum": 0 },
+            "job-file-missing": { "type": "integer", "minimum": 0 },
             "user-cancelled":   { "type": "integer", "minimum": 0 }
           }
         }

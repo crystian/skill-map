@@ -229,7 +229,7 @@ Matching [`schemas/job.schema.json`](./schemas/job.schema.json). See [`job-lifec
 | `nonce` | TEXT | NOT NULL |
 | `priority` | INTEGER | NOT NULL DEFAULT 0 |
 | `status` | TEXT | NOT NULL, CHECK in (`queued`, `running`, `completed`, `failed`) |
-| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `content-missing`, `user-cancelled`) |
+| `failure_reason` | TEXT | NULL, CHECK in (`runner-error`, `report-invalid`, `timeout`, `abandoned`, `job-file-missing`, `user-cancelled`) |
 | `runner` | TEXT | NULL, CHECK in (`cli`, `skill`, `in-process`) |
 | `ttl_seconds` | INTEGER | NOT NULL |
 | `created_at` | INTEGER | NOT NULL |

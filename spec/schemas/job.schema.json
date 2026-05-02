@@ -44,8 +44,8 @@
     },
     "failureReason": {
       "type": ["string", "null"],
-      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "content-missing", "user-cancelled", null],
-      "description": "Populated when `status = failed`. `content-missing` covers DB corruption where `state_jobs.content_hash` no longer resolves in `state_job_contents` (the runtime invariant should keep this state unreachable; the enum value exists as a defensive failure-mode label)."
+      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-cancelled", null],
+      "description": "Populated when `status = failed`. `job-file-missing` (legacy name preserved across the disk-to-DB shift) covers DB corruption where `state_jobs.content_hash` no longer resolves in `state_job_contents` — the runtime invariant should keep this state unreachable; the enum value exists as a defensive failure-mode label."
     },
     "runner": {
       "type": ["string", "null"],

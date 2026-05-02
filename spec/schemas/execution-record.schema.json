@@ -41,8 +41,8 @@
     },
     "failureReason": {
       "type": ["string", "null"],
-      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "content-missing", "user-cancelled", null],
-      "description": "Normalized reason when `status = failed` or `cancelled`. Null for `completed`. `content-missing` mirrors the same enum value on `Job.failureReason`."
+      "enum": ["runner-error", "report-invalid", "timeout", "abandoned", "job-file-missing", "user-cancelled", null],
+      "description": "Normalized reason when `status = failed` or `cancelled`. Null for `completed`. `job-file-missing` mirrors the same enum value on `Job.failureReason` (legacy name preserved across the disk-to-DB shift)."
     },
     "exitCode": {
       "type": ["integer", "null"],
@@ -76,9 +76,9 @@
       "minimum": 0,
       "description": "Output tokens reported by the runner."
     },
-    "report": {
-      "type": ["object", "null"],
-      "description": "Inline report payload — the parsed JSON the runner produced, validated against the action's `reportSchemaRef` at `sm record` time. Null for actions that don't produce a report (e.g., a `failed` execution before the report could be written). Stored on `state_executions.report_json` as serialized JSON."
+    "reportPath": {
+      "type": ["string", "null"],
+      "description": "Legacy field preserved across the disk-to-DB shift. Under B2 (DB-only job artifacts) this is always null because reports live inline in `state_executions.report_json`. Phase A of Step 10 will rename to `report` (object/null) carrying the parsed payload; until then the field remains as documented for backward compat."
     },
     "jobId": {
       "type": ["string", "null"],

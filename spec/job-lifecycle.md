@@ -39,7 +39,7 @@ Terminal states: `completed`, `failed`. Once terminal, a job MUST NOT transition
 | `queued` | `running` | Atomic claim by a runner. |
 | `queued` | `failed` | `sm job cancel <id>` (reason `user-cancelled`). |
 | `running` | `completed` | `sm record --status completed` with valid nonce. |
-| `running` | `failed` | `sm record --status failed`, OR TTL expired (reason `abandoned`), OR runner subprocess returned non-zero (reason `runner-error`), OR report failed schema validation (reason `report-invalid`), OR rendered content row missing at runtime (reason `content-missing` — DB corruption only; the runtime invariant is that `state_jobs.content_hash` always resolves in `state_job_contents`). |
+| `running` | `failed` | `sm record --status failed`, OR TTL expired (reason `abandoned`), OR runner subprocess returned non-zero (reason `runner-error`), OR report failed schema validation (reason `report-invalid`), OR rendered content row missing at runtime (reason `job-file-missing` — historically named for the on-disk artifact; now refers to a missing `state_job_contents` row, a DB-corruption-only state since the runtime invariant is that `state_jobs.content_hash` always resolves). |
 
 Any other transition attempt MUST be rejected and MUST NOT mutate state. Implementations SHOULD log the attempt.
 
@@ -208,7 +208,7 @@ Implementations MUST handle each of the following:
 
 | Scenario | Required handling |
 |---|---|
-| `state_jobs` row exists but its `content_hash` is missing from `state_job_contents` (DB corruption — the content row was deleted by external means). | Mark `failed` with `failureReason = content-missing`. `sm doctor` MUST report these proactively. The kernel does NOT itself produce this state under normal operation; the contract is that submit and prune both keep the two tables consistent. |
+| `state_jobs` row exists but its `content_hash` is missing from `state_job_contents` (DB corruption — the content row was deleted by external means). | Mark `failed` with `failureReason = job-file-missing`. `sm doctor` MUST report these proactively. The kernel does NOT itself produce this state under normal operation; the contract is that submit and prune both keep the two tables consistent. The legacy enum name `job-file-missing` is preserved across the disk-to-DB shift to keep the failure-reason vocabulary backward-compatible — the semantic now refers to a missing content row rather than a missing on-disk file. |
 | `state_job_contents` row references no live `state_jobs` row (GC straggler). | `sm doctor` MUST list them. `sm job prune` MUST collect them in the same transaction that prunes terminal jobs. |
 | Runner crashes between `claim` and reading the content. | Covered by TTL/reap: when `expiresAt` passes, the next reap marks the job `failed` with `abandoned`. |
 | Callback arrives after reap already failed the job. | Reject with exit 2 (see Record step 3). The runner should treat this as an error and log it. |
