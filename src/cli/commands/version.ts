@@ -42,7 +42,7 @@ export class VersionCommand extends Command {
   static override paths = [['version']];
 
   static override usage = Command.Usage({
-    category: 'Setup & state',
+    category: 'Introspection',
     description: 'Print the CLI / kernel / spec / runtime / db-schema version matrix.',
   });
 

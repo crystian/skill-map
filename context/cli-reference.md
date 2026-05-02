@@ -9,16 +9,6 @@ Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file
 
 - `--help` — Print usage and exit.
 
-## Actions
-
-### `sm actions list`
-
-Registered action types (manifest view). (planned)
-
-### `sm actions show`
-
-Full action manifest, including preconditions and expected duration. (planned)
-
 ## Browse
 
 ### `sm check`
@@ -504,7 +494,19 @@ canonical markdown. context/cli-reference.md is                     regenerated
 from this and CI fails on drift.   json            — structured surface dump per 
 spec/cli-contract.md.
 
+### `sm version`
+
+Print the CLI / kernel / spec / runtime / db-schema version matrix.
+
 ## Jobs
+
+### `sm actions list`
+
+Registered action types (manifest view). (planned)
+
+### `sm actions show`
+
+Full action manifest, including preconditions and expected duration. (planned)
 
 ### `sm job cancel`
 
@@ -799,12 +801,6 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
   sm watch --json
   ```
 
-## Server
-
-### `sm serve`
-
-Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. (planned)
-
 ## Setup
 
 ### `sm doctor`
@@ -858,9 +854,7 @@ where the operator wants to provision before populating roots.
   sm init --dry-run
   ```
 
-## Setup & state
+### `sm serve`
 
-### `sm version`
-
-Print the CLI / kernel / spec / runtime / db-schema version matrix.
+Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. (planned)
 

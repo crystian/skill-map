@@ -110,7 +110,7 @@ export class FindingsCommand extends Command {
 export class ActionsListCommand extends Command {
   static override paths = [['actions', 'list']];
   static override usage = Command.Usage({
-    category: 'Actions',
+    category: 'Jobs',
     description: planned('Registered action types (manifest view).'),
   });
 
@@ -123,7 +123,7 @@ export class ActionsListCommand extends Command {
 export class ActionsShowCommand extends Command {
   static override paths = [['actions', 'show']];
   static override usage = Command.Usage({
-    category: 'Actions',
+    category: 'Jobs',
     description: planned('Full action manifest, including preconditions and expected duration.'),
   });
   id = Option.String({ required: true });
@@ -294,7 +294,7 @@ export class RecordCommand extends Command {
 export class ServeCommand extends Command {
   static override paths = [['serve']];
   static override usage = Command.Usage({
-    category: 'Server',
+    category: 'Setup',
     description: planned('Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener.'),
   });
   port = Option.String('--port', { required: false });

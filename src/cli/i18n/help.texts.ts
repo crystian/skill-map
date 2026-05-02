@@ -40,9 +40,50 @@ export const HELP_TEXTS = {
   mdExampleBullet: '- {{title}}',
 
   // --- human single-verb renderer ------------------------------------------
-  humanVerbHeader: 'sm {{name}} — {{description}}',
-  humanLabelFlags: 'Flags:',
-  humanFlagRow: '  {{names}}{{required}} — {{description}}',
+  /** Header line for `sm help <verb>` and `sm <verb> --help`. */
+  humanVerbHeader: 'sm {{name}}  —  {{description}}',
+  humanDescriptionHeading: 'DESCRIPTION',
+  humanUsageHeading: 'USAGE',
+  /**
+   * Single-line USAGE row. `{{positionals}}` is the trailing portion of
+   * the Clipanion path (e.g. `<orphanPath>` or `[roots...]`); empty when
+   * the command takes no positionals.
+   */
+  humanUsageRow: '  sm {{name}} [options]{{positionals}}',
+  humanFlagsHeading: 'FLAGS',
+  /** Aligned flag row inside the FLAGS block; `{{padding}}` keeps the description column flush. */
+  humanFlagRow: '  {{names}}{{padding}}  {{description}}{{required}}',
   /** Trailing fragment for `humanFlagRow`'s `{{required}}` slot. */
   humanFlagRowRequiredFragment: ' (required)',
+  humanFooter: 'Run `sm help {{name}} --format md` for the full reference.',
+
+  // --- human compact overview (sm / sm --help / sm help, no verb) ---------
+  /**
+   * Compact-overview header. Replaces the Clipanion default ANSI banner.
+   * Tagline mirrors README.md "In a sentence" — keep them in sync.
+   */
+  compactHeader: '{{binary}} {{version}}  —  graph explorer for Markdown-based AI-agent ecosystems',
+  compactUsageHeading: 'USAGE',
+  compactUsageLine: '  sm <command> [options]',
+  compactExamplesHeading: 'EXAMPLES',
+  compactExampleInit: 'Bootstrap a project scope',
+  compactExampleScanCheck: 'Scan and review issues',
+  compactExampleOrphans: 'Pipe orphans to jq',
+  /**
+   * Marker prepended to the description column for not-yet-implemented
+   * verbs (those whose registered description carries `(planned)`).
+   * Trailing space is intentional — the marker is concatenated before
+   * the rest of the description.
+   */
+  compactStubMarker: '[stub] ',
+  /** Per-category section heading (uppercased from the registered category). */
+  compactCategoryHeading: '{{category}}',
+  /**
+   * Single command row. The renderer pads `{{name}}` to the category's
+   * widest verb so descriptions align in a column.
+   */
+  compactVerbRow: '  {{name}}{{padding}}  {{description}}',
+  /** Same row shape for example rows; padding aligned across the EXAMPLES block. */
+  compactExampleRow: '  {{command}}{{padding}}  {{description}}',
+  compactFooter: 'Run `sm <command> --help` for flags and arguments.',
 } as const;

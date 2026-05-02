@@ -26,7 +26,7 @@ import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
 import { DB_COMMANDS } from './commands/db.js';
 import { ExportCommand } from './commands/export.js';
 import { GraphCommand } from './commands/graph.js';
-import { HelpCommand } from './commands/help.js';
+import { HelpCommand, RootHelpCommand, routeHelpArgs } from './commands/help.js';
 import { InitCommand } from './commands/init.js';
 import { HistoryCommand, HistoryStatsCommand } from './commands/history.js';
 import { JobPruneCommand } from './commands/jobs.js';
@@ -49,8 +49,8 @@ const cli = new Cli({
   enableCapture: false,
 });
 
-cli.register(Builtins.HelpCommand);
 cli.register(Builtins.VersionCommand);
+cli.register(RootHelpCommand);
 cli.register(HelpCommand);
 cli.register(InitCommand);
 cli.register(ScanCommand);
@@ -82,7 +82,8 @@ const logLevel = resolveLogLevel({
 });
 configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 
-const exitCode = await cli.run(args, {
+const routedArgs = routeHelpArgs(args, cli);
+const exitCode = await cli.run(routedArgs, {
   stdin: process.stdin,
   stdout: process.stdout,
   stderr: process.stderr,
