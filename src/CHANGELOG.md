@@ -1,5 +1,109 @@
 # skill-map
 
+## 0.10.0
+
+### Minor Changes
+
+- 9b55981: cli-architect review follow-up — `SmCommand` base class wires every spec § Global flag (`-q/--quiet`, `-v/--verbose`, `--no-color`, env vars), every read-side verb now emits `done in <…>` per spec § Elapsed time, watch grows a circuit breaker, scan extracts the runner, and two invariant tests gate future regressions.
+
+  **HIGH — spec § Global flags / Elapsed time gaps**
+
+  Audit found the CLI honoured only a subset of the spec's global flags and emitted `done in <…>` from a handful of verbs ad-hoc. Closed structurally:
+
+  - New `cli/util/sm-command.ts` — abstract `SmCommand extends Command`. Declares `-g/--global`, `--json`, `-q/--quiet`, `--no-color`, `-v/--verbose`, `--db` once. Subclasses implement `protected run()` instead of `execute()`; the base wraps it with `applyEnvOverrides()` (promotes `SKILL_MAP_SCOPE=global`, `SKILL_MAP_JSON=1`, `NO_COLOR`, `SKILL_MAP_DB=<path>` to flags when the CLI flag is at default — spec precedence: CLI > env > config) + `startElapsed()` + a `finally` that emits `done in <…>` (suppressed by `--quiet`). Verbs opt out via `protected emitElapsed = false` (today: `sm version`, `sm watch`, `sm db shell`, `sm config list/get/show`).
+  - `-v` / `-vv` / `-vvv` reconfigures the kernel logger to `info` / `debug` / `trace` respectively; `--log-level` from `entry.ts` stays as the legacy escape hatch.
+  - 24 verb classes migrated: `init`, `scan`, `check`, `list`, `show`, `export`, `refresh`, `history`, `history stats`, `db backup/restore/reset/shell/dump/migrate`, `plugins list/show/doctor/enable/disable`, `orphans/orphans reconcile/orphans undo-rename`, `graph`, `scan-compare`, `version`, `conformance run`, `config list/get/show/set/reset`, `jobs prune`, `watch`. Each drops its locally-declared globals (`global`, `db`, `json`, `quiet`) and renames `execute()` → `run()`.
+
+  **MEDIUM — watch circuit breaker**
+
+  `runWatchLoop` previously caught every per-batch error, logged one line, and continued forever. A permanent failure (write-protected DB, schema corruption discovered post-init) repeated indefinitely with no exit signal. New `--max-consecutive-failures=N` flag (default 5; 0 disables) shuts the watcher down with exit 2 after N back-to-back failures. A successful batch resets the counter so transient errors never trip the breaker. Also removes the inner try/catch in `runOnePass` that was duplicating the per-batch error path — failures now propagate to `onBatch` so the breaker can count them.
+
+  **MEDIUM — `cli/util/scan-runner.ts` extraction**
+
+  `ScanCommand.execute` was 340 LOC inside one allowed `eslint-disable complexity`. The wiring chain (plugin runtime, config + ignore filter, prior-snapshot load, single-`withSqlite` open for persist, dry-run / non-persist branch) moved to `runScanForCommand(opts: IScanRunOpts): IScanRunResult` — a kernel-thin runner the verb consumes via `parse flags → runScanForCommand → render → exit code`. Mirrors `runWatchLoop`'s shape for `sm watch`.
+
+  **MEDIUM — quick wins**
+
+  - `cli/util/fs.ts` — lifts the `pathExists` / `statOrNull` helpers that were duplicated in `cli/commands/db.ts` and `cli/commands/init.ts`. ENOENT remains the only swallowed errno; every other code propagates so the caller sees the real reason.
+  - `cli/util/db-path.ts` — adds `defaultDbPath(scopeRoot)`, `defaultSettingsPath`, `defaultLocalSettingsPath`, `defaultIgnoreFilePath`, and a frozen `GITIGNORE_ENTRIES` constant. `cli/commands/init.ts` consumes them; the spirit of "no hardcoded `.skill-map/...` literals" now applies to settings / ignore paths the same way it already applied to the DB path.
+  - `kernel/util/ajv-interop.ts` — single `applyAjvFormats(ajv)` helper. The `ajv-formats as unknown as ...` ESM/CJS workaround that used to live in both `plugin-loader.ts` and `schema-validators.ts` is now in one place.
+  - `cli/commands/plugins.ts` — every `tx(PLUGINS_TEXTS.*, { ... })` interpolation that splices a user-supplied `id` / `bundleId` / `extId` (CLI flag input, untrusted) wraps the value in `sanitizeForTerminal()`. Closes the audit's note that `plugins.ts:304` and the surrounding `resolveToggleTarget` call sites were the one remaining gap in CLI output sanitization.
+  - `cli/commands/db.ts` — `db migrate` declares `-n,--dry-run` (was `--dry-run` only); aligns with `db reset` and the rest of the verb family.
+  - `cli/commands/show.ts` — drops the speculative `findings: never[]` / `summary: null` reserved slots. The spec § `sm show --json` shape is `{ node, linksOut, linksIn, issues }` until Step 10 (findings) and Step 11 (summary) ship; the placeholders narrow consumer types in a way the eventual `unknown[]` / `unknown | null` widen could not be additive over. Test updated to assert the fields are absent.
+
+  **Invariant tests (catch future regressions)**
+
+  - `test/elapsed-invariant.test.ts` (10 tests) — for every read-side verb in spec § Elapsed time scope (`check`, `list`, `show`, `export`, `history`, `history stats`, `db migrate --status`, `plugins list`, `plugins doctor`), captures stderr and asserts `/^done in (\d+ms|\d+\.\d+s|\d+m \d+s)\n?$/m`. Plus one negative test that `--quiet` suppresses the line.
+  - `test/render-sanitize-invariant.test.ts` (5 tests) — plants `\x1b[2J` (ANSI clear-screen) and `\x07` (BEL) inside `Node.title` and `Issue.message`, persists them, then runs `check`, `show`, `list`, `export --format md/json` and asserts no C0 / C1 control byte (other than `\n` / `\t`) reaches stdout. Catches any future render path that forgets to wrap a plugin / DB / FS string in `sanitizeForTerminal`.
+
+  **Out of scope (deferred)**
+
+  - `sm export --format mermaid` exit code — currently `2` (operational error). Audit suggested a dedicated "deferred / unsupported" code; that requires a `spec/cli-contract.md` § Exit codes amendment (codes 6–15 are reserved per spec). Not landing in this PR.
+
+  **Audit follow-up tail (low-priority items held back from the main commit — `patch`-level)**
+
+  Tests + comments only; no behavioural or surface change. Folded into this changeset because it ships in the same release window and the reader benefits from one continuous narrative.
+
+  - `cli/commands/scan.ts` + `cli/util/scan-runner.ts` — 6-line comments document the `sm scan --global` gap. Spec § Global flags lists `-g/--global` as universal but the per-verb § Scan table omits it, and "scan global" semantics (which dirs? which ignore filter?) are undefined. `ScanCommand` accepts `-g` (inherited from `SmCommand`) but the runner hardcodes `scope: 'project'`. Comments mark both sites so the wiring lands in one motion once spec defines the contract.
+  - `test/conformance.test.ts` — 2 new integration tests (audit finding 6.4) plant a hostile case JSON with `fixture: '../../../../../../etc/passwd'` and another with `fixture: '/etc/passwd'`, invoke `runConformanceCase(...)` directly, and assert the runner refuses both before any I/O against the planted path. Reinforces the unit-level guard at `conformance/index.ts:assertContained` end-to-end.
+  - `test/dry-run-invariant.test.ts` (new file, 7 tests — refactor 8.3) — cross-cutting gate for spec § Dry-run's "no observable side effects" contract. Snapshots the scope dir's file content via `sha256` (excluding SQLite WAL/SHM sidecars — those rewrite even on read-only opens) before / after a `--dry-run` invocation and asserts byte-equality. Covers `db reset`, `db reset --hard`, `db restore <source>`, `db migrate`, `sm scan` (over a fresh cwd with no `.skill-map/`), and `sm init`. Plus a negative control test that runs `db reset --hard` for real and asserts the file set DOES change — proves the snapshot machinery has teeth.
+
+  **Tests**
+
+  749/749 pass (+24 vs prior 725; +9 vs the main follow-up commit's 740). Lint clean, build clean. No spec change; `spec/index.json` not regenerated.
+
+- 68c5e28: Step 14.1 — `sm serve` + Hono BFF skeleton
+
+  Adds `src/server/` Hono workspace with single-port wiring (`/api/health` real,
+  `/api/*` 404 stubs, `/ws` no-op upgrade, `serveStatic` + SPA fallback). Real
+  `ServeCommand` extracted from stub at `cli/commands/stubs.ts` to dedicated
+  `cli/commands/serve.ts` extending `SmCommand`. Loopback-only through v0.6.0
+  (Decision #119). Boot resilient to missing DB — `/api/health` reports
+  `db: 'missing'`. Spec `cli-contract.md` `sm serve` row updated to full flag
+  set; new `### Server` subsection (skeleton — endpoints fill at 14.2).
+
+  **Files added (server)**
+
+  - `src/server/index.ts` — `createServer(opts)` factory returning `ServerHandle` (`{ address, close }`); resolves spec version, builds the Hono app, instantiates a `WebSocketServer({ noServer: true })`, hands both to `@hono/node-server`'s `serve({ websocket: { server: wss } })`. Closing the http server tears down the WSS automatically (node-server registers the `'close'` hook internally); `close()` calls `wss.close()` defensively for forward-compatibility.
+  - `src/server/app.ts` — Hono app construction. Routes registered in single-port order: `GET /api/health` → real, `ALL /api/*` → structured 404, `GET /ws` via the injected `attachWs` registrar, static handler + SPA fallback. Global `app.onError` formats every uncaught throw into the error envelope.
+  - `src/server/options.ts` — `IServerOptions` + `validateServerOptions(input)`. Loopback-only check for `--dev-cors`; port range check `[0, 65535]`; scope validation.
+  - `src/server/paths.ts` — `resolveDefaultUiDist(ctx)` walks upwards from cwd looking for `ui/dist/browser/index.html`; `resolveExplicitUiDist(ctx, raw)` honours absolute paths for `--ui-dist`.
+  - `src/server/static.ts` — wraps `@hono/node-server`'s `serveStatic` middleware with the SPA-fallback layer (`serveStatic` does not do SPA fallback — it `next()`s on miss, which is exactly the seam we hook into). Absolute `root` paths work on POSIX in node-server@2.0.1 (verified runtime probe — implementation is `path.join(root, filename)`); the `.d.ts` "Absolute paths are not supported" string is stale (upstream issue honojs/node-server#187 still open). When the bundle is missing (`uiDist === null`), a tiny placeholder middleware serves the boot-without-bundle hint at `/`.
+  - `src/server/ws.ts` — `noopWebSocketRoute(app)` registers `GET /ws` via the official `upgradeWebSocket` re-exported from `@hono/node-server@2.x`. The 14.1 handler closes the connection in `onOpen` with code 1000 + reason `'no broadcaster yet'`. 14.4 swaps this registrar for the chokidar-fed broadcaster — one-line change in `index.ts`, `app.ts` untouched.
+  - `src/server/health.ts` — `buildHealth(deps)` synchronous; `resolveSpecVersion()` async, called once at boot.
+  - `src/server/i18n/server.texts.ts` — `SERVER_TEXTS` catalog.
+
+  **Files added (CLI)**
+
+  - `src/cli/commands/serve.ts` — `ServeCommand extends SmCommand`. Parses flags, validates, calls `createServer`, registers SIGINT/SIGTERM handlers, awaits shutdown. `protected emitElapsed = false` (long-running daemon).
+  - `src/cli/i18n/serve.texts.ts` — `SERVE_TEXTS` catalog.
+
+  **Tests added (15)**
+
+  - `src/test/server-boot.test.ts` (7) — boot/listen/health JSON, custom port, db state present/missing, structured 404, /ws upgrade closes with code 1000 + reason 'no broadcaster yet' (uses real `WebSocket` client from `ws`), shutdown < 1s + idempotent close, inline placeholder when uiDist null.
+  - `src/test/server-flags.test.ts` (6) — host non-loopback + dev-cors rejection, port out-of-range, port non-numeric, scope invalid, ui-dist missing, ui-dist with valid bundle.
+  - `src/test/server-db-missing.test.ts` (2) — `--db <missing>` exits 5, default boots cleanly with db:missing.
+
+  **Files edited**
+
+  - `src/cli/commands/stubs.ts` — `ServeCommand` removed; replaced with a comment pointer.
+  - `src/cli/entry.ts` — registers the new `ServeCommand`.
+  - `src/package.json` — adds `hono@4.12.16`, `@hono/node-server@2.0.1`, `ws@8.20.0` (deps); `@types/ws@8.18.1` (dev). All exact-pinned per AGENTS.md.
+  - `spec/cli-contract.md` — `sm serve` row replaced with the full 14.1 flag set; new `#### Server` subsection (stability: experimental).
+  - `spec/CHANGELOG.md` — `[Unreleased]` `### Minor` entry for the spec change.
+  - `spec/index.json` — regenerated (40 files hashed; previous head was 215 lines).
+
+  **Decisions during implementation (flag for orchestrator)**
+
+  - WebSocket support uses `@hono/node-server@2.x`'s built-in `upgradeWebSocket` plus the canonical `ws@8.20.0` Node WebSocket library, per the official README pattern. The previously-published `@hono/node-ws` adapter was deprecated when node-server@2.0 absorbed WebSocket support natively (PR honojs/node-server#328). The 14.4 broadcaster will replace `noopWebSocketRoute` with its own one-line registrar — no API churn between 14.1 and 14.4.
+  - The `/api/*` catch-all is wired with `app.all('/api/*', ...)` BEFORE the `/ws` registrar and the static handler so neither a `serveStatic` filesystem hit nor the SPA fallback can shadow API endpoints. `/ws` is registered BEFORE the static handler so a literal `/ws` path on disk inside `uiDist` cannot accidentally shadow the upgrade route.
+  - `serveStatic` from `@hono/node-server/serve-static` accepts absolute root paths at runtime on POSIX (its implementation is `path.join(root, filename)`); the `.d.ts` string saying otherwise is documentation drift, not a runtime contract. Verified with a runtime probe and cross-referenced against the open upstream issue (honojs/node-server#187). Documented in `src/server/static.ts` so future contributors don't re-investigate.
+
+### Patch Changes
+
+- Updated dependencies [68c5e28]
+  - @skill-map/spec@0.12.0
+
 ## 0.9.0
 
 ### Minor Changes
@@ -2368,9 +2472,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                   `--json` output is byte-identical to before — raw rows, no merge.
-                                   Storage is byte-identical to before. The grouping is purely a
-                                   read-time presentation choice for human eyes.
+                                         `--json` output is byte-identical to before — raw rows, no merge.
+                                         Storage is byte-identical to before. The grouping is purely a
+                                         read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
