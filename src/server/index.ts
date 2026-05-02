@@ -34,6 +34,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer } from 'ws';
 
+import { defaultRuntimeContext, type IRuntimeContext } from '../cli/util/runtime-context.js';
 import { createApp } from './app.js';
 import { resolveSpecVersion } from './health.js';
 import type { IServerOptions } from './options.js';
@@ -58,9 +59,29 @@ export interface ServerHandle {
   close(): Promise<void>;
 }
 
-export async function createServer(options: IServerOptions): Promise<ServerHandle> {
+export interface ICreateServerOpts {
+  /**
+   * Optional runtime context override. Tests inject a tempdir cwd so
+   * `loadConfig` / fresh-scan can be exercised against a controlled
+   * scope. Production callers (the `sm serve` verb) leave it
+   * undefined; the composition root falls back to
+   * `defaultRuntimeContext()`.
+   */
+  runtimeContext?: IRuntimeContext;
+}
+
+export async function createServer(
+  options: IServerOptions,
+  extra: ICreateServerOpts = {},
+): Promise<ServerHandle> {
   const specVersion = await resolveSpecVersion();
-  const app = createApp({ options, specVersion, attachWs: noopWebSocketRoute });
+  const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
+  const app = createApp({
+    options,
+    specVersion,
+    attachWs: noopWebSocketRoute,
+    runtimeContext,
+  });
 
   // `noServer: true` is mandatory — node-server's `setupWebSocket` throws
   // ("WebSocket server must be created with { noServer: true } option")

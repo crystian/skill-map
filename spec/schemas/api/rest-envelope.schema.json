@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/spec/v0/api/rest-envelope.schema.json",
+  "title": "RestEnvelope",
+  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Three variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds, `item` for single-resource kinds, `value` for `kind: 'config'`). The `/api/scan` and `/api/health` responses are exempt — they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt — it returns the formatter's native textual output (text/plain or text/markdown).",
+  "type": "object",
+  "required": ["schemaVersion", "kind"],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1",
+      "description": "Envelope shape version. Bumped only on breaking changes."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["nodes", "links", "issues", "plugins", "config", "graph", "node", "health", "scan"],
+      "description": "Discriminator. List kinds (`nodes`, `links`, `issues`, `plugins`) carry `items`. The `node` kind carries `item`. The `config` kind carries `value`. The `health` / `scan` / `graph` values are reserved for documentation parity with the routes that DON'T use this envelope."
+    },
+    "items": {
+      "type": "array",
+      "description": "Present when `kind` is one of the list kinds (`nodes`, `links`, `issues`, `plugins`). Empty array is valid and means the filter matched zero rows."
+    },
+    "item": {
+      "type": "object",
+      "description": "Present when `kind` is `'node'`. Single-resource envelope payload."
+    },
+    "value": {
+      "type": "object",
+      "description": "Present when `kind` is `'config'`. Carries the merged effective config object."
+    },
+    "filters": {
+      "type": "object",
+      "description": "Echo of the URL filters the server applied, normalized into a JSON-friendly shape (arrays for multi-value filters, `null` for absent ones). Helps the client correlate the response with the request."
+    },
+    "counts": {
+      "type": "object",
+      "required": ["total", "returned"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total rows after filtering, before pagination is applied."
+        },
+        "returned": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Rows actually carried in `items` (≤ `limit`)."
+        },
+        "page": {
+          "type": "object",
+          "required": ["offset", "limit"],
+          "properties": {
+            "offset": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Pagination window offset (zero-based)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Maximum items the page may carry."
+            }
+          },
+          "additionalProperties": false,
+          "description": "Pagination window. Present when the endpoint paginates (today: `/api/nodes` only)."
+        }
+      },
+      "additionalProperties": false,
+      "description": "Tally + paging info. Present on every list / single envelope; absent on `health` / `scan` / `graph` responses (which don't use this envelope)."
+    }
+  },
+  "oneOf": [
+    {
+      "description": "List envelope — `items` payload + `counts`.",
+      "required": ["items", "counts", "filters"],
+      "properties": {
+        "kind": { "enum": ["nodes", "links", "issues", "plugins"] }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["item"] },
+          { "required": ["value"] }
+        ]
+      }
+    },
+    {
+      "description": "Single-resource envelope — `item` payload, no `counts` / `filters`.",
+      "required": ["item"],
+      "properties": {
+        "kind": { "const": "node" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["items"] },
+          { "required": ["value"] }
+        ]
+      }
+    },
+    {
+      "description": "Value envelope — `value` payload, no `counts` / `filters`.",
+      "required": ["value"],
+      "properties": {
+        "kind": { "const": "config" }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["items"] },
+          { "required": ["item"] }
+        ]
+      }
+    },
+    {
+      "description": "Sentinel kinds — reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). Documented here for the discriminator enum's sake.",
+      "properties": {
+        "kind": { "enum": ["health", "scan", "graph"] }
+      },
+      "not": {
+        "anyOf": [
+          { "required": ["items"] },
+          { "required": ["item"] },
+          { "required": ["value"] }
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

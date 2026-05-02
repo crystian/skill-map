@@ -30,4 +30,37 @@ export const SERVER_TEXTS = {
   // Shutdown trace — printed by the close path so test runs that bring
   // the server up and down have a clear marker.
   closed: 'skill-map server: closed.\n',
+
+  // ---- error envelope messages (Step 14.2) ---------------------------------
+
+  // Persisted scan absent and the route can't degrade to an empty result.
+  // Hint nudges the user toward `sm scan` so the SPA can call it via the
+  // CLI side-by-side with the server.
+  dbMissingHint:
+    'No persisted scan available at {{path}}. Run `sm scan` to populate the DB.',
+
+  // `?fresh=1` was requested but the server was booted with --no-built-ins
+  // or --no-plugins. A fresh scan with neither pipeline yields an empty /
+  // partial result that would surprise the SPA. Reject up front.
+  freshScanRequiresPipeline:
+    '?fresh=1 cannot run while the server was started with --no-built-ins or --no-plugins (would yield empty / partial results).',
+
+  // Unknown formatter on /api/graph — the user asked for a `format` value
+  // that no registered formatter advertises. Mirrors `sm graph`'s message.
+  graphUnknownFormat:
+    'Unknown graph format "{{format}}". Available: {{available}}.',
+
+  // Pagination caps on /api/nodes.
+  paginationLimitTooLarge:
+    'limit={{value}} exceeds the maximum of {{max}}.',
+  paginationInvalidInteger:
+    '{{name}}={{value}} is not a non-negative integer.',
+
+  // Node lookup miss on /api/nodes/:pathB64. Both the missing-node and
+  // the malformed-pathB64 cases funnel here — the client experience is
+  // the same (the resource isn't there).
+  nodeNotFound:
+    'No node with path "{{path}}".',
+  pathB64Malformed:
+    'Malformed pathB64 — not a valid base64url-encoded node.path.',
 } as const;

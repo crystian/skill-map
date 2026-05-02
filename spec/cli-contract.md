@@ -326,14 +326,25 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 
 **Boot resilience**: `sm serve` boots even when the project DB is missing. `/api/health` reports `db: 'missing'` so the SPA can render an empty-state CTA instead of failing the connection. Explicit `--db <path>` that doesn't exist is the exception — that exits 5 (NotFound) per `§Exit codes`.
 
-**Endpoints (v14.1 surface)**:
+**Endpoints (v14.2 surface)**:
 
 | Path | Status | Shape |
 |---|---|---|
 | `GET /api/health` | implemented | `{ ok: true, schemaVersion, specVersion, implVersion, scope: 'project'\|'global', db: 'present'\|'missing' }` |
-| `ALL /api/*` (other) | reserved | structured 404 envelope (see below); real endpoints land at v14.2 |
-| `GET /ws` | upgrade-only | accepts WebSocket upgrade and immediately closes; broadcaster lands at v14.4 |
-| `GET *` | implemented | static asset from the resolved UI bundle, falling back to `index.html` for SPA deep links |
+| `GET /api/scan` | implemented | latest persisted `ScanResult` (1:1 with `scan-result.schema.json`; byte-equal to `sm scan --json` modulo whitespace). DB absent → empty `ScanResult` shape (zero `nodes` / `links` / `issues`). |
+| `GET /api/scan?fresh=1` | implemented | runs an in-memory scan and returns the produced `ScanResult` without persistence. Rejects with `bad-query` (400) when the server was started with `--no-built-ins` or `--no-plugins` (would yield empty / partial results). |
+| `GET /api/nodes?kind=&hasIssues=&path=&limit=&offset=` | implemented | `RestEnvelope` (`kind: 'nodes'`) — paginated, filtered list. Filters share the `kind=` / `has=issues` / `path=<glob>` grammar with `sm export`. `hasIssues=false` is a server-side post-filter (not representable in the kernel grammar). Pagination defaults `offset=0`, `limit=100`; max `limit=1000`. |
+| `GET /api/nodes/:pathB64` | implemented | `RestEnvelope` (`kind: 'node'`) — single-node bundle: `{ node, linksOut, linksIn, issues }`. `:pathB64` is base64url (RFC 4648 §5, no padding) of `node.path`. Missing node or malformed `pathB64` → 404 `not-found`. |
+| `GET /api/links?kind=&from=&to=` | implemented | `RestEnvelope` (`kind: 'links'`) — list of links. Filters: `kind` (CSV whitelist of `link.kind`), `from` (exact match on `link.source`), `to` (exact match on `link.target`). No pagination at v14.2. |
+| `GET /api/issues?severity=&ruleId=&node=` | implemented | `RestEnvelope` (`kind: 'issues'`) — list of issues. Filters: `severity` (CSV from `error\|warn\|info`), `ruleId` (CSV; qualified or short suffix per `sm check --rules`), `node` (filter to issues whose `nodeIds` includes the path). No pagination at v14.2. |
+| `GET /api/graph?format=ascii\|json\|md` | implemented | formatter-rendered graph. `Content-Type` per format: `text/plain` (ascii), `application/json` (json), `text/markdown` (md / mermaid). Default `format=ascii`. Unknown format → 400 `bad-query`. |
+| `GET /api/config` | implemented | `RestEnvelope` (`kind: 'config'`) — merged effective config (defaults → user → user-local → project → project-local → override). |
+| `GET /api/plugins` | implemented | `RestEnvelope` (`kind: 'plugins'`) — list of installed plugins (built-in + drop-in) with status. Item shape: `{ id, version, kinds, status, reason, source: 'built-in'\|'project'\|'global' }`. |
+| `ALL /api/*` (other) | reserved | structured 404 envelope (see below); future endpoints land in subsequent sub-steps. |
+| `GET /ws` | upgrade-only | accepts WebSocket upgrade and immediately closes; broadcaster lands at v14.4. |
+| `GET *` | implemented | static asset from the resolved UI bundle, falling back to `index.html` for SPA deep links. |
+
+List endpoints conform to [`schemas/api/rest-envelope.schema.json`](schemas/api/rest-envelope.schema.json). The `/api/scan` and `/api/health` responses carry their underlying `ScanResult` / `IHealthResponse` shapes directly (no envelope wrap). The `/api/graph` response carries the formatter's native textual output.
 
 **Error envelope** (mirrors `§Machine-readable output rules`):
 
@@ -349,6 +360,13 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 ```
 
 HTTP status mapping: `400` → `bad-query`, `404` → `not-found`, `500` → `internal` / `db-missing`.
+
+Error code sources at v14.2:
+
+- `not-found` (404) — unknown `/api/*` path; missing node on `/api/nodes/:pathB64`; malformed `pathB64` (treated as "no such node" so the client UX is uniform).
+- `bad-query` (400) — `ExportQueryError` from `parseExportQuery`; pagination beyond `limit ≤ 1000`; non-integer / negative `limit` / `offset`; unknown formatter on `/api/graph`; `?fresh=1` when the server started with `--no-built-ins` or `--no-plugins`.
+- `internal` (500) — uncaught error during a request (e.g. config-load failure, DB corruption surfacing through `loadScanResult`).
+- `db-missing` (500) — reserved for endpoints that cannot degrade to an empty result. The v14.2 routes uniformly degrade (`/api/scan` returns the empty shape; list endpoints return zero items) so this code is not currently emitted by any handler — it is documented for future endpoints (post-v0.6.0 mutations) where degradation is not safe.
 
 **Flag surface**:
 

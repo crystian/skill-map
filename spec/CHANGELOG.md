@@ -174,6 +174,25 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
 
 ### Minor
 
+- **BFF read-side endpoints** — Step 14.2 fills the `### Server`
+  subsection's endpoint catalogue from the v14.1 stub
+  (`GET /api/health` real, `ALL /api/*` 404) to the eight read-side
+  endpoints the Web UI consumes:
+  `GET /api/scan` (latest persisted `ScanResult`; `?fresh=1` for an
+  in-memory scan), `GET /api/nodes` (paginated, filtered list — same
+  query grammar as `sm export`), `GET /api/nodes/:pathB64` (single-node
+  bundle; `pathB64` is base64url of `node.path`), `GET /api/links`,
+  `GET /api/issues`, `GET /api/graph?format=...` (formatter rendering),
+  `GET /api/config`, `GET /api/plugins`. New
+  [`schemas/api/rest-envelope.schema.json`](schemas/api/rest-envelope.schema.json)
+  formalises the list-envelope shape (`{ schemaVersion, kind, items \|
+  item \| value, filters, counts }`). The error envelope subsection
+  enumerates the v14.2 sources for each `code` value (`not-found` /
+  `bad-query` / `internal` / reserved `db-missing`). Stability stays
+  `experimental — locks at v0.6.0` (no change). Additive minor per
+  `versioning.md` § Pre-1.0; no breaking change — the v14.1 endpoint
+  catalogue was a stub explicitly slated to fill at v14.2.
+
 - **`sm serve` row + `### Server` subsection** in `cli-contract.md` —
   Step 14.1 promotes `sm serve` from an implementation-defined stub to a
   documented surface. The verb row at `§Verb catalog` › `### Server`
