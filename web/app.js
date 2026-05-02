@@ -976,14 +976,13 @@
     ul.innerHTML = '';
     for (const item of p.items) {
       const li = document.createElement('li');
-      if (p.list === 'steps') {
-        li.dataset.status = item.status;
+      if (p.list === 'steps' || p.list === 'highlights') {
+        li.dataset.status = item.status ?? 'done';
+        const titleObj = item.title ?? item;
         li.innerHTML = `
           <span class="roadmap__step-mark" aria-hidden="true"></span>
-          <span class="roadmap__step-id">${escapeHtml(item.id)}</span>
           <span class="roadmap__step-text">
-            <strong>${escapeHtml(tx(item.title))}</strong>
-            <span>${escapeHtml(tx(item.body))}</span>
+            <strong>${escapeHtml(tx(titleObj))}</strong>
           </span>`;
       } else {
         li.innerHTML = `<span>${escapeHtml(tx(item))}</span>`;

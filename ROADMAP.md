@@ -179,37 +179,37 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ═══════════════════════════════════════════════════════════════════════════
   PHASE 0 · DEFINITION (project shape and the standard)
 ═══════════════════════════════════════════════════════════════════════════
-✅ Hexagonal architecture · kernel + ports + adapters + 6 plugin kinds
-✅ Persistence model · 2 scopes × 3 zones
-✅ Job subsystem · atomic claim, nonce, kernel-enforced preamble
-✅ Plugin model · 2 storage modes, triple protection
-✅ Frontmatter standard · universal base · provider-owned kind schemas
-✅ Trigger normalization · 6-step pipeline
-✅ Config hierarchy · defaults → global → project → local → env
-✅ Versioning policy · changesets, independent semver per package
-✅ Spec as a standard · separable from reference impl
-✅ 29 schemas + 9 prose contracts + conformance suite
-✅ 117 architectural decisions, logged
-✅ @skill-map/spec published on npm
+● Hexagonal architecture · kernel + ports + adapters + 6 plugin kinds
+● Persistence model · 2 scopes × 3 zones
+● Job subsystem · atomic claim, nonce, kernel-enforced preamble
+● Plugin model · 2 storage modes, triple protection
+● Frontmatter standard · universal base · provider-owned kind schemas
+● Trigger normalization · 6-step pipeline
+● Config hierarchy · defaults → global → project → local → env
+● Versioning policy · changesets, independent semver per package
+● Spec as a standard · separable from reference impl
+● 29 schemas + 9 prose contracts + conformance suite
+● 117 architectural decisions, logged
+● @skill-map/spec published on npm
   ────────────────────────────────────────────────────────────────────────
    ▶ @skill-map/spec released
 
 ═══════════════════════════════════════════════════════════════════════════
   PHASE A · DETERMINISTIC CORE (scan, model, query — no LLM)
 ═══════════════════════════════════════════════════════════════════════════
-✅ 0b   Implementation bootstrap     workspace, kernel shell, CLI binary, conformance harness, CI green
-✅ 0c   UI prototype (Flavor A)      Angular + Foblex Flow + PrimeNG, mock collection, list / graph / inspector
-✅ 1a   Storage + migrations         SQLite via node:sqlite, kernel migrations, auto-backup, sm db * verbs
-✅ 1b   Registry + plugin loader     six kinds enforced, drop-in discovery, sm plugins list/show/doctor
-✅ 1c   Orchestrator + dispatcher    scan skeleton, full Clipanion verb registration, sm help, autogen reference
-✅ 2    First extensions             claude provider · 3 extractors · 3 rules · ASCII formatter · validate-all
-✅ 3    UI design refinement         node cards, connection styling, inspector layout, dark mode parity
-✅ 4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
-✅ 5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
-✅ 6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skill-mapignore · sm init · scan strict
-✅ 7    Robustness                   sm watch + chokidar · link-conflict rule · sm job prune · trigger normalization
-✅ 8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
-✅ 9    Plugin author UX             plugin runtime · plugin migrations · @skill-map/testkit on npm · author guide + reference plugin
+●  0b   Implementation bootstrap     workspace, kernel shell, CLI binary, conformance harness, CI green
+●  0c   UI prototype (Flavor A)      Angular + Foblex Flow + PrimeNG, mock collection, list / graph / inspector
+●  1a   Storage + migrations         SQLite via node:sqlite, kernel migrations, auto-backup, sm db * verbs
+●  1b   Registry + plugin loader     six kinds enforced, drop-in discovery, sm plugins list/show/doctor
+●  1c   Orchestrator + dispatcher    scan skeleton, full Clipanion verb registration, sm help, autogen reference
+●  2    First extensions             claude provider · 3 extractors · 3 rules · ASCII formatter · validate-all
+●  3    UI design refinement         node cards, connection styling, inspector layout, dark mode parity
+●  4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
+●  5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
+●  6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skill-mapignore · sm init · scan strict
+●  7    Robustness                   sm watch + chokidar · link-conflict rule · sm job prune · trigger normalization
+●  8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
+●  9    Plugin author UX             plugin runtime · plugin migrations · @skill-map/testkit on npm · author guide + reference plugin
   ────────────────────────────────────────────────────────────────────────
    ▶ YOU ARE HERE (2026-05-02) — Phase A complete · in flight: Phase B (Step 10 Phase 0 done in code, spec B2 decision locked)
   ────────────────────────────────────────────────────────────────────────
@@ -218,38 +218,38 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ═══════════════════════════════════════════════════════════════════════════
   PHASE B · LLM AS AN OPTIONAL LAYER (plugin overhaul, summaries, semantic verbs)
 ═══════════════════════════════════════════════════════════════════════════
-✅ 9.5  Plugin model overhaul        Provider/Extractor/Formatter renames · Hook kind added · Audit absorbed into Rule · qualified ids
-✅ 9.6  Foundation refactors         Open node kinds · storage port promotion (5 namespaces) · universal enrichment · incremental scan cache
-   10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview/claim/cancel/status · sm record + nonce
-   10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run full loop · sm doctor runner probe · /skill-map:run-queue Skill agent
-   10c  First probabilistic ext      skill-summarizer · extension-mode-derivation + preamble-bitwise-match · github-enrichment plugin
-   11a  Per-kind summarizers         agent · command · hook · note
-   11b  Semantic LLM verbs           sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm recommend-optimization · sm findings
-   11c  /skill-map:explore meta      cross-extension orchestration over the queue + summaries
+●  9.5  Plugin model overhaul        Provider/Extractor/Formatter renames · Hook kind added · Audit absorbed into Rule · qualified ids
+●  9.6  Foundation refactors         Open node kinds · storage port promotion (5 namespaces) · universal enrichment · incremental scan cache
+○  10a  Queue infrastructure         state_jobs + content-addressed state_job_contents · atomic claim · sm job submit/list/show/preview/claim/cancel/status · sm record + nonce
+○  10b  LLM runner                   ClaudeCliRunner + MockRunner · ctx.runner injection · sm job run full loop · sm doctor runner probe · /skill-map:run-queue Skill agent
+○  10c  First probabilistic ext      skill-summarizer · extension-mode-derivation + preamble-bitwise-match · github-enrichment plugin
+○  11a  Per-kind summarizers         agent · command · hook · note
+○  11b  Semantic LLM verbs           sm what · sm dedupe · sm cluster-triggers · sm impact-of · sm recommend-optimization · sm findings
+○  11c  /skill-map:explore meta      cross-extension orchestration over the queue + summaries
   ────────────────────────────────────────────────────────────────────────
    ▶ target: v0.8.0 — LLM optional layer
 
 ═══════════════════════════════════════════════════════════════════════════
   PHASE C · SURFACE & DISTRIBUTION (formatters, full web UI, single-binary release)
 ═══════════════════════════════════════════════════════════════════════════
-   12   Additional formatters        Mermaid · DOT/Graphviz · subgraph export with filters
-   13   Multi-host adapters          Codex · Gemini · Copilot · generic provider · per-host sm-<host>-* skill namespace · adapter conformance
-   14a  Web UI: BFF + transport      Hono BFF · WebSocket /ws · single-port mandate · Angular SPA + REST + WS under one listener · sm serve --port N
-   14b  Web UI: Flavor B slice       Inspector with enrichment + summaries + findings · command submit from UI · chokidar live updates · MD body renderer pick
-   14c  Web UI: polish & budgets     URL-synced filter state · responsive scope · bundle budget · dark mode tri-state · Foblex types reassessment
-   15a  Single package distrib       @skill-map/cli with UI bundled · sm + skill-map binary aliases · sm ui sub-command · settings loader + runtime-settings schema
-   15b  Documentation site           Astro Starlight · plugin API reference (JSDoc → Starlight) · llms.txt + llms-full.txt · skill-map.dev launch · context7
-   15c  Release infrastructure       GH Actions release + changelog · telemetry opt-in · compatibility matrix · breaking-changes policy · sm doctor diagnostics · Claude Code wrapper
+○  12   Additional formatters        Mermaid · DOT/Graphviz · subgraph export with filters
+○  13   Multi-host adapters          Codex · Gemini · Copilot · generic provider · per-host sm-<host>-* skill namespace · adapter conformance
+○  14a  Web UI: BFF + transport      Hono BFF · WebSocket /ws · single-port mandate · Angular SPA + REST + WS under one listener · sm serve --port N
+○  14b  Web UI: Flavor B slice       Inspector with enrichment + summaries + findings · command submit from UI · chokidar live updates · MD body renderer pick
+○  14c  Web UI: polish & budgets     URL-synced filter state · responsive scope · bundle budget · dark mode tri-state · Foblex types reassessment
+○  15a  Single package distrib       @skill-map/cli with UI bundled · sm + skill-map binary aliases · sm ui sub-command · settings loader + runtime-settings schema
+○  15b  Documentation site           Astro Starlight · plugin API reference (JSDoc → Starlight) · llms.txt + llms-full.txt · skill-map.dev launch · context7
+○  15c  Release infrastructure       GH Actions release + changelog · telemetry opt-in · compatibility matrix · breaking-changes policy · sm doctor diagnostics · Claude Code wrapper
   ────────────────────────────────────────────────────────────────────────
    ▶ target: v1.0.0 — full distributable
 
 ═══════════════════════════════════════════════════════════════════════════
   PHASE D · REAL-TIME (pending — watch execution as it happens)
 ═══════════════════════════════════════════════════════════════════════════
-   ~    Event stream                 live WebSocket from the kernel to the UI
-   ~    Execution snapshot           immutable audit of every run
-   ~    Real-time exploration        watch agents and skills as they run
-   ~    Marketplace ?                plugin discovery and distribution — to evaluate
+○       Event stream                 live WebSocket from the kernel to the UI
+○       Execution snapshot           immutable audit of every run
+○       Real-time exploration        watch agents and skills as they run
+○       Marketplace ?                plugin discovery and distribution — to evaluate
 ═══════════════════════════════════════════════════════════════════════════
 
   Rule: the LLM is never required. Product is complete offline through Phase A.

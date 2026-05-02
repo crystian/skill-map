@@ -2413,12 +2413,13 @@ svg    { display: block; max-width: 100%; }
   gap: 6px;
 }
 
-/* Steps list (Phase A / B / C) */
-.roadmap__detail-list--steps li {
+/* Steps / Highlights list (Phase 0 / A / B / C) */
+.roadmap__detail-list--steps li,
+.roadmap__detail-list--highlights li {
   display: grid;
-  grid-template-columns: 22px 36px 1fr;
+  grid-template-columns: 22px 1fr;
   gap: 12px;
-  align-items: flex-start;
+  align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid rgba(255,255,255,.04);
 }
@@ -2427,15 +2428,14 @@ svg    { display: block; max-width: 100%; }
   height: 14px;
   border-radius: 50%;
   border: 1.5px solid rgba(255,255,255,.25);
-  margin-top: 4px;
   position: relative;
   flex: 0 0 auto;
 }
-.roadmap__detail-list--steps li[data-status="done"] .roadmap__step-mark {
+.roadmap__detail-list li[data-status="done"] .roadmap__step-mark {
   background: var(--green-400);
   border-color: var(--green-400);
 }
-.roadmap__detail-list--steps li[data-status="done"] .roadmap__step-mark::after {
+.roadmap__detail-list li[data-status="done"] .roadmap__step-mark::after {
   content: '';
   position: absolute;
   left: 3px; top: 1px;
@@ -2444,51 +2444,24 @@ svg    { display: block; max-width: 100%; }
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }
-.roadmap__detail-list--steps li[data-status="current"] .roadmap__step-mark {
+.roadmap__detail-list li[data-status="current"] .roadmap__step-mark {
   background: var(--violet-400);
   border-color: var(--violet-400);
   box-shadow: 0 0 10px var(--violet-400);
-}
-.roadmap__step-id {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: rgba(255,255,255,.45);
-  margin-top: 4px;
-}
-.roadmap__detail-list--steps li[data-status="done"]    .roadmap__step-id { color: var(--green-400); }
-.roadmap__detail-list--steps li[data-status="current"] .roadmap__step-id { color: var(--violet-400); font-weight: 600; }
-.roadmap__step-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
 }
 .roadmap__step-text strong {
   font-weight: 500;
   color: #fff;
   font-size: 14px;
 }
-.roadmap__step-text > span {
-  font-size: 13px;
-  color: rgba(255,255,255,.55);
-  line-height: 1.45;
-}
 
-/* Highlights / Sketches list (Phase 0 / D) */
-.roadmap__detail-list--highlights li,
+/* Sketches list (Phase D) */
 .roadmap__detail-list--sketches li {
   position: relative;
   padding: 4px 0 4px 22px;
   font-size: 14px;
   color: rgba(255,255,255,.78);
   line-height: 1.5;
-}
-.roadmap__detail-list--highlights li::before {
-  content: '▸';
-  position: absolute;
-  left: 4px;
-  top: 4px;
-  color: var(--green-400);
-  font-size: 12px;
 }
 .roadmap__detail-list--sketches li::before {
   content: '·';
@@ -2530,8 +2503,9 @@ svg    { display: block; max-width: 100%; }
     padding: 24px;
   }
   .roadmap__detail-title { font-size: 22px; }
-  .roadmap__detail-list--steps li {
-    grid-template-columns: 18px 30px 1fr;
+  .roadmap__detail-list--steps li,
+  .roadmap__detail-list--highlights li {
+    grid-template-columns: 18px 1fr;
     gap: 10px;
   }
 }
