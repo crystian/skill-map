@@ -48,6 +48,7 @@ import type {
 } from '../kernel/extensions/index.js';
 import type { Extension } from '../kernel/registry.js';
 import type { TGranularity } from '../kernel/types/plugin.js';
+import { bucketByKind } from '../kernel/util/bucket-by-kind.js';
 import { claudeProvider } from './providers/claude/index.js';
 import { frontmatterExtractor } from './extractors/frontmatter/index.js';
 import { slashExtractor } from './extractors/slash/index.js';
@@ -175,40 +176,22 @@ export function listBuiltIns(): Extension[] {
 }
 
 /**
- * Drop a built-in into the right bucket for the orchestrator. Mirrors
- * `bucketLoaded` in `cli/util/plugin-runtime.ts` — kept private here
- * because the built-ins skip the `module` namespace step (their
- * `pluginId` is already declared).
+ * Drop a built-in into the right bucket for the orchestrator. Shares the
+ * dispatch table with `cli/util/plugin-runtime.ts:bucketLoaded` via
+ * `bucketByKind` — the only difference is which kinds get a destination
+ * array (built-ins surface every kind, including actions; the loaded-
+ * plugin path skips actions because they dispatch via the job subsystem,
+ * not the scan pipeline).
  */
 function bucketBuiltIn(ext: TBuiltInExtension, out: IBuiltIns): void {
-  switch (ext.kind) {
-    case 'provider':
-      out.providers.push(ext);
-      break;
-    case 'extractor':
-      out.extractors.push(ext);
-      break;
-    case 'rule':
-      out.rules.push(ext);
-      break;
-    case 'action':
-      out.actions.push(ext);
-      break;
-    case 'formatter':
-      out.formatters.push(ext);
-      break;
-    case 'hook':
-      out.hooks.push(ext);
-      break;
-    default: {
-      // Exhaustive guard: a new extension kind added to `TBuiltInExtension`
-      // must extend this switch. The `_exhaustive: never` binding triggers
-      // a compile error if the discriminant is not exhausted; the runtime
-      // throw is defensive in case TS is silenced via `as never`.
-      const _exhaustive: never = ext;
-      throw new Error(`Unhandled built-in extension kind: ${String((_exhaustive as { kind?: string }).kind)}`);
-    }
-  }
+  bucketByKind(ext.kind, ext, {
+    provider: out.providers,
+    extractor: out.extractors,
+    rule: out.rules,
+    action: out.actions,
+    formatter: out.formatters,
+    hook: out.hooks,
+  });
 }
 
 function toExtensionRow(x: TBuiltInExtension): Extension {

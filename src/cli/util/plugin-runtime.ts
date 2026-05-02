@@ -51,6 +51,8 @@ import type {
   IDiscoveredPlugin,
   ILoadedExtension,
 } from '../../kernel/types/plugin.js';
+import { bucketByKind } from '../../kernel/util/bucket-by-kind.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PLUGIN_RUNTIME_TEXTS } from '../i18n/plugin-runtime.texts.js';
 import {
@@ -59,6 +61,7 @@ import {
   resolveDbPath,
 } from './db-path.js';
 import { defaultRuntimeContext } from './runtime-context.js';
+import { truncateHead } from './text.js';
 import { tryWithSqlite } from './with-sqlite.js';
 
 export interface ILoadPluginRuntimeOptions {
@@ -455,44 +458,26 @@ async function buildEnabledResolver(
  * Drop a plugin's loaded extensions into the per-kind buckets. Each
  * `ext.instance` arrives from the loader already cloned with
  * `pluginId` injected (spec § A.6), so this function never mutates.
+ *
+ * Shares the dispatch table with `built-in-plugins/built-ins.ts:
+ * bucketBuiltIn` via `bucketByKind`. Actions are intentionally NOT
+ * passed a destination array — they dispatch via the job subsystem
+ * (Step 10), not the scan pipeline. The manifest row still records
+ * regardless of kind so `sm plugins list` / `sm actions list` see
+ * every extension that loaded.
  */
-// eslint-disable-next-line complexity
 function bucketLoaded(loaded: ILoadedExtension[], bundle: IPluginRuntimeBundle): void {
   for (const ext of loaded) {
     const instance = ext.instance;
     if (!isExtensionInstance(instance)) continue;
-    switch (ext.kind) {
-      case 'provider':
-        bundle.extensions.providers.push(instance as IProvider);
-        break;
-      case 'extractor':
-        bundle.extensions.extractors.push(instance as IExtractor);
-        break;
-      case 'rule':
-        bundle.extensions.rules.push(instance as IRule);
-        break;
-      case 'formatter':
-        bundle.extensions.formatters.push(instance as IFormatter);
-        break;
-      case 'hook':
-        // Spec § A.11. Hooks subscribe to a curated set of lifecycle
-        // events. The orchestrator's dispatcher consumes the bucket
-        // during scan / job dispatch; probabilistic hooks are deferred
-        // to the job subsystem (Step 10) but still load here so they
-        // surface in `sm plugins list` and `sm plugins doctor`.
-        bundle.extensions.hooks.push(instance as IHook);
-        break;
-      case 'action':
-        // Actions are runtime-only via the job subsystem (Step 10);
-        // they don't participate in the deterministic scan pipeline,
-        // so we don't bucket them here. Their manifests still surface
-        // through the Registry below for `sm actions list`.
-        break;
-      default: {
-        const _exhaustive: never = ext.kind;
-        throw new Error(`Unhandled loaded extension kind: ${String(_exhaustive)}`);
-      }
-    }
+    bucketByKind(ext.kind, instance, {
+      provider: bundle.extensions.providers,
+      extractor: bundle.extensions.extractors,
+      rule: bundle.extensions.rules,
+      formatter: bundle.extensions.formatters,
+      hook: bundle.extensions.hooks,
+      // `action` intentionally absent — see docstring.
+    });
     bundle.manifests.push({
       id: ext.id,
       pluginId: ext.pluginId,
@@ -514,17 +499,38 @@ function isExtensionInstance(v: unknown): v is { id: string; kind: string; versi
   );
 }
 
+// Caps for interpolated values in the warning template. The plugin id
+// passes through the loader's regex validator (short, well-shaped) but
+// is bounded as defence-in-depth. The reason string is plugin-authored
+// (manifest fragments + AJV `instancePath`/`message`, `describe(err)`
+// return values) and unbounded — a hostile or buggy plugin could emit
+// kilobytes of payload that drown the user's terminal.
+const PLUGIN_ID_DISPLAY_CAP = 200;
+const PLUGIN_REASON_DISPLAY_CAP = 1000;
+
 /**
  * Render a single-line, scannable diagnostic for a non-loaded plugin.
  * The status name doubles as the failure category so a user can grep
  * `incompatible-spec` / `invalid-manifest` / `load-error` and see the
  * full context. Template lives in `cli/i18n/plugin-runtime.texts.ts`.
+ *
+ * Both `id` and `reason` flow from plugin-authored sources (manifest
+ * fields, AJV error fragments, `describe(err)` payloads). Sanitize +
+ * cap before interpolation so a hostile plugin cannot smuggle ANSI
+ * control sequences into the user's terminal via its own diagnostic
+ * surface.
+ *
+ * Exported solely for the audit H1 unit tests in
+ * `test/plugin-runtime.test.ts` — production callers reach it through
+ * `loadPluginRuntime` and write the rendered lines straight to stderr.
+ * Renaming or removing the export is a breaking change for the test
+ * suite, not for any consumer.
  */
-function formatWarning(plugin: IDiscoveredPlugin): string {
-  const reason = plugin.reason ?? PLUGIN_RUNTIME_TEXTS.warningReasonMissing;
+export function formatWarning(plugin: IDiscoveredPlugin): string {
+  const rawReason = plugin.reason ?? PLUGIN_RUNTIME_TEXTS.warningReasonMissing;
   return tx(PLUGIN_RUNTIME_TEXTS.warningRow, {
-    id: plugin.id,
+    id: sanitizeForTerminal(truncateHead(plugin.id, PLUGIN_ID_DISPLAY_CAP)),
     status: plugin.status,
-    reason,
+    reason: sanitizeForTerminal(truncateHead(rawReason, PLUGIN_REASON_DISPLAY_CAP)),
   });
 }

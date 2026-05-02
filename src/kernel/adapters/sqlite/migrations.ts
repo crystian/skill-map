@@ -169,7 +169,17 @@ export function applyMigrations(
     return { applied: toApply, backupPath: null };
   }
 
-  const backupPath = backup ? writeBackup(dbPath, target) : null;
+  // Compose the pre-migrate backup path here so `writeBackup` stays
+  // a generic "copy DB to dest" primitive — the per-target naming
+  // is the migrations runner's concern, not the helper's. For
+  // `:memory:` the path is meaningless but `writeBackup` short-
+  // circuits before using it.
+  const backupPath = backup
+    ? writeBackup(
+        dbPath,
+        join(dirname(resolve(dbPath)), 'backups', `skill-map-pre-migrate-v${target}.db`),
+      )
+    : null;
 
   for (const migration of toApply) {
     const sql = readFileSync(migration.filePath, 'utf8');
@@ -215,22 +225,26 @@ export function applyMigrations(
 }
 
 /**
- * WAL checkpoint + file copy. `:memory:` is a no-op (no file to copy).
+ * WAL checkpoint + atomic file copy of `dbPath` to `destPath`. The
+ * caller composes `destPath` (the migrations runner names its
+ * pre-migrate copies `skill-map-pre-migrate-v<N>.db`; `sm db backup`
+ * names its on-demand copies `<timestamp>.db`). `destPath`'s parent
+ * directory is created on demand. `:memory:` is a no-op (no file to
+ * copy) and returns `null`.
  */
-export function writeBackup(dbPath: string, targetVersion: number): string | null {
+export function writeBackup(dbPath: string, destPath: string): string | null {
   if (dbPath === ':memory:') return null;
-  const absolute = resolve(dbPath);
-  const dir = join(dirname(absolute), 'backups');
-  mkdirSync(dir, { recursive: true });
-  const out = join(dir, `skill-map-pre-migrate-v${targetVersion}.db`);
+  const absoluteSource = resolve(dbPath);
+  const absoluteDest = resolve(destPath);
+  mkdirSync(dirname(absoluteDest), { recursive: true });
   // Checkpoint WAL to the main file before copy so the backup is complete
   // without needing to also copy the `-wal` / `-shm` sidecars.
-  const db = new DatabaseSync(absolute);
+  const db = new DatabaseSync(absoluteSource);
   try {
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   } finally {
     db.close();
   }
-  copyFileSync(absolute, out);
-  return out;
+  copyFileSync(absoluteSource, absoluteDest);
+  return absoluteDest;
 }

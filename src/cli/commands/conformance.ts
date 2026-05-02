@@ -50,11 +50,43 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { truncateHead } from '../util/text.js';
 import {
   listCaseFiles,
   selectConformanceScopes,
   type IConformanceScope,
 } from '../util/conformance-scopes.js';
+
+// Cap for assertion `reason` strings before they reach stderr. The
+// runner can splice subprocess `stderr` content (`stepChild.stderr`) into
+// the reason payload, which is unbounded — a runaway impl could emit
+// kilobytes that drown the user's terminal. Mirrors the cap policy used
+// for plugin-warning interpolation in `cli/util/plugin-runtime.ts`.
+const ASSERTION_REASON_DISPLAY_CAP = 1000;
+
+/**
+ * Render one failed-assertion line for stderr. The `reason` flows from
+ * the conformance runner — some assertion variants splice the
+ * impl-under-test's stderr verbatim into it (`runtime-error` carries
+ * subprocess output as-is) — sanitize + cap before emitting so a
+ * hostile or buggy impl cannot smuggle ANSI escapes into the user's
+ * terminal via its own failure output.
+ *
+ * Exported for the audit M1 unit tests in
+ * `test/conformance-cli.test.ts` — production callers reach this
+ * through `ConformanceRunCommand.execute`.
+ */
+export function formatAssertionFailureDetail(
+  type: string,
+  reason: string,
+): string {
+  return tx(CONFORMANCE_TEXTS.caseFailureDetail, {
+    type,
+    reason: sanitizeForTerminal(
+      truncateHead(reason, ASSERTION_REASON_DISPLAY_CAP),
+    ),
+  });
+}
 
 /**
  * Resolve the absolute path to `bin/sm.js` relative to this module's
@@ -185,11 +217,15 @@ export class ConformanceRunCommand extends Command {
             );
             for (const a of result.assertions) {
               if (a.ok) continue;
+              // `a.reason` flows from the conformance runner. Some
+              // assertion variants splice the impl-under-test's stderr
+              // into the reason payload (`runtime-error` carries
+              // subprocess output verbatim) — sanitize + cap before
+              // emitting so a hostile or buggy impl cannot smuggle
+              // ANSI escapes into the user's terminal via its own
+              // failure output.
               this.context.stderr.write(
-                tx(CONFORMANCE_TEXTS.caseFailureDetail, {
-                  type: a.type,
-                  reason: a.reason,
-                }),
+                formatAssertionFailureDetail(a.type, a.reason),
               );
             }
             writeStreamSnippet(

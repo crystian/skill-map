@@ -249,8 +249,12 @@ export interface StoragePort {
      * applied list + backup path (when `backup: true`).
      */
     apply(options?: IApplyOptions, files?: IMigrationFile[]): IApplyResult;
-    /** WAL-checkpoint + file copy of the DB to `backups/`; returns the path. */
-    writeBackup(targetVersion: number): string | null;
+    /**
+     * WAL-checkpoint + atomic file copy of the DB to `destPath`.
+     * Caller composes the path. Returns the destination on success,
+     * or `null` for in-memory DBs (no file to copy).
+     */
+    writeBackup(destPath: string): string | null;
     /**
      * Read `PRAGMA user_version` from the underlying DB. The migrations
      * runner keeps that pragma in sync with the latest applied kernel

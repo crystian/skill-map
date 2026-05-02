@@ -293,7 +293,7 @@ export class SqliteStorageAdapter implements StoragePort {
           raw.exec('PRAGMA foreign_keys = ON');
           return applyMigrations(raw, path, options, files);
         }),
-      writeBackup: (targetVersion) => writeBackup(path, targetVersion),
+      writeBackup: (destPath) => writeBackup(path, destPath),
       currentSchemaVersion: () =>
         withRawDb(path, (raw) => {
           const row = raw.prepare('PRAGMA user_version').get() as

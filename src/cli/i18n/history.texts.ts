@@ -12,9 +12,7 @@ export const HISTORY_TEXTS = {
   statusEmpty: '--status: expected one or more of {{allowed}}.\n',
   statusInvalid: '--status: invalid value "{{value}}". Allowed: {{allowed}}.\n',
 
-  limitNotPositiveInt: '--limit: expected a positive integer, got "{{value}}".\n',
   periodInvalid: '--period: invalid value "{{value}}". Allowed: {{allowed}}.\n',
-  topNotPositiveInt: '--top: expected a positive integer, got "{{value}}".\n',
   schemaValidationFailed: 'internal: history-stats output failed schema validation — {{errors}}\n',
 
   // --- renderStats labels ------------------------------------------------

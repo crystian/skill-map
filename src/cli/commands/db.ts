@@ -14,6 +14,7 @@ import { spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { withSqlite } from '../util/with-sqlite.js';
 import { confirm } from '../util/confirm.js';
 import { tx } from '../../kernel/util/tx.js';
 import { DB_TEXTS } from '../i18n/db.texts.js';
@@ -113,15 +114,15 @@ export class DbBackupCommand extends Command {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const outPath = this.out ? resolve(this.out) : join(dirname(path), 'backups', `${ts}.db`);
 
-    await mkdir(dirname(outPath), { recursive: true });
-
-    const db = new DatabaseSync(path);
-    try {
-      db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
-    } finally {
-      db.close();
-    }
-    await copyFile(path, outPath);
+    // Route through the storage port — the port's `writeBackup` does
+    // the WAL checkpoint, parent-directory creation, and atomic file
+    // copy in one call. `autoMigrate: false` keeps the open from
+    // touching schema; `autoBackup: false` is implied because no
+    // migrations run. The verb composes `outPath` (timestamp default
+    // or `--out` override) and hands it to the port.
+    await withSqlite({ databasePath: path, autoMigrate: false }, async (storage) => {
+      storage.migrations.writeBackup(outPath);
+    });
 
     this.context.stdout.write(tx(DB_TEXTS.backupWritten, { outPath }));
     return ExitCode.Ok;

@@ -38,7 +38,9 @@ import type { BaseContext } from 'clipanion';
 
 import { GraphCommand } from '../cli/commands/graph.js';
 import { ScanCommand } from '../cli/commands/scan.js';
+import { formatWarning } from '../cli/util/plugin-runtime.js';
 import type { ScanResult } from '../kernel/index.js';
+import type { IDiscoveredPlugin } from '../kernel/types/plugin.js';
 
 let tmpRoot: string;
 let counter = 0;
@@ -320,6 +322,78 @@ describe('Step 9.1 — plugin runtime wiring', () => {
     } finally {
       process.chdir(original);
     }
+  });
+
+  // Audit H1 — `formatWarning` sanitizes plugin-authored `id` + `reason`
+  // and caps `reason` at 1000 chars before interpolating into the
+  // stderr template. Both fields flow from sources outside the CLI's
+  // control (manifest fragments, AJV error message fragments,
+  // `describe(err)` payloads), so a hostile or buggy plugin could plant
+  // ANSI escapes that repaint the user's terminal or kilobyte-sized
+  // payloads that drown the warning surface. The cap policy mirrors
+  // `PLUGIN_REASON_DISPLAY_CAP = 1000` named in the helper file.
+  describe('formatWarning — audit H1 sanitization + length cap', () => {
+    it('strips C0 escapes from a hostile reason', () => {
+      const plugin: IDiscoveredPlugin = {
+        path: '/fake/plugins/evil',
+        id: 'evil',
+        status: 'invalid-manifest',
+        reason: 'AJV: \x1b[2J\x1b[Hpwned',
+      };
+      const out = formatWarning(plugin);
+      ok(!out.includes('\x1b'), `expected no ESC byte in formatted warning; got ${JSON.stringify(out)}`);
+      // The visible part of the reason survives — only the C0 bytes go.
+      ok(out.includes('AJV:'), 'visible content survives sanitization');
+      ok(out.includes('pwned'), 'visible content survives sanitization');
+    });
+
+    it('strips C0 escapes from a hostile plugin id', () => {
+      const plugin: IDiscoveredPlugin = {
+        path: '/fake/plugins/x',
+        id: 'shouty\x1b[31m',
+        status: 'load-error',
+        reason: 'module import failed',
+      };
+      const out = formatWarning(plugin);
+      ok(!out.includes('\x1b'), `expected no ESC byte in formatted warning; got ${JSON.stringify(out)}`);
+      ok(out.includes('shouty'), 'visible portion of id survives');
+    });
+
+    it('caps an oversized reason — bounded total output length', () => {
+      // The helper caps the `reason` interpolation at
+      // PLUGIN_REASON_DISPLAY_CAP (1000) chars via `truncateHead`.
+      // Bound the total output a few hundred chars above that to
+      // accommodate the surrounding template (`plugin <id>: <status> — <reason>`)
+      // — the cap policy is what we're pinning, not exact byte counts.
+      const oversize = 'x'.repeat(5000);
+      const plugin: IDiscoveredPlugin = {
+        path: '/fake/plugins/big',
+        id: 'big',
+        status: 'invalid-manifest',
+        reason: oversize,
+      };
+      const out = formatWarning(plugin);
+      ok(out.length < 1500, `expected capped output length, got ${out.length}`);
+      // The reason was truncated — the helper appends `…` when it cuts,
+      // so the original 5000-char tail of `x`s must NOT round-trip.
+      ok(!out.includes('x'.repeat(2000)), 'oversize payload was cut');
+    });
+
+    it('uses the fallback reason when `reason` is missing', () => {
+      // Defensive — `IDiscoveredPlugin.reason` is optional; a plugin
+      // record without one must not crash the warning path. The
+      // fallback string is i18n-sourced (`warningReasonMissing`); we
+      // assert the output is non-empty and renders without escapes.
+      const plugin: IDiscoveredPlugin = {
+        path: '/fake/plugins/quiet',
+        id: 'quiet',
+        status: 'invalid-manifest',
+      };
+      const out = formatWarning(plugin);
+      ok(out.length > 0);
+      ok(!out.includes('\x1b'));
+      ok(out.includes('quiet'));
+    });
   });
 
   it('--no-plugins on sm graph falls back to built-in formatters only', async () => {

@@ -10,6 +10,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -223,6 +224,28 @@ describe('sm config set', () => {
     const r = sm(['config', 'set', 'tokenizer', 'gpt-4'], scope);
     assert.equal(r.status, 0);
     assert.match(r.stderr, /^done in /m);
+  });
+
+  // Audit M5 — atomic write. The set verb stages content into a sibling
+  // `<settings>.tmp.<pid>` file and `renameSync`s it into place so a
+  // crash mid-write leaves the destination either at its prior content
+  // or at the new content — never half-written. The asymptotic check
+  // here (no `<settings>.tmp.*` siblings remain after a successful
+  // write) confirms the rename happened and the temp was reaped. We
+  // skip the "interrupt mid-write" simulation as too brittle; this
+  // pins the surface guarantee.
+  it('atomic write: leaves no <settings>.tmp.<pid> sibling after a successful set', () => {
+    const scope = freshScope('set-atomic');
+    const r = sm(['config', 'set', 'tokenizer', 'gpt-4'], scope);
+    assert.equal(r.status, 0);
+    const dir = join(scope.cwd, '.skill-map');
+    const written = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
+    assert.equal(written.tokenizer, 'gpt-4', 'main settings file is updated');
+    // No `settings.json.tmp.<pid>` sibling lingers after the rename —
+    // the atomic-write helper either renames into place (success) or
+    // unlinks the staged file in its `catch` (failure).
+    const siblings = readdirSync(dir).filter((name) => name.startsWith('settings.json.tmp.'));
+    assert.deepEqual(siblings, [], `expected no tmp siblings; got ${JSON.stringify(siblings)}`);
   });
 });
 

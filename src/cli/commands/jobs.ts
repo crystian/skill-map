@@ -43,7 +43,7 @@
  *   5  DB missing — run `sm init` first.
  */
 
-import { unlinkSync } from 'node:fs';
+import { unlink } from 'node:fs/promises';
 
 import { Command, Option } from 'clipanion';
 
@@ -209,7 +209,7 @@ export class JobPruneCommand extends Command {
     let removed = 0;
     for (const p of paths) {
       try {
-        unlinkSync(p);
+        await unlink(p);
         removed += 1;
       } catch {
         // Already missing or permission denied — count it as "not removed"

@@ -21,6 +21,7 @@ import { LIST_TEXTS } from '../i18n/list.texts.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { parsePositiveIntegerOption } from '../util/option-validators.js';
 import { truncateTail } from '../util/text.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
@@ -95,11 +96,8 @@ export class ListCommand extends Command {
 
     let limitValue: number | undefined;
     if (this.limit !== undefined) {
-      const parsed = Number.parseInt(this.limit, 10);
-      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== this.limit.trim()) {
-        this.context.stderr.write(tx(LIST_TEXTS.invalidLimit, { value: this.limit }));
-        return ExitCode.Error;
-      }
+      const parsed = parsePositiveIntegerOption(this.limit, '--limit', this.context.stderr);
+      if (parsed === null) return ExitCode.Error;
       limitValue = parsed;
     }
 

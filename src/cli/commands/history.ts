@@ -31,6 +31,7 @@ import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { emitDoneStderr, formatElapsed, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { parsePositiveIntegerOption } from '../util/option-validators.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { HISTORY_TEXTS } from '../i18n/history.texts.js';
 
@@ -142,11 +143,8 @@ export class HistoryCommand extends Command {
       filter.untilMs = ms;
     }
     if (this.limit !== undefined) {
-      const parsed = Number.parseInt(this.limit, 10);
-      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== this.limit.trim()) {
-        this.context.stderr.write(tx(HISTORY_TEXTS.limitNotPositiveInt, { value: this.limit }));
-        return ExitCode.Error;
-      }
+      const parsed = parsePositiveIntegerOption(this.limit, '--limit', this.context.stderr);
+      if (parsed === null) return ExitCode.Error;
       filter.limit = parsed;
     }
 
@@ -238,11 +236,8 @@ export class HistoryStatsCommand extends Command {
     }
     let topN = 10;
     if (this.top !== undefined) {
-      const parsed = Number.parseInt(this.top, 10);
-      if (!Number.isInteger(parsed) || parsed <= 0 || String(parsed) !== this.top.trim()) {
-        this.context.stderr.write(tx(HISTORY_TEXTS.topNotPositiveInt, { value: this.top }));
-        return ExitCode.Error;
-      }
+      const parsed = parsePositiveIntegerOption(this.top, '--top', this.context.stderr);
+      if (parsed === null) return ExitCode.Error;
       topN = parsed;
     }
 
@@ -394,14 +389,21 @@ function renderStats(stats: HistoryStats): string {
     tx(HISTORY_TEXTS.statsGlobalErrorRate, { rate: (stats.errorRates.global * 100).toFixed(1) }),
   );
 
+  // Defence in depth: `actionId`, `actionVersion`, `nodePath`, and the
+  // failure-reason key are all sourced from rows persisted by extension
+  // code (or — in the case of `failureReason` — a closed enum the
+  // kernel writes itself). Sanitize before interpolation so a hostile
+  // plugin cannot smuggle terminal escapes via its own action ids /
+  // versions; the enum value is sanitized for symmetry with `renderTable`
+  // and so future widening of the enum can't regress the gate.
   if (stats.tokensPerAction.length > 0) {
     out.push('\n');
     out.push(HISTORY_TEXTS.statsTopActionsHeader);
     for (const a of stats.tokensPerAction.slice(0, 5)) {
       out.push(
         tx(HISTORY_TEXTS.statsTopActionsRow, {
-          id: a.actionId,
-          version: a.actionVersion,
+          id: sanitizeForTerminal(a.actionId),
+          version: sanitizeForTerminal(a.actionVersion),
           runs: a.executionsCount,
           tokensIn: a.tokensIn,
           tokensOut: a.tokensOut,
@@ -413,7 +415,12 @@ function renderStats(stats: HistoryStats): string {
     out.push('\n');
     out.push(HISTORY_TEXTS.statsTopNodesHeader);
     for (const n of stats.topNodes.slice(0, 5)) {
-      out.push(tx(HISTORY_TEXTS.statsTopNodesRow, { path: n.nodePath, runs: n.executionsCount }));
+      out.push(
+        tx(HISTORY_TEXTS.statsTopNodesRow, {
+          path: sanitizeForTerminal(n.nodePath),
+          runs: n.executionsCount,
+        }),
+      );
     }
   }
   const failures = Object.entries(stats.errorRates.perFailureReason).filter(
@@ -423,7 +430,12 @@ function renderStats(stats: HistoryStats): string {
     out.push('\n');
     out.push(HISTORY_TEXTS.statsFailuresByReasonHeader);
     for (const [reason, count] of failures) {
-      out.push(tx(HISTORY_TEXTS.statsFailuresByReasonRow, { reason, count }));
+      out.push(
+        tx(HISTORY_TEXTS.statsFailuresByReasonRow, {
+          reason: sanitizeForTerminal(reason),
+          count,
+        }),
+      );
     }
   }
   return out.join('');

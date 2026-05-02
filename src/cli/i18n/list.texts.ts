@@ -9,8 +9,6 @@ export const LIST_TEXTS = {
   invalidSortBy:
     '--sort-by: invalid sort field "{{value}}". Allowed: {{allowed}}.\n',
 
-  invalidLimit: '--limit: expected a positive integer, got "{{value}}".\n',
-
   noNodesFound: 'No nodes found.\n',
 
   // --- renderTable column headers ----------------------------------------

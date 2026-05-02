@@ -109,10 +109,14 @@ export const asciiFormatter: IFormatter = {
     if (ctx.issues.length > 0) {
       out.push(tx(ASCII_FORMATTER_TEXTS.issuesSectionHeader, { count: ctx.issues.length }));
       for (const issue of ctx.issues) {
+        // Defence in depth: `ruleId` is regex-validated at registration
+        // (matches `[a-z0-9-]+`) but the sibling `message` already
+        // sanitizes — wrap `ruleId` for symmetry so a future loosening
+        // of the registry validator can't regress this gate.
         out.push(
           tx(ASCII_FORMATTER_TEXTS.issueBullet, {
             severity: issue.severity,
-            ruleId: issue.ruleId,
+            ruleId: sanitizeForTerminal(issue.ruleId),
             message: sanitizeForTerminal(issue.message),
           }),
         );

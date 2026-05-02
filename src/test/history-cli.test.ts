@@ -381,6 +381,52 @@ describe('sm history stats', () => {
     match(cap.stderr(), /--period: invalid value/);
   });
 
+  // Audit H2 — `extension_id` flows from extension code (action manifest
+  // → `state_executions.extension_id` row → human renderer
+  // `tokensPerAction`). A hostile or buggy action could plant a C0
+  // escape in its id; the human renderer must sanitize before printing
+  // so the user's terminal does not get repainted by a row in the
+  // table. JSON path is unaffected (escapes get JSON-encoded).
+  it('audit H2 — human renderer strips C0 escapes from extension_id (tokensPerAction column)', async () => {
+    const dbPath = freshDbPath('stats-sanitize');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      // The schema does not CHECK `extension_id`, so a raw insert can
+      // plant arbitrary bytes — the same path a hostile action would
+      // take when persisting its execution record.
+      const t0 = Date.UTC(2026, 3, 26, 10, 0, 0, 0);
+      await insertExecution(
+        adapter.db,
+        makeExec({
+          id: 'evil-1',
+          startedAt: t0,
+          extensionId: 'shouty\x1b[2J',
+          nodeIds: ['skills/foo.md'],
+          tokensIn: 100,
+          tokensOut: 50,
+        }),
+      );
+    } finally {
+      await adapter.close();
+    }
+
+    const cap = captureContext();
+    const cmd = buildHistoryStats({
+      db: dbPath,
+      since: '2026-04-25T00:00:00Z',
+      until: '2026-05-01T00:00:00Z',
+    });
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+    strictEqual(code, 0);
+    const out = cap.stdout();
+    // The visible portion of the id ("shouty") must remain; the ESC
+    // byte must NOT appear anywhere in stdout.
+    ok(out.includes('shouty'), `expected visible id portion in stdout; got:\n${out}`);
+    ok(!out.includes('\x1b'), `expected no ESC byte in stdout; got:\n${JSON.stringify(out)}`);
+  });
+
   it('--top caps the topNodes length', async () => {
     const dbPath = freshDbPath('stats-top');
     await primeFiveExecs(dbPath);

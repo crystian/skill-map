@@ -326,11 +326,17 @@ export class OrphansUndoRenameCommand extends Command {
       // § Dry-run: "Dry-run MUST NOT depend on --yes / --force ...
       // (no confirmation needed when nothing is being destroyed)".
       // Strict equality: see the placeholder note further down.
+      //
+      // `resolvedFrom` originates from either `--from` (CLI flag) or
+      // `issue.data['from']` (DB-sourced, plugin-authored). Sanitize
+      // for the terminal-output paths even though the CLI-flag branch
+      // is already trusted — defence-in-depth keeps the gate uniform.
+      const safeFrom = sanitizeForTerminal(resolvedFrom);
       if (this.force !== true && this.dryRun !== true) {
         const ok = await confirm(
           tx(ORPHANS_TEXTS.undoConfirmPrompt, {
             newPath: this.newPath,
-            from: resolvedFrom,
+            from: safeFrom,
           }),
           { stdin: this.context.stdin, stderr: this.context.stderr },
         );
@@ -375,7 +381,7 @@ export class OrphansUndoRenameCommand extends Command {
       this.context.stdout.write(
         tx(dryRun ? ORPHANS_TEXTS.undoWouldMigrate : ORPHANS_TEXTS.undoSummary, {
           newPath: this.newPath,
-          from: resolvedFrom,
+          from: safeFrom,
           rows: summaryTotal(summary),
         }),
       );
@@ -408,8 +414,16 @@ export class OrphansUndoRenameCommand extends Command {
       return { ok: false, exitCode: ExitCode.Error };
     }
     if (this.from !== undefined && this.from !== dataFrom) {
+      // `dataFrom` is plugin-authored (persisted in `scan_issues.data_json`
+      // by the rename heuristic). Sanitize before interpolating into the
+      // stderr template — the path itself is part of the user-visible
+      // diagnostic, but a hostile plugin could plant terminal escapes
+      // in `issue.data.from` to repaint the user's screen.
       this.context.stderr.write(
-        tx(ORPHANS_TEXTS.undoMediumFromMismatch, { from: this.from, dataFrom }),
+        tx(ORPHANS_TEXTS.undoMediumFromMismatch, {
+          from: this.from,
+          dataFrom: sanitizeForTerminal(dataFrom),
+        }),
       );
       return { ok: false, exitCode: ExitCode.Error };
     }

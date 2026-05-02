@@ -427,6 +427,63 @@ describe('sm orphans undo-rename', () => {
     match(cap.stderr(), /does not match auto-rename-medium data\.from/);
   });
 
+  // Audit H3 — `data.from` is plugin-authored (persisted in
+  // `scan_issues.data_json` by the rename heuristic). When the user
+  // supplies a `--from` that does NOT match `data.from`, the verb
+  // surfaces both paths in a stderr template. A hostile rule could
+  // plant a C0 escape inside `data.from` to repaint the user's terminal
+  // via that diagnostic surface. The fix wraps `dataFrom` with
+  // `sanitizeForTerminal` before interpolating; this test seeds the
+  // hostile row directly into `scan_issues` (the schema does not
+  // CHECK `data_json`, so a raw insert mirrors what a plugin can write)
+  // and asserts no ESC byte survives in stderr.
+  it('audit H3 — undoMediumFromMismatch sanitizes data.from before printing', async () => {
+    const dbPath = freshDbPath('undo-medium-sanitize');
+    const adapter = new SqliteStorageAdapter({ databasePath: dbPath, autoBackup: false });
+    await adapter.init();
+    try {
+      // Plant a synthetic auto-rename-medium issue on `.claude/skills/bar.md`
+      // whose `data.from` carries a screen-clear escape. The issue's
+      // `nodeIds` MUST contain the `--newPath` value for the verb's
+      // candidate query to pick it up. (`data.candidates` is unused by
+      // the medium branch — only the ambiguous one reads it.)
+      await adapter.db
+        .insertInto('scan_issues')
+        .values({
+          ruleId: 'auto-rename-medium',
+          severity: 'info',
+          nodeIdsJson: JSON.stringify(['.claude/skills/bar.md']),
+          linkIndicesJson: null,
+          message: 'synthetic',
+          detail: null,
+          fixJson: null,
+          dataJson: JSON.stringify({ from: 'evil\x1b[2J/old.md' }),
+        })
+        .execute();
+    } finally {
+      await adapter.close();
+    }
+
+    const cap = captureContext();
+    const cmd = new OrphansUndoRenameCommand();
+    cmd.global = false;
+    cmd.db = dbPath;
+    cmd.newPath = '.claude/skills/bar.md';
+    // Mismatching `--from` → triggers `undoMediumFromMismatch` path.
+    cmd.from = '.claude/skills/wrong.md';
+    cmd.force = true;
+    cmd.quiet = true;
+    cmd.context = cap.context;
+
+    strictEqual(await cmd.execute(), 2);
+    const err = cap.stderr();
+    match(err, /does not match auto-rename-medium data\.from/);
+    // The visible portion of `data.from` ("evil" + "/old.md") survives;
+    // the ESC byte does not.
+    ok(err.includes('evil'), `expected visible portion of data.from in stderr; got ${JSON.stringify(err)}`);
+    ok(!err.includes('\x1b'), `expected no ESC byte in stderr; got ${JSON.stringify(err)}`);
+  });
+
   it('no active auto-rename issue → exit 5', async () => {
     const fixture = freshFixture('undo-empty');
     const dbPath = freshDbPath('undo-empty');

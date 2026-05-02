@@ -187,6 +187,54 @@ describe('SqliteStorageAdapter', () => {
     }
   });
 
+  // Audit M2 — `storage.migrations.writeBackup(destPath)` (the port
+  // wrapper around the file-level helper) must:
+  //   - create the destination's parent directory if it does not exist;
+  //   - copy the file to that path;
+  //   - return the resolved destination path on success;
+  //   - return `null` when the source is `:memory:` (no file to copy).
+  // The migrations runner exercises the auto-migrate flow already; this
+  // pins the explicit-destination surface used by `sm db backup`.
+  it('writeBackup creates the parent directory and returns the resolved path', async () => {
+    const path = freshDbPath('backup-mkdir');
+    const adapter = new SqliteStorageAdapter({ databasePath: path, autoBackup: false });
+    await adapter.init();
+    try {
+      // Plant one row so the backup is not byte-identical to a freshly-
+      // initialised DB — the test asserts the file is present, not its
+      // bytes, but a non-trivial payload makes regression diagnosis
+      // easier on a future failure.
+      await adapter.db
+        .insertInto('scan_nodes')
+        .values(makeNodeFixture('notes/backup-source.md'))
+        .execute();
+
+      const customDest = join(tempRoot, 'backup-nested', 'inner', 'foo.db');
+      // Sanity: the parent directory does NOT exist yet.
+      ok(!existsSync(join(tempRoot, 'backup-nested')), 'parent dir must not exist pre-call');
+
+      const returned = adapter.migrations.writeBackup(customDest);
+      strictEqual(returned, customDest, 'returns the resolved destination path');
+      ok(existsSync(customDest), 'backup file copied to the requested path');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('writeBackup returns null when the source is :memory:', async () => {
+    // `:memory:` databases have no on-disk file to copy, so the helper
+    // contractually short-circuits to `null` rather than emit a
+    // misleading "0 bytes copied" file. The adapter does not actually
+    // open against `:memory:` at runtime (see
+    // `feedback_sqlite_in_memory_workaround.md`) — exercise the helper
+    // directly.
+    const { writeBackup } = await import('../kernel/adapters/sqlite/migrations.js');
+    const customDest = join(tempRoot, 'memory-backup', 'foo.db');
+    const returned = writeBackup(':memory:', customDest);
+    strictEqual(returned, null, ':memory: source returns null (no file to copy)');
+    ok(!existsSync(customDest), 'no file is created for a :memory: source');
+  });
+
   it('blocks duplicate queued/running jobs via unique partial index', async () => {
     const path = freshDbPath('dup-jobs');
     const adapter = new SqliteStorageAdapter({ databasePath: path });
