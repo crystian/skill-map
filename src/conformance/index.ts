@@ -16,20 +16,23 @@ import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, sta
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 
-export type AssertionResult =
+import { tx } from '../kernel/util/tx.js';
+import { CONFORMANCE_RUNNER_TEXTS } from './i18n/runner.texts.js';
+
+export type IAssertionResult =
   | { ok: true; type: string }
   | { ok: false; type: string; reason: string };
 
-export interface RunCaseResult {
+export interface IRunCaseResult {
   caseId: string;
   passed: boolean;
   exitCode: number;
   stdout: string;
   stderr: string;
-  assertions: AssertionResult[];
+  assertions: IAssertionResult[];
 }
 
-export interface RunCaseOptions {
+export interface IRunCaseOptions {
   /** Absolute path to the binary wrapper (e.g. `bin/sm.js`). */
   binary: string;
   /** Absolute path to the `@skill-map/spec` root. */
@@ -54,7 +57,7 @@ export interface RunCaseOptions {
   env?: NodeJS.ProcessEnv;
 }
 
-interface ConformanceCase {
+interface IConformanceCase {
   id: string;
   description: string;
   fixture?: string;
@@ -70,7 +73,7 @@ interface ConformanceCase {
     args?: string[];
     flags?: string[];
   };
-  assertions: Assertion[];
+  assertions: IAssertion[];
 }
 
 /**
@@ -79,7 +82,7 @@ interface ConformanceCase {
  * composer (`composeScanExtensions`) reads these vars and drops every
  * extension of the matching kind from the in-scan pipeline.
  */
-function disableEnv(setup: ConformanceCase['setup']): NodeJS.ProcessEnv {
+function disableEnv(setup: IConformanceCase['setup']): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   if (setup?.disableAllProviders) env['SKILL_MAP_DISABLE_ALL_PROVIDERS'] = '1';
   if (setup?.disableAllExtractors) env['SKILL_MAP_DISABLE_ALL_EXTRACTORS'] = '1';
@@ -87,7 +90,7 @@ function disableEnv(setup: ConformanceCase['setup']): NodeJS.ProcessEnv {
   return env;
 }
 
-type Assertion =
+export type IAssertion =
   | { type: 'exit-code'; value: number }
   | {
       type: 'json-path';
@@ -103,9 +106,9 @@ type Assertion =
   | { type: 'stderr-matches'; pattern: string };
 
 // eslint-disable-next-line complexity
-export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
+export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
   const raw = readFileSync(options.casePath, 'utf8');
-  const c: ConformanceCase = JSON.parse(raw);
+  const c: IConformanceCase = JSON.parse(raw);
 
   const fixturesRoot = options.fixturesRoot ?? join(options.specRoot, 'conformance', 'fixtures');
 
@@ -164,7 +167,7 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
  * into the scope DB. The scope DB survives across steps (we never
  * delete `.skill-map/`).
  *
- * Returns `null` on success (caller continues) or a `RunCaseResult`
+ * Returns `null` on success (caller continues) or a `IRunCaseResult`
  * with a single `priorScan` failure assertion (caller returns it
  * unchanged).
  */
@@ -173,12 +176,12 @@ export function runConformanceCase(options: RunCaseOptions): RunCaseResult {
 // stream the caller reports back.
 // eslint-disable-next-line complexity
 function runPriorScansSetup(
-  c: ConformanceCase,
-  options: RunCaseOptions,
+  c: IConformanceCase,
+  options: IRunCaseOptions,
   scope: string,
   fixturesRoot: string,
   setupEnv: NodeJS.ProcessEnv,
-): RunCaseResult | null {
+): IRunCaseResult | null {
   for (const step of c.setup?.priorScans ?? []) {
     replaceFixture(scope, fixturesRoot, step.fixture);
     const stepArgv = ['scan', ...(step.flags ?? [])];
@@ -198,7 +201,11 @@ function runPriorScansSetup(
           {
             ok: false,
             type: 'priorScan',
-            reason: `setup.priorScans step \`${step.fixture}\` failed with exit ${stepChild.status ?? 0}: ${stepChild.stderr ?? ''}`,
+            reason: tx(CONFORMANCE_RUNNER_TEXTS.priorScanFailed, {
+              fixture: step.fixture,
+              exit: stepChild.status ?? 0,
+              stderr: stepChild.stderr ?? '',
+            }),
           },
         ],
       };
@@ -215,7 +222,7 @@ function runPriorScansSetup(
  *
  * `fixturesRoot` is the absolute path to the `fixtures/` directory of
  * the conformance suite hosting the case (spec-owned for kernel cases,
- * Provider-owned for Provider cases — see `RunCaseOptions.fixturesRoot`).
+ * Provider-owned for Provider cases — see `IRunCaseOptions.fixturesRoot`).
  */
 function replaceFixture(scope: string, fixturesRoot: string, fixture: string): void {
   assertContained(fixturesRoot, fixture, 'fixture');
@@ -236,16 +243,20 @@ function replaceFixture(scope: string, fixturesRoot: string, fixture: string): v
  */
 function assertContained(root: string, rel: string, label: string): void {
   if (isAbsolute(rel)) {
-    throw new Error(`conformance: ${label} path "${rel}" must be relative to its anchor (${root})`);
+    throw new Error(
+      tx(CONFORMANCE_RUNNER_TEXTS.pathMustBeRelative, { label, path: rel, anchor: root }),
+    );
   }
   const abs = resolve(root, rel);
   const r = relative(root, abs);
   if (r.startsWith('..') || isAbsolute(r)) {
-    throw new Error(`conformance: ${label} path "${rel}" escapes its anchor (${root})`);
+    throw new Error(
+      tx(CONFORMANCE_RUNNER_TEXTS.pathEscapesAnchor, { label, path: rel, anchor: root }),
+    );
   }
 }
 
-interface AssertionContext {
+interface IAssertionContext {
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -259,7 +270,7 @@ interface AssertionContext {
 // `stderr-matches` / `json-path`) with one branch per type. Splitting
 // per type would scatter the discriminated-union dispatch.
 // eslint-disable-next-line complexity
-function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult {
+function evaluateAssertion(a: IAssertion, ctx: IAssertionContext): IAssertionResult {
   switch (a.type) {
     case 'exit-code':
       return ctx.exitCode === a.value
@@ -267,7 +278,10 @@ function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult
         : {
             ok: false,
             type: a.type,
-            reason: `expected exit ${a.value}, got ${ctx.exitCode}`,
+            reason: tx(CONFORMANCE_RUNNER_TEXTS.expectedExitCode, {
+              expected: a.value,
+              actual: ctx.exitCode,
+            }),
           };
     case 'json-path':
       return evaluateJsonPath(a, ctx);
@@ -280,7 +294,11 @@ function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult
       const abs = resolve(ctx.scope, a.path);
       return existsSync(abs)
         ? { ok: true, type: a.type }
-        : { ok: false, type: a.type, reason: `file not found: ${a.path}` };
+        : {
+            ok: false,
+            type: a.type,
+            reason: tx(CONFORMANCE_RUNNER_TEXTS.fileNotFound, { path: a.path }),
+          };
     }
     case 'file-contains-verbatim': {
       try {
@@ -292,7 +310,11 @@ function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult
       const fixturePath = join(ctx.fixturesRoot, a.fixture);
       const targetPath = resolve(ctx.scope, a.path);
       if (!existsSync(targetPath)) {
-        return { ok: false, type: a.type, reason: `target not found: ${a.path}` };
+        return {
+          ok: false,
+          type: a.type,
+          reason: tx(CONFORMANCE_RUNNER_TEXTS.targetNotFound, { path: a.path }),
+        };
       }
       const needle = readFileSync(fixturePath);
       const haystack = readFileSync(targetPath);
@@ -301,20 +323,24 @@ function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult
         : {
             ok: false,
             type: a.type,
-            reason: `target does not contain fixture ${a.fixture} verbatim`,
+            reason: tx(CONFORMANCE_RUNNER_TEXTS.targetMissingFixture, { fixture: a.fixture }),
           };
     }
     case 'file-matches-schema':
       return {
         ok: false,
         type: a.type,
-        reason: 'file-matches-schema not yet implemented (requires ajv; lands with Step 2)',
+        reason: CONFORMANCE_RUNNER_TEXTS.fileMatchesSchemaUnimplemented,
       };
     case 'stderr-matches': {
       const re = new RegExp(a.pattern);
       return re.test(ctx.stderr)
         ? { ok: true, type: a.type }
-        : { ok: false, type: a.type, reason: `stderr did not match /${a.pattern}/` };
+        : {
+            ok: false,
+            type: a.type,
+            reason: tx(CONFORMANCE_RUNNER_TEXTS.stderrDidNotMatch, { pattern: a.pattern }),
+          };
     }
   }
 }
@@ -325,9 +351,9 @@ function evaluateAssertion(a: Assertion, ctx: AssertionContext): AssertionResult
  * The full RFC 9535 implementation lands with Step 2.
  */
 function evaluateJsonPath(
-  a: Extract<Assertion, { type: 'json-path' }>,
-  ctx: AssertionContext,
-): AssertionResult {
+  a: Extract<IAssertion, { type: 'json-path' }>,
+  ctx: IAssertionContext,
+): IAssertionResult {
   let doc: unknown;
   try {
     doc = JSON.parse(ctx.stdout);
@@ -335,13 +361,17 @@ function evaluateJsonPath(
     return {
       ok: false,
       type: a.type,
-      reason: `stdout is not valid JSON: ${(err as Error).message}`,
+      reason: tx(CONFORMANCE_RUNNER_TEXTS.stdoutNotJson, { message: (err as Error).message }),
     };
   }
 
   const segments = parsePath(a.path);
   if (!segments) {
-    return { ok: false, type: a.type, reason: `unsupported jsonpath: ${a.path}` };
+    return {
+      ok: false,
+      type: a.type,
+      reason: tx(CONFORMANCE_RUNNER_TEXTS.unsupportedJsonPath, { path: a.path }),
+    };
   }
 
   const walked = traverseJsonPath(doc, segments, a.path);
@@ -353,7 +383,7 @@ function evaluateJsonPath(
 /**
  * Walk a parsed JSONPath segment list against a JSON document. Returns
  * the resolved value or a structured failure (caller maps to
- * `AssertionResult`). Pure — no IO, no shared state.
+ * `IAssertionResult`). Pure — no IO, no shared state.
  */
 function traverseJsonPath(
   doc: unknown,
@@ -363,14 +393,22 @@ function traverseJsonPath(
   let current: unknown = doc;
   for (const seg of segments) {
     if (typeof seg === 'number') {
-      if (!Array.isArray(current)) return { ok: false, reason: `expected array at ${path}` };
+      if (!Array.isArray(current)) {
+        return { ok: false, reason: tx(CONFORMANCE_RUNNER_TEXTS.expectedArrayAtPath, { path }) };
+      }
       current = current[seg];
     } else if (seg === 'length' && Array.isArray(current)) {
       current = current.length;
     } else if (typeof current === 'object' && current !== null) {
       current = (current as Record<string, unknown>)[seg];
     } else {
-      return { ok: false, reason: `cannot traverse ${typeof current} at segment '${String(seg)}'` };
+      return {
+        ok: false,
+        reason: tx(CONFORMANCE_RUNNER_TEXTS.cannotTraverseSegment, {
+          type: typeof current,
+          segment: String(seg),
+        }),
+      };
     }
   }
   return { ok: true, value: current };
@@ -379,42 +417,67 @@ function traverseJsonPath(
 /**
  * Apply the comparator clause (`equals` / `greaterThan` / `lessThan` /
  * `matches`) of a `json-path` assertion against the value resolved at
- * the requested path. Returns the final `AssertionResult` directly.
+ * the requested path. Returns the final `IAssertionResult` directly.
  *
  * Complexity from the four parallel comparator branches; splitting into
  * one helper per comparator would be ceremony.
  */
 // eslint-disable-next-line complexity
 function applyJsonPathComparator(
-  a: Extract<Assertion, { type: 'json-path' }>,
+  a: Extract<IAssertion, { type: 'json-path' }>,
   current: unknown,
-): AssertionResult {
+): IAssertionResult {
   if ('equals' in a && a.equals !== undefined) {
     return deepEqual(current, a.equals)
       ? { ok: true, type: a.type }
       : {
           ok: false,
           type: a.type,
-          reason: `${a.path} = ${JSON.stringify(current)}, expected ${JSON.stringify(a.equals)}`,
+          reason: tx(CONFORMANCE_RUNNER_TEXTS.jsonPathEqualsMismatch, {
+            path: a.path,
+            actual: JSON.stringify(current),
+            expected: JSON.stringify(a.equals),
+          }),
         };
   }
   if ('greaterThan' in a && typeof a.greaterThan === 'number') {
     return typeof current === 'number' && current > a.greaterThan
       ? { ok: true, type: a.type }
-      : { ok: false, type: a.type, reason: `${a.path} not > ${a.greaterThan}` };
+      : {
+          ok: false,
+          type: a.type,
+          reason: tx(CONFORMANCE_RUNNER_TEXTS.jsonPathNotGreaterThan, {
+            path: a.path,
+            value: a.greaterThan,
+          }),
+        };
   }
   if ('lessThan' in a && typeof a.lessThan === 'number') {
     return typeof current === 'number' && current < a.lessThan
       ? { ok: true, type: a.type }
-      : { ok: false, type: a.type, reason: `${a.path} not < ${a.lessThan}` };
+      : {
+          ok: false,
+          type: a.type,
+          reason: tx(CONFORMANCE_RUNNER_TEXTS.jsonPathNotLessThan, {
+            path: a.path,
+            value: a.lessThan,
+          }),
+        };
   }
   if ('matches' in a && typeof a.matches === 'string') {
     const re = new RegExp(a.matches);
     return typeof current === 'string' && re.test(current)
       ? { ok: true, type: a.type }
-      : { ok: false, type: a.type, reason: `${a.path} did not match /${a.matches}/` };
+      : {
+          ok: false,
+          type: a.type,
+          reason: tx(CONFORMANCE_RUNNER_TEXTS.jsonPathDidNotMatch, {
+            path: a.path,
+            pattern: a.matches,
+          }),
+        };
   }
-  return { ok: false, type: a.type, reason: 'no comparator on json-path assertion' };
+  return { ok: false, type: a.type, reason: CONFORMANCE_RUNNER_TEXTS.jsonPathNoComparator };
 }
 
 function parsePath(path: string): Array<string | number> | null {
@@ -461,6 +524,6 @@ function deepEqual(a: unknown, b: unknown): boolean {
 export function assertSpecRoot(specRoot: string): void {
   const indexPath = join(specRoot, 'index.json');
   if (!existsSync(indexPath) || !statSync(indexPath).isFile()) {
-    throw new Error(`spec root missing index.json at ${specRoot}`);
+    throw new Error(tx(CONFORMANCE_RUNNER_TEXTS.specRootMissingIndex, { specRoot }));
   }
 }

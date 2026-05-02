@@ -1,5 +1,3 @@
-import { resolve } from 'node:path';
-
 import { Command, Option } from 'clipanion';
 
 import { createKernel, runScan, runScanWithRenames } from '../../kernel/index.js';
@@ -17,6 +15,7 @@ import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.
 import { tx } from '../../kernel/util/tx.js';
 import { SCAN_TEXTS } from '../i18n/scan.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -29,8 +28,6 @@ import {
 } from '../util/plugin-runtime.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 import { runWatchLoop } from './watch.js';
-
-const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
 /**
  * `sm scan [roots...] [--json] [--no-built-ins] [--no-plugins] [-n|--dry-run] [--changed]`
@@ -197,7 +194,7 @@ export class ScanCommand extends Command {
     for (const manifest of pluginRuntime.manifests) kernel.registry.register(manifest);
 
     const ctx = defaultRuntimeContext();
-    const dbPath = resolve(ctx.cwd, DEFAULT_PROJECT_DB);
+    const dbPath = defaultProjectDbPath(ctx);
 
     // --- config + ignore filter (no DB needed) -----------------------------
     // Loaded BEFORE we touch SQLite so a malformed config fails fast

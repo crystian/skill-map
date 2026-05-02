@@ -29,6 +29,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { loadSchemaValidators, type ISchemaValidators } from '../adapters/schema-validators.js';
+import { CONFIG_LOADER_TEXTS } from '../i18n/config-loader.texts.js';
+import { tx } from '../util/tx.js';
 
 import DEFAULTS_RAW from '../../config/defaults.json' with { type: 'json' };
 
@@ -170,12 +172,20 @@ function readJsonSafe(
   try {
     text = readFileSync(path, 'utf8');
   } catch (err) {
-    return reportAndSkip(`[config:${layer}] failed to read ${path}: ${(err as Error).message}`, warnings, strict);
+    return reportAndSkip(
+      tx(CONFIG_LOADER_TEXTS.readFailure, { layer, path, message: (err as Error).message }),
+      warnings,
+      strict,
+    );
   }
   try {
     return JSON.parse(text);
   } catch (err) {
-    return reportAndSkip(`[config:${layer}] invalid JSON in ${path}: ${(err as Error).message}`, warnings, strict);
+    return reportAndSkip(
+      tx(CONFIG_LOADER_TEXTS.invalidJson, { layer, path, message: (err as Error).message }),
+      warnings,
+      strict,
+    );
   }
 }
 
@@ -199,7 +209,7 @@ function validateAndStrip(
   strict: boolean,
 ): Record<string, unknown> {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    const msg = `[config:${layer}] expected a JSON object, got ${describeJsonType(raw)}; ignored`;
+    const msg = tx(CONFIG_LOADER_TEXTS.expectedObject, { layer, type: describeJsonType(raw) });
     if (strict) throw new Error(msg);
     warnings.push(msg);
     return {};
@@ -232,7 +242,7 @@ function applyValidationError(
   if (err.keyword === 'additionalProperties') {
     const extra = (err.params as { additionalProperty: string }).additionalProperty;
     deleteAtPath(cloned, path, extra);
-    const msg = `[config:${layer}] unknown key ${joinSegments(path, extra)} ignored`;
+    const msg = tx(CONFIG_LOADER_TEXTS.unknownKey, { layer, key: joinSegments(path, extra) });
     if (strict) throw new Error(msg);
     warnings.push(msg);
     return;
@@ -242,7 +252,11 @@ function applyValidationError(
     const last = segments.pop() as string;
     deleteAtPath(cloned, '/' + segments.join('/'), last);
   }
-  const msg = `[config:${layer}] invalid value at ${path || '(root)'}: ${err.message ?? err.keyword}`;
+  const msg = tx(CONFIG_LOADER_TEXTS.invalidValue, {
+    layer,
+    path: path || '(root)',
+    message: err.message ?? err.keyword,
+  });
   if (strict) throw new Error(msg);
   warnings.push(msg);
 }

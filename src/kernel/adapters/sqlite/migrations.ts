@@ -18,6 +18,9 @@ import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
+import { MIGRATIONS_TEXTS } from '../../i18n/migrations.texts.js';
+import { tx } from '../../util/tx.js';
+
 import type {
   IApplyOptions,
   IApplyResult,
@@ -84,7 +87,12 @@ export function discoverMigrations(dir: string = defaultMigrationsDir()): IMigra
   for (let i = 1; i < out.length; i++) {
     if (out[i]!.version === out[i - 1]!.version) {
       throw new Error(
-        `Duplicate migration version ${out[i]!.version} in ${dir}: ${out[i - 1]!.filePath} and ${out[i]!.filePath}`,
+        tx(MIGRATIONS_TEXTS.duplicateVersion, {
+          version: out[i]!.version,
+          dir,
+          firstPath: out[i - 1]!.filePath,
+          secondPath: out[i]!.filePath,
+        }),
       );
     }
   }
@@ -172,7 +180,7 @@ export function applyMigrations(
     // to fail fast than to surface a SQL error from the engine.
     if (!Number.isInteger(migration.version) || migration.version < 0 || migration.version > 9999) {
       throw new Error(
-        `Migration version must be a non-negative integer ≤ 9999, got ${String(migration.version)}`,
+        tx(MIGRATIONS_TEXTS.invalidVersion, { value: String(migration.version) }),
       );
     }
     try {
@@ -194,7 +202,10 @@ export function applyMigrations(
       }
       const reason = err instanceof Error ? err.message : String(err);
       throw new Error(
-        `Migration ${String(migration.version).padStart(3, '0')}_${migration.description} failed: ${reason}`,
+        tx(MIGRATIONS_TEXTS.applyFailed, {
+          name: `${String(migration.version).padStart(3, '0')}_${migration.description}`,
+          reason,
+        }),
         { cause: err },
       );
     }

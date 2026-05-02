@@ -171,4 +171,3 @@ export function extractLogLevelFlag(argv: readonly string[]): {
 }
 
 export const LOGGER_ENV_VAR = ENV_VAR;
-export const LOGGER_FLAG_NAME = FLAG_NAME;

@@ -22,7 +22,7 @@
  * The shape of a scope is intentionally narrow: a stable `id`, a label,
  * the absolute paths to its `cases/` and `fixtures/` directories. The
  * runner (`src/conformance/index.ts`) consumes them via
- * `RunCaseOptions.casePath` + `RunCaseOptions.fixturesRoot`.
+ * `IRunCaseOptions.casePath` + `IRunCaseOptions.fixturesRoot`.
  */
 
 import { existsSync, readdirSync, statSync } from 'node:fs';

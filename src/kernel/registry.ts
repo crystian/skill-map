@@ -18,7 +18,9 @@
  * `kernel-empty-boot` conformance contract.
  */
 
+import { REGISTRY_TEXTS } from './i18n/registry.texts.js';
 import type { Stability } from './types.js';
+import { tx } from './util/tx.js';
 
 export type ExtensionKind =
   | 'provider'
@@ -61,7 +63,7 @@ export function qualifiedExtensionId(pluginId: string, id: string): string {
 
 export class DuplicateExtensionError extends Error {
   constructor(kind: ExtensionKind, qualifiedId: string) {
-    super(`Extension already registered: ${kind}:${qualifiedId}`);
+    super(tx(REGISTRY_TEXTS.duplicateExtension, { kind, qualifiedId }));
     this.name = 'DuplicateExtensionError';
   }
 }
@@ -79,12 +81,10 @@ export class Registry {
   register(ext: Extension): void {
     const bucket = this.#byKind.get(ext.kind);
     if (!bucket) {
-      throw new Error(`Unknown extension kind: ${ext.kind}`);
+      throw new Error(tx(REGISTRY_TEXTS.unknownKind, { kind: ext.kind }));
     }
     if (typeof ext.pluginId !== 'string' || ext.pluginId.length === 0) {
-      throw new Error(
-        `Extension ${ext.kind}:${ext.id} is missing pluginId; built-ins declare it directly, user plugins have it injected by PluginLoader.`,
-      );
+      throw new Error(tx(REGISTRY_TEXTS.missingPluginId, { kind: ext.kind, id: ext.id }));
     }
     const key = qualifiedExtensionId(ext.pluginId, ext.id);
     if (bucket.has(key)) {

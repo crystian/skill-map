@@ -17,7 +17,7 @@
  * `--force` is passed.
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -44,6 +44,21 @@ const GITIGNORE_ENTRIES: readonly string[] = [
   '.skill-map/settings.local.json',
   '.skill-map/skill-map.db',
 ];
+
+/**
+ * Async existence probe — `fs.stat` returning a boolean. ENOENT is the
+ * only swallowed error code; anything else (permission denied, IO
+ * failure) propagates so the caller sees the real reason.
+ */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw err;
+  }
+}
 
 export class InitCommand extends Command {
   static override paths = [['init']];
@@ -103,14 +118,14 @@ export class InitCommand extends Command {
     const ignorePath = join(scopeRoot, '.skill-mapignore');
     const dbPath = join(skillMapDir, 'skill-map.db');
 
-    if (existsSync(settingsPath) && !this.force) {
+    if ((await pathExists(settingsPath)) && !this.force) {
       this.context.stderr.write(tx(INIT_TEXTS.alreadyInitialised, { settingsPath }));
       emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
 
     if (this.dryRun) {
-      writeDryRunPlan(this.context.stdout, {
+      await writeDryRunPlan(this.context.stdout, {
         skillMapDir, settingsPath, localPath, ignorePath, dbPath,
         scopeRoot, force: this.force, global: this.global, noScan: this.noScan,
       });
@@ -118,17 +133,17 @@ export class InitCommand extends Command {
       return ExitCode.Ok;
     }
 
-    mkdirSync(skillMapDir, { recursive: true });
-    writeFileSync(settingsPath, JSON.stringify({ schemaVersion: 1 }, null, 2) + '\n');
-    if (!existsSync(localPath) || this.force) {
-      writeFileSync(localPath, '{}\n');
+    await mkdir(skillMapDir, { recursive: true });
+    await writeFile(settingsPath, JSON.stringify({ schemaVersion: 1 }, null, 2) + '\n');
+    if (!(await pathExists(localPath)) || this.force) {
+      await writeFile(localPath, '{}\n');
     }
-    if (!existsSync(ignorePath) || this.force) {
-      writeFileSync(ignorePath, loadBundledIgnoreText());
+    if (!(await pathExists(ignorePath)) || this.force) {
+      await writeFile(ignorePath, loadBundledIgnoreText());
     }
 
     if (!this.global) {
-      const updated = ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
+      const updated = await ensureGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
       if (updated) {
         const gitignorePath = join(scopeRoot, '.gitignore');
         this.context.stdout.write(
@@ -170,7 +185,7 @@ export class InitCommand extends Command {
  * run. Used only when `--dry-run` is set; the real provision path
  * skips this entirely.
  */
-function writeDryRunPlan(
+async function writeDryRunPlan(
   stdout: NodeJS.WritableStream,
   opts: {
     skillMapDir: string;
@@ -183,17 +198,21 @@ function writeDryRunPlan(
     global: boolean;
     noScan: boolean;
   },
-): void {
+): Promise<void> {
   stdout.write(INIT_TEXTS.dryRunHeader);
-  if (!existsSync(opts.skillMapDir)) {
+  if (!(await pathExists(opts.skillMapDir))) {
     stdout.write(tx(INIT_TEXTS.dryRunWouldCreateDir, { path: opts.skillMapDir }));
   }
   // settingsPath: always written (caller gated --force above).
-  stdout.write(dryRunFileMessage(opts.settingsPath));
+  stdout.write(await dryRunFileMessage(opts.settingsPath));
   // Local + ignore: written only when missing OR --force.
-  if (!existsSync(opts.localPath) || opts.force) stdout.write(dryRunFileMessage(opts.localPath));
-  if (!existsSync(opts.ignorePath) || opts.force) stdout.write(dryRunFileMessage(opts.ignorePath));
-  if (!opts.global) writeDryRunGitignorePlan(stdout, opts.scopeRoot);
+  if (!(await pathExists(opts.localPath)) || opts.force) {
+    stdout.write(await dryRunFileMessage(opts.localPath));
+  }
+  if (!(await pathExists(opts.ignorePath)) || opts.force) {
+    stdout.write(await dryRunFileMessage(opts.ignorePath));
+  }
+  if (!opts.global) await writeDryRunGitignorePlan(stdout, opts.scopeRoot);
   stdout.write(tx(INIT_TEXTS.dryRunWouldProvisionDb, { path: opts.dbPath }));
   stdout.write(
     opts.noScan ? INIT_TEXTS.dryRunWouldSkipFirstScan : INIT_TEXTS.dryRunWouldRunFirstScan,
@@ -201,8 +220,8 @@ function writeDryRunPlan(
 }
 
 /** "would overwrite X" if the file exists, else "would write X". */
-function dryRunFileMessage(path: string): string {
-  return existsSync(path)
+async function dryRunFileMessage(path: string): Promise<string> {
+  return (await pathExists(path))
     ? tx(INIT_TEXTS.dryRunWouldOverwriteFile, { path })
     : tx(INIT_TEXTS.dryRunWouldWriteFile, { path });
 }
@@ -211,8 +230,11 @@ function dryRunFileMessage(path: string): string {
  * Subhelper of `writeDryRunPlan` — render the `.gitignore` preview
  * (unchanged / one-entry / multi-entry phrasing). Project scope only.
  */
-function writeDryRunGitignorePlan(stdout: NodeJS.WritableStream, scopeRoot: string): void {
-  const wouldAdd = previewGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
+async function writeDryRunGitignorePlan(
+  stdout: NodeJS.WritableStream,
+  scopeRoot: string,
+): Promise<void> {
+  const wouldAdd = await previewGitignoreEntries(scopeRoot, GITIGNORE_ENTRIES);
   const gitignorePath = join(scopeRoot, '.gitignore');
   if (wouldAdd.length === 0) {
     stdout.write(tx(INIT_TEXTS.dryRunWouldLeaveGitignoreUnchanged, { path: gitignorePath }));
@@ -309,9 +331,12 @@ async function runFirstScan(
  * the real outcome (skip blank lines and comment lines, dedupe by exact
  * trimmed match).
  */
-function previewGitignoreEntries(scopeRoot: string, entries: readonly string[]): string[] {
+async function previewGitignoreEntries(
+  scopeRoot: string,
+  entries: readonly string[],
+): Promise<string[]> {
   const path = join(scopeRoot, '.gitignore');
-  const body = existsSync(path) ? readFileSync(path, 'utf8') : '';
+  const body = (await pathExists(path)) ? await readFile(path, 'utf8') : '';
   const present = new Set(
     body
       .split('\n')
@@ -326,11 +351,14 @@ function previewGitignoreEntries(scopeRoot: string, entries: readonly string[]):
  * present (compared as trimmed line). Creates the file if absent.
  * Returns true if the file was written.
  */
-function ensureGitignoreEntries(scopeRoot: string, entries: readonly string[]): boolean {
+async function ensureGitignoreEntries(
+  scopeRoot: string,
+  entries: readonly string[],
+): Promise<boolean> {
   const path = join(scopeRoot, '.gitignore');
   let body = '';
-  if (existsSync(path)) {
-    body = readFileSync(path, 'utf8');
+  if (await pathExists(path)) {
+    body = await readFile(path, 'utf8');
   }
   const present = new Set(
     body
@@ -346,6 +374,6 @@ function ensureGitignoreEntries(scopeRoot: string, entries: readonly string[]): 
     present.add(entry);
     changed = true;
   }
-  if (changed) writeFileSync(path, body);
+  if (changed) await writeFile(path, body);
   return changed;
 }

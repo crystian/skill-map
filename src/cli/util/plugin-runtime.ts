@@ -23,7 +23,7 @@
  * introspection without re-reading the manifests.
  */
 
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 
 import type {
   IProvider,
@@ -53,11 +53,13 @@ import type {
 } from '../../kernel/types/plugin.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PLUGIN_RUNTIME_TEXTS } from '../i18n/plugin-runtime.texts.js';
-import { resolveDbPath } from './db-path.js';
+import {
+  defaultProjectPluginsDir,
+  defaultUserPluginsDir,
+  resolveDbPath,
+} from './db-path.js';
 import { defaultRuntimeContext } from './runtime-context.js';
 import { tryWithSqlite } from './with-sqlite.js';
-
-const PLUGINS_DIR = '.skill-map/plugins';
 
 export interface ILoadPluginRuntimeOptions {
   /** Resolution scope. `'global'` reads `~/.skill-map/...` only. */
@@ -420,8 +422,8 @@ export function filterBuiltInManifests(
 function resolveSearchPaths(opts: ILoadPluginRuntimeOptions): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
   const ctx = defaultRuntimeContext();
-  const project = resolve(ctx.cwd, PLUGINS_DIR);
-  const user = join(ctx.homedir, PLUGINS_DIR);
+  const project = defaultProjectPluginsDir(ctx);
+  const user = defaultUserPluginsDir(ctx);
   return opts.scope === 'global' ? [user] : [project, user];
 }
 

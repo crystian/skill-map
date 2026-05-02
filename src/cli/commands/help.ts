@@ -126,7 +126,7 @@ export class HelpCommand extends Command {
       cliVersion: VERSION,
       specVersion: resolveSpecVersion(),
       globalFlags: [
-        { name: '--help', type: 'boolean', description: 'Print usage and exit.' },
+        { name: '--help', type: 'boolean', description: HELP_TEXTS.globalFlagHelpDescription },
       ],
       verbs,
     };

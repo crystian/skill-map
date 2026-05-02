@@ -143,7 +143,13 @@ export class ScanCompareCommand extends Command {
 
     let cfg;
     try {
-      cfg = loadConfig({ scope: 'project', strict: this.strict, cwd: ctx.cwd, homedir: ctx.homedir }).effective;
+      const loaded = loadConfig({ scope: 'project', strict: this.strict, cwd: ctx.cwd, homedir: ctx.homedir });
+      // Mirror `cli/commands/config.ts`: surface the layered loader's
+      // accumulated warnings to stderr so the user sees malformed JSON /
+      // unknown keys here too. Without this forward the verb silently
+      // discarded them.
+      for (const w of loaded.warnings) this.context.stderr.write(w + '\n');
+      cfg = loaded.effective;
     } catch (err) {
       const message = formatErrorMessage(err);
       this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));

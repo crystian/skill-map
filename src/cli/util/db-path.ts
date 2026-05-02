@@ -27,8 +27,16 @@ import type { IRuntimeContext } from './runtime-context.js';
 export const SKILL_MAP_DIR = '.skill-map';
 
 const DB_FILENAME = 'skill-map.db';
-const DEFAULT_PROJECT_DB = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
-const DEFAULT_GLOBAL_DB = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
+const JOBS_DIRNAME = 'jobs';
+const PLUGINS_DIRNAME = 'plugins';
+
+/**
+ * Single source of truth for the relative DB path inside a scope
+ * directory (`.skill-map/skill-map.db`). Same string in project and
+ * global scope; the difference is the parent directory the helper
+ * resolves against.
+ */
+const DEFAULT_DB_REL = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
 
 /**
  * Inputs for `resolveDbPath`. Extends `IRuntimeContext` so the helper
@@ -52,8 +60,46 @@ export interface IDbLocationOptions extends IRuntimeContext {
  */
 export function resolveDbPath(options: IDbLocationOptions): string {
   if (options.db) return resolve(options.db);
-  if (options.global) return join(options.homedir, DEFAULT_GLOBAL_DB);
-  return resolve(options.cwd, DEFAULT_PROJECT_DB);
+  if (options.global) return join(options.homedir, DEFAULT_DB_REL);
+  return resolve(options.cwd, DEFAULT_DB_REL);
+}
+
+/**
+ * Default project DB path (`<cwd>/.skill-map/skill-map.db`). Same effect
+ * as `resolveDbPath({ global: false, db: undefined, ...ctx })`; this
+ * helper is the cheaper and more explicit route for call sites that have
+ * no `--global` / `--db` flags to honour (`sm scan`, `sm refresh`,
+ * `sm watch`).
+ */
+export function defaultProjectDbPath(ctx: IRuntimeContext): string {
+  return resolve(ctx.cwd, DEFAULT_DB_REL);
+}
+
+/**
+ * Default project jobs directory (`<cwd>/.skill-map/jobs`). Used by the
+ * `sm job prune` orphan-files pass and any other call site that needs
+ * the project-scoped jobs spool.
+ */
+export function defaultProjectJobsDir(ctx: IRuntimeContext): string {
+  return resolve(ctx.cwd, SKILL_MAP_DIR, JOBS_DIRNAME);
+}
+
+/**
+ * Default project plugins directory (`<cwd>/.skill-map/plugins`).
+ * Project + user plugin discovery composes this with the user-scoped
+ * `<homedir>/.skill-map/plugins` peer.
+ */
+export function defaultProjectPluginsDir(ctx: IRuntimeContext): string {
+  return resolve(ctx.cwd, SKILL_MAP_DIR, PLUGINS_DIRNAME);
+}
+
+/**
+ * Default user (global) plugins directory (`<homedir>/.skill-map/plugins`).
+ * Used alongside `defaultProjectPluginsDir` when discovery walks both
+ * scopes.
+ */
+export function defaultUserPluginsDir(ctx: IRuntimeContext): string {
+  return join(ctx.homedir, SKILL_MAP_DIR, PLUGINS_DIRNAME);
 }
 
 /**

@@ -11,13 +11,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  rmSync,
-  statSync,
-} from 'node:fs';
+import { copyFile, mkdir, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { confirm } from '../util/confirm.js';
@@ -53,6 +47,32 @@ function assertSafeIdentifier(name: string): void {
   }
 }
 
+/**
+ * Async existence probe via `fs.stat`. Used in place of `existsSync` so
+ * the verb stays cooperative on the event loop. ENOENT is the only swallowed
+ * error code; anything else (permission denied, IO failure) propagates so
+ * the caller sees the real reason instead of a false "not found".
+ */
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw err;
+  }
+}
+
+/** Same as `pathExists` but returns the `Stats` so the caller can read `.size`. */
+async function statOrNull(path: string): Promise<import('node:fs').Stats | null> {
+  try {
+    return await stat(path);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw err;
+  }
+}
+
 // --- backup ---------------------------------------------------------------
 
 export class DbBackupCommand extends Command {
@@ -79,7 +99,7 @@ export class DbBackupCommand extends Command {
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
     const outPath = this.out ? resolve(this.out) : join(dirname(path), 'backups', `${ts}.db`);
 
-    mkdirSync(dirname(outPath), { recursive: true });
+    await mkdir(dirname(outPath), { recursive: true });
 
     const db = new DatabaseSync(path);
     try {
@@ -87,7 +107,7 @@ export class DbBackupCommand extends Command {
     } finally {
       db.close();
     }
-    copyFileSync(path, outPath);
+    await copyFile(path, outPath);
 
     this.context.stdout.write(tx(DB_TEXTS.backupWritten, { outPath }));
     return ExitCode.Ok;
@@ -122,15 +142,16 @@ export class DbRestoreCommand extends Command {
     const target = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     const sourcePath = resolve(this.source);
 
-    if (!existsSync(sourcePath)) {
+    const sourceStat = await statOrNull(sourcePath);
+    if (!sourceStat) {
       this.context.stderr.write(tx(DB_TEXTS.restoreSourceNotFound, { sourcePath }));
       return ExitCode.NotFound;
     }
 
     if (this.dryRun) {
       this.context.stdout.write(DB_TEXTS.dryRunHeader);
-      const sourceBytes = statSync(sourcePath).size;
-      const targetClause = existsSync(target)
+      const sourceBytes = sourceStat.size;
+      const targetClause = (await pathExists(target))
         ? DB_TEXTS.dryRunRestoreTargetExistsClause
         : DB_TEXTS.dryRunRestoreTargetMissingClause;
       this.context.stdout.write(
@@ -155,12 +176,12 @@ export class DbRestoreCommand extends Command {
       }
     }
 
-    mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(sourcePath, target);
+    await mkdir(dirname(target), { recursive: true });
+    await copyFile(sourcePath, target);
     // WAL sidecars from the old DB would be out of sync — delete them so
     // next open starts clean against the restored main file.
     for (const sidecar of [`${target}-wal`, `${target}-shm`]) {
-      if (existsSync(sidecar)) rmSync(sidecar);
+      if (await pathExists(sidecar)) await rm(sidecar);
     }
 
     this.context.stdout.write(tx(DB_TEXTS.restoreDone, { sourcePath, target }));
@@ -212,7 +233,8 @@ export class DbResetCommand extends Command {
     if (this.hard) {
       if (this.dryRun) {
         this.context.stdout.write(DB_TEXTS.dryRunHeader);
-        const sizeBytes = existsSync(path) ? statSync(path).size : null;
+        const dbStat = await statOrNull(path);
+        const sizeBytes = dbStat ? dbStat.size : null;
         this.context.stdout.write(
           sizeBytes === null
             ? tx(DB_TEXTS.dryRunResetHardWouldDeleteMissing, { path })
@@ -232,7 +254,7 @@ export class DbResetCommand extends Command {
       }
       for (const suffix of ['', '-wal', '-shm']) {
         const p = `${path}${suffix}`;
-        if (existsSync(p)) rmSync(p);
+        if (await pathExists(p)) await rm(p);
       }
       this.context.stdout.write(tx(DB_TEXTS.resetHardDeleted, { path }));
       return ExitCode.Ok;
@@ -435,7 +457,7 @@ export class DbMigrateCommand extends Command {
 
     const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
 
-    if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+    if (path !== ':memory:') await mkdir(dirname(path), { recursive: true });
 
     // `autoMigrate: false` keeps the adapter from running migrations
     // on init() — the verb itself orchestrates the apply (or skips it

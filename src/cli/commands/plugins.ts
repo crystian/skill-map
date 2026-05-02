@@ -57,13 +57,15 @@ import type {
 } from '../../kernel/types/plugin.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../i18n/plugins.texts.js';
-import { resolveDbPath } from '../util/db-path.js';
+import {
+  defaultProjectPluginsDir,
+  defaultUserPluginsDir,
+  resolveDbPath,
+} from '../util/db-path.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
-
-const PLUGINS_DIR = '.skill-map/plugins';
 
 interface IScopeOptions {
   global: boolean;
@@ -72,8 +74,9 @@ interface IScopeOptions {
 
 function resolveSearchPaths(opts: IScopeOptions, cwd: string, homedir: string): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
-  const project = resolve(cwd, PLUGINS_DIR);
-  const user = join(homedir, PLUGINS_DIR);
+  const ctx = { cwd, homedir };
+  const project = defaultProjectPluginsDir(ctx);
+  const user = defaultUserPluginsDir(ctx);
   return opts.global ? [user] : [project, user];
 }
 

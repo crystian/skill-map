@@ -50,6 +50,7 @@ import {
 import { InMemoryProgressEmitter } from '../../kernel/adapters/in-memory-progress.js';
 import { tx } from '../../kernel/util/tx.js';
 import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
+import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import {
@@ -59,8 +60,6 @@ import {
 } from '../util/plugin-runtime.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
-
-const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
 /**
  * `sm refresh [<node.path>] [--stale]`
@@ -125,7 +124,7 @@ export class RefreshCommand extends Command {
     }
 
     const ctx = defaultRuntimeContext();
-    const dbPath = resolve(ctx.cwd, DEFAULT_PROJECT_DB);
+    const dbPath = defaultProjectDbPath(ctx);
 
     // --- plugin runtime -----------------------------------------------------
     const pluginRuntime = this.noPlugins

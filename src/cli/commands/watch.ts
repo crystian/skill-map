@@ -22,8 +22,6 @@
  * regardless of per-batch issue severities.
  */
 
-import { resolve } from 'node:path';
-
 import { Command, Option } from 'clipanion';
 
 import {
@@ -44,6 +42,7 @@ import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -54,8 +53,6 @@ import {
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
-
-const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 
 export interface IRunWatchOptions {
   roots: string[];
@@ -103,7 +100,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
 
   const strict = opts.strict || cfg.scan.strict === true;
   const debounceMs = cfg.scan.watch.debounceMs;
-  const dbPath = resolve(cwd, DEFAULT_PROJECT_DB);
+  const dbPath = defaultProjectDbPath(runtimeCtx);
 
   // Plugin discovery once at startup. Per-batch reuse avoids re-scanning
   // the plugins directory on every FS event; a hot reload of plugin code

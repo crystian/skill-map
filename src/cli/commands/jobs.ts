@@ -44,23 +44,23 @@
  */
 
 import { unlinkSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
 
 import type { IPruneResult, StoragePort } from '../../kernel/ports/storage.js';
 import { findOrphanJobFiles } from '../../kernel/jobs/orphan-files.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { assertDbExists } from '../util/db-path.js';
+import {
+  assertDbExists,
+  defaultProjectDbPath,
+  defaultProjectJobsDir,
+} from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { tx } from '../../kernel/util/tx.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { withSqlite } from '../util/with-sqlite.js';
-
-const PROJECT_DB_REL = '.skill-map/skill-map.db';
-const JOBS_DIR_REL = '.skill-map/jobs';
 
 interface IRetentionStatusOutput {
   policySeconds: number | null;
@@ -121,8 +121,8 @@ export class JobPruneCommand extends Command {
 
   async execute(): Promise<number> {
     const ctx = defaultRuntimeContext();
-    const dbPath = resolve(ctx.cwd, PROJECT_DB_REL);
-    const jobsDir = resolve(ctx.cwd, JOBS_DIR_REL);
+    const dbPath = defaultProjectDbPath(ctx);
+    const jobsDir = defaultProjectJobsDir(ctx);
 
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 

@@ -26,6 +26,8 @@ export const HELP_TEXTS = {
   // --- global flags section ------------------------------------------------
   mdHeaderGlobalFlags: '## Global flags',
   mdGlobalFlagBullet: '- `{{name}}` — {{description}}',
+  /** Description copy for the `--help` global flag in the JSON / md output. */
+  globalFlagHelpDescription: 'Print usage and exit.',
 
   // --- per-category / per-verb (md) ----------------------------------------
   mdCategoryHeading: '## {{category}}',
