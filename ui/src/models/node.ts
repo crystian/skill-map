@@ -226,12 +226,3 @@ export interface INodeStats {
   warnCount?: number;
 }
 
-/**
- * Mock-collection manifest shape, produced by ui/scripts/build-mock-index.js.
- */
-export interface IMockIndex {
-  generatedAt: string;
-  root: string;
-  count: number;
-  paths: string[];
-}

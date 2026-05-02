@@ -7,10 +7,11 @@ import { THEME_TEXTS } from '../i18n/theme.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
 import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { ThemeService } from '../services/theme';
+import { DemoBanner } from './components/demo-banner/demo-banner';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, DemoBanner],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

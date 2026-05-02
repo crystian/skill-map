@@ -5,6 +5,7 @@ import { provideHttpClientTesting } from '@angular/common/http/testing';
 
 import { dataSourceFactory } from './data-source.factory';
 import { RestDataSource } from './rest-data-source';
+import { StaticDataSource } from './static-data-source';
 import { SKILL_MAP_MODE } from './runtime-mode';
 
 describe('dataSourceFactory', () => {
@@ -25,8 +26,9 @@ describe('dataSourceFactory', () => {
     expect(ds).toBeInstanceOf(RestDataSource);
   });
 
-  it('throws a clear error when mode is "demo" (StaticDataSource lands at 14.3.b)', () => {
-    expect(() => configureWithMode('demo')).toThrow(/14\.3\.b/);
+  it('returns a StaticDataSource when mode is "demo"', () => {
+    const ds = configureWithMode('demo');
+    expect(ds).toBeInstanceOf(StaticDataSource);
   });
 
   it('throws an "unknown mode" error for any other value', () => {

@@ -1,0 +1,31 @@
+/*
+ * Top-of-shell banner. Visible only when SKILL_MAP_MODE === 'demo'
+ * AND the user hasn't dismissed it. Matches the visual language of the
+ * empty-state card (dashed border, muted palette) so it reads as
+ * informational rather than blocking.
+ */
+:host {
+  display: block;
+}
+
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1rem;
+  border-bottom: 1px solid var(--p-content-border-color);
+  background: var(--p-highlight-background);
+  color: var(--p-text-color);
+  font-size: 0.875rem;
+}
+
+.demo-banner__icon {
+  font-size: 1.1rem;
+  color: var(--p-primary-color);
+}
+
+.demo-banner__body {
+  flex: 1 1 auto;
+  margin: 0;
+  line-height: 1.4;
+}

@@ -6,6 +6,7 @@ import { provideRouter } from '@angular/router';
 
 import { App } from './app';
 import { DATA_SOURCE, type IDataSourcePort } from '../services/data-source/data-source.port';
+import { SKILL_MAP_MODE } from '../services/data-source/runtime-mode';
 import { EMPTY } from 'rxjs';
 
 const STUB_DATA_SOURCE: IDataSourcePort = {
@@ -84,6 +85,10 @@ describe('App', () => {
         provideHttpClientTesting(),
         provideRouter([]),
         { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
+        // The shell now mounts <sm-demo-banner>, which reads
+        // SKILL_MAP_MODE on construction. Provide a default so the
+        // boot test doesn't hit the missing-token path.
+        { provide: SKILL_MAP_MODE, useValue: 'live' },
       ],
     }).compileComponents();
   });

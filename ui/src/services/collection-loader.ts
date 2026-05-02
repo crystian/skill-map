@@ -1,7 +1,7 @@
 /**
  * `CollectionLoaderService` — top-level node store for the SPA.
  *
- * Step 14.3.a refactor: the service no longer fetches `/mock-collection/...`
+ * Step 14.3.a refactor: the service no longer fetches a runtime corpus
  * directly. It delegates to the injected `IDataSourcePort` (which talks
  * to the BFF in live mode, or to a precomputed bundle in demo mode at
  * 14.3.b). The exposed signals (`nodes`, `loading`, `error`, `count`,

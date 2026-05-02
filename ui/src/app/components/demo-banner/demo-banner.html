@@ -1,0 +1,16 @@
+@if (visible()) {
+  <div class="demo-banner" role="status" data-testid="demo-banner">
+    <span class="demo-banner__icon pi pi-info-circle" aria-hidden="true"></span>
+    <p class="demo-banner__body">{{ texts.body }}</p>
+    <p-button
+      icon="pi pi-times"
+      [ariaLabel]="texts.dismissAria"
+      severity="secondary"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      (onClick)="dismiss()"
+      data-testid="demo-banner-dismiss"
+    />
+  </div>
+}
