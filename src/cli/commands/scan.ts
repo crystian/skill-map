@@ -106,6 +106,12 @@ export class ScanCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    // `this.global` (inherited from SmCommand) is currently ignored by
+    // `sm scan` — the runner hardcodes `scope: 'project'`. Spec § Global
+    // flags lists `-g` as universal but the per-verb § Scan table does
+    // not, and the semantics of "scan global" (which dirs? which
+    // ignore filter?) are undefined. When spec lands the contract,
+    // thread `this.global` through `runScanForCommand`'s `scope` field.
     const roots = this.roots.length > 0 ? this.roots : ['.'];
     const outcome = await runScanForCommand({
       roots,

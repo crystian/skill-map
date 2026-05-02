@@ -199,6 +199,12 @@ function makeScanRunner(
     }
     const runOptions: Parameters<typeof runScan>[1] = {
       roots: opts.roots,
+      // Hardcoded `'project'`: spec § Global flags lists `-g/--global`
+      // as universal, but the per-verb § Scan table does not list it
+      // and the semantics of "scan global" are undefined. The
+      // ScanCommand surface accepts `-g` (inherited from SmCommand)
+      // but ignores it here. Wire to `opts.scope` once spec defines
+      // the contract.
       scope: 'project',
       tokenize: !opts.noTokens,
       ignoreFilter,

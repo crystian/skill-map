@@ -38,6 +38,14 @@ Audit found the CLI honoured only a subset of the spec's global flags and emitte
 
 - `sm export --format mermaid` exit code — currently `2` (operational error). Audit suggested a dedicated "deferred / unsupported" code; that requires a `spec/cli-contract.md` § Exit codes amendment (codes 6–15 are reserved per spec). Not landing in this PR.
 
+**Audit follow-up tail (low-priority items held back from the main commit — `patch`-level)**
+
+Tests + comments only; no behavioural or surface change. Folded into this changeset because it ships in the same release window and the reader benefits from one continuous narrative.
+
+- `cli/commands/scan.ts` + `cli/util/scan-runner.ts` — 6-line comments document the `sm scan --global` gap. Spec § Global flags lists `-g/--global` as universal but the per-verb § Scan table omits it, and "scan global" semantics (which dirs? which ignore filter?) are undefined. `ScanCommand` accepts `-g` (inherited from `SmCommand`) but the runner hardcodes `scope: 'project'`. Comments mark both sites so the wiring lands in one motion once spec defines the contract.
+- `test/conformance.test.ts` — 2 new integration tests (audit finding 6.4) plant a hostile case JSON with `fixture: '../../../../../../etc/passwd'` and another with `fixture: '/etc/passwd'`, invoke `runConformanceCase(...)` directly, and assert the runner refuses both before any I/O against the planted path. Reinforces the unit-level guard at `conformance/index.ts:assertContained` end-to-end.
+- `test/dry-run-invariant.test.ts` (new file, 7 tests — refactor 8.3) — cross-cutting gate for spec § Dry-run's "no observable side effects" contract. Snapshots the scope dir's file content via `sha256` (excluding SQLite WAL/SHM sidecars — those rewrite even on read-only opens) before / after a `--dry-run` invocation and asserts byte-equality. Covers `db reset`, `db reset --hard`, `db restore <source>`, `db migrate`, `sm scan` (over a fresh cwd with no `.skill-map/`), and `sm init`. Plus a negative control test that runs `db reset --hard` for real and asserts the file set DOES change — proves the snapshot machinery has teeth.
+
 **Tests**
 
-740/740 pass (+15 vs prior 725). Lint clean, build clean. No spec change; `spec/index.json` not regenerated.
+749/749 pass (+24 vs prior 725; +9 vs the main follow-up commit's 740). Lint clean, build clean. No spec change; `spec/index.json` not regenerated.
