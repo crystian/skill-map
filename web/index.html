@@ -130,12 +130,13 @@
       <div class="hero__inner">
         <div class="hero__head">
           <h1 class="hero__title">
-            <span data-i18n="hero.title.1">Every agent &amp; skill.</span><br>
-            <span class="hero__title-soft" data-i18n="hero.title.2">Mapped</span>
+            <span data-i18n="hero.title.1">From chaotic ecosystem</span><br>
+            <span class="hero__title-soft" data-i18n="hero.title.2">to predictable agents.</span>
           </h1>
 
-          <p class="hero__sub" data-i18n="hero.sub">
-            Stop guessing. Find collisions, orphans, semantic duplicates, and optimization opportunities before your agents do — static and LLM analysis, on the same graph.
+          <p class="hero__sub">
+            <span data-i18n="hero.sub.1">Reclaim tokens (and money!), save time, and make your Markdowns deterministic. Collisions, orphans, semantic duplicates, and bloated skills.</span><br>
+            <span data-i18n="hero.sub.2">All on the same graph, with static and semantic (LLM) analysis.</span>
           </p>
 
           <div class="hero__ctas">
@@ -260,7 +261,9 @@
 
       <div class="shots__grid">
         <figure class="shots__main">
-          <img src="/img/screenshot-1.png" alt="skill-map main screen" data-i18n-alt="shots.alt.1" loading="lazy">
+          <button type="button" class="shots__zoom" data-lightbox-open data-i18n-aria-label="shots.zoom.aria">
+            <img src="/img/screenshot-1.png" alt="skill-map main screen" data-i18n-alt="shots.alt.1" loading="lazy">
+          </button>
         </figure>
       </div>
     </section>
@@ -744,70 +747,6 @@
       </div>
     </section>
 
-    <hr class="section-divider" aria-hidden="true" hidden>
-
-    <!-- ============== CLI ============== -->
-    <section class="section" id="cli" hidden>
-      <div class="cli-grid">
-        <div class="cli-copy">
-          <div class="section-eyebrow section-eyebrow--green" data-i18n="cli.eyebrow">CLI first</div>
-          <h2 class="section-title" data-i18n="cli.title">The terminal is the surface. The browser is optional.</h2>
-          <p class="section-sub">
-            <span data-i18n="cli.sub.a">Built for people who never closed iTerm. Pipe scan output to </span><code>jq</code><span data-i18n="cli.sub.b">, gate CI on collisions, embed it in pre-commit hooks.</span>
-          </p>
-
-          <div class="code-tags">
-            <span class="code-tag">--json</span>
-            <span class="code-tag">--watch</span>
-            <span class="code-tag">--filter type=skill</span>
-            <span class="code-tag">--no-color</span>
-            <span class="code-tag">--max-depth=3</span>
-            <span class="code-tag">--ignore-orphans</span>
-          </div>
-
-          <div class="cli-ctas">
-            <a class="btn btn--accent btn--lg" href="https://www.npmjs.com/package/@skill-map/cli" target="_blank" rel="noopener">
-              <span data-i18n="cli.cta.install">Install CLI</span>
-              <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-                <path d="M3 7h8M7.5 3.5L11 7l-3.5 3.5"/>
-              </svg>
-            </a>
-            <a class="btn btn--ghost btn--lg" href="https://github.com/crystian/skill-map/tree/main/docs" target="_blank" rel="noopener" data-i18n="cli.cta.docs">Read docs</a>
-          </div>
-        </div>
-
-        <div class="term" aria-hidden="true">
-          <div class="term__chrome">
-            <span class="term__dot term__dot--red"></span>
-            <span class="term__dot term__dot--yellow"></span>
-            <span class="term__dot term__dot--green"></span>
-            <span class="term__title">~/.claude — sm scan</span>
-          </div>
-          <div class="term__body">
-            <div class="term__line"><span class="prefix">$</span>sm scan ~/.claude/skills</div>
-            <div class="term__line term__line--spacer">&nbsp;</div>
-            <div class="term__line term__line--muted"><span class="prefix">◢</span>scanning 247 files...</div>
-            <div class="term__line term__line--ok"><span class="prefix">✓</span>127 skills · 12 agents · 8 hooks · 23 notes</div>
-            <div class="term__line term__line--spacer">&nbsp;</div>
-            <div class="term__line term__line--warn"><span class="prefix">⚠</span>trigger collision: 3 skills claim "deploy"</div>
-            <div class="term__line term__line--muted"><span class="prefix"> </span>   skills/deploy.md  skills/ship.md  skills/release.md</div>
-            <div class="term__line term__line--spacer">&nbsp;</div>
-            <div class="term__line term__line--warn"><span class="prefix">⚠</span>orphan: skills/legacy.md (defined, never referenced)</div>
-            <div class="term__line term__line--spacer">&nbsp;</div>
-            <div class="term__line term__line--ok"><span class="prefix">✓</span>scan complete · 287ms · 1,247 nodes · 3,891 edges</div>
-            <div class="term__line"><span class="prefix">$</span>sm open</div>
-            <div class="term__line term__line--link"><span class="prefix">→</span>http://localhost:7800</div>
-            <div class="term__cursor-row">
-              <span class="prompt">$</span>
-              <span class="term__cursor"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <hr class="section-divider" aria-hidden="true" hidden>
-
     <!-- ============== QUOTES ============== -->
     <section class="section" id="quotes" hidden>
       <header class="section-header section-header--center">
@@ -1045,5 +984,19 @@
     </aside>
 
   </div>
+
+  <!-- Screenshot lightbox. Hidden until JS calls showModal() on the trigger
+       button inside #shots. Native <dialog> gives us focus trap, Escape-to-
+       close, and ::backdrop for free. -->
+  <dialog class="lightbox" data-lightbox aria-labelledby="lightbox-title">
+    <h2 id="lightbox-title" class="visually-hidden" data-i18n="shots.zoom.title">Screenshot full size</h2>
+    <button type="button" class="lightbox__close" data-lightbox-close data-i18n-aria-label="shots.zoom.close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+        <line x1="6" y1="6"  x2="18" y2="18"/>
+        <line x1="6" y1="18" x2="18" y2="6"/>
+      </svg>
+    </button>
+    <img class="lightbox__img" src="" alt="">
+  </dialog>
 </body>
 </html>

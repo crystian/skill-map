@@ -713,7 +713,7 @@ svg    { display: block; max-width: 100%; }
 .hero__bg::after {
   width: 500px; height: 500px;
   bottom: -200px; left: -100px;
-  background: radial-gradient(circle, rgba(0,200,83,.3), transparent 60%);
+  background: radial-gradient(circle, rgba(124,58,237,.3), transparent 60%);
 }
 
 .hero__inner {
@@ -731,23 +731,25 @@ svg    { display: block; max-width: 100%; }
 
 .hero__title {
   font-size: clamp(48px, 9vw, 92px);
-  line-height: .95;
-  letter-spacing: -.045em;
+  line-height: 1.05;
+  letter-spacing: -.02em;
   font-weight: 600;
   color: #fff;
   margin-bottom: var(--s-6);
 }
 .hero__title-soft {
+  font-size: .6em;
   font-style: italic;
   font-weight: 500;
-  color: rgba(255,255,255,.55);
+  color: rgba(255,255,255,.75);
 }
 
 .hero__sub {
-  font-size: clamp(16px, 1.6vw, 19px);
-  line-height: 1.55;
-  color: rgba(255,255,255,.65);
-  max-width: 580px;
+  font-size: clamp(18px, 2.1vw, 24px);
+  line-height: 1.5;
+  color: rgba(255,255,255,.85);
+  font-weight: 400;
+  max-width: 640px;
   margin: 0 auto var(--s-8);
 }
 
@@ -986,6 +988,15 @@ svg    { display: block; max-width: 100%; }
   .hero__graph-counts .sep { display: none; }
 }
 
+/* On mobile, drop the interactive graph card entirely. The hero leans on
+   title + sub + CTAs; the live graph belongs to /demo/. The drag/pan/particle
+   JS is also short-circuited via matchMedia in app.js, so the cost is zero.
+   Above 540px we already hide legend + collapse counts; below 769px we
+   remove the whole card. */
+@media (max-width: 768px) {
+  .hero__graph { display: none; }
+}
+
 /* ============================================================
    GENERIC SECTION (used by Features, How, Cases, CLI, Quotes…)
    ============================================================ */
@@ -1142,6 +1153,29 @@ svg    { display: block; max-width: 100%; }
   user-select: none;
   -webkit-user-drag: none;
   pointer-events: none;
+}
+
+/* The image is wrapped in a button so click/Enter/Space open the lightbox.
+   Use position: absolute fill rather than width/height: 100% — the parent
+   figure has aspect-ratio: 16/9 and a child with `height: 100%` can resolve
+   to 0 in some browsers when the parent's height is implicitly derived from
+   aspect-ratio. Filling via inset: 0 sidesteps that quirk and guarantees a
+   hit-testable area. */
+.shots__zoom {
+  position: absolute;
+  inset: 0;
+  display: block;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: zoom-in;
+  border-radius: inherit;
+  overflow: hidden;
+}
+.shots__zoom:focus-visible {
+  outline: 2px solid var(--violet-400);
+  outline-offset: 4px;
 }
 
 /* Placeholder visual: dashed inset frame with a centered label. The
@@ -1440,31 +1474,6 @@ svg    { display: block; max-width: 100%; }
   color: rgba(255,255,255,.55);
 }
 
-/* ============================================================
-   CLI SECTION — copy + terminal mock
-   ============================================================ */
-.cli-grid {
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
-  gap: 80px;
-  align-items: center;
-}
-@media (max-width: 960px) {
-  .cli-grid { grid-template-columns: 1fr; gap: 48px; }
-}
-
-.cli-copy .section-title {
-  font-size: clamp(28px, 4.5vw, 48px);
-  margin-bottom: 16px;
-}
-.cli-copy .section-sub { margin-bottom: 32px; }
-
-.code-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 36px;
-}
 .code-tag {
   font-family: var(--font-mono);
   font-size: 12px;
@@ -1473,84 +1482,6 @@ svg    { display: block; max-width: 100%; }
   border: 1px solid rgba(255,255,255,.08);
   color: rgba(255,255,255,.65);
   border-radius: 6px;
-}
-
-.cli-ctas {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-/* ---------- Terminal mock ---------- */
-.term {
-  border-radius: 14px;
-  background: var(--ink-800);
-  border: 1px solid rgba(255,255,255,.08);
-  box-shadow:
-    0 30px 80px rgba(0,0,0,.5),
-    0 0 0 1px rgba(124,58,237,.08),
-    0 0 80px -20px rgba(0,200,83,.2);
-  overflow: hidden;
-}
-
-.term__chrome {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.term__dot {
-  width: 11px; height: 11px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.term__dot--red    { background: #FF5F56; }
-.term__dot--yellow { background: #FFBD2E; }
-.term__dot--green  { background: #27C93F; }
-.term__title {
-  flex: 1;
-  text-align: center;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: rgba(255,255,255,.4);
-}
-
-.term__body {
-  padding: 24px 28px;
-  font-family: var(--font-mono);
-  font-size: 14px;
-  line-height: 1.65;
-  min-height: 380px;
-  overflow-x: auto;
-}
-.term__line          { white-space: pre; color: #fff; }
-.term__line--ok      { color: var(--green-400); }
-.term__line--warn    { color: var(--violet-400); }
-.term__line--muted   { color: rgba(255,255,255,.45); }
-.term__line--link    { color: var(--violet-400); }
-.term__line--spacer  { opacity: 0; user-select: none; }
-.term__line .prefix  { color: rgba(255,255,255,.3); margin-right: 10px; }
-
-.term__cursor-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  font-family: var(--font-mono);
-}
-.term__cursor-row .prompt { color: rgba(255,255,255,.3); }
-.term__cursor {
-  width: 8px;
-  height: 18px;
-  background: var(--green-400);
-  /* Pure on/off blink — `steps(2)` gives a hard 2-state animation:
-     compositor-only, no CPU work between toggles. */
-  animation: term-cursor 1.2s steps(2, end) infinite;
-}
-@keyframes term-cursor {
-  0%, 50%   { opacity: 1; }
-  50.01%, 100% { opacity: 0; }
 }
 
 /* ============================================================
@@ -2764,3 +2695,107 @@ svg    { display: block; max-width: 100%; }
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+/* Visually hidden but available to assistive tech. Standard a11y pattern. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ============================================================
+   LIGHTBOX — native <dialog> for full-size screenshot view
+   ============================================================
+   Opens via showModal() from app.js when the user clicks the
+   shots__zoom button. Native <dialog> gives:
+   - Focus trap inside the dialog
+   - Escape closes
+   - ::backdrop styled overlay
+   - Top-layer stacking (above everything)
+   We close on backdrop-click via a JS handler (target === dialog). */
+/* IMPORTANT: scope to `[open]` — without it, `display: flex` would override
+   the UA's default `display: none` for closed <dialog>, leaving an invisible
+   fullscreen overlay that swallows every click below it (including the
+   shots__zoom button). With `[open]`, the rules apply only while the dialog
+   is shown via showModal(). */
+.lightbox[open] {
+  /* Fullscreen transparent stage; the image inside is centered via flex.
+     The image fills the full viewport width on phones (`max-width: 100%`
+     against the 100vw dialog) and is capped at 1600px on big desktops by
+     the rule on `.lightbox__img` below. */
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  width: 100vw;
+  height: 100vh;
+  max-width: 100vw;
+  max-height: 100vh;
+  border: none;
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, .9);
+}
+.lightbox::backdrop {
+  background: rgba(6, 8, 12, .85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.lightbox__img {
+  display: block;
+  width: auto;
+  height: auto;
+  /* Phones: fill the full viewport width (max-width: 100% of the 100vw
+     dialog). Big desktops: cap at 1600px so the image doesn't stretch
+     edge-to-edge on 4K monitors. Aspect ratio is preserved by the browser
+     because we only constrain one explicit dimension at a time. */
+  max-width: min(100%, 1600px);
+  max-height: 100%;
+  border-radius: var(--r-lg);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+  user-select: none;
+  -webkit-user-drag: none;
+  /* Block the browser's native gestures (page-zoom, scroll) on the image
+     so our touch handlers can implement local pinch-zoom and pan without
+     fighting the UA. transform-origin: center keeps the zoom focal point
+     in the visual center; we adjust position via translate() instead.
+     will-change hints the compositor to promote this to its own layer. */
+  touch-action: none;
+  transform-origin: center center;
+  will-change: transform;
+}
+.lightbox__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: rgba(0, 0, 0, .55);
+  color: rgba(255, 255, 255, .9);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+  z-index: 1;
+}
+.lightbox__close:hover { background: rgba(0, 0, 0, .8); }
+.lightbox__close:focus-visible {
+  outline: 2px solid var(--violet-400);
+  outline-offset: 2px;
+}
+.lightbox__close svg { width: 18px; height: 18px; }
