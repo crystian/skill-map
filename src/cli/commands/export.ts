@@ -33,6 +33,7 @@ import { ExitCode } from '../util/exit-codes.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { EXPORT_TEXTS } from '../i18n/export.texts.js';
+import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 // Built-in Claude Provider catalog rendered first, in this canonical
@@ -44,7 +45,7 @@ const DEFERRED_FORMATS: Record<string, string> = {
   mermaid: EXPORT_TEXTS.formatDeferredReasonMermaid,
 };
 
-export class ExportCommand extends Command {
+export class ExportCommand extends SmCommand {
   static override paths = [['export']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -73,10 +74,8 @@ export class ExportCommand extends Command {
 
   query = Option.String({ required: true });
   format = Option.String('--format', { required: false });
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const format = (this.format ?? 'json').toLowerCase();
     if (DEFERRED_FORMATS[format]) {
       this.context.stderr.write(

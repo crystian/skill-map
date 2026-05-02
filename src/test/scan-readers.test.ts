@@ -519,7 +519,7 @@ describe('sm show', () => {
     match(cap.stdout(), /External refs: 0/);
   });
 
-  it('--json → object with node/linksOut/linksIn/issues, findings:[] summary:null', async () => {
+  it('--json → object with node/linksOut/linksIn/issues', async () => {
     const fixture = freshFixture('show-json');
     plantClaudeFixture(fixture);
     const dbPath = freshDbPath('show-json');
@@ -536,8 +536,8 @@ describe('sm show', () => {
     ok(Array.isArray(parsed['linksOut']), 'linksOut is array');
     ok(Array.isArray(parsed['linksIn']), 'linksIn is array');
     ok(Array.isArray(parsed['issues']), 'issues is array');
-    deepStrictEqual(parsed['findings'], [], 'findings reserved as []');
-    strictEqual(parsed['summary'], null, 'summary reserved as null');
+    ok(!('findings' in parsed), 'findings field absent until Step 10');
+    ok(!('summary' in parsed), 'summary field absent until Step 11');
   });
 });
 

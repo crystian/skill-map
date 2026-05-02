@@ -63,9 +63,9 @@ import {
   defaultUserPluginsDir,
   resolveDbPath,
 } from '../util/db-path.js';
-import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 interface IScopeOptions {
@@ -178,7 +178,7 @@ function builtInRows(resolveEnabled: (id: string) => boolean): IBuiltInBundleRow
 
 // --- list -----------------------------------------------------------------
 
-export class PluginsListCommand extends Command {
+export class PluginsListCommand extends SmCommand {
   static override paths = [['plugins', 'list']];
   static override usage = Command.Usage({
     category: 'Plugins',
@@ -186,11 +186,9 @@ export class PluginsListCommand extends Command {
     details: 'Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir <path>). Built-in bundles (claude, core) are listed alongside user plugins.',
   });
 
-  global = Option.Boolean('-g,--global', false);
   pluginDir = Option.String('--plugin-dir', { required: false });
-  json = Option.Boolean('--json', false);
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     const resolveEnabled = await buildResolver(this.global);
     const builtIns = builtInRows(resolveEnabled);
@@ -281,7 +279,7 @@ function renderPluginRow(p: IDiscoveredPlugin): string {
 
 // --- show -----------------------------------------------------------------
 
-export class PluginsShowCommand extends Command {
+export class PluginsShowCommand extends SmCommand {
   static override paths = [['plugins', 'show']];
   static override usage = Command.Usage({
     category: 'Plugins',
@@ -289,11 +287,9 @@ export class PluginsShowCommand extends Command {
   });
 
   id = Option.String({ required: true });
-  global = Option.Boolean('-g,--global', false);
   pluginDir = Option.String('--plugin-dir', { required: false });
-  json = Option.Boolean('--json', false);
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     const resolveEnabled = await buildResolver(this.global);
     const builtIns = builtInRows(resolveEnabled);
@@ -301,7 +297,9 @@ export class PluginsShowCommand extends Command {
     const match = plugins.find((p) => p.id === this.id);
 
     if (!builtIn && !match) {
-      this.context.stderr.write(tx(PLUGINS_TEXTS.pluginNotFound, { id: this.id }) + '\n');
+      this.context.stderr.write(
+        tx(PLUGINS_TEXTS.pluginNotFound, { id: sanitizeForTerminal(this.id) }) + '\n',
+      );
       return ExitCode.NotFound;
     }
 
@@ -627,7 +625,7 @@ function collectExplorationDirWarnings(
 
 // --- doctor ---------------------------------------------------------------
 
-export class PluginsDoctorCommand extends Command {
+export class PluginsDoctorCommand extends SmCommand {
   static override paths = [['plugins', 'doctor']];
   static override usage = Command.Usage({
     category: 'Plugins',
@@ -635,7 +633,6 @@ export class PluginsDoctorCommand extends Command {
     details: 'Exit code 0 when every plugin loads or is intentionally disabled; 1 when any plugin is in an error / incompat state.',
   });
 
-  global = Option.Boolean('-g,--global', false);
   pluginDir = Option.String('--plugin-dir', { required: false });
 
   // Doctor verb: counts by status + applicableKinds warnings +
@@ -645,7 +642,7 @@ export class PluginsDoctorCommand extends Command {
   // `collectApplicableKindWarnings`, `collectExplorationDirWarnings`)
   // already encapsulate the data gathering.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const plugins = await loadAll({ global: this.global, pluginDir: this.pluginDir });
     const resolveEnabled = await buildResolver(this.global);
     const builtIns = builtInRows(resolveEnabled);
@@ -800,6 +797,11 @@ interface IResolvedTarget {
  * id was rejected (granularity mismatch, unknown bundle, unknown
  * extension under a known bundle).
  */
+// User-supplied `id` is interpolated into stderr error messages; lookup
+// against the catalogue stays on the raw value (so a malformed input
+// fails to resolve), but every interpolation goes through
+// `sanitizeForTerminal` so a planted ANSI escape can't reach the
+// terminal.
 // eslint-disable-next-line complexity
 function resolveToggleTarget(
   id: string,
@@ -809,17 +811,25 @@ function resolveToggleTarget(
   if (id.includes('/')) {
     const [bundleId, extId, ...rest] = id.split('/');
     if (!bundleId || !extId || rest.length > 0) {
-      return { error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, { bundleId: id }) };
+      return {
+        error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+          bundleId: sanitizeForTerminal(id),
+        }),
+      };
     }
     const bundle = catalogue.find((b) => b.id === bundleId);
     if (!bundle) {
-      return { error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, { bundleId }) };
+      return {
+        error: tx(PLUGINS_TEXTS.qualifiedIdUnknownBundle, {
+          bundleId: sanitizeForTerminal(bundleId),
+        }),
+      };
     }
     if (bundle.granularity === 'bundle') {
       return {
         error: tx(PLUGINS_TEXTS.granularityBundleRejectsQualified, {
-          bundleId,
-          extId,
+          bundleId: sanitizeForTerminal(bundleId),
+          extId: sanitizeForTerminal(extId),
           verb,
         }),
       };
@@ -827,9 +837,9 @@ function resolveToggleTarget(
     if (!bundle.extensionIds.includes(extId)) {
       return {
         error: tx(PLUGINS_TEXTS.qualifiedIdNotFound, {
-          id,
-          bundleId,
-          extId,
+          id: sanitizeForTerminal(id),
+          bundleId: sanitizeForTerminal(bundleId),
+          extId: sanitizeForTerminal(extId),
         }),
       };
     }
@@ -838,12 +848,12 @@ function resolveToggleTarget(
 
   const bundle = catalogue.find((b) => b.id === id);
   if (!bundle) {
-    return { error: tx(PLUGINS_TEXTS.pluginNotFound, { id }) };
+    return { error: tx(PLUGINS_TEXTS.pluginNotFound, { id: sanitizeForTerminal(id) }) };
   }
   if (bundle.granularity === 'extension') {
     return {
       error: tx(PLUGINS_TEXTS.granularityExtensionRejectsBundleId, {
-        bundleId: id,
+        bundleId: sanitizeForTerminal(id),
         verb,
       }),
     };
@@ -851,23 +861,19 @@ function resolveToggleTarget(
   return { key: bundle.id };
 }
 
-abstract class TogglePluginsBase extends Command {
-  global = Option.Boolean('-g,--global', false);
+abstract class TogglePluginsBase extends SmCommand {
   all = Option.Boolean('--all', false);
   id = Option.String({ required: false });
 
   // eslint-disable-next-line complexity
   protected async toggle(enabled: boolean): Promise<number> {
-    const elapsed = startElapsed();
     const verb = enabled ? 'enable' : 'disable';
     if (this.all && this.id) {
       this.context.stderr.write(PLUGINS_TEXTS.toggleBothIdAndAll);
-      emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
     if (!this.all && !this.id) {
       this.context.stderr.write(PLUGINS_TEXTS.toggleNeitherIdNorAll);
-      emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
 
@@ -895,7 +901,6 @@ abstract class TogglePluginsBase extends Command {
       const resolved = resolveToggleTarget(this.id!, catalogue, verb);
       if ('error' in resolved) {
         this.context.stderr.write(tx(PLUGINS_TEXTS.toggleResolveError, { error: resolved.error }));
-        emitDoneStderr(this.context.stderr, elapsed);
         // Granularity errors and unknown ids are both user input
         // problems — exit 5 (NotFound) keeps the existing contract
         // for "you asked me to act on something I cannot resolve".
@@ -923,7 +928,6 @@ abstract class TogglePluginsBase extends Command {
         this.context.stdout.write(tx(PLUGINS_TEXTS.toggleAppliedManyRow, { id }));
       }
     }
-    emitDoneStderr(this.context.stderr, elapsed);
     return ExitCode.Ok;
   }
 }
@@ -947,7 +951,7 @@ export class PluginsEnableCommand extends TogglePluginsBase {
     `,
   });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     return this.toggle(true);
   }
 }
@@ -971,7 +975,7 @@ export class PluginsDisableCommand extends TogglePluginsBase {
     `,
   });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     return this.toggle(false);
   }
 }

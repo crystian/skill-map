@@ -17,7 +17,7 @@
  * `--force` is passed.
  */
 
-import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -30,37 +30,25 @@ import {
   loadBundledIgnoreText,
   readIgnoreFileText,
 } from '../../kernel/scan/ignore.js';
-import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { tx } from '../../kernel/util/tx.js';
 import { INIT_TEXTS } from '../i18n/init.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
-import { SKILL_MAP_DIR } from '../util/db-path.js';
+import {
+  defaultDbPath,
+  defaultIgnoreFilePath,
+  defaultLocalSettingsPath,
+  defaultSettingsPath,
+  GITIGNORE_ENTRIES,
+  SKILL_MAP_DIR,
+} from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { pathExists } from '../util/fs.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
-const GITIGNORE_ENTRIES: readonly string[] = [
-  '.skill-map/settings.local.json',
-  '.skill-map/skill-map.db',
-];
-
-/**
- * Async existence probe — `fs.stat` returning a boolean. ENOENT is the
- * only swallowed error code; anything else (permission denied, IO
- * failure) propagates so the caller sees the real reason.
- */
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
-    throw err;
-  }
-}
-
-export class InitCommand extends Command {
+export class InitCommand extends SmCommand {
   static override paths = [['init']];
   static override usage = Command.Usage({
     category: 'Setup',
@@ -87,9 +75,6 @@ export class InitCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false, {
-    description: 'Initialise ~/.skill-map/ instead of ./.skill-map/.',
-  });
   noScan = Option.Boolean('--no-scan', false, {
     description: 'Skip the first scan after scaffolding.',
   });
@@ -108,19 +93,17 @@ export class InitCommand extends Command {
   // gitignore management + DB provision + first scan delegation).
   // The first-scan branch already lives in `runFirstScan`.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
+  protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const scopeRoot = this.global ? ctx.homedir : ctx.cwd;
     const skillMapDir = join(scopeRoot, SKILL_MAP_DIR);
-    const settingsPath = join(skillMapDir, 'settings.json');
-    const localPath = join(skillMapDir, 'settings.local.json');
-    const ignorePath = join(scopeRoot, '.skill-mapignore');
-    const dbPath = join(skillMapDir, 'skill-map.db');
+    const settingsPath = defaultSettingsPath(scopeRoot);
+    const localPath = defaultLocalSettingsPath(scopeRoot);
+    const ignorePath = defaultIgnoreFilePath(scopeRoot);
+    const dbPath = defaultDbPath(scopeRoot);
 
     if ((await pathExists(settingsPath)) && !this.force) {
       this.context.stderr.write(tx(INIT_TEXTS.alreadyInitialised, { settingsPath }));
-      emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
 
@@ -129,7 +112,6 @@ export class InitCommand extends Command {
         skillMapDir, settingsPath, localPath, ignorePath, dbPath,
         scopeRoot, force: this.force, global: this.global, noScan: this.noScan,
       });
-      emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Ok;
     }
 
@@ -166,16 +148,11 @@ export class InitCommand extends Command {
 
     this.context.stdout.write(tx(INIT_TEXTS.initialised, { skillMapDir }));
 
-    if (this.noScan) {
-      emitDoneStderr(this.context.stderr, elapsed);
-      return ExitCode.Ok;
-    }
+    if (this.noScan) return ExitCode.Ok;
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    const scanCode = await runFirstScan(scopeRoot, ctx.homedir, dbPath, this.strict, this.context.stdout, this.context.stderr);
-    emitDoneStderr(this.context.stderr, elapsed);
-    return scanCode;
+    return runFirstScan(scopeRoot, ctx.homedir, dbPath, this.strict, this.context.stdout, this.context.stderr);
   }
 }
 

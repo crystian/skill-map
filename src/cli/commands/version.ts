@@ -1,10 +1,11 @@
-import { Command, Option } from 'clipanion';
+import { Command } from 'clipanion';
 
 import { tx } from '../../kernel/util/tx.js';
 import { VERSION_TEXTS } from '../i18n/version.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { SmCommand } from '../util/sm-command.js';
 import { VERSION } from '../version.js';
 import { tryWithSqlite } from '../util/with-sqlite.js';
 
@@ -39,7 +40,7 @@ import { tryWithSqlite } from '../util/with-sqlite.js';
  *     error: `sm version` is informational and MUST NOT crash on a bad
  *     DB file.
  */
-export class VersionCommand extends Command {
+export class VersionCommand extends SmCommand {
   static override paths = [['version']];
 
   static override usage = Command.Usage({
@@ -47,9 +48,11 @@ export class VersionCommand extends Command {
     description: 'Print the CLI / kernel / spec / runtime / db-schema version matrix.',
   });
 
-  json = Option.Boolean('--json', false);
+  // Informational verb — no `done in <…>` line; the version matrix is
+  // the entire output.
+  protected override emitElapsed = false;
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const runtime = `Node ${process.version}`;
     const kernelVersion = VERSION;
     const specVersion = await resolveSpecVersion();

@@ -48,12 +48,12 @@ import {
   type ILoadedConfig,
   type TConfigLayer,
 } from '../../kernel/config/loader.js';
-import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { tx } from '../../kernel/util/tx.js';
 import { CONFIG_TEXTS } from '../i18n/config.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { SmCommand } from '../util/sm-command.js';
 
 // -----------------------------------------------------------------------------
 // shared helpers
@@ -261,7 +261,7 @@ function formatValueHuman(v: unknown): string {
 // commands
 // -----------------------------------------------------------------------------
 
-export class ConfigListCommand extends Command {
+export class ConfigListCommand extends SmCommand {
   static override paths = [['config', 'list']];
   static override usage = Command.Usage({
     category: 'Config',
@@ -273,11 +273,13 @@ export class ConfigListCommand extends Command {
     `,
   });
 
-  json = Option.Boolean('--json', false);
-  global = Option.Boolean('-g,--global', false);
   strict = Option.Boolean('--strict', false);
 
-  async execute(): Promise<number> {
+  // Read-only config inspection: spec § Elapsed time exempts the
+  // config family from the trailing "done in" line.
+  protected override emitElapsed = false;
+
+  protected async run(): Promise<number> {
     const result = tryLoadConfig(
       { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
@@ -299,7 +301,7 @@ export class ConfigListCommand extends Command {
   }
 }
 
-export class ConfigGetCommand extends Command {
+export class ConfigGetCommand extends SmCommand {
   static override paths = [['config', 'get']];
   static override usage = Command.Usage({
     category: 'Config',
@@ -311,11 +313,11 @@ export class ConfigGetCommand extends Command {
   });
 
   key = Option.String({ required: true });
-  json = Option.Boolean('--json', false);
-  global = Option.Boolean('-g,--global', false);
   strict = Option.Boolean('--strict', false);
 
-  async execute(): Promise<number> {
+  protected override emitElapsed = false;
+
+  protected async run(): Promise<number> {
     const result = tryLoadConfig(
       { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
@@ -346,7 +348,7 @@ export class ConfigGetCommand extends Command {
   }
 }
 
-export class ConfigShowCommand extends Command {
+export class ConfigShowCommand extends SmCommand {
   static override paths = [['config', 'show']];
   static override usage = Command.Usage({
     category: 'Config',
@@ -361,16 +363,16 @@ export class ConfigShowCommand extends Command {
 
   key = Option.String({ required: true });
   source = Option.Boolean('--source', false);
-  json = Option.Boolean('--json', false);
-  global = Option.Boolean('-g,--global', false);
   strict = Option.Boolean('--strict', false);
+
+  protected override emitElapsed = false;
 
   // CLI orchestrator: each branch (load failure, forbidden segment,
   // unknown key, --json + --source 2x2 dispatch) is one validation gate
   // or output-format pick. Splitting per branch scatters the gate from
   // the value it gates.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const result = tryLoadConfig(
       { scope: this.global ? 'global' : 'project', strict: this.strict, ...defaultRuntimeContext() },
       this.context.stderr,
@@ -445,7 +447,7 @@ const LAYER_RANK: Record<TConfigLayer, number> = {
   override: 5,
 };
 
-export class ConfigSetCommand extends Command {
+export class ConfigSetCommand extends SmCommand {
   static override paths = [['config', 'set']];
   static override usage = Command.Usage({
     category: 'Config',
@@ -461,10 +463,8 @@ export class ConfigSetCommand extends Command {
 
   key = Option.String({ required: true });
   value = Option.String({ required: true });
-  global = Option.Boolean('-g,--global', false);
 
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
+  protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const target: TWriteTarget = this.global ? 'user' : 'project';
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
@@ -476,7 +476,6 @@ export class ConfigSetCommand extends Command {
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
         this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
-        emitDoneStderr(this.context.stderr, elapsed);
         return ExitCode.Error;
       }
       throw err;
@@ -486,18 +485,16 @@ export class ConfigSetCommand extends Command {
     const result = validators.validate('project-config', current);
     if (!result.ok) {
       this.context.stderr.write(tx(CONFIG_TEXTS.invalidAfterSet, { errors: result.errors }));
-      emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Error;
     }
 
     writeJsonAtomic(path, current);
     this.context.stdout.write(tx(CONFIG_TEXTS.setWritten, { key: this.key, value: formatValueHuman(value), path }));
-    emitDoneStderr(this.context.stderr, elapsed);
     return ExitCode.Ok;
   }
 }
 
-export class ConfigResetCommand extends Command {
+export class ConfigResetCommand extends SmCommand {
   static override paths = [['config', 'reset']];
   static override usage = Command.Usage({
     category: 'Config',
@@ -509,17 +506,14 @@ export class ConfigResetCommand extends Command {
   });
 
   key = Option.String({ required: true });
-  global = Option.Boolean('-g,--global', false);
 
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
+  protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const target: TWriteTarget = this.global ? 'user' : 'project';
     const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
     if (!existsSync(path)) {
       this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
-      emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Ok;
     }
     const current = readJsonObjectOrEmpty(path);
@@ -529,20 +523,17 @@ export class ConfigResetCommand extends Command {
     } catch (err) {
       if (err instanceof ForbiddenSegmentError) {
         this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
-        emitDoneStderr(this.context.stderr, elapsed);
         return ExitCode.Error;
       }
       throw err;
     }
     if (!removed) {
       this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));
-      emitDoneStderr(this.context.stderr, elapsed);
       return ExitCode.Ok;
     }
 
     writeJsonAtomic(path, current);
     this.context.stdout.write(tx(CONFIG_TEXTS.unsetRemoved, { key: this.key, path }));
-    emitDoneStderr(this.context.stderr, elapsed);
     return ExitCode.Ok;
   }
 }

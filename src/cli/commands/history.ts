@@ -29,9 +29,10 @@ import { tx } from '../../kernel/util/tx.js';
 import { truncateHead } from '../util/text.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
-import { emitDoneStderr, formatElapsed, startElapsed } from '../util/elapsed.js';
+import { formatElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { parsePositiveIntegerOption } from '../util/option-validators.js';
+import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { HISTORY_TEXTS } from '../i18n/history.texts.js';
 
@@ -79,7 +80,7 @@ function parseStatuses(
 
 // --- sm history ------------------------------------------------------------
 
-export class HistoryCommand extends Command {
+export class HistoryCommand extends SmCommand {
   static override paths = [['history']];
   static override usage = Command.Usage({
     category: 'History',
@@ -103,16 +104,12 @@ export class HistoryCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   node = Option.String('-n', { required: false });
   action = Option.String('--action', { required: false });
   status = Option.String('--status', { required: false });
   since = Option.String('--since', { required: false });
   until = Option.String('--until', { required: false });
   limit = Option.String('--limit', { required: false });
-  json = Option.Boolean('--json', false);
-  quiet = Option.Boolean('--quiet', false);
 
   // CLI list verb: many optional filter flags (`--node`, `--action`,
   // `--status`, `--since`, `--until`, `--limit`, `--json`, `--quiet`)
@@ -120,9 +117,7 @@ export class HistoryCommand extends Command {
   // branch is single-purpose; splitting per flag would distance the
   // validations from the filter they shape.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
-
+  protected async run(): Promise<number> {
     // --- flag validation -------------------------------------------------
     const filter: IListExecutionsFilter = {};
     if (this.node !== undefined) filter.nodePath = this.node;
@@ -164,8 +159,6 @@ export class HistoryCommand extends Command {
       } else {
         this.context.stdout.write(renderTable(rows));
       }
-
-      emitDoneStderr(this.context.stderr, elapsed, this.quiet);
       return ExitCode.Ok;
     });
   }
@@ -173,7 +166,7 @@ export class HistoryCommand extends Command {
 
 // --- sm history stats ------------------------------------------------------
 
-export class HistoryStatsCommand extends Command {
+export class HistoryStatsCommand extends SmCommand {
   static override paths = [['history', 'stats']];
   static override usage = Command.Usage({
     category: 'History',
@@ -195,21 +188,17 @@ export class HistoryStatsCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   since = Option.String('--since', { required: false });
   until = Option.String('--until', { required: false });
   period = Option.String('--period', { required: false });
   top = Option.String('--top', { required: false });
-  json = Option.Boolean('--json', false);
-  quiet = Option.Boolean('--quiet', false);
 
   // CLI stats verb: range parsing + window flags + period flag + JSON
   // branch + per-period iteration. Each branch is a single-purpose
   // gate; the data work lives in `aggregateHistoryStats`.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
+  protected async run(): Promise<number> {
+    const elapsed = this.elapsed!;
 
     // --- flag validation -------------------------------------------------
     let sinceMs: number | null = null;
@@ -289,8 +278,6 @@ export class HistoryStatsCommand extends Command {
       } else {
         this.context.stdout.write(renderStats(stats));
       }
-
-      emitDoneStderr(this.context.stderr, elapsed, this.quiet);
       return ExitCode.Ok;
     });
   }

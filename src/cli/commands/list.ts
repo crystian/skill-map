@@ -22,6 +22,7 @@ import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { parsePositiveIntegerOption } from '../util/option-validators.js';
+import { SmCommand } from '../util/sm-command.js';
 import { truncateTail } from '../util/text.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
@@ -43,7 +44,7 @@ const SORT_BY: Record<string, { column: string; direction: 'asc' | 'desc' }> = {
 
 const PATH_COL_WIDTH = 50;
 
-export class ListCommand extends Command {
+export class ListCommand extends SmCommand {
   static override paths = [['list']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -67,15 +68,12 @@ export class ListCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   kind = Option.String('--kind', { required: false });
   issue = Option.Boolean('--issue', false);
   sortBy = Option.String('--sort-by', { required: false });
   limit = Option.String('--limit', { required: false });
-  json = Option.Boolean('--json', false);
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     // --- flag validation ---------------------------------------------------
     let sortColumn = 'path';
     let sortDirection: 'asc' | 'desc' = 'asc';

@@ -60,6 +60,7 @@ import { formatErrorMessage } from '../util/error-reporter.js';
 import { tx } from '../../kernel/util/tx.js';
 import { JOBS_TEXTS } from '../i18n/jobs.texts.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 interface IRetentionStatusOutput {
@@ -79,7 +80,7 @@ interface IPruneOutput {
     | { scanned: false };
 }
 
-export class JobPruneCommand extends Command {
+export class JobPruneCommand extends SmCommand {
   static override paths = [['job', 'prune']];
   static override usage = Command.Usage({
     category: 'Jobs',
@@ -115,11 +116,8 @@ export class JobPruneCommand extends Command {
   dryRun = Option.Boolean('-n,--dry-run', false, {
     description: 'Report what would be pruned without touching the DB or filesystem.',
   });
-  json = Option.Boolean('--json', false, {
-    description: 'Emit a structured prune-result document on stdout.',
-  });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const dbPath = defaultProjectDbPath(ctx);
     const jobsDir = defaultProjectJobsDir(ctx);

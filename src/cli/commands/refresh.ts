@@ -60,6 +60,7 @@ import {
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
+import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 /**
@@ -68,7 +69,7 @@ import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
  * Mutex: `--stale` and the positional `<node.path>` are mutually
  * exclusive. Exactly one MUST be supplied.
  */
-export class RefreshCommand extends Command {
+export class RefreshCommand extends SmCommand {
   static override paths = [['refresh']];
 
   static override usage = Command.Usage({
@@ -113,7 +114,7 @@ export class RefreshCommand extends Command {
   // catch, plus the `if (probSkipCount > 0)` advisory. The inner work
   // already lives in `#resolveTargetNodes` and `#runDetExtractorsAcrossNodes`.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     // --- argument validation ------------------------------------------------
     if (this.stale && this.nodePath !== undefined) {
       this.context.stderr.write(REFRESH_TEXTS.nodeAndStaleMutex);

@@ -34,7 +34,6 @@ import { isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
-import addFormatsModule from 'ajv-formats';
 import semver from 'semver';
 
 import type {
@@ -46,17 +45,12 @@ import type {
 } from '../types/plugin.js';
 import type { PluginLoaderPort } from '../ports/plugin-loader.js';
 import { PLUGIN_LOADER_TEXTS } from '../i18n/plugin-loader.texts.js';
+import { applyAjvFormats } from '../util/ajv-interop.js';
 import { tx } from '../util/tx.js';
 import { KV_SCHEMA_KEY } from './plugin-store.js';
 import type { ExtensionKind } from '../registry.js';
 import type { ISchemaValidators } from './schema-validators.js';
 import { HOOK_TRIGGERS } from '../extensions/hook.js';
-
-// ajv-formats ships CJS-first; the default export is the callable plugin
-// under ESM interop but TS sometimes types it as the namespace. Match
-// the normalisation `schema-validators.ts` does for the same reason.
-const addFormats = (addFormatsModule as unknown as { default?: typeof addFormatsModule })
-  .default ?? addFormatsModule;
 
 type TAjv = InstanceType<typeof Ajv2020>;
 
@@ -861,7 +855,7 @@ function compilePluginSchema(
   }
   try {
     const ajv: TAjv = new Ajv2020({ strict: false, allErrors: true, allowUnionTypes: true });
-    (addFormats as unknown as (a: TAjv) => void)(ajv);
+    applyAjvFormats(ajv);
     const compiled = ajv.compile(raw as object) as ValidateFunction & {
       errors?: { instancePath: string; message?: string; keyword: string }[] | null;
     };

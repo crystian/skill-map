@@ -11,7 +11,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { chmod, copyFile, mkdir, rm, stat } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { withSqlite } from '../util/with-sqlite.js';
@@ -29,10 +29,12 @@ import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { pathExists, statOrNull } from '../util/fs.js';
 import {
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { SmCommand } from '../util/sm-command.js';
 
 const SAFE_SQL_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
@@ -45,32 +47,6 @@ const SAFE_SQL_IDENTIFIER_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 function assertSafeIdentifier(name: string): void {
   if (!SAFE_SQL_IDENTIFIER_RE.test(name)) {
     throw new Error(`refusing to operate on non-identifier table name: ${JSON.stringify(name)}`);
-  }
-}
-
-/**
- * Async existence probe via `fs.stat`. Used in place of `existsSync` so
- * the verb stays cooperative on the event loop. ENOENT is the only swallowed
- * error code; anything else (permission denied, IO failure) propagates so
- * the caller sees the real reason instead of a false "not found".
- */
-async function pathExists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
-    throw err;
-  }
-}
-
-/** Same as `pathExists` but returns the `Stats` so the caller can read `.size`. */
-async function statOrNull(path: string): Promise<import('node:fs').Stats | null> {
-  try {
-    return await stat(path);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw err;
   }
 }
 
@@ -90,7 +66,7 @@ async function chmodOwnerOnlyBestEffort(target: string): Promise<void> {
 
 // --- backup ---------------------------------------------------------------
 
-export class DbBackupCommand extends Command {
+export class DbBackupCommand extends SmCommand {
   static override paths = [['db', 'backup']];
   static override usage = Command.Usage({
     category: 'Database',
@@ -103,11 +79,9 @@ export class DbBackupCommand extends Command {
     `,
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   out = Option.String('--out', { required: false });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
@@ -131,7 +105,7 @@ export class DbBackupCommand extends Command {
 
 // --- restore --------------------------------------------------------------
 
-export class DbRestoreCommand extends Command {
+export class DbRestoreCommand extends SmCommand {
   static override paths = [['db', 'restore']];
   static override usage = Command.Usage({
     category: 'Database',
@@ -146,14 +120,12 @@ export class DbRestoreCommand extends Command {
   });
 
   source = Option.String({ required: true });
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   yes = Option.Boolean('--yes,--force', false);
   dryRun = Option.Boolean('-n,--dry-run', false, {
     description: 'Preview the restore without overwriting the live DB.',
   });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const target = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     const sourcePath = resolve(this.source);
 
@@ -210,7 +182,7 @@ export class DbRestoreCommand extends Command {
 
 // --- reset ----------------------------------------------------------------
 
-export class DbResetCommand extends Command {
+export class DbResetCommand extends SmCommand {
   static override paths = [['db', 'reset']];
   static override usage = Command.Usage({
     category: 'Database',
@@ -227,8 +199,6 @@ export class DbResetCommand extends Command {
     `,
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   state = Option.Boolean('--state', false);
   hard = Option.Boolean('--hard', false);
   yes = Option.Boolean('--yes,--force', false);
@@ -241,7 +211,7 @@ export class DbResetCommand extends Command {
   // expression of the flag semantics; splitting per branch would
   // distance the validations from their guards.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     if (this.state && this.hard) {
       this.context.stderr.write(DB_TEXTS.resetStateAndHardMutex);
       return ExitCode.Error;
@@ -357,7 +327,7 @@ export class DbResetCommand extends Command {
 
 // --- shell ----------------------------------------------------------------
 
-export class DbShellCommand extends Command {
+export class DbShellCommand extends SmCommand {
   static override paths = [['db', 'shell']];
   static override usage = Command.Usage({
     category: 'Database',
@@ -369,10 +339,12 @@ export class DbShellCommand extends Command {
     `,
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
+  // Interactive shell: the spawned `sqlite3` owns the terminal. No
+  // `done in <…>` line — the user expects to see the shell's own
+  // prompt + farewell, not a follow-up trailer once they exit.
+  protected override emitElapsed = false;
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
@@ -387,7 +359,7 @@ export class DbShellCommand extends Command {
 
 // --- dump -----------------------------------------------------------------
 
-export class DbDumpCommand extends Command {
+export class DbDumpCommand extends SmCommand {
   static override paths = [['db', 'dump']];
   static override usage = Command.Usage({
     category: 'Database',
@@ -395,8 +367,6 @@ export class DbDumpCommand extends Command {
     details: 'Read-only. Use --tables <names...> to limit the dump to specific tables.',
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   tables = Option.Array('--tables', { required: false });
 
   // CLI orchestrator: each branch (db existence, per-table identifier
@@ -404,7 +374,7 @@ export class DbDumpCommand extends Command {
   // single dispatcher decision. Splitting per branch scatters the gate
   // away from the value it gates.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
@@ -429,7 +399,7 @@ export class DbDumpCommand extends Command {
 
 // --- migrate --------------------------------------------------------------
 
-export class DbMigrateCommand extends Command {
+export class DbMigrateCommand extends SmCommand {
   static override paths = [['db', 'migrate']];
   static override usage = Command.Usage({
     category: 'Database',
@@ -453,9 +423,7 @@ export class DbMigrateCommand extends Command {
     `,
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
-  dryRun = Option.Boolean('--dry-run', false);
+  dryRun = Option.Boolean('-n,--dry-run', false);
   status = Option.Boolean('--status', false);
   to = Option.String('--to', { required: false });
   noBackup = Option.Boolean('--no-backup', false);
@@ -468,7 +436,7 @@ export class DbMigrateCommand extends Command {
   // would scatter the close-to-call-site flag handling without making
   // the verb easier to follow.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     if (this.kernelOnly && this.pluginId !== undefined) {
       this.context.stderr.write(DB_TEXTS.migrateKernelOnlyAndPluginMutex);
       return ExitCode.Error;

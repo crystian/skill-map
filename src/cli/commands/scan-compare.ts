@@ -39,6 +39,8 @@ import { existsSync, readFileSync } from 'node:fs';
 
 import { Command, Option } from 'clipanion';
 
+import { SmCommand } from '../util/sm-command.js';
+
 import { computeScanDelta, createKernel, isEmptyDelta, runScan } from '../../kernel/index.js';
 import type { IScanDelta, ScanResult } from '../../kernel/index.js';
 import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
@@ -59,7 +61,7 @@ import {
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
 
-export class ScanCompareCommand extends Command {
+export class ScanCompareCommand extends SmCommand {
   static override paths = [['scan', 'compare-with']];
 
   static override usage = Command.Usage({
@@ -94,9 +96,6 @@ export class ScanCompareCommand extends Command {
 
   dump = Option.String({ required: true });
   roots = Option.Rest({ name: 'roots' });
-  json = Option.Boolean('--json', false, {
-    description: 'Emit the IScanDelta document as JSON on stdout.',
-  });
   noTokens = Option.Boolean('--no-tokens', false, {
     description: 'Skip per-node token counts during the fresh scan.',
   });
@@ -113,7 +112,7 @@ export class ScanCompareCommand extends Command {
   // for the JSON branch. The pure pieces already live in
   // `loadAndValidateDump` and `computeScanDelta`.
   // eslint-disable-next-line complexity
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const ctx = defaultRuntimeContext();
     const roots = this.roots.length > 0 ? this.roots : ['.'];
 
