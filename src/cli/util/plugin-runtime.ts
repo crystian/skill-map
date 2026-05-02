@@ -53,11 +53,11 @@ import type {
 } from '../../kernel/types/plugin.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PLUGIN_RUNTIME_TEXTS } from '../i18n/plugin-runtime.texts.js';
+import { resolveDbPath } from './db-path.js';
 import { defaultRuntimeContext } from './runtime-context.js';
 import { tryWithSqlite } from './with-sqlite.js';
 
 const PLUGINS_DIR = '.skill-map/plugins';
-const DB_FILENAME = 'skill-map.db';
 
 export interface ILoadPluginRuntimeOptions {
   /** Resolution scope. `'global'` reads `~/.skill-map/...` only. */
@@ -425,13 +425,6 @@ function resolveSearchPaths(opts: ILoadPluginRuntimeOptions): string[] {
   return opts.scope === 'global' ? [user] : [project, user];
 }
 
-function dbPathForScope(scope: 'project' | 'global'): string {
-  const ctx = defaultRuntimeContext();
-  return scope === 'global'
-    ? join(ctx.homedir, '.skill-map', DB_FILENAME)
-    : resolve(ctx.cwd, '.skill-map', DB_FILENAME);
-}
-
 /**
  * Build the layered settings.json + DB enabled-resolver. Mirrors the
  * shape of `buildResolver` in `src/cli/commands/plugins.ts` (Step 6.6)
@@ -441,8 +434,13 @@ function dbPathForScope(scope: 'project' | 'global'): string {
 async function buildEnabledResolver(
   scope: 'project' | 'global',
 ): Promise<(id: string) => boolean> {
-  const { effective: cfg } = loadConfig({ scope, ...defaultRuntimeContext() });
-  const dbPath = dbPathForScope(scope);
+  const ctx = defaultRuntimeContext();
+  const { effective: cfg } = loadConfig({ scope, ...ctx });
+  const dbPath = resolveDbPath({
+    global: scope === 'global',
+    db: undefined,
+    ...ctx,
+  });
   const dbOverrides =
     (await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },

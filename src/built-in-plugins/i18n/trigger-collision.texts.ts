@@ -7,8 +7,20 @@
  */
 
 export const TRIGGER_COLLISION_TEXTS = {
-  /** Top-level issue message wrapping all the per-cause `parts`. */
-  message: 'Trigger "{{normalized}}" has {{parts}}.',
+  /**
+   * Top-level message when `analyzeTriggerBucket` accumulated exactly one
+   * cause part. Used for the advertiser-ambiguous-only, invocation-
+   * ambiguous-only, and cross-kind-only branches.
+   */
+  messageOnePart: 'Trigger "{{normalized}}" has {{part}}.',
+
+  /**
+   * Top-level message when `analyzeTriggerBucket` accumulated two cause
+   * parts (advertiser-ambiguous AND invocation-ambiguous fire together).
+   * The joiner lives inside the template so future locales can adapt it
+   * (e.g. `'; y '` in Spanish) without touching the rule code.
+   */
+  messageTwoParts: 'Trigger "{{normalized}}" has {{first}}; and {{second}}.',
 
   /** `<n> nodes advertise it: <list>` part — fires on the advertiser-ambiguous branch. */
   partAdvertisers: '{{count}} nodes advertise it: {{paths}}',
@@ -21,7 +33,4 @@ export const TRIGGER_COLLISION_TEXTS = {
 
   /** Plural cross-kind cause: `non-canonical invocations <forms> against advertiser <path>`. */
   partNonCanonicalPlural: 'non-canonical invocations {{forms}} against advertiser {{advertiser}}',
-
-  /** Joiner between accumulated parts inside `message`. */
-  partsJoiner: '; and ',
 } as const;

@@ -213,14 +213,26 @@ function analyzeTriggerBucket(normalized: string, claims: IClaim[]): Issue | nul
     );
   }
 
+  // `parts.length` ∈ {1, 2}: advertiserAmbiguous and crossKindAmbiguous
+  // are mutually exclusive (the latter requires advertiserPaths.length===1),
+  // so the two-part path is exactly advertiserAmbiguous + invocationAmbiguous.
+  const message =
+    parts.length === 2
+      ? tx(TRIGGER_COLLISION_TEXTS.messageTwoParts, {
+          normalized,
+          first: parts[0]!,
+          second: parts[1]!,
+        })
+      : tx(TRIGGER_COLLISION_TEXTS.messageOnePart, {
+          normalized,
+          part: parts[0]!,
+        });
+
   return {
     ruleId: ID,
     severity: 'error',
     nodeIds,
-    message: tx(TRIGGER_COLLISION_TEXTS.message, {
-      normalized,
-      parts: parts.join(TRIGGER_COLLISION_TEXTS.partsJoiner),
-    }),
+    message,
     data: {
       normalizedTrigger: normalized,
       invocationTargets,

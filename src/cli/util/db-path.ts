@@ -17,8 +17,18 @@ import { tx } from '../../kernel/util/tx.js';
 import { UTIL_TEXTS } from '../i18n/util.texts.js';
 import type { IRuntimeContext } from './runtime-context.js';
 
-const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
-const DEFAULT_GLOBAL_DB = '.skill-map/skill-map.db';
+/**
+ * Per-scope directory the CLI stores its state under (DB file, settings,
+ * plugins, etc.). Same name in project (`<cwd>/.skill-map/`) and global
+ * (`~/.skill-map/`) scopes; the difference is the parent. Exported so
+ * write-side scaffolding (`sm init`) and other helpers can reuse the
+ * convention without duplicating the literal.
+ */
+export const SKILL_MAP_DIR = '.skill-map';
+
+const DB_FILENAME = 'skill-map.db';
+const DEFAULT_PROJECT_DB = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
+const DEFAULT_GLOBAL_DB = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
 
 /**
  * Inputs for `resolveDbPath`. Extends `IRuntimeContext` so the helper

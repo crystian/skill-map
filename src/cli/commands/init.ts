@@ -34,6 +34,7 @@ import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { tx } from '../../kernel/util/tx.js';
 import { INIT_TEXTS } from '../i18n/init.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
+import { SKILL_MAP_DIR } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -96,7 +97,7 @@ export class InitCommand extends Command {
     const elapsed = startElapsed();
     const ctx = defaultRuntimeContext();
     const scopeRoot = this.global ? ctx.homedir : ctx.cwd;
-    const skillMapDir = join(scopeRoot, '.skill-map');
+    const skillMapDir = join(scopeRoot, SKILL_MAP_DIR);
     const settingsPath = join(skillMapDir, 'settings.json');
     const localPath = join(skillMapDir, 'settings.local.json');
     const ignorePath = join(scopeRoot, '.skill-mapignore');
