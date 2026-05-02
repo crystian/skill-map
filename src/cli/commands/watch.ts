@@ -52,6 +52,7 @@ import {
   filterBuiltInManifests,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { SmCommand } from '../util/sm-command.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 export interface IRunWatchOptions {
@@ -67,7 +68,16 @@ export interface IRunWatchOptions {
   };
   /** Test hook: when set, the watcher closes after this many batches. */
   maxBatches?: number;
+  /**
+   * Circuit breaker — after N consecutive batch failures the watcher
+   * shuts down with exit 2. Defaults to 5. A successful batch resets
+   * the counter. Set to 0 to disable the breaker (the historical
+   * behaviour: log and continue forever).
+   */
+  maxConsecutiveFailures?: number;
 }
+
+const DEFAULT_MAX_CONSECUTIVE_FAILURES = 5;
 
 /**
  * Shared implementation behind `sm watch` and `sm scan --watch`.
@@ -168,21 +178,12 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     }
     if (priorExtractorRuns) runOptions.priorExtractorRuns = priorExtractorRuns;
 
-    let result: ScanResult;
-    let renameOps: RenameOp[];
-    let extractorRuns: IExtractorRunRecord[];
-    let enrichments: IEnrichmentRecord[];
-    try {
-      const ran = await runScanWithRenames(kernel, runOptions);
-      result = ran.result;
-      renameOps = ran.renameOps;
-      extractorRuns = ran.extractorRuns;
-      enrichments = ran.enrichments;
-    } catch (err) {
-      const message = formatErrorMessage(err);
-      context.stderr.write(tx(WATCH_TEXTS.scanFailed, { message }));
-      return;
-    }
+    // Errors propagate to the caller (initial-scan path or per-batch
+    // handler) so the breaker can count them. Swallowing here would
+    // hide a permanent failure under the per-batch "batch failed" line
+    // forever.
+    const ran = await runScanWithRenames(kernel, runOptions);
+    const { result, renameOps, extractorRuns, enrichments } = ran;
 
     await withSqlite({ databasePath: dbPath }, (writer) =>
       writer.scans.persist(result, { renameOps, extractorRuns, enrichments }),
@@ -222,21 +223,43 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     stopResolve = r;
   });
 
+  // Circuit breaker — N consecutive batch failures trigger a graceful
+  // shutdown with exit 2. A successful batch resets the counter; a
+  // value of 0 disables the breaker (log-and-continue forever).
+  const breakerLimit = opts.maxConsecutiveFailures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES;
+  let consecutiveFailures = 0;
+  let exitCode: number = ExitCode.Ok;
+
+  const handleBatch = async (): Promise<'continue' | 'stop'> => {
+    if (stopRequested) return 'stop';
+    batchCount++;
+    try {
+      await runOnePass();
+      consecutiveFailures = 0;
+    } catch (err) {
+      const message = formatErrorMessage(err);
+      context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message }));
+      consecutiveFailures += 1;
+      if (breakerLimit > 0 && consecutiveFailures >= breakerLimit) {
+        context.stderr.write(
+          tx(WATCH_TEXTS.breakerTripped, { count: consecutiveFailures, message }),
+        );
+        exitCode = ExitCode.Error;
+        return 'stop';
+      }
+    }
+    if (opts.maxBatches !== undefined && batchCount >= opts.maxBatches) return 'stop';
+    return 'continue';
+  };
+
   const watcher = createChokidarWatcher({
     roots: opts.roots,
     cwd,
     debounceMs,
     ignoreFilter,
     onBatch: async () => {
-      if (stopRequested) return;
-      batchCount++;
-      try {
-        await runOnePass();
-      } catch (err) {
-        const message = formatErrorMessage(err);
-        context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message }));
-      }
-      if (opts.maxBatches !== undefined && batchCount >= opts.maxBatches) {
+      const next = await handleBatch();
+      if (next === 'stop') {
         stopRequested = true;
         stopResolve?.();
       }
@@ -270,10 +293,10 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   if (!opts.json) {
     context.stderr.write(tx(WATCH_TEXTS.stopped, { batchCount }));
   }
-  return ExitCode.Ok;
+  return exitCode;
 }
 
-export class WatchCommand extends Command {
+export class WatchCommand extends SmCommand {
   static override paths = [['watch']];
 
   static override usage = Command.Usage({
@@ -302,9 +325,6 @@ export class WatchCommand extends Command {
   });
 
   roots = Option.Rest({ name: 'roots' });
-  json = Option.Boolean('--json', false, {
-    description: 'Emit one ScanResult document per batch as ndjson on stdout.',
-  });
   noTokens = Option.Boolean('--no-tokens', false, {
     description: 'Skip per-node token counts (cl100k_base BPE).',
   });
@@ -314,16 +334,49 @@ export class WatchCommand extends Command {
   noPlugins = Option.Boolean('--no-plugins', false, {
     description: 'Skip drop-in plugin discovery for the watcher session.',
   });
+  maxConsecutiveFailures = Option.String('--max-consecutive-failures', {
+    required: false,
+    description:
+      'Shut down with exit 2 after N consecutive batch failures (default 5; 0 disables the breaker).',
+  });
 
-  async execute(): Promise<number> {
+  // Long-running verb — the watcher prints its own "stopped" line on
+  // SIGINT / SIGTERM. Adding `done in <…>` after that would be noise.
+  protected override emitElapsed = false;
+
+  protected async run(): Promise<number> {
     const roots = this.roots.length > 0 ? this.roots : ['.'];
-    return runWatchLoop({
+    const breaker = parseBreakerLimit(this.maxConsecutiveFailures, this.context.stderr);
+    if (breaker === null) return ExitCode.Error;
+    const watchOpts: IRunWatchOptions = {
       roots,
       json: this.json,
       noTokens: this.noTokens,
       strict: this.strict,
       noPlugins: this.noPlugins,
       context: this.context,
-    });
+    };
+    if (breaker !== undefined) watchOpts.maxConsecutiveFailures = breaker;
+    return runWatchLoop(watchOpts);
   }
+}
+
+/**
+ * Parse the raw `--max-consecutive-failures <n>` flag value. Returns
+ * `undefined` when the flag is absent (caller falls through to the
+ * default), `null` when the value is invalid (caller exits 2), or the
+ * parsed non-negative integer otherwise.
+ */
+function parseBreakerLimit(
+  raw: string | undefined,
+  stderr: NodeJS.WritableStream,
+): number | undefined | null {
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
+    stderr.write(`sm watch: --max-consecutive-failures must be a non-negative integer (got ${raw})\n`);
+    return null;
+  }
+  return parsed;
 }

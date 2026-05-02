@@ -50,6 +50,7 @@ import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { CONFORMANCE_TEXTS } from '../i18n/conformance.texts.js';
 import { ExitCode, type TExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { SmCommand } from '../util/sm-command.js';
 import { truncateHead } from '../util/text.js';
 import {
   listCaseFiles,
@@ -110,7 +111,7 @@ function resolveBinary(): string {
   return resolve(here, '..', '..', 'bin', 'sm.js');
 }
 
-export class ConformanceRunCommand extends Command {
+export class ConformanceRunCommand extends SmCommand {
   static override paths = [['conformance', 'run']];
 
   static override usage = Command.Usage({
@@ -158,7 +159,7 @@ export class ConformanceRunCommand extends Command {
   // CLI orchestrator: scope resolution + per-case run loop +
   // per-result render branches + global pass/fail decision.
   // eslint-disable-next-line complexity
-  async execute(): Promise<TExitCode> {
+  protected async run(): Promise<TExitCode> {
     let scopes: IConformanceScope[];
     try {
       scopes = selectConformanceScopes(this.scope);

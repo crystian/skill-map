@@ -3,9 +3,9 @@
  *
  * Detail view for a single node: weight (bytes/tokens triple-split),
  * frontmatter, links in/out, current issues. `--json` emits a detail
- * object with `node`, `linksOut`, `linksIn`, `issues`, plus the future
- * `findings` (Step 10) and `summary` (Step 11) slots reserved as
- * `[]` / `null` so consumers don't break when those land.
+ * object with `node`, `linksOut`, `linksIn`, `issues`. Step 10
+ * (findings) and Step 11 (summary) will add fields when their backing
+ * tables ship — additive, so today's consumers stay green.
  *
  * Exit codes (per `spec/cli-contract.md` §Exit codes):
  *   0  ok
@@ -19,6 +19,7 @@ import type { Issue, Link, Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -29,22 +30,18 @@ interface IShowDocument {
   linksOut: Link[];
   linksIn: Link[];
   issues: Issue[];
-  // TODO Step 10: populate from `state_findings` once the table lands.
-  findings: never[];
-  // TODO Step 11: populate from `state_summaries` once summarisers ship.
-  summary: null;
 }
 
-export class ShowCommand extends Command {
+export class ShowCommand extends SmCommand {
   static override paths = [['show']];
   static override usage = Command.Usage({
     category: 'Browse',
-    description: 'Node detail: weight, frontmatter, links, issues, findings, summary.',
+    description: 'Node detail: weight, frontmatter, links, issues.',
     details: `
       Loads a single node from the persisted snapshot, plus every link
-      (in and out) and every current issue touching it. Findings and
-      summaries are reserved slots and remain empty / null until the
-      Step 10 / Step 11 features land.
+      (in and out) and every current issue touching it. Step 10
+      (findings) and Step 11 (summary) will add fields when their
+      backing tables ship.
 
       Run \`sm scan\` first to populate the DB.
     `,
@@ -55,11 +52,8 @@ export class ShowCommand extends Command {
   });
 
   nodePath = Option.String({ required: true });
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
-  json = Option.Boolean('--json', false);
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
@@ -75,8 +69,6 @@ export class ShowCommand extends Command {
         linksOut: bundle.linksOut,
         linksIn: bundle.linksIn,
         issues: bundle.issues,
-        findings: [],
-        summary: null,
       };
 
       if (this.json) {
@@ -125,8 +117,6 @@ function renderHuman(doc: IShowDocument): string {
   out.push(...renderLinksSection(SHOW_TEXTS.sectionLinksOut, linksOut, 'target', '→'));
   out.push(...renderLinksSection(SHOW_TEXTS.sectionLinksIn, linksIn, 'source', '←'));
   out.push(...renderIssuesSection(issues));
-  // findings + summary intentionally omitted until the Step 10 / 11
-  // features land — keeping an empty section header would mislead.
   return out.join('\n') + '\n';
 }
 

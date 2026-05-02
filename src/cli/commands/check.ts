@@ -56,12 +56,13 @@ import {
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
+import { SmCommand } from '../util/sm-command.js';
 import { tx } from '../../kernel/util/tx.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const SEVERITY_ORDER: Severity[] = ['error', 'warn', 'info'];
 
-export class CheckCommand extends Command {
+export class CheckCommand extends SmCommand {
   static override paths = [['check']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -89,9 +90,6 @@ export class CheckCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
-  json = Option.Boolean('--json', false);
   node = Option.String('-n,--node', {
     required: false,
     description:
@@ -115,7 +113,7 @@ export class CheckCommand extends Command {
       'Skip drop-in plugin discovery; only kernel built-ins participate in the prob detection. Same flag shape as `sm scan`.',
   });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 

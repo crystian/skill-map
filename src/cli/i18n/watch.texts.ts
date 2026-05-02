@@ -28,4 +28,7 @@ export const WATCH_TEXTS = {
 
   priorSchemaValidationFailed:
     'prior scan-result loaded from DB failed schema validation: {{errors}}',
+
+  breakerTripped:
+    'sm watch: {{count}} consecutive batch failures — shutting down. Last error: {{message}}\n',
 } as const;

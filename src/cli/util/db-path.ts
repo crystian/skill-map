@@ -29,6 +29,9 @@ export const SKILL_MAP_DIR = '.skill-map';
 const DB_FILENAME = 'skill-map.db';
 const JOBS_DIRNAME = 'jobs';
 const PLUGINS_DIRNAME = 'plugins';
+const SETTINGS_FILENAME = 'settings.json';
+const LOCAL_SETTINGS_FILENAME = 'settings.local.json';
+const IGNORE_FILENAME = '.skill-mapignore';
 
 /**
  * Single source of truth for the relative DB path inside a scope
@@ -37,6 +40,16 @@ const PLUGINS_DIRNAME = 'plugins';
  * resolves against.
  */
 const DEFAULT_DB_REL = `${SKILL_MAP_DIR}/${DB_FILENAME}`;
+
+/**
+ * Entries `sm init` appends to the project `.gitignore`. Centralised
+ * here (instead of the verb file) so the literals live alongside their
+ * filename constants and the verb consumes them as a frozen list.
+ */
+export const GITIGNORE_ENTRIES: readonly string[] = [
+  `${SKILL_MAP_DIR}/${LOCAL_SETTINGS_FILENAME}`,
+  `${SKILL_MAP_DIR}/${DB_FILENAME}`,
+];
 
 /**
  * Inputs for `resolveDbPath`. Extends `IRuntimeContext` so the helper
@@ -100,6 +113,42 @@ export function defaultProjectPluginsDir(ctx: IRuntimeContext): string {
  */
 export function defaultUserPluginsDir(ctx: IRuntimeContext): string {
   return join(ctx.homedir, SKILL_MAP_DIR, PLUGINS_DIRNAME);
+}
+
+/**
+ * Default DB path under an arbitrary scope root
+ * (`<scopeRoot>/.skill-map/skill-map.db`). Companion to
+ * `defaultProjectDbPath` for callers that already resolved the scope
+ * root themselves (today: `sm init`, which switches between
+ * `cwd`/`homedir` based on `--global`).
+ */
+export function defaultDbPath(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, DB_FILENAME);
+}
+
+/**
+ * Default settings file (`<scopeRoot>/.skill-map/settings.json`).
+ */
+export function defaultSettingsPath(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, SETTINGS_FILENAME);
+}
+
+/**
+ * Default local-overrides settings file
+ * (`<scopeRoot>/.skill-map/settings.local.json`).
+ */
+export function defaultLocalSettingsPath(scopeRoot: string): string {
+  return join(scopeRoot, SKILL_MAP_DIR, LOCAL_SETTINGS_FILENAME);
+}
+
+/**
+ * Default `.skill-mapignore` file path
+ * (`<scopeRoot>/.skill-mapignore`). Sits at the scope root, NOT inside
+ * `.skill-map/` — `sm scan` reads it from the same level as `package.json`
+ * etc. so authors can keep ignore rules visible in the project tree.
+ */
+export function defaultIgnoreFilePath(scopeRoot: string): string {
+  return join(scopeRoot, IGNORE_FILENAME);
 }
 
 /**

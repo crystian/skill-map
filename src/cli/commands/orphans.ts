@@ -29,9 +29,9 @@ import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { confirm } from '../util/confirm.js';
-import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { ORPHANS_TEXTS } from '../i18n/orphans.texts.js';
+import { SmCommand } from '../util/sm-command.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const ORPHAN_RULE_IDS = ['orphan', 'auto-rename-medium', 'auto-rename-ambiguous'] as const;
@@ -62,7 +62,7 @@ function isStringArray(v: unknown): v is string[] {
 
 // --- sm orphans -----------------------------------------------------------
 
-export class OrphansCommand extends Command {
+export class OrphansCommand extends SmCommand {
   static override paths = [['orphans']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -81,15 +81,9 @@ export class OrphansCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   kind = Option.String('--kind', { required: false });
-  json = Option.Boolean('--json', false);
-  quiet = Option.Boolean('--quiet', false);
 
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
-
+  protected async run(): Promise<number> {
     let ruleFilter: OrphanRuleId | null = null;
     if (this.kind !== undefined) {
       const map: Record<string, OrphanRuleId> = {
@@ -123,8 +117,6 @@ export class OrphansCommand extends Command {
       } else {
         this.context.stdout.write(renderOrphans(found.map((f) => f.issue)));
       }
-
-      emitDoneStderr(this.context.stderr, elapsed, this.quiet);
       return ExitCode.Ok;
     });
   }
@@ -132,7 +124,7 @@ export class OrphansCommand extends Command {
 
 // --- sm orphans reconcile -------------------------------------------------
 
-export class OrphansReconcileCommand extends Command {
+export class OrphansReconcileCommand extends SmCommand {
   static override paths = [['orphans', 'reconcile']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -152,16 +144,11 @@ export class OrphansReconcileCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   orphanPath = Option.String({ required: true });
   to = Option.String('--to', { required: true });
   dryRun = Option.Boolean('-n,--dry-run', false);
-  quiet = Option.Boolean('--quiet', false);
 
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
-
+  protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
@@ -244,7 +231,6 @@ export class OrphansReconcileCommand extends Command {
           ),
         );
       }
-      emitDoneStderr(this.context.stderr, elapsed, this.quiet);
       return ExitCode.Ok;
     });
   }
@@ -252,7 +238,7 @@ export class OrphansReconcileCommand extends Command {
 
 // --- sm orphans undo-rename ----------------------------------------------
 
-export class OrphansUndoRenameCommand extends Command {
+export class OrphansUndoRenameCommand extends SmCommand {
   static override paths = [['orphans', 'undo-rename']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -276,17 +262,12 @@ export class OrphansUndoRenameCommand extends Command {
     ],
   });
 
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   newPath = Option.String({ required: true });
   from = Option.String('--from', { required: false });
   force = Option.Boolean('--force', false);
   dryRun = Option.Boolean('-n,--dry-run', false);
-  quiet = Option.Boolean('--quiet', false);
 
-  async execute(): Promise<number> {
-    const elapsed = startElapsed();
-
+  protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
@@ -385,7 +366,6 @@ export class OrphansUndoRenameCommand extends Command {
           rows: summaryTotal(summary),
         }),
       );
-      emitDoneStderr(this.context.stderr, elapsed, this.quiet);
       return ExitCode.Ok;
     });
   }

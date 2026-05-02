@@ -27,6 +27,7 @@ import { GRAPH_TEXTS } from '../i18n/graph.texts.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { SmCommand } from '../util/sm-command.js';
 import {
   composeFormatters,
   emptyPluginRuntime,
@@ -36,7 +37,7 @@ import { withSqlite } from '../util/with-sqlite.js';
 
 const DEFAULT_FORMAT = 'ascii';
 
-export class GraphCommand extends Command {
+export class GraphCommand extends SmCommand {
   static override paths = [['graph']];
   static override usage = Command.Usage({
     category: 'Browse',
@@ -59,13 +60,11 @@ export class GraphCommand extends Command {
   format = Option.String('--format', DEFAULT_FORMAT, {
     description: `Formatter format. Must match the \`formatId\` field of a registered formatter. Default: ${DEFAULT_FORMAT}.`,
   });
-  global = Option.Boolean('-g,--global', false);
-  db = Option.String('--db', { required: false });
   noPlugins = Option.Boolean('--no-plugins', false, {
     description: 'Skip drop-in plugin discovery. Only built-in formatters participate.',
   });
 
-  async execute(): Promise<number> {
+  protected async run(): Promise<number> {
     const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 

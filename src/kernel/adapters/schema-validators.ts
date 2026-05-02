@@ -32,15 +32,10 @@ import { dirname, resolve } from 'node:path';
 import { createRequire } from 'node:module';
 
 import { Ajv2020, type ValidateFunction } from 'ajv/dist/2020.js';
-import addFormatsModule from 'ajv-formats';
 
 import type { IProvider } from '../extensions/index.js';
 import type { ExtensionKind } from '../registry.js';
-
-// ajv-formats ships CJS-first; the default export is the callable plugin
-// under ESM interop but TS sometimes types it as the namespace. Normalise.
-const addFormats = (addFormatsModule as unknown as { default?: typeof addFormatsModule })
-  .default ?? addFormatsModule;
+import { applyAjvFormats } from '../util/ajv-interop.js';
 
 type TAjv = InstanceType<typeof Ajv2020>;
 
@@ -138,7 +133,7 @@ function buildSchemaValidators(): ISchemaValidators {
     allErrors: true,
     allowUnionTypes: true,
   });
-  (addFormats as unknown as (a: TAjv) => void)(ajv);
+  applyAjvFormats(ajv);
 
   // Add supporting schemas first so $ref targets resolve during compile.
   for (const rel of SUPPORTING_SCHEMAS) {
@@ -240,7 +235,7 @@ export function buildProviderFrontmatterValidator(
     allErrors: true,
     allowUnionTypes: true,
   });
-  (addFormats as unknown as (a: TAjv) => void)(ajv);
+  applyAjvFormats(ajv);
 
   // Register spec's frontmatter/base.schema.json so per-kind schemas can
   // resolve `$ref: 'https://skill-map.dev/spec/v0/frontmatter/base.schema.json'`.
