@@ -47,6 +47,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
+    "dev:serve": "node ../scripts/dev-serve.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -57,17 +58,20 @@
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
+    "@hono/node-server": "2.0.1",
     "@skill-map/spec": "*",
     "ajv": "8.18.0",
     "ajv-formats": "3.0.1",
     "chokidar": "5.0.0",
     "clipanion": "4.0.0-rc.4",
+    "hono": "4.12.16",
     "ignore": "7.0.5",
     "js-tiktoken": "1.0.21",
     "js-yaml": "4.1.1",
     "kysely": "0.28.16",
     "semver": "7.7.4",
-    "typanion": "3.14.0"
+    "typanion": "3.14.0",
+    "ws": "8.20.0"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -75,6 +79,7 @@
     "@types/js-yaml": "4.0.9",
     "@types/node": "24.12.2",
     "@types/semver": "7.7.1",
+    "@types/ws": "8.18.1",
     "c8": "11.0.0",
     "eslint": "10.2.1",
     "eslint-plugin-import-x": "4.16.2",

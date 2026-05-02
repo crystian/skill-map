@@ -170,10 +170,10 @@
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "11a95c44a9dd97180d2e281ba652b53e530020c592763113874a8c8bbd65ece8",
+      "CHANGELOG.md": "6d39e3e551e754307c4c3642988b4c65344b0c9125a147531de6139727ec5271",
       "README.md": "bd30780525e75379eaeb5f8a903bdc601daf3862f3ec69dffc96c437e8d476fc",
       "architecture.md": "9a6d96d150af60ed8d476af572d07dcce605f116fde720bebb2662b11250bf4b",
-      "cli-contract.md": "62a0f89f4da6207499b26c4ca8e35f3d59054a7521834698e5007f697b514af2",
+      "cli-contract.md": "89dcd366624821c1ab77d1014229b4c209953f337d0c62d16b24472c64c3bad4",
       "conformance/README.md": "838b1247e1ffb402d96bd8a0fe9c1c0f4a99ed0fbc4bf8156f7a58330cac27f5",
       "conformance/cases/kernel-empty-boot.json": "ad4bbe9d637537625025c8bdb61285b1433568a2544b1ce0248f304ccff8c350",
       "conformance/coverage.md": "4df23b78ec44887dc355e0622b9008bb2514f3b8e9c302db18eb51532fda5275",

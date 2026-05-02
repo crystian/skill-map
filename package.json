@@ -29,6 +29,7 @@
     "web:docker": "npm run web:docker:build && npm run web:docker:run",
     "sqlite": "node scripts/open-sqlite-browser.js",
     "build": "npm run build --workspace=@skill-map/cli",
+    "dev:serve": "npm run dev:serve --workspace=@skill-map/cli",
     "typecheck": "npm run typecheck --workspace=@skill-map/cli",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",

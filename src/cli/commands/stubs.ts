@@ -288,24 +288,10 @@ export class RecordCommand extends Command {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Server
+// Server — `sm serve` moved out of this file at Step 14.1; the real
+// implementation lives at `cli/commands/serve.ts` (Hono BFF skeleton +
+// single-port mandate).
 // ---------------------------------------------------------------------------
-
-export class ServeCommand extends Command {
-  static override paths = [['serve']];
-  static override usage = Command.Usage({
-    category: 'Setup',
-    description: planned('Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener.'),
-  });
-  port = Option.String('--port', { required: false });
-  host = Option.String('--host', { required: false });
-  noOpen = Option.Boolean('--no-open', false);
-
-  async execute(): Promise<number> {
-    // Step 12 territory.
-    return notImplemented(this, 'serve');
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Aggregate export
@@ -325,5 +311,4 @@ export const STUB_COMMANDS = [
   JobStatusCommand,
   JobCancelCommand,
   RecordCommand,
-  ServeCommand,
 ];

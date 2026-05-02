@@ -172,6 +172,25 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
 
 ## [Unreleased]
 
+### Minor
+
+- **`sm serve` row + `### Server` subsection** in `cli-contract.md` —
+  Step 14.1 promotes `sm serve` from an implementation-defined stub to a
+  documented surface. The verb row at `§Verb catalog` › `### Server`
+  expands the flag set to the full 14.1 contract: `--port` (default
+  `4242`), `--host` (default `127.0.0.1`, loopback-only through v0.6.0),
+  `--scope project|global`, `--db <path>`, `--no-built-ins`,
+  `--no-plugins`, `--open` / `--no-open`, `--dev-cors`, `--ui-dist
+  <path>` (hidden). New `#### Server` subsection documents the
+  single-port mandate, the boot-with-missing-DB resilience contract
+  (`/api/health` returns `db: 'missing'`), the v14.1 endpoint surface
+  (`GET /api/health` real, `ALL /api/*` 404 stubs, `GET /ws` upgrade-only,
+  static + SPA fallback), the structured error envelope shape, and the
+  flag table. Marked `*(Stability: experimental — locks at v0.6.0.)*` —
+  endpoints fill at v14.2, broadcaster at v14.4. Additive minor per
+  `versioning.md` § Pre-1.0 (no breaking change to the existing row's
+  semantics; the old wording was strictly less specific).
+
 ### Minor (breaking, pre-1.0)
 
 - **`Node.kind` opens to any non-empty string (was the closed enum

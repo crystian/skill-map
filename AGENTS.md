@@ -111,13 +111,13 @@ When in doubt: "does this shape exist in the spec?". Yes → no prefix, name fro
 
 ## Kernel boundaries & adapter wiring
 
-The kernel is NOT allowed to know about its drivers. The CLI is one such driver; future drivers (HTTP server, in-memory test harness) should drop in without the kernel changing. The lint config (`src/eslint.config.js`) enforces these invariants structurally — they cannot regress silently.
+The kernel is NOT allowed to know about its drivers. Today there are two drivers: `src/cli/` (Clipanion verbs) and `src/server/` (Hono BFF). Future drivers (in-memory test harness, IDE plugin, …) drop in without the kernel changing. The lint config (`src/eslint.config.js`) enforces these invariants structurally — they cannot regress silently.
 
 1. **No `console.*` in `src/kernel/**`**. Use the singleton logger: `import { log } from '<.../>kernel/util/logger.js'`. The CLI installs the active impl at boot via `configureLogger(new Logger({ level, stream }))`. The default is `SilentLogger`. Tests install a capture logger and call `resetLogger()` in `try/finally` (or `afterEach`) to avoid cross-test bleed. The port shape (`LoggerPort`, `LogLevel`, `LogRecord`) lives in `src/kernel/ports/logger.ts`; the proxy + setters in `src/kernel/util/logger.ts`.
 
 2. **No `process.cwd()` / `process.env` / `os.homedir()` in `src/kernel/**`**. Kernel APIs that need a runtime context take it through their options bag, **mandatory** (not optional with a fallback). The CLI bridges via `defaultRuntimeContext()` in `src/cli/util/runtime-context.ts` — returns `{ cwd: process.cwd(), homedir: homedir() }`. Pattern: `loadConfig({ scope: 'project', ...defaultRuntimeContext() })`.
 
-3. **No imports from `src/cli/**` inside `src/kernel/**`**. The reverse direction is fine. Enforced by `no-restricted-imports`.
+3. **No imports from `src/cli/**` inside `src/kernel/**`**. The reverse direction is fine. Enforced by `no-restricted-imports`. The same rule applies to `src/server/**` — kernel never imports the BFF driver. Cross-driver borrowing (the BFF reaching into `src/cli/util/`) IS allowed and used today: `cli/commands/serve.ts` consumes `createServer` from `src/server/`, and `src/server/` consumes the kernel + a small set of CLI utilities (error reporter, sanitization, exit codes, runtime context). The BFF never adds kernel side effects of its own — it reads from / writes to the kernel via its public API.
 
 4. **Adapter classes MUST `implements`-declare their port**: `class PluginLoader implements PluginLoaderPort`, `class SqliteStorageAdapter implements StoragePort`. Drift between port shape and concrete adapter becomes a TS compile error, not a hand-audit.
 
@@ -137,6 +137,25 @@ Two directories with similar-sounding names; tell them apart by purpose:
 
 Mnemonic: "kernel/extensions = what shape; built-in-plugins = what code." When wiring from the CLI: import the **runtime instance** from `built-in-plugins/built-ins.ts`; import the **type** from `kernel/extensions/<kind>.ts`.
 
+## Source layout: BFF (Hono server)
+
+`src/server/` houses the Hono BFF — peer of `src/cli/`, not under it. Hono is a driver, not a kernel port impl, so the same kernel-boundary rules apply: no `console.*`, no direct `process.cwd()` / `process.env` / `os.homedir()` (the verb threads `defaultRuntimeContext()` in), all i18n via `tx()` against `src/server/i18n/server.texts.ts`.
+
+Files (Step 14.1 surface — endpoints fill at 14.2, broadcaster at 14.4):
+
+- `src/server/index.ts` — composition root: `createServer(opts: IServerOptions): Promise<ServerHandle>`. Resolves the spec version, builds the Hono app via `createApp`, instantiates a `WebSocketServer({ noServer: true })` from `ws@8`, and hands both to `@hono/node-server`'s `serve({ websocket: { server: wss } })` so REST + WS share one listener. Closing the http server tears the WSS down automatically (node-server registers the `'close'` hook internally); `close()` calls `wss.close()` defensively for forward-compatibility. Returns `{ address, close }` for graceful shutdown.
+- `src/server/app.ts` — Hono app construction. Routes registered in single-port order: `GET /api/health` real, `ALL /api/*` 404 envelope, `GET /ws` via the injected `attachWs` registrar, static handler + SPA fallback. Global `app.onError` formats every uncaught throw into the structured error envelope (`{ ok: false, error: { code, message, details } }`).
+- `src/server/options.ts` — `IServerOptions` + `validateServerOptions`. Loopback-only check for `--dev-cors`; port range `[0, 65535]`; scope validation (`'project' | 'global'`).
+- `src/server/paths.ts` — `resolveDefaultUiDist(ctx)` walks upwards from cwd; `resolveExplicitUiDist(ctx, raw)` honours absolute paths for `--ui-dist`.
+- `src/server/static.ts` — wraps `@hono/node-server`'s `serveStatic` middleware with the SPA-fallback layer (`serveStatic` `next()`s on miss, which is the seam we hook into). Absolute root paths work on POSIX in node-server@2.0.1 (runtime-verified — implementation is `path.join(root, filename)`); the `.d.ts` "absolute paths not supported" string is stale per upstream issue honojs/node-server#187. When the UI bundle is missing (`uiDist === null`), a tiny placeholder middleware serves the boot-without-bundle hint at `/`.
+- `src/server/ws.ts` — `noopWebSocketRoute(app)` registers `GET /ws` via the official `upgradeWebSocket` re-exported from `@hono/node-server@2.x`. The 14.1 handler closes the connection in `onOpen` with code 1000 + reason `'no broadcaster yet'`. The previously-published `@hono/node-ws` adapter is deprecated (node-server@2.0 absorbed WebSocket support natively, PR honojs/node-server#328); the canonical pairing is now `@hono/node-server@2.x` + `ws@8` (the upstream README pattern). 14.4 swaps `noopWebSocketRoute` for the chokidar-fed broadcaster — one-line change in `index.ts`, `app.ts` untouched.
+- `src/server/health.ts` — `buildHealth(deps)` synchronous; `resolveSpecVersion()` async, called once at boot.
+- `src/server/i18n/server.texts.ts` — `SERVER_TEXTS` catalog.
+
+The CLI surface is `src/cli/commands/serve.ts` — extends `SmCommand` with `protected emitElapsed = false` (long-running daemon, mirrors `sm watch`). The verb is the only place that reads `process.argv` / `process.env` / `process.cwd()`; everything below is driven by the assembled `IServerOptions` bag.
+
+Tests live under `src/test/server-*.test.ts` (`server-boot.test.ts`, `server-flags.test.ts`, `server-db-missing.test.ts` today). Style: `node --test` + `tsx`, every `createServer` paired with `await handle.close()` in a `try/finally`. Use `--port 0` so the OS picks a free port.
+
 ## i18n strategy: where strings live
 
 User-facing text in the **CLI** uses the `tx(*_TEXTS.*)` system end-to-end:
@@ -147,6 +166,7 @@ User-facing text in the **CLI** uses the `tx(*_TEXTS.*)` system end-to-end:
 - The kernel emits text via `kernel/i18n/<module>.texts.ts` for the same reason; mirroring the pattern keeps the future Transloco / message-format migration trivial.
 - **Built-in plugins follow the same rule.** `Issue.message` strings emitted by `built-in-plugins/rules/*` and any user-visible text rendered by `built-in-plugins/formatters/*` (or `extractors/*`, when a future built-in extractor surfaces user-readable output) MUST come from `built-in-plugins/i18n/<id>.texts.ts`. Issue messages persist in `scan_issues.message` and surface through `sm check` / `sm show` / `sm export` — they are user-facing exactly like CLI stdout. The catalog naming mirrors the rule / formatter id (`broken-ref.texts.ts`, `ascii.texts.ts`).
 - **Conformance runner follows the same rule.** Assertion `reason` strings produced by `src/conformance/index.ts` are surfaced verbatim to stderr by `sm conformance run` — they are user-facing. Source them from `src/conformance/i18n/runner.texts.ts` via `tx(CONFORMANCE_RUNNER_TEXTS.*, { vars })`.
+- **BFF (Hono server) follows the same rule.** Strings the server writes to `stdout` / `stderr` (boot banner, shutdown trace, missing-bundle hint) source from `src/server/i18n/server.texts.ts` (`SERVER_TEXTS`); the `sm serve` CLI verb's strings source from `src/cli/i18n/serve.texts.ts` (`SERVE_TEXTS`). HTTP response bodies (the `/api/*` JSON envelopes) are NOT user-facing in the same way — they are machine-readable contract surface and stay where they belong (`src/server/app.ts` formats them inline against the documented envelope shape).
 
 Why this discipline today even without a real i18n framework: it keeps every user-visible string in a flat, greppable, JSON-shaped catalog, ready to drop into a translator pipeline the day a non-English locale lands. Until then, it is also the cheapest way to enforce "no copy-changes hidden inside command logic" — every wording lives in one place.
 

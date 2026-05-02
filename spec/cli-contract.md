@@ -316,7 +316,55 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 | Command | Purpose |
 |---|---|
-| `sm serve [--port N] [--host ...] [--no-open]` | Start Hono + WebSocket for the Web UI. Default port is implementation-defined but MUST be the same across runs. Implementations MUST NOT bind 0.0.0.0 by default. |
+| `sm serve [--port N] [--host ...] [--scope project\|global] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only through v0.6.0; multi-host deferred — see §Server). |
+
+#### Server
+
+*(Stability: experimental — locks at v0.6.0.)*
+
+The reference implementation ships a Hono BFF rooted at `src/server/`. One Node process serves the Angular SPA, the REST API under `/api/*`, and the WebSocket at `/ws` — single-port mandate, no proxy. Loopback-only assumption through v0.6.0: no per-connection auth on `/ws`; combining `--dev-cors` with a non-loopback `--host` is rejected (exit 2).
+
+**Boot resilience**: `sm serve` boots even when the project DB is missing. `/api/health` reports `db: 'missing'` so the SPA can render an empty-state CTA instead of failing the connection. Explicit `--db <path>` that doesn't exist is the exception — that exits 5 (NotFound) per `§Exit codes`.
+
+**Endpoints (v14.1 surface)**:
+
+| Path | Status | Shape |
+|---|---|---|
+| `GET /api/health` | implemented | `{ ok: true, schemaVersion, specVersion, implVersion, scope: 'project'\|'global', db: 'present'\|'missing' }` |
+| `ALL /api/*` (other) | reserved | structured 404 envelope (see below); real endpoints land at v14.2 |
+| `GET /ws` | upgrade-only | accepts WebSocket upgrade and immediately closes; broadcaster lands at v14.4 |
+| `GET *` | implemented | static asset from the resolved UI bundle, falling back to `index.html` for SPA deep links |
+
+**Error envelope** (mirrors `§Machine-readable output rules`):
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "not-found" | "bad-query" | "db-missing" | "internal",
+    "message": "<human-readable>",
+    "details": { ... } | null
+  }
+}
+```
+
+HTTP status mapping: `400` → `bad-query`, `404` → `not-found`, `500` → `internal` / `db-missing`.
+
+**Flag surface**:
+
+| Flag | Default | Purpose |
+|---|---|---|
+| `--port N` | `4242` | Listening port. `0` = OS-assigned (handle reports the bound port). |
+| `--host <ip>` | `127.0.0.1` | Listening host. Implementations MUST NOT bind `0.0.0.0` by default. |
+| `--scope project\|global` | `project` | Effective scope for `/api/*` reads. Alias for `-g/--global`. |
+| `--db <path>` | resolved per spec § Global flags | Override the DB file location. Missing explicit `--db` exits 5. |
+| `--no-built-ins` | off | Skip built-in plugin registration (parity with `sm scan --no-built-ins`). |
+| `--no-plugins` | off | Skip drop-in plugin discovery. |
+| `--open` / `--no-open` | `--open` | Auto-open the SPA in the user's default browser after listen. |
+| `--dev-cors` | off | Enable permissive CORS for the Angular dev-server proxy workflow. Loopback-only when set. |
+| `--ui-dist <path>` | auto | Override the UI bundle directory. Hidden flag — used by the demo build pipeline + tests; everyday users never need it. |
+
+**Graceful shutdown**: SIGINT / SIGTERM trigger a graceful close; the verb returns exit 0 on clean shutdown. Bind failure (port in use, EACCES) returns exit 2.
 
 ---
 
