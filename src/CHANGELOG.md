@@ -1,5 +1,340 @@
 # skill-map
 
+## 0.9.0
+
+### Minor Changes
+
+- 67fb4ae: refactor: cli-architect audit sweep — boundary hygiene, i18n discipline, enum hardening, IAction stub
+
+  Closes the findings from the `minions:cli-architect` review of `src/`. No spec changes, no behaviour change in command output bytes (every promoted renderer was rerun against its existing tests). One internal port-shape change (`StoragePort.jobs.listOrphanFiles → listReferencedFilePaths`) — `@skill-map/cli` is still `private: true`, but pre-1.0 minor anyway because the change is structural and the new `IAction` contract is part of the public extension surface.
+
+  **Boundary hygiene (C1, C2, H1)**
+
+  - Lifted every storage-port type from the SQLite adapter modules into `kernel/types/storage.ts`: `IPruneResult`, `IListExecutionsFilter`, `IHistoryStatsRange`, `THistoryStatsPeriod`, `IMigrateNodeFksReport`, `IPluginConfigRow`, `IApplyOptions/Result`, `IMigrationFile/Plan/Record`, `IPluginApplyOptions/Result`, `IPluginMigrationFile/Plan/Record`. The port and the SQLite adapter modules now both import from one source; a second adapter (Postgres, in-memory test harness) inherits no SQLite-specific types.
+  - `StoragePort` re-exports the lifted types so the CLI consumes the abstract contract end-to-end. `cli/commands/orphans.ts` and `cli/commands/history.ts` no longer reach into `kernel/adapters/sqlite/*` for type imports.
+  - `kernel/adapters/sqlite/jobs.ts` no longer touches the FS — the docstring was already promising "we do NOT touch the FS from the storage layer", but `listOrphanJobFiles` was importing `node:fs`. New helper `kernel/jobs/orphan-files.ts:findOrphanJobFiles(jobsDir, referenced)` performs the directory walk; the storage helper renames to `selectReferencedJobFilePaths(db)` and the port surface flips from `jobs.listOrphanFiles(jobsDir): IOrphanFilesResult` to `jobs.listReferencedFilePaths(): Promise<Set<string>>`. `sm job prune --orphan-files` orchestrates the two pieces in the CLI command.
+
+  **IAction extension contract + exhaustive switches (C3, H4)**
+
+  - New `kernel/extensions/action.ts:IAction` + `IActionPrecondition`, mirroring `spec/schemas/extensions/action.schema.json`. Manifest-only — runtime invocation (deterministic in-process call vs probabilistic runner dispatch) lands with the job subsystem (Decision #114); the contract carries the manifest fields so the AJV validator and `sm actions show` already have a typed shape to anchor against.
+  - `IBuiltIns` gains an `actions: IAction[]` bucket. `bucketBuiltIn` (`built-in-plugins/built-ins.ts`) and `bucketLoaded` (`cli/util/plugin-runtime.ts`) both grow exhaustive `default: never` arms — silent fall-through on a future kind addition turns into a compile error. `accumulateBuiltInScanExtensions` similarly explicit.
+  - `extensions/index.ts` docstring no longer claims "six kinds" while shipping five.
+
+  **Runtime enum hardening at the row→domain boundary (H5)**
+
+  - New `kernel/util/enum-parsers.ts` with type guards (`isStability`, `isLinkKind`, `isConfidence`, `isSeverity`, …) and parsers (`parseStability(s, ctx)`, `parseLinkKind(s, ctx)`, …). Parsers throw with a clear diagnostic naming the offending value, the allowed set, and the caller's row context.
+  - `kernel/adapters/sqlite/scan-load.ts:rowToNode/rowToLink/rowToIssue` now use the parsers instead of raw `as Stability/LinkKind/Confidence/Severity` casts. `Node.kind` stays open string per spec — the parsers cover only the closed-enum fields.
+
+  **i18n discipline sweep (H2, H3)**
+
+  CLI catalog additions (`cli/i18n/*.texts.ts`):
+
+  - `CHECK_TEXTS.issueRow` — `[severity] ruleId: message — nodeIds`.
+  - `SHOW_TEXTS.groupedLinkHead/Dup/Sources` — split the in/out link bullet so the `(×N)` and ` sources: …` segments stay greppable.
+  - `ORPHANS_TEXTS.activeIssuesHeader/activeIssueRow/noNodePlaceholder` — `renderOrphans` no longer composes English inline.
+  - `EXPORT_TEXTS.md*` — every line of `renderMarkdown` (title, query echo, counts, per-kind sections, link bullets, issue bullets) routes through `tx`.
+  - `HISTORY_TEXTS.statusWithReason` — `<status> (<failureReason>)` cell composition.
+
+  Kernel catalog (`kernel/i18n/storage.texts.ts`, new):
+
+  - `STORAGE_TEXTS.scanPersistInvalidScannedAt` — `kernel/adapters/sqlite/scan-persistence.ts`.
+  - `STORAGE_TEXTS.findNodesInvalidSortBy/Limit` — `kernel/adapters/sqlite/storage-adapter.ts`.
+  - `QUERY_TEXTS.exportQuery*` — `kernel/scan/query.ts` (every `ExportQueryError` thrown by `parseExportQuery`).
+
+  **Cleanup (H6, H7, M2, M3, L4, L5)**
+
+  - Dropped dead `FRONTMATTER_BY_KIND` map + `void` suppress in `built-in-plugins/rules/validate-all/index.ts` (unused per-kind frontmatter routing scaffolding).
+  - Dropped unused `NodeKind` import in `kernel/extensions/provider.ts` (referenced only in JSDoc text).
+  - Deduplicated `HOOK_TRIGGERS`: `kernel/adapters/plugin-loader.ts` now imports the single source of truth from `kernel/extensions/hook.ts` instead of redeclaring the eight-trigger list.
+  - Collapsed `TExtensionKind` and `ExtensionKind` to the canonical declaration in `kernel/registry.ts`. `kernel/adapters/schema-validators.ts` and `kernel/types/plugin.ts` re-import from there.
+  - Pruned `kernel/adapters/sqlite/index.ts` re-exports from ~22 schema-internal types to just `IDatabase` (the single type `src/test/storage.test.ts` consumes); CLI consumers go through the port.
+  - `cli/commands/scan.ts` consolidates `process.cwd()` calls behind a single `defaultRuntimeContext()` invocation per execution.
+
+- 2ef6b15: refactor: cli-architect follow-up — finish kernel i18n migration, dedupe DB-path helpers, normalize conformance type names, switch `sm db` / `sm init` to async fs
+
+  Bundles a series of cli-architect audit findings (H1, H2, M1–M7, L1, L3). The `minor` bump is required by **M1** — the public type names exported from `src/conformance/index.ts` get an `I*` prefix to align with the kernel's category-4 naming convention; per AGENTS.md pre-1.0 rule, breaking changes ship as a minor while the workspace stays in `0.Y.Z`.
+
+  **H1 — kernel i18n leak in config loader + migrations**
+
+  Two new catalogs land under `src/kernel/i18n/`:
+
+  - `config-loader.texts.ts` — every warning the layered config loader pushes into `ILoadedConfig.warnings` (or throws under `--strict`) now flows through `tx(CONFIG_LOADER_TEXTS.<key>, vars)`.
+  - `migrations.texts.ts` — every `Error.message` thrown by `kernel/adapters/sqlite/migrations.ts` (duplicate version, invalid version range, per-file apply failure) goes through `tx(MIGRATIONS_TEXTS.<key>, vars)`.
+
+  These messages surface to the user via `cli/commands/config.ts` (warnings dumped to stderr) and `cli/commands/db.ts` (migration failures rendered with the `{{reason}}` template). They were the last hardcoded-English strings in the kernel surface.
+
+  **H2 — hardcoded `.skill-map/skill-map.db` (and friends) duplicated across six call sites**
+
+  `cli/util/db-path.ts` now exports a single `DEFAULT_DB_REL = '.skill-map/skill-map.db'` plus four typed companion helpers:
+
+  - `defaultProjectDbPath(ctx)` → `<cwd>/.skill-map/skill-map.db`
+  - `defaultProjectJobsDir(ctx)` → `<cwd>/.skill-map/jobs`
+  - `defaultProjectPluginsDir(ctx)` → `<cwd>/.skill-map/plugins`
+  - `defaultUserPluginsDir(ctx)` → `<homedir>/.skill-map/plugins`
+
+  Migrated call sites: `cli/commands/scan.ts`, `cli/commands/refresh.ts`, `cli/commands/watch.ts`, `cli/commands/jobs.ts`, `cli/commands/plugins.ts`, `cli/util/plugin-runtime.ts`. The convention now lives in exactly one file.
+
+  **M1 — conformance public types adopt the `I*` prefix (BREAKING)**
+
+  `src/conformance/index.ts` exports get the kernel-style `I*` prefix:
+
+  - `AssertionResult` → `IAssertionResult`
+  - `RunCaseResult` → `IRunCaseResult`
+  - `RunCaseOptions` → `IRunCaseOptions`
+  - `Assertion` (private) → `IAssertion` (now exported)
+  - `AssertionContext` (private) → `IAssertionContext`
+  - `ConformanceCase` (private) → `IConformanceCase`
+
+  Consumers inside the repo (`cli/commands/conformance.ts`, `test/conformance*.test.ts`) reference `runConformanceCase` only — none of them import the type names — so the rename is type-only inside the workspace; the breaking impact is for downstream tooling that imports the conformance module directly.
+
+  **M2 — conformance reason strings**
+
+  New `src/conformance/i18n/runner.texts.ts` catalog. Every `reason` string the runner returns (assertion failures, JSONPath dispatch errors, containment violations, the `assertSpecRoot` throw) now flows through `tx(CONFORMANCE_RUNNER_TEXTS.<key>, vars)`.
+
+  **M3 — registry errors**
+
+  New `src/kernel/i18n/registry.texts.ts` catalog. The `DuplicateExtensionError` constructor, the unknown-kind throw, and the missing-`pluginId` throw all use the catalog now.
+
+  **M4 — `sm help --format json` flag description**
+
+  The `--help` global flag's English description in `cli/commands/help.ts` was hardcoded. Moved to `HELP_TEXTS.globalFlagHelpDescription`.
+
+  **M5 — `resolveDbPath` is the canonical entrypoint everywhere**
+
+  Subsumed by H2: the previously-direct `resolve(ctx.cwd, DEFAULT_PROJECT_DB)` constructions in `scan.ts`, `refresh.ts`, `watch.ts` now call `defaultProjectDbPath(ctx)` (a thin wrapper over `resolveDbPath`). `init.ts` keeps its inline path because it owns `--global` semantics that resolve through `SKILL_MAP_DIR` directly.
+
+  **M6 — async fs in `sm db` and `sm init`**
+
+  `cli/commands/db.ts` and `cli/commands/init.ts` switched from `fs`'s sync API (`copyFileSync`, `mkdirSync`, `existsSync`, `rmSync`, `statSync`, `readFileSync`, `writeFileSync`) to `fs/promises`. `existsSync` checks became a small `pathExists()` helper that wraps `stat()` and only swallows `ENOENT`. `DatabaseSync` and `spawnSync('sqlite3')` stay as they were (sync-only by design).
+
+  **M7 — `sm scan compare-with` now forwards layered-loader warnings**
+
+  Mirrors what `cli/commands/config.ts` already did for `sm config show / get / set`: the `ILoadedConfig.warnings` array is iterated to stderr instead of being silently dropped. Without `--strict`, a malformed `settings.json` now produces the same diagnostic line under compare-with that it produces under every other read-side verb.
+
+  **L1 — collapsed duplicate DB-path constants**
+
+  `DEFAULT_PROJECT_DB` and `DEFAULT_GLOBAL_DB` resolved to the same string. Replaced by the single `DEFAULT_DB_REL`.
+
+  **L3 — dropped the unused `LOGGER_FLAG_NAME` export**
+
+  `cli/util/logger.ts` exported both `LOGGER_ENV_VAR` (used by `entry.ts`) and `LOGGER_FLAG_NAME` (no consumers anywhere). Dropped the latter; the internal `FLAG_NAME` constant stays because `extractLogLevelFlag` still uses it.
+
+  **Validation**
+
+  `npm run validate` clean (lint across workspaces). `npm test -w src` 693/693 pass.
+
+- 723c022: cli-architect audit follow-up — output sanitization hardening, `StoragePort.migrations.writeBackup` signature change, atomic config write, and shared helper extraction.
+
+  **BREAKING (pre-1.0, ships as minor per `versioning.md` § Pre-1.0)**
+
+  `StoragePort.migrations.writeBackup(targetVersion: number)` is now `writeBackup(destPath: string)`. The port stays a generic "WAL-checkpoint + atomic file copy" primitive; the per-target naming (`skill-map-pre-migrate-v<N>.db` for the migrations runner; `<timestamp>.db` for `sm db backup`) is the caller's concern. `sm db backup` now routes through the port via `withSqlite` instead of opening `node:sqlite` directly. The on-disk paths and the user-facing CLI surface (`sm db backup [--out <path>]`) are unchanged — verified deliberately. No spec impact.
+
+  **HIGH — output sanitization gaps (defence in depth)**
+
+  Plugin-authored strings persisted in the DB (`Issue.message`, `scan_issues.data_json`, conformance assertion `reason` strings spliced from subprocess stderr, plugin-loader `reason` payloads) reach the user's terminal through several CLI render paths that previously did not pass them through `sanitizeForTerminal`. A hostile or buggy plugin could plant ANSI escape sequences or C0 control bytes in those fields and repaint the user's screen on `sm history`, `sm orphans undo-rename`, `sm conformance run`, or any verb that prints a plugin-warning row.
+
+  - **H1** — `formatWarning` in `cli/util/plugin-runtime.ts` sanitizes + length-caps `id` (200) and `reason` (1000) before interpolation. Closes M8 in the same change. Function exported (with docstring noting test-only consumers) so the new audit unit tests can target it directly.
+  - **H2** — `renderStats` in `cli/commands/history.ts` sanitizes `actionId`, `actionVersion`, `nodePath`, and the `failureReason` enum key before interpolating into the top-actions / top-nodes / failures-by-reason rows. Enum value sanitized for symmetry with `renderTable`.
+  - **H3** — `cli/commands/orphans.ts` sanitizes `dataFrom` in `undoMediumFromMismatch` (sourced from `scan_issues.data_json` written by the rename heuristic) and `safeFrom` in the confirm-prompt + summary template paths.
+
+  **MEDIUM**
+
+  - **M1** — `cli/commands/conformance.ts` extracts `formatAssertionFailureDetail(type, reason)` that sanitizes + caps `reason` to 1000 chars. The conformance runner splices subprocess stderr verbatim into `runtime-error` reasons; a runaway impl-under-test could emit kilobytes that drown the user's terminal. Helper exported for the audit unit tests.
+  - **M2** — see BREAKING above.
+  - **M3** — `cli/commands/jobs.ts` swaps `unlinkSync` for `await unlink` from `node:fs/promises` in the prune loop. Aligns with the rest of the verb (already async) and avoids blocking the event loop on slow filesystems.
+  - **M4** — extracts shared `bucketByKind` helper at `kernel/util/bucket-by-kind.ts`. `built-in-plugins/built-ins.ts:bucketBuiltIn` and `cli/util/plugin-runtime.ts:bucketLoaded` both consume it; the open-coded six-way `switch (ext.kind)` blocks (each with its own exhaustive-`never` guard) collapse to one centralized dispatch table. The helper still owns the exhaustive switch so adding a new `ExtensionKind` flags every caller through the `never` guard at compile time. The `eslint-disable-next-line complexity` justification (AGENTS.md category 6 — discriminated-union dispatcher) moves to the helper.
+  - **M5** — `cli/commands/config.ts` `writeJsonAtomic` replaces `writeFileSync` with stage-to-`<path>.tmp.<pid>` + `renameSync`. POSIX guarantees rename atomicity on the same filesystem, so a crash mid-write leaves `settings.json` either at its prior content or at the new content, never half-written. Best-effort temp-file cleanup on error so we don't leak siblings if the rename target is read-only.
+
+  **LOW**
+
+  - **L4** — extracts shared `parsePositiveIntegerOption(raw, label, stderr)` at `cli/util/option-validators.ts` with new i18n catalog `option-validators.texts.ts`. Three near-duplicate inline checks consolidated: `sm list --limit`, `sm history --limit`, `sm history stats --top`. Each used to ship its own `LIST_TEXTS.invalidLimit` / `HISTORY_TEXTS.limitNotPositiveInt` / `HISTORY_TEXTS.topNotPositiveInt` wording; the three keys are removed and replaced by a single `OPTION_VALIDATORS_TEXTS.notPositiveInt` template scoped by the `{{label}}` placeholder. Acceptance rules stay locked across sites (a permissive `Number.parseInt('12abc', 10)` would otherwise accept `12` — every call site repeats the same trim + signed + non-integer guard).
+  - **L8** — `built-in-plugins/formatters/ascii/index.ts` sanitizes `issue.ruleId` for symmetry with the sibling `issue.message` sanitization. The registry validator already constrains `ruleId` to `[a-z0-9-]+`, but defence in depth keeps the gate uniform if the validator ever loosens.
+
+  **Tests**
+
+  725/725 pass (+31 vs prior 694). New: `test/bucket-by-kind.test.ts` (M4 dispatch table coverage), `test/option-validators.test.ts` (L4 boundary cases). Modified: `test/plugin-runtime.test.ts` (H1), `test/history-cli.test.ts` (H2 + L4), `test/orphans-cli.test.ts` (H3), `test/conformance-cli.test.ts` (M1), `test/config-cli.test.ts` (M5), `test/storage.test.ts` (M2 port shape), `built-in-plugins/formatters/ascii/ascii.test.ts` (L8).
+
+  No spec changes — `spec/index.json` not regenerated. `npm run lint` clean, `npm run -w src build` clean.
+
+- 147adb8: feat(cli): compact `sm --help` and per-verb help
+
+  Replace Clipanion's default top-level and per-verb help output with a project-styled, compact renderer that fits the rest of the CLI's visual language. The normative `--format json` and `--format md` paths (locked by `spec/cli-contract.md` § Help) are untouched — only the human format changed.
+
+  **Top-level overview (`sm`, `sm --help`, `sm -h`, `sm help` no-verb)**
+
+  New `RootHelpCommand` replaces `Builtins.HelpCommand`. Layout: header tagline → USAGE block → EXAMPLES block → per-category sections (uppercased, alphabetical) → footer pointing at `sm <command> --help`. Per-category column width is computed independently so a single long verb doesn't widen every other section. Stub verbs (those whose description starts with `(planned)`) get a leading `[stub] ` tag in the description column (and in the single-verb header), and the `(planned)` parenthetical is stripped to keep the column flush. Long rows are truncated with a `…` ellipsis at 120 chars.
+
+  **Per-verb help (`sm <verb> --help`, `sm help <verb>`)**
+
+  New `routeHelpArgs(args, cli)` in `cli/entry.ts` (called before `cli.run`) intercepts `sm <verb...> --help|-h` and rewrites it to `sm help <verb...>`, picking the longest registered verb-path prefix. Pure function, lives next to the renderer in `cli/commands/help.ts`. `HelpCommand.verb` switched from `Option.String` to `Option.Rest` so multi-token verbs (`db migrate`, `scan compare-with`, `config get`) work via `sm help <verb>` too. `renderSingle` rewritten with HEAD / USAGE / DESCRIPTION / FLAGS sections matching the overview. The USAGE line now shows real positionals (`<orphanPath>`, `<dump> ...`, etc.) extracted from Clipanion's detailed-usage string — required adding `usage` to `ICliDefinition` because `def.path` is just the verb path; positionals only live in the detailed `def.usage`. FLAGS rows show the first sentence of each flag's description, padded into a column, truncated at 120 chars.
+
+  **Category consolidation** (eliminate one-verb categories)
+
+  `version` moves from `Setup & state` → `Introspection`. The two `actions` stubs move from `Actions` → `Jobs`. `serve` moves from `Server` → `Setup`. Cascades cleanly into `context/cli-reference.md` (regenerated; `npm run cli:check` clean).
+
+  **i18n**
+
+  Every new user-facing string lives in `cli/i18n/help.texts.ts` per the project's `tx(*_TEXTS.*)` discipline — no inline strings in command code.
+
+  **Lint**
+
+  Three new functions tripped the `complexity=8` cap. `extractPositionals` is a legit char-by-char tokenizer (AGENTS.md exception #2 — `eslint-disable-next-line complexity` with the documented justification). `renderSingle` and `routeHelpArgs` were split into helpers cleanly, no disables.
+
+  **Spec stance**
+
+  The human help format is not spec-normative — only `--format json` and `--format md` are locked by `spec/cli-contract.md` § Help, and those paths are untouched. The contract requirement that `sm`, `sm --help`, `sm -h` all print top-level help and exit 0 is still satisfied. No spec change, no `spec/CHANGELOG` entry.
+
+  Classified `minor` (not `major`) per AGENTS.md "Pre-1.0: never bump to a major" — pre-1.0 breaking changes ship as minor bumps.
+
+  **Validation**
+
+  `npm run validate` (lint) clean, `npm test -w src` 693/693 pass, `npm run cli:reference` regenerated, `npm run cli:check` confirms in sync. Manual smoke across `sm`, `sm --help`, `sm -h`, `sm help`, `sm scan --help`, `sm db migrate --help`, `sm orphans reconcile --help`, `sm scan compare-with --help`, `sm config get --help`, `sm help <verb>` for the same set, plus `sm help <verb> --format json|md` (normative formats — unchanged behaviour).
+
+- 256fb70: security: harden CLI/kernel against prototype pollution, ANSI injection, and path-escape attacks (audit findings H1–H3, M1–M6, L1)
+
+  - **H1** — `kernel/config/loader.ts` `deepMerge` now skips `__proto__` / `constructor` / `prototype` keys, closing the lane where a hostile config layer (settings.json, overrides) could mutate the merged config's prototype chain via the `additionalProperties: true` opening inside `plugins[*].config`.
+  - **H2** — `cli/commands/config.ts` `getAtPath` / `setAtPath` / `deleteAtPath` reject pollution-class path segments before walking; `sm config set __proto__.x true` exits 2 with a clear message instead of polluting the running process's prototype chain.
+  - **H3** — `kernel/orchestrator.ts` `mergeNodeWithEnrichments` filters pollution keys from every source before copying; a malicious extractor can no longer reshape the merged frontmatter's prototype via persisted `enrichments.value`.
+  - **L2** (defense-in-depth) — claude provider strips pollution keys from parsed YAML frontmatter at parse time so downstream `Object.assign`-style merges remain safe even without per-callsite filters.
+  - **M1** — new `kernel/util/safe-text.ts` (`stripAnsi`, `sanitizeForTerminal`) wired through ASCII formatter, `sm show`, `sm export`, `sm scan-compare`, `sm conformance`. Disk-sourced strings (titles, paths, issue messages, plugin output) are stripped of ANSI/CSI/OSC escapes and dangerous C0 controls before reaching stdout/stderr.
+  - **M2 / L1** — `sm db reset` now whitelists + double-quotes table names taken from `sqlite_master`; `sm db dump --tables` rejects non-identifier names with a clean error.
+  - **M3** — `kernel/adapters/plugin-loader.ts` rejects `extensions[*]` entries and `storage.schema(s)` paths whose resolved form escapes the plugin directory (closes the cross-plugin reference lane).
+  - **M4** — `conformance/index.ts` validates that case-supplied `fixture` and assertion `path` values stay inside `fixturesRoot` / `scope` before any filesystem read or copy.
+  - **M5** — `kernel/adapters/sqlite/plugin-migrations-validator.ts` rejects plugin migrations whose string literals contain `--` or `/*`, closing the validator/exec divergence noted in the audit.
+  - **M6** — `kernel/adapters/sqlite/migrations.ts` asserts `Number.isInteger` on the migration version before interpolating it into `PRAGMA user_version`.
+
+  No changes to public APIs; behaviour change is limited to rejecting previously-undefined-but-dangerous inputs.
+
+### Patch Changes
+
+- 3c07b8f: refactor: cli-architect audit follow-up — i18n discipline in built-in plugins, scan-compare delta, plugin-runtime warnings, and `IDbLocationOptions` runtime-context unification
+
+  Internal hygiene only. No spec changes, no public CLI surface change, no behavioural change to output bytes — every promoted renderer keeps producing the same text it produced before, only the mechanism (`tx(*_TEXTS.*)`) changed. `cli/util/db-path.ts` is CLI-internal (not exported via `src/index.ts` or `src/kernel/index.ts`), so the helper signature change is a no-op for downstream consumers.
+
+  **F1 — `scan-compare` delta render lifted to the catalog**
+
+  `cli/commands/scan-compare.ts` (lines 217-263) was rendering the human delta with hardcoded English strings (`'Delta vs ...'`, `'## nodes'`, `'## links'`, `'## issues'`, `+`/`-`/`~` row prefixes). The previous i18n sweep had missed it. 11 new keys land in `cli/i18n/scan.texts.ts` (`compareDeltaSummary`, `compareDeltaNoDifferences`, plus header / row catalog entries for nodes / links / issues) and the renderer routes through `tx()` end-to-end.
+
+  **F2 — `built-in-plugins/` joins the `tx()` discipline**
+
+  Every `Issue.message` produced by a built-in rule and every line emitted by the ASCII formatter were inline English templates. `Issue.message` strings persist in `scan_issues.message` and surface through `sm check` / `sm show` / `sm export` — they are user-facing exactly like CLI stdout, so the same i18n rule applies. New directory `src/built-in-plugins/i18n/` ships six catalogs (`broken-ref.texts.ts`, `superseded.texts.ts`, `trigger-collision.texts.ts`, `validate-all.texts.ts`, `link-conflict.texts.ts`, `ascii.texts.ts`) and each built-in migrates to `tx(*_TEXTS.*)`. AGENTS.md gains a bullet under "i18n strategy" extending the rule to `built-in-plugins/`.
+
+  **F3 — `IDbLocationOptions` extends `IRuntimeContext` (closes TODO M3)**
+
+  The TODO left in the previous audit pass (`cli/util/db-path.ts`) is now closed. `IDbLocationOptions` extends `IRuntimeContext`, so `cwd` and `homedir` are mandatory; the helper no longer reads `process.cwd()` / `homedir()` directly. The local duplicate `resolveDbPath` in `cli/commands/plugins.ts` is dropped and that file imports the canonical helper. 21 call sites across 11 commands (`export`, `list`, `show`, `history`, `orphans`, `check`, `graph`, `db`, `version`, `plugins`, plus the related util) thread `{ ...defaultRuntimeContext() }` at the call edge.
+
+  **F4 — `plugin-runtime.formatWarning` catalogued**
+
+  `cli/util/plugin-runtime.ts:formatWarning` was composing `'plugin <id>: <status> — <reason>'` inline. New catalog `cli/i18n/plugin-runtime.texts.ts` ships `PLUGIN_RUNTIME_TEXTS.warningRow` + `warningReasonMissing`; `formatWarning` now routes through `tx()`.
+
+  **F5 — `export.ts` deferred-format reason catalogued**
+
+  The raw English `reason` string `'lands at Step 12 with the mermaid formatter'` interpolated by `cli/commands/export.ts` moves to `EXPORT_TEXTS.formatDeferredReasonMermaid`.
+
+  **F6 — orphan JSDoc cleanup in `init.ts`**
+
+  A JSDoc block documenting `ensureGitignoreEntries` had drifted on top of `previewGitignoreEntries` after a previous refactor. Moved back to its rightful function.
+
+  **F7 — `confirm.ts` yes-pattern catalogued**
+
+  `cli/util/confirm.ts` hardcoded `/^y(es)?$/i`. The regex source moves to `UTIL_TEXTS.confirmYesPatternSource` and the helper compiles it with the `i` flag. Trivial today but pre-wires the day a non-English locale lands (`^(y(es)?|s(í|i)?)$`).
+
+  **F10 — `storage-adapter.ts` header docstring rewording**
+
+  The header of `kernel/adapters/sqlite/storage-adapter.ts` claimed `enrichments` was a top-level property of the adapter class. It is not — `enrichments` lives on `ITransactionalStorage` (handed out via `port.transaction(...)`). Reworded to match.
+
+  **Validation**
+
+  `npm run -w src build` clean, `npm run lint` clean, `npm test -w src` 693/693 pass, `tsc --noEmit` clean.
+
+- 62d3124: refactor: cli-architect audit follow-up — i18n discipline, runtime-context sweep, ExitCode literal cleanup
+
+  Internal hygiene only. No spec changes, no public CLI surface change, no behavioural change to output bytes — every promoted renderer was audited against its existing tests and the regenerated `context/cli-reference.md` is byte-identical to the pre-sweep version under matching CLI / spec versions (the diff in this commit is the legitimate version drift, not an i18n regression).
+
+  **M1 — i18n discipline in `cli/commands/help.ts`**
+
+  Promoted every hardcoded English string in `renderMarkdown` / `renderVerbBlock` / `renderVerbFlags` / `renderVerbExamples` / `renderSingle` to `cli/i18n/help.texts.ts`. 14 new keys: `mdReferenceTitle`, `mdGeneratedNotice`, `mdCliVersionLine`, `mdSpecVersionLine`, `mdHeaderGlobalFlags`, `mdGlobalFlagBullet`, `mdCategoryHeading`, `mdVerbHeading`, `mdLabelFlags`, `mdLabelExamples`, `mdFlagBullet` (+ `mdFlagBulletRequiredFragment` / `mdFlagBulletDescriptionFragment` for the optional trailing slots), `mdExampleBullet`, `humanVerbHeader`, `humanLabelFlags`, `humanFlagRow` (+ `humanFlagRowRequiredFragment`). Markdown structural pieces (code-fence backticks, table pipes) stay inline — they are syntax, not user-facing prose.
+
+  **M2 — `refresh.ts` "read failed for &lt;path&gt;: &lt;err&gt;" sub-detail catalogued**
+
+  `#runDetExtractorsAcrossNodes` was composing the inner error string via TS template inside the `tx(REFRESH_TEXTS.refreshFailed, …)` call. Lifted the inner copy to `REFRESH_TEXTS.readFailedDetail` (`'read failed for {{path}}: {{message}}'`) and the call site now nests a `tx(…)` for the detail inside the outer `refreshFailed`. Same output bytes, but every translatable substring is now in the catalog.
+
+  **M3 — `defaultRuntimeContext()` sweep across `cli/commands/`**
+
+  Replaced direct `process.cwd()` / `homedir()` reads with `defaultRuntimeContext()` in: `init.ts` (and the `runFirstScan` helper now takes `homedir` as a parameter), `jobs.ts`, `refresh.ts`, `scan-compare.ts`, `config.ts` (`ConfigSetCommand` / `ConfigResetCommand`), `plugins.ts` (`resolveSearchPaths`, `resolveDbPath`, `buildResolver`, `loadAll`, `expandHome`, `collectExplorationDirWarnings`, `TogglePluginsBase`), and `cli/util/plugin-runtime.ts` (`resolveSearchPaths`, `dbPathForScope`). The `cli/**` layer is allowed to call Node globals, but funnelling them through one helper keeps the future "drive the CLI from a non-process host" path clean and matches the pattern already established in earlier audit sweeps.
+
+  **M3 deferred — `cli/util/db-path.ts` carries a TODO**
+
+  `resolveDbPath` (and its `IDbLocationOptions` shape) still reads `homedir()` and `process.cwd()` directly. Promoted to a `TODO(cli-architect M3)` block in the file's docstring rather than rewritten inline because flipping the signature touches 18 call sites across 11 commands for a helper that lives in `cli/util/` (not in `kernel/**`, where the no-Node-globals invariant actually bites). The comment names the exact follow-up: extend `IDbLocationOptions` from `IRuntimeContext`, drop the imports, thread `...defaultRuntimeContext()` at every call site.
+
+  **L1 / L2 — `ExitCode.Error` literal cleanup**
+
+  Replaced three remaining `2` integer literals with `ExitCode.Error`: `db.ts:623,655` (plugin-migration failure paths) and `config.ts:202` (config-load failure path). Aligns with the H1 sweep from the prior audit pass that migrated 123 sites.
+
+  **Validation**
+
+  `npm run lint` clean, `npm run typecheck -w src` clean, `npm test -w src` 693/693 pass, `npm run validate` clean, `npm run cli:check` clean (the `context/cli-reference.md` regen in this commit reflects normal CLI / spec version drift since the file was last regenerated; the i18n sweep verified byte-identical render at HEAD's pre-sweep version values).
+
+- 7d14da9: refactor: cli-architect re-audit follow-up — dedupe `dbPathForScope`, share `SKILL_MAP_DIR` const, fold trigger-collision joiner into the i18n template
+
+  Internal hygiene only. No spec changes, no public CLI surface change, no behavioural change to output bytes — every emitted string keeps its previous value (the test suite covers the affected paths and stays green); only the indirection moved.
+
+  **N1 — `dbPathForScope` helper dropped from `cli/util/plugin-runtime.ts`**
+
+  `buildEnabledResolver` was reimplementing the project=cwd vs global=homedir DB-path resolution that already lives in `resolveDbPath` (`cli/util/db-path.ts`). The local helper plus its private `DB_FILENAME` constant are removed; the resolver now calls `resolveDbPath({ global: scope === 'global', db: undefined, ...ctx })` directly. Single source of truth for the canonical `--db > --global > project` precedence.
+
+  **N2 — `SKILL_MAP_DIR` constant shared between `db-path.ts` and `init.ts`**
+
+  `cli/commands/init.ts` was constructing `join(scopeRoot, '.skill-map')` with the literal duplicated from the convention encoded in `cli/util/db-path.ts`. New exported const `SKILL_MAP_DIR = '.skill-map'` lands in `db-path.ts` with a docstring explaining the per-scope layout. `init.ts` imports and uses it; the internal `DEFAULT_PROJECT_DB` / `DEFAULT_GLOBAL_DB` constants now derive from `${SKILL_MAP_DIR}/${DB_FILENAME}` instead of re-typing the literal. Future changes to the directory convention happen in one place.
+
+  **N3 — Trigger-collision joiner moved inside the `tx()` template**
+
+  `built-in-plugins/i18n/trigger-collision.texts.ts` was exposing `partsJoiner: '; and '` as a separate key that the rule code stitched into the message via `parts.join(...)`. The joiner sat outside the template, which means a future `es` locale would need to patch rule code, not just the catalog. Replaced the `(message, partsJoiner)` pair with two templates: `messageOnePart` (`'Trigger "{{normalized}}" has {{part}}.'`) and `messageTwoParts` (`'Trigger "{{normalized}}" has {{first}}; and {{second}}.'`). `analyzeTriggerBucket` picks the template based on `parts.length` and a comment documents that `parts.length ∈ {1, 2}` by construction (advertiser-ambiguous and cross-kind-ambiguous are mutually exclusive — the latter requires `advertiserPaths.length === 1` — so the two-part path is exactly advertiser-ambiguous + invocation-ambiguous). The `'; and '` joiner now lives entirely inside the catalog; a future `'; y '` swap is a single-key edit.
+
+  **Validation**
+
+  `npm run -w src build` clean, `npm run lint` clean, `npm test -w src` 693/693 pass.
+
+- 4080efd: refactor: i18n discipline sweep across CLI renderers + storage-port-promotion follow-up
+
+  Internal tightening only. No spec changes, no public CLI surface change, no behavioural change to output bytes — every promoted renderer was audited against its existing tests (notably the `sm job prune` colon alignment and `renderStats` join semantics).
+
+  **Storage port follow-up (Phase F leftovers)**
+
+  - `StoragePort.migrations` gains `currentSchemaVersion(): number | null`, implemented in `SqliteStorageAdapter` via `withRawDb` + `PRAGMA user_version`. `cli/commands/version.ts` now resolves the DB schema version through the port + `tryWithSqlite` instead of importing `node:sqlite` directly. The `existsSync` short-circuit (no provisioning for an informational read) is preserved by `tryWithSqlite`.
+  - Cleaned up Phase D/F residue: dropped `void sql;` + the unused `sql` import in `kernel/adapters/sqlite/plugins.ts`; dropped the empty residual import from `cli/commands/plugins.ts`; dropped the unused `existsSync` import in `cli/commands/scan.ts`; dropped `void join;` + the unused `join` import in `cli/commands/jobs.ts`. Refreshed the `db` getter docstring on `SqliteStorageAdapter` (was tagged "Pre-Phase F" — Phase F is DONE; rewrote it as the documented test-only escape hatch).
+
+  **i18n discipline sweep**
+
+  Promoted hardcoded English strings inside CLI command renderers to their `*_TEXTS` catalogs, per the AGENTS.md i18n strategy ("every CLI command sources its strings from a sibling `cli/i18n/<verb>.texts.ts` via `tx(*_TEXTS.<key>)`"):
+
+  - `sm db migrate` apply / dry-run output (`Nothing to apply`, `Would apply N`, `Already up to date`, `Applied N`, `Applied N · backup: …`) → `DB_TEXTS`.
+  - `sm history` validation errors (`--limit` / `--period` / `--top`), the internal schema-validation error, render-table headers, and the entire `renderStats` block (window, totals, error rate, top actions/nodes, failures by reason) → `HISTORY_TEXTS`.
+  - `sm job prune` pretty output (tag, retention rows, orphan-files row, verbs, `formatPolicy('never')`) → `JOBS_TEXTS`. Colon alignment for `failed:    policy …` preserved verbatim.
+  - `sm list` render-table column headers → `LIST_TEXTS`.
+  - `sm orphans undo-rename` no longer concatenates English directly into `scan_issues.message`; routed through `tx(ORPHANS_TEXTS.undoRenameOrphanMessage, …)` (with a docstring noting the ideal layering would be kernel-side).
+  - `sm plugins` list / show renderers (`renderBuiltInBundleRow`, `renderPluginRow`, `renderBuiltInDetail`, `renderPluginDetail`, `renderExtensionsList`) → `PLUGINS_TEXTS`.
+  - `sm show` human renderer (`renderHuman`, `renderNodeHeader`, `renderIssuesSection`, `renderLinksSection` — section headers, `(none)` placeholder, optional-field rows, weight/tokens/external refs lines, issue rows) → `SHOW_TEXTS`.
+  - New `cli/i18n/util.texts.ts` (`UTIL_TEXTS`) for cross-cutting strings: `db-path` `dbNotFound`, `elapsed` `done in <…>`, `confirm` `[y/N]` suffix.
+
+- 33383c9: Security audit fixes (cli-hacker sweep):
+
+  - Sanitize ANSI escape sequences and C0 control bytes in `sm check`, `sm history`, `sm list`, `sm orphans`, `sm plugins` output (defense in depth — values originate from plugin-authored strings persisted in the DB).
+  - Upgrade `stripAnsi()` regex in `kernel/util/safe-text.ts` to the strip-ansi v7 pattern so OSC 8 hyperlinks (with `:/?#&=` chars in the URL) strip cleanly instead of leaving the URL fragment behind.
+  - Reject `node.path` values that are absolute or escape the repo root in `sm refresh` (defense in depth against tampered DB files); shared helper at `cli/util/path-guard.ts`.
+  - Skip symlinks explicitly in the built-in claude `walkMarkdown` (audit M7); document that `scan.followSymlinks` is reserved for a future cycle-aware implementation.
+  - Pin `js-yaml` schema to `JSON_SCHEMA` in the claude provider's frontmatter parser.
+  - Preserve `0o600` permissions on `sm db restore`.
+  - Sanitize `--log-level` raw input before printing the invalid-level warning.
+  - Sanitize conformance case id before using it as the `mkdtemp` prefix.
+  - Move `truncate(...)` into a shared `cli/util/text.ts` and make it UTF-8 safe (split on code-point boundaries via `Array.from`).
+  - Document untrusted-repository plugin auto-loading risk in the CLI README.
+
+  No behavioral changes for trusted inputs; only hardens output rendering and edge-case validation.
+
+- Updated dependencies [f8fca25]
+  - @skill-map/spec@0.11.0
+
 ## 0.8.0
 
 ### Minor Changes
@@ -1335,53 +1670,51 @@ the`CamelCasePlugin`; raw SQL fragments must use snake_case to
     a real i18n library, the strings move as-is. Functions would
     have to be re-shaped first.
 
-        Helper at `kernel/util/tx.ts`. Contract:
+            Helper at `kernel/util/tx.ts`. Contract:
 
-        - Every `{{name}}` token MUST have a matching key in the vars
-          object — missing key throws (silent fallback hides
-          forgotten args in production).
-        - `null` / `undefined` values throw — caller coerces
-          upstream.
-        - Whitespace inside the braces tolerated (`{{ name }}`) so
-          long templates wrap cleanly across `+`-joined lines.
-        - Plural / conditional logic does NOT live in the template;
-          the caller picks `*_singular` vs `*_plural` keys.
+            - Every `{{name}}` token MUST have a matching key in the vars
+              object — missing key throws (silent fallback hides
+              forgotten args in production).
+            - `null` / `undefined` values throw — caller coerces
+              upstream.
+            - Whitespace inside the braces tolerated (`{{ name }}`) so
+              long templates wrap cleanly across `+`-joined lines.
+            - Plural / conditional logic does NOT live in the template;
+              the caller picks `*_singular` vs `*_plural` keys.
 
-        Files created:
+            Files created:
 
-        - `kernel/util/tx.ts` — the helper itself, with 13 tests in
-          `test/tx.test.ts` (single / multi token, whitespace,
-          missing / null / undefined keys, identifier shapes, error
-          truncation).
-        - `kernel/i18n/orchestrator.texts.ts` — frontmatter
-          malformed/invalid templates, `extension.error` payloads,
-          root validation errors.
-        - `kernel/i18n/plugin-loader.texts.ts` — every `load-error` /
-          `invalid-manifest` / `incompatible-spec` reason, plus the
-          import timeout message.
-        - `cli/i18n/scan.texts.ts` — `sm scan` flag-clash / scan
-          failure / guard / summary templates, plus the `sm scan
+            - `kernel/util/tx.ts` — the helper itself, with 13 tests in
+              `test/tx.test.ts` (single / multi token, whitespace,
+              missing / null / undefined keys, identifier shapes, error
+              truncation).
+            - `kernel/i18n/orchestrator.texts.ts` — frontmatter
+              malformed/invalid templates, `extension.error` payloads,
+              root validation errors.
+            - `kernel/i18n/plugin-loader.texts.ts` — every `load-error` /
+              `invalid-manifest` / `incompatible-spec` reason, plus the
+              import timeout message.
+            - `cli/i18n/scan.texts.ts` — `sm scan` flag-clash / scan
+              failure / guard / summary templates, plus the `sm scan
 
-    compare-with`dump-load errors.
--`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates.
--`cli/i18n/init.texts.ts`—`sm init`templates including
-  the`--dry-run`previews and the singular/plural pair for
-  gitignore updates.
--`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore`      templates including their`--dry-run`previews.
--`cli/i18n/cli-progress-emitter.texts.ts`— the
- `extension.error: ...` stderr line.
+        compare-with`dump-load errors.
 
-        String content moved verbatim — every existing test that
-        matches on stderr / stdout content keeps passing. Trivial
-        single-token strings (`'No issues.\n'`) and rare per-handler
-        bespoke phrases stay inline; the pattern is now established
-        for whoever wants to migrate them in a follow-up.
+    -`cli/i18n/watch.texts.ts`—`sm watch`lifecycle templates. -`cli/i18n/init.texts.ts`—`sm init`templates including
+    the`--dry-run`previews and the singular/plural pair for
+    gitignore updates. -`cli/i18n/db.texts.ts`—`sm db reset`/`sm db restore` templates including their`--dry-run`previews. -`cli/i18n/cli-progress-emitter.texts.ts`— the
+    `extension.error: ...` stderr line.
 
-        Note on `ui/` divergence: today the two workspaces use
-        different shapes for their text tables (functions in `ui/`,
-        templates in `cli/`). Aligning them is a follow-up — the day a
-        real i18n library lands, both converge on its native shape.
-        The CLI shape is closer to the eventual destination.
+            String content moved verbatim — every existing test that
+            matches on stderr / stdout content keeps passing. Trivial
+            single-token strings (`'No issues.\n'`) and rare per-handler
+            bespoke phrases stay inline; the pattern is now established
+            for whoever wants to migrate them in a follow-up.
+
+            Note on `ui/` divergence: today the two workspaces use
+            different shapes for their text tables (functions in `ui/`,
+            templates in `cli/`). Aligning them is a follow-up — the day a
+            real i18n library lands, both converge on its native shape.
+            The CLI shape is closer to the eventual destination.
 
   - **N6 — `TIssueSeverity` aliased to `Severity`.** SQLite schema
     type now reads `type TIssueSeverity = Severity` instead of
@@ -2035,9 +2368,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                             `--json` output is byte-identical to before — raw rows, no merge.
-                             Storage is byte-identical to before. The grouping is purely a
-                             read-time presentation choice for human eyes.
+                                   `--json` output is byte-identical to before — raw rows, no merge.
+                                   Storage is byte-identical to before. The grouping is purely a
+                                   read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
