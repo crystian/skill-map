@@ -66,7 +66,7 @@ after(() => {
 const SKIP_BUDGET = process.env['SKILL_MAP_SKIP_BENCHMARK'] === '1';
 
 describe('scan benchmark (500 MDs)', () => {
-  // Budget: 500 MDs in <= 3500ms.
+  // Budget: 500 MDs in <= 7000ms.
   // History:
   //   - Step 4.6 set the original 2000ms target with ~1037ms baseline
   //     on native macOS dev hardware.
@@ -76,16 +76,21 @@ describe('scan benchmark (500 MDs)', () => {
   //     consistently measures 2.5-2.7s on the same hardware (WSL2's
   //     filesystem-syscall overhead is the dominant cost — every
   //     `readFile` on a 9p-bridged path adds ~2-3ms × 500 files).
-  //     The benchmark still catches genuine regressions: a 3x
-  //     slowdown (≥3500ms on native, ≥7000ms on WSL2) indicates a real
-  //     bug, not noise.
+  //   - Audit follow-up raised to 7000ms after observing the test
+  //     trip at ~6.6s when the FULL suite runs in parallel under WSL2
+  //     (CPU + IO contention from sibling SQLite tests). Aislado the
+  //     scan still completes in ~900ms; 7000ms preserves the original
+  //     "≥3x slowdown" regression-detection contract for the
+  //     contended-suite case (typical contended baseline ~2-3s, 3x =
+  //     6-9s). Genuine regressions still surface; flaky CI noise from
+  //     suite-level contention does not.
   // If this trips on native hardware (not WSL2), FIRST profile
   // (cold-start of the cl100k_base encoder is ~150-200ms; AJV
   // cold-compile of every spec schema is ~80-120ms), then either bump
   // threshold with a comment explaining why, or split the assertion:
   // warm-up scan (skip token cost) + cold scan (full). Don't disable
   // the test.
-  const BUDGET_MS = 3500;
+  const BUDGET_MS = 7000;
 
   it(`completes within ${BUDGET_MS}ms with full pipeline + tokenization`, async () => {
     const kernel = createKernel();
