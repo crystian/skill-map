@@ -120,9 +120,9 @@ export class JobPruneCommand extends Command {
   });
 
   async execute(): Promise<number> {
-    const cwd = process.cwd();
-    const dbPath = resolve(cwd, PROJECT_DB_REL);
-    const jobsDir = resolve(cwd, JOBS_DIR_REL);
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolve(ctx.cwd, PROJECT_DB_REL);
+    const jobsDir = resolve(ctx.cwd, JOBS_DIR_REL);
 
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 

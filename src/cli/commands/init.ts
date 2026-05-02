@@ -18,7 +18,6 @@
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir as osHomedir } from 'node:os';
 import { join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -37,6 +36,7 @@ import { INIT_TEXTS } from '../i18n/init.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 const GITIGNORE_ENTRIES: readonly string[] = [
@@ -94,9 +94,8 @@ export class InitCommand extends Command {
   // eslint-disable-next-line complexity
   async execute(): Promise<number> {
     const elapsed = startElapsed();
-    const cwd = process.cwd();
-    const home = osHomedir();
-    const scopeRoot = this.global ? home : cwd;
+    const ctx = defaultRuntimeContext();
+    const scopeRoot = this.global ? ctx.homedir : ctx.cwd;
     const skillMapDir = join(scopeRoot, '.skill-map');
     const settingsPath = join(skillMapDir, 'settings.json');
     const localPath = join(skillMapDir, 'settings.local.json');
@@ -158,7 +157,7 @@ export class InitCommand extends Command {
 
     // First scan. Inline (not subprocess) so the parent process owns
     // the elapsed line and the stdout/stderr streams cleanly.
-    const scanCode = await runFirstScan(scopeRoot, dbPath, this.strict, this.context.stdout, this.context.stderr);
+    const scanCode = await runFirstScan(scopeRoot, ctx.homedir, dbPath, this.strict, this.context.stdout, this.context.stderr);
     emitDoneStderr(this.context.stderr, elapsed);
     return scanCode;
   }
@@ -236,6 +235,7 @@ function writeDryRunGitignorePlan(stdout: NodeJS.WritableStream, scopeRoot: stri
 
 async function runFirstScan(
   scopeRoot: string,
+  homedir: string,
   dbPath: string,
   strict: boolean,
   stdout: NodeJS.WritableStream,
@@ -248,7 +248,7 @@ async function runFirstScan(
 
   let cfg;
   try {
-    cfg = loadConfig({ scope: 'project', cwd: scopeRoot, homedir: osHomedir(), strict }).effective;
+    cfg = loadConfig({ scope: 'project', cwd: scopeRoot, homedir, strict }).effective;
   } catch (err) {
     const message = formatErrorMessage(err);
     stderr.write(tx(INIT_TEXTS.configLoadFailure, { message }));

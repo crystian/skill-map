@@ -34,7 +34,6 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -199,7 +198,7 @@ function tryLoadConfig(
   } catch (err) {
     const message = formatErrorMessage(err);
     stderr.write(tx(CONFIG_TEXTS.loadFailure, { message }));
-    return { ok: false, exitCode: 2 };
+    return { ok: false, exitCode: ExitCode.Error };
   }
 }
 
@@ -437,10 +436,9 @@ export class ConfigSetCommand extends Command {
 
   async execute(): Promise<number> {
     const elapsed = startElapsed();
-    const cwd = process.cwd();
-    const home = osHomedir();
+    const ctx = defaultRuntimeContext();
     const target: TWriteTarget = this.global ? 'user' : 'project';
-    const path = targetSettingsPath(target, cwd, home);
+    const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
     const current = readJsonObjectOrEmpty(path);
     const value = parseCliValue(this.value);
@@ -486,10 +484,9 @@ export class ConfigResetCommand extends Command {
 
   async execute(): Promise<number> {
     const elapsed = startElapsed();
-    const cwd = process.cwd();
-    const home = osHomedir();
+    const ctx = defaultRuntimeContext();
     const target: TWriteTarget = this.global ? 'user' : 'project';
-    const path = targetSettingsPath(target, cwd, home);
+    const path = targetSettingsPath(target, ctx.cwd, ctx.homedir);
 
     if (!existsSync(path)) {
       this.context.stdout.write(tx(CONFIG_TEXTS.unsetNoOverride, { path, key: this.key }));

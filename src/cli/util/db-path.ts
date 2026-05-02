@@ -33,6 +33,17 @@ export interface IDbLocationOptions {
  *
  * Always returns an absolute path. Does NOT verify existence — pair with
  * `assertDbExists` for read-side verbs.
+ *
+ * TODO(cli-architect M3): this helper reads `homedir()` and
+ * `process.cwd()` directly instead of accepting an `IRuntimeContext` like
+ * the rest of the CLI surface. Promoted to TODO (rather than rewritten
+ * inline) because 18 call sites across 11 commands would have to thread
+ * the context through to call this — high churn for a helper that lives
+ * in `cli/util` (not in `kernel/**`, where the no-Node-globals invariant
+ * actually bites). Day this is fixed, change `IDbLocationOptions` to
+ * extend `IRuntimeContext` (mandatory), drop the imports below, and
+ * update every call site to pass `...defaultRuntimeContext()` alongside
+ * `{ global, db }`.
  */
 export function resolveDbPath(options: IDbLocationOptions): string {
   if (options.db) return resolve(options.db);

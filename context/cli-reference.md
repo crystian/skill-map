@@ -2,8 +2,8 @@
 
 Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file from the live command surface.
 
-- CLI version: `0.3.3`
-- Spec version: `0.6.1`
+- CLI version: `0.8.0`
+- Spec version: `0.10.0`
 
 ## Global flags
 
@@ -13,21 +13,11 @@ Generated from `sm help --format md`. Do not hand-edit; CI regenerates this file
 
 ### `sm actions list`
 
-Registered action types (manifest view).
+Registered action types (manifest view). (planned)
 
 ### `sm actions show`
 
-Full action manifest, including preconditions and expected duration.
-
-## Audits
-
-### `sm audit list`
-
-Registered audits.
-
-### `sm audit run`
-
-Execute an audit. --json emits the audit report per its declared shape.
+Full action manifest, including preconditions and expected duration. (planned)
 
 ## Browse
 
@@ -40,6 +30,19 @@ otherwise 0. `warn` and `info` do not fail.
 
 Run `sm scan` first to populate the DB.
 
+`--include-prob` is an opt-in flag for probabilistic Rule dispatch (spec § A.7). 
+Default is deterministic-only — same CI-safe behaviour as before. With the flag, 
+registered prob rules are detected and named in a stderr advisory; full dispatch 
+lands when the job subsystem ships at Step 10.
+
+**Flags:**
+
+- `--node`, `-n` `string` — Restrict to issues whose nodeIds include the given path. Combines with --rules and --include-prob.
+- `--rules` `string` — Comma-separated rule ids (qualified or short). Restrict the issue read; with --include-prob, also filters which prob rules surface in the advisory.
+- `--include-prob` `boolean` — Detect probabilistic Rules and emit a stub advisory naming them (full dispatch lands at Step 10). Default off → deterministic-only, CI-safe.
+- `--async` `boolean` — Reserved companion to --include-prob: once jobs ship, returns job ids without waiting. No effect today.
+- `--no-plugins` `boolean` — Skip drop-in plugin discovery; only kernel built-ins participate in the prob detection. Same flag shape as `sm scan`.
+
 **Examples:**
 
 - Print every current issue
@@ -49,6 +52,26 @@ Run `sm scan` first to populate the DB.
 - Machine-readable issue list
   ```
   sm check --json
+  ```
+- Restrict to a single node
+  ```
+  sm check -n .claude/agents/architect.md
+  ```
+- Restrict to specific rules
+  ```
+  sm check --rules core/broken-ref,core/validate-all
+  ```
+- Opt in to probabilistic rules (stub until Step 10)
+  ```
+  sm check --include-prob
+  ```
+- Check the global scope
+  ```
+  sm check --global
+  ```
+- Use a non-default DB file
+  ```
+  sm check --db /path/to/skill-map.db
   ```
 
 ### `sm export`
@@ -88,14 +111,14 @@ Run `sm scan` first to populate the DB.
 
 ### `sm findings`
 
-Probabilistic findings: injection, stale summaries, low confidence.
+Probabilistic findings: injection, stale summaries, low confidence. (planned)
 
 ### `sm graph`
 
-Render the full graph via the named renderer.
+Render the full graph via the named formatter.
 
 Reads the persisted scan and prints a textual rendering. The built-in `ascii` 
-renderer is the only format available at v0.5.0; `mermaid` and `dot` are 
+formatter is the only format available at v0.5.0; `mermaid` and `dot` are 
 deferred to Step 12 and will surface here automatically once they ship as 
 built-ins.
 
@@ -103,7 +126,8 @@ Run `sm scan` first to populate the DB.
 
 **Flags:**
 
-- `--format` `string` — Renderer format. Must match the `format` field of a registered renderer. Default: ascii.
+- `--format` `string` — Formatter format. Must match the `formatId` field of a registered formatter. Default: ascii.
+- `--no-plugins` `boolean` — Skip drop-in plugin discovery. Only built-in formatters participate.
 
 **Examples:**
 
@@ -302,15 +326,26 @@ Read-only. Use --tables <names...> to limit the dump to specific tables.
 
 ### `sm db migrate`
 
-Apply pending kernel migrations (default) or inspect plan.
+Apply pending kernel + plugin migrations (default) or inspect plan.
 
---dry-run   show pending migrations without applying.
+--dry-run       show pending migrations without applying.
 
---status    print applied vs pending summary and exit.
+--status        print applied vs pending summary and exit.
 
---to <n>    apply up to (and including) version N.
+--to <n>        apply up to (and including) version N (kernel only).
 
---no-backup skip the pre-apply backup.
+--no-backup     skip the pre-apply backup.
+
+--kernel-only   skip plugin migrations entirely.
+
+--plugin <id>   run only that plugin's migrations (skips kernel migrations).
+
+Plugin migrations live under <plugin-dir>/migrations/ and follow the same 
+NNN_snake_case.sql convention as kernel migrations. Each migration is gated by a 
+triple-protection rule: every object it creates / alters / drops MUST live in 
+the namespace `plugin_<normalizedId>_*`. Layer 1 validates every pending file 
+before anything runs; Layer 2 re-validates immediately before apply; Layer 3 
+sweeps sqlite_master after apply and reports any object outside the prefix.
 
 ### `sm db reset`
 
@@ -319,14 +354,26 @@ Drop scan_* (default), optionally state_*, or delete the DB entirely.
 Without flags: drops scan_* tables only. Non-destructive — no prompt. With 
 --state: also drops state_* tables. Destructive — requires confirmation unless 
 --yes / --force. With --hard: deletes the DB file entirely. Destructive — 
-requires confirmation unless --yes / --force.
+requires confirmation unless --yes / --force. With --dry-run: previews what 
+would be cleared / deleted without touching the DB. Bypasses the confirmation 
+prompt entirely (the preview itself is non-destructive).
+
+**Flags:**
+
+- `--dry-run`, `-n` `boolean` — Preview the reset without dropping any tables or unlinking any files.
 
 ### `sm db restore`
 
 Replace the active DB file with a backup.
 
 Destructive. Requires interactive confirmation unless --yes / --force is passed. 
-scan_* will be re-populated by the next sm scan.
+scan_* will be re-populated by the next sm scan. With --dry-run: previews the 
+swap (source size, target overwrite status, sidecars to drop) without copying or 
+deleting anything. Dry-run bypasses the confirmation prompt.
+
+**Flags:**
+
+- `--dry-run`, `-n` `boolean` — Preview the restore without overwriting the live DB.
 
 ### `sm db shell`
 
@@ -345,7 +392,7 @@ Filter execution records. --json emits an array conforming to execution-record.s
 Reads from state_executions. Filters:   -n <path>          restrict to 
 executions whose nodeIds[] contains <path>
 
-  --action <id>      restrict to a specific extension (action / audit) id
+  --action <id>      restrict to a specific action extension id
 
   --status <s,...>   restrict to one or more of completed,failed,cancelled
 
@@ -401,6 +448,50 @@ shape.
 
 ## Introspection
 
+### `sm conformance run`
+
+Run the conformance suite — spec-owned cases plus every built-in Provider.
+
+Drives the conformance runner shipped at `@skill-map/cli/conformance` against 
+the cases bundled with this CLI install. Each case provisions an isolated tmp 
+scope, seeds the appropriate fixture, runs an `sm` invocation, and asserts the 
+requested predicates.
+
+Scope selection:
+
+  --scope spec               only spec-owned, kernel-agnostic cases
+
+                              (default fixture: `preamble-v1.txt`,               
+                case: `kernel-empty-boot`).   --scope provider:<id>      only 
+the named built-in Provider's
+
+                              cases. Today: `provider:claude`                    
+           (`basic-scan`, `rename-high`,                               
+`orphan-detection`).   --scope all (default)      every scope, in registry 
+order.
+
+Exit codes mirror the rest of the verb catalog: 0 on a clean sweep, 1 if any 
+case failed, 2 on a configuration error (unknown scope, missing binary).
+
+**Flags:**
+
+- `--scope` `string` — Suite selector: 'all' (default), 'spec', or 'provider:<id>'.
+
+**Examples:**
+
+- Run every conformance suite
+  ```
+  sm conformance run
+  ```
+- Run only the spec suite
+  ```
+  sm conformance run --scope spec
+  ```
+- Run only the Claude Provider suite
+  ```
+  sm conformance run --scope provider:claude
+  ```
+
 ### `sm help`
 
 Self-describing introspection. --format human|md|json.
@@ -417,19 +508,19 @@ spec/cli-contract.md.
 
 ### `sm job cancel`
 
-Force a running job to failed with reason user-cancelled.
+Force a running job to failed with reason user-cancelled. (planned)
 
 ### `sm job claim`
 
-Atomic primitive: return next queued job id, mark it running.
+Atomic primitive: return next queued job id, mark it running. (planned)
 
 ### `sm job list`
 
-List jobs.
+List jobs. (planned)
 
 ### `sm job preview`
 
-Render the job MD file without executing.
+Render the job MD file without executing. (planned)
 
 ### `sm job prune`
 
@@ -446,8 +537,8 @@ retention so freshly-pruned files don't double-count.
 With --dry-run: counts and reports what would happen without touching the DB or 
 the FS.
 
-Exits 0 on success, 2 on operational failure (missing DB, malformed config, IO 
-error).
+Exits 0 on success, 5 if the DB is missing (run `sm init` first), 2 on any other 
+operational failure (malformed config, IO error).
 
 **Flags:**
 
@@ -472,23 +563,23 @@ error).
 
 ### `sm job run`
 
-Full CLI-runner loop: claim + spawn + record.
+Full CLI-runner loop: claim + spawn + record. (planned)
 
 ### `sm job show`
 
-Job detail: state, claim time, TTL, runner, content hash.
+Job detail: state, claim time, TTL, runner, content hash. (planned)
 
 ### `sm job status`
 
-Counts (per status) or single-job status.
+Counts (per status) or single-job status. (planned)
 
 ### `sm job submit`
 
-Enqueue a single job or fan out to every matching node (--all).
+Enqueue a single job or fan out to every matching node (--all). (planned)
 
 ### `sm record`
 
-Close a running job with success or failure. Nonce is the sole credential.
+Close a running job with success or failure. Nonce is the sole credential. (planned)
 
 ## Plugins
 
@@ -499,6 +590,11 @@ Disable a plugin (or --all). Persists in config_plugins; does not delete files.
 Writes a row to config_plugins with enabled=0. Discovery still surfaces the 
 plugin in sm plugins list, but with status=disabled — its extensions are not 
 imported and the kernel will not run them.
+
+Granularity: a bundle-granularity plugin (default for user plugins, and the 
+built-in 'claude' bundle) accepts only the bundle id. An extension-granularity 
+plugin (the built-in 'core' bundle) accepts only qualified ids 
+'<bundle>/<ext-id>'. Mismatches are rejected with directed guidance.
 
 ### `sm plugins doctor`
 
@@ -516,12 +612,17 @@ team-shared baseline at settings.json#/plugins/<id>/enabled. Use sm plugins
 disable to flip; sm config reset plugins.<id>.enabled drops the settings.json 
 baseline.
 
+Granularity: a bundle-granularity plugin (default for user plugins, and the 
+built-in 'claude' bundle) accepts only the bundle id. An extension-granularity 
+plugin (the built-in 'core' bundle) accepts only qualified ids 
+'<bundle>/<ext-id>'. Mismatches are rejected with directed guidance.
+
 ### `sm plugins list`
 
 List discovered plugins and their load status.
 
 Scans <scope>/.skill-map/plugins and ~/.skill-map/plugins (or --plugin-dir 
-<path>).
+<path>). Built-in bundles (claude, core) are listed alongside user plugins.
 
 ### `sm plugins show`
 
@@ -529,12 +630,47 @@ Show a single plugin's manifest + loaded extensions.
 
 ## Scan
 
+### `sm refresh`
+
+Refresh enrichment rows: granular (single node) or batch (every stale row).
+
+Re-runs Extractors against the node(s) and upserts their outputs into the 
+universal enrichment layer (`node_enrichments`). Deterministic Extractors run 
+for real and persist; probabilistic Extractors require the job subsystem (Step 
+10) and are stubbed for now — they emit a stderr advisory and skip without 
+touching their stale rows.
+
+Layer separation: enrichments live separately from the author's frontmatter, 
+which is immutable from any Extractor. Probabilistic enrichments track 
+`body_hash_at_enrichment`; when the scan loop sees a body change, those rows are 
+flagged `stale = 1` (NOT deleted, so the LLM cost is preserved) and surface here 
+for refresh.
+
+Pass `--stale` to refresh every node carrying a stale row. Pass a positional 
+`<node.path>` to refresh just that node. The two are mutually exclusive.
+
+**Flags:**
+
+- `--stale` `boolean` — Refresh every node whose probabilistic enrichment row is flagged stale=1.
+- `--no-plugins` `boolean` — Skip drop-in plugin discovery; use only the built-in extractor set.
+
+**Examples:**
+
+- Refresh a single node
+  ```
+  sm refresh .claude/agents/architect.md
+  ```
+- Refresh every node with stale enrichments
+  ```
+  sm refresh --stale
+  ```
+
 ### `sm scan`
 
-Scan roots for markdown nodes, run detectors and rules.
+Scan roots for markdown nodes, run extractors and rules.
 
-Walks the given roots with the built-in claude adapter, runs the frontmatter / 
-slash / at-directive / external-url-counter detectors per node, then the 
+Walks the given roots with the built-in claude Provider, runs the frontmatter / 
+slash / at-directive / external-url-counter extractors per node, then the 
 trigger-collision / broken-ref / superseded rules over the full graph. Emits a 
 ScanResult conforming to scan-result.schema.json.
 
@@ -550,13 +686,13 @@ reuse unchanged nodes, and only reprocess new / modified files.
 
 - `--json` `boolean` — Emit a machine-readable ScanResult document on stdout.
 - `--no-built-ins` `boolean` — Skip the built-in extension set. Yields a zero-filled ScanResult (kernel-empty-boot parity); skips DB persistence.
+- `--no-plugins` `boolean` — Skip drop-in plugin discovery. Only the built-in set runs. Combine with --no-built-ins for a fully empty pipeline.
 - `--no-tokens` `boolean` — Skip per-node token counts (cl100k_base BPE). Leaves node.tokens undefined; spec-valid since the field is optional.
 - `--dry-run`, `-n` `boolean` — Run the scan in memory and skip every DB write. Combined with --changed, still opens the DB read-side to load the prior snapshot.
 - `--changed` `boolean` — Incremental scan: reuse unchanged nodes from the persisted prior snapshot. Degrades to a full scan if no prior snapshot exists.
 - `--allow-empty` `boolean` — Allow a zero-result scan to wipe an already-populated DB (replace-all replace by zero rows). Off by default to avoid the typo-trap where an invalid root silently clears your data.
 - `--strict` `boolean` — Promote frontmatter-validation findings from warn to error (exit code 1 on any violation). Overrides scan.strict from config when both are set.
 - `--watch` `boolean` — Long-running mode: watch the roots and trigger an incremental scan after each debounced batch of filesystem events. Alias of `sm watch`.
-- `--compare-with` `string` — Run a fresh scan in memory and emit a delta against the saved ScanResult dump at <path>. Does NOT touch the DB. Exit 0 on empty delta, 1 if anything diverges, 2 on dump load / validation errors.
 
 **Examples:**
 
@@ -585,6 +721,46 @@ reuse unchanged nodes, and only reprocess new / modified files.
   sm scan --changed -n --json
   ```
 
+### `sm scan compare-with`
+
+Run a fresh scan in memory and emit a delta against the saved ScanResult dump at <dump>. Read-only.
+
+Loads the JSON dump at <dump>, AJV-validates it against scan-result.schema.json, 
+runs a fresh scan over [roots...] (default: current directory) using the same 
+pipeline as 'sm scan' (built-ins + plugin runtime + layered config + ignore 
+filter), and emits the delta between the dump and the fresh scan. The DB is 
+NEVER touched — this verb is read-only.
+
+Exit 0 on empty delta (state matches the dump), exit 1 on any drift (added / 
+removed / changed nodes, links, or issues), exit 2 on operational error (missing 
+or malformed dump, schema violation, config / scan failure).
+
+Typical use case: CI guard. Freeze a baseline at merge to main:   sm scan --json 
+> .skill-map/baseline.json And on every PR, before the merge:   sm scan 
+compare-with .skill-map/baseline.json Any drift trips the build.
+
+**Flags:**
+
+- `--json` `boolean` — Emit the IScanDelta document as JSON on stdout.
+- `--no-tokens` `boolean` — Skip per-node token counts during the fresh scan.
+- `--strict` `boolean` — Promote layered-config warnings and frontmatter-validation findings from warn to error.
+- `--no-plugins` `boolean` — Skip drop-in plugin discovery.
+
+**Examples:**
+
+- Compare against a baseline
+  ```
+  sm scan compare-with .skill-map/baseline.json
+  ```
+- Compare a specific subtree
+  ```
+  sm scan compare-with baseline.json src/
+  ```
+- JSON output for tooling
+  ```
+  sm scan compare-with baseline.json --json
+  ```
+
 ### `sm watch`
 
 Watch roots and run an incremental scan after each debounced batch of filesystem events.
@@ -606,6 +782,7 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
 - `--json` `boolean` — Emit one ScanResult document per batch as ndjson on stdout.
 - `--no-tokens` `boolean` — Skip per-node token counts (cl100k_base BPE).
 - `--strict` `boolean` — Promote frontmatter-validation findings from warn to error inside each batch. Does not change the watcher exit code.
+- `--no-plugins` `boolean` — Skip drop-in plugin discovery for the watcher session.
 
 **Examples:**
 
@@ -626,13 +803,13 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
 
 ### `sm serve`
 
-Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener.
+Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. (planned)
 
 ## Setup
 
 ### `sm doctor`
 
-Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status, runner availability.
+Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status, runner availability. (planned)
 
 ### `sm init`
 
@@ -656,6 +833,7 @@ where the operator wants to provision before populating roots.
 - `--no-scan` `boolean` — Skip the first scan after scaffolding.
 - `--force` `boolean` — Overwrite an existing settings.json / settings.local.json / .skill-mapignore.
 - `--strict` `boolean` — Strict mode: fail on any layered-loader warning AND promote frontmatter warnings to errors during the first scan. Same flag as sm scan / sm config.
+- `--dry-run`, `-n` `boolean` — Preview the scope provisioning without touching the filesystem or the DB. Honours --force for the would-overwrite preview. Skips the first scan unconditionally — dry-run never persists.
 
 **Examples:**
 
@@ -674,6 +852,10 @@ where the operator wants to provision before populating roots.
 - Force-overwrite an existing scope
   ```
   sm init --force
+  ```
+- Preview what would be created
+  ```
+  sm init --dry-run
   ```
 
 ## Setup & state

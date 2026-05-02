@@ -23,7 +23,6 @@
  * introspection without re-reading the manifests.
  */
 
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import type {
@@ -418,15 +417,17 @@ export function filterBuiltInManifests(
 /** Project + user search paths, or the explicit override. */
 function resolveSearchPaths(opts: ILoadPluginRuntimeOptions): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
-  const project = resolve(process.cwd(), PLUGINS_DIR);
-  const user = join(homedir(), PLUGINS_DIR);
+  const ctx = defaultRuntimeContext();
+  const project = resolve(ctx.cwd, PLUGINS_DIR);
+  const user = join(ctx.homedir, PLUGINS_DIR);
   return opts.scope === 'global' ? [user] : [project, user];
 }
 
 function dbPathForScope(scope: 'project' | 'global'): string {
+  const ctx = defaultRuntimeContext();
   return scope === 'global'
-    ? join(homedir(), '.skill-map', DB_FILENAME)
-    : resolve(process.cwd(), '.skill-map', DB_FILENAME);
+    ? join(ctx.homedir, '.skill-map', DB_FILENAME)
+    : resolve(ctx.cwd, '.skill-map', DB_FILENAME);
 }
 
 /**

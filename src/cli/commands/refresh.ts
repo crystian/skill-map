@@ -57,6 +57,7 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
@@ -123,7 +124,8 @@ export class RefreshCommand extends Command {
       return ExitCode.Error;
     }
 
-    const dbPath = resolve(process.cwd(), DEFAULT_PROJECT_DB);
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolve(ctx.cwd, DEFAULT_PROJECT_DB);
 
     // --- plugin runtime -----------------------------------------------------
     const pluginRuntime = this.noPlugins
@@ -165,7 +167,7 @@ export class RefreshCommand extends Command {
     // --- run det extractors per node, count prob skips ---------------------
     let extractResult;
     try {
-      extractResult = await this.#runDetExtractorsAcrossNodes(targetNodes, allExtractors);
+      extractResult = await this.#runDetExtractorsAcrossNodes(targetNodes, allExtractors, ctx.cwd);
     } catch (err) {
       const message = formatErrorMessage(err);
       this.context.stderr.write(tx(REFRESH_TEXTS.refreshFailed, { message }));
@@ -265,6 +267,7 @@ export class RefreshCommand extends Command {
   async #runDetExtractorsAcrossNodes(
     targetNodes: Node[],
     allExtractors: IExtractor[],
+    cwd: string,
   ): Promise<{
     freshDetEnrichments: IEnrichmentRecord[];
     probSkipCount: number;
@@ -283,12 +286,15 @@ export class RefreshCommand extends Command {
         // event loop overlap any concurrent kernel work and keeps the
         // door open for a future parallel-by-node refresh without a
         // second sweep.
-        const raw = await readFile(resolve(process.cwd(), node.path), 'utf8');
+        const raw = await readFile(resolve(cwd, node.path), 'utf8');
         body = stripFrontmatterFence(raw);
       } catch (err) {
         this.context.stderr.write(
           tx(REFRESH_TEXTS.refreshFailed, {
-            message: `read failed for ${node.path}: ${formatErrorMessage(err)}`,
+            message: tx(REFRESH_TEXTS.readFailedDetail, {
+              path: node.path,
+              message: formatErrorMessage(err),
+            }),
           }),
         );
         continue;

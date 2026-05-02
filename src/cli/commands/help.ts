@@ -196,19 +196,16 @@ function resolveSpecVersion(): string {
 
 function renderMarkdown(doc: IHelpDocument): string {
   const out: string[] = [];
-  out.push(`# \`sm\` CLI reference`, '');
-  out.push(
-    `Generated from \`sm help --format md\`. Do not hand-edit; CI regenerates this file from the live command surface.`,
-    '',
-  );
-  out.push(`- CLI version: \`${doc.cliVersion}\``);
-  out.push(`- Spec version: \`${doc.specVersion}\``);
+  out.push(HELP_TEXTS.mdReferenceTitle, '');
+  out.push(HELP_TEXTS.mdGeneratedNotice, '');
+  out.push(tx(HELP_TEXTS.mdCliVersionLine, { version: doc.cliVersion }));
+  out.push(tx(HELP_TEXTS.mdSpecVersionLine, { version: doc.specVersion }));
   out.push('');
 
   if (doc.globalFlags.length > 0) {
-    out.push('## Global flags', '');
+    out.push(HELP_TEXTS.mdHeaderGlobalFlags, '');
     for (const flag of doc.globalFlags) {
-      out.push(`- \`${flag.name}\` — ${flag.description}`);
+      out.push(tx(HELP_TEXTS.mdGlobalFlagBullet, { name: flag.name, description: flag.description }));
     }
     out.push('');
   }
@@ -221,7 +218,7 @@ function renderMarkdown(doc: IHelpDocument): string {
   const sortedCategories = [...byCategory.keys()].sort();
 
   for (const category of sortedCategories) {
-    out.push(`## ${category}`, '');
+    out.push(tx(HELP_TEXTS.mdCategoryHeading, { category }), '');
     const verbs = byCategory.get(category)!;
     for (const verb of verbs) out.push(...renderVerbBlock(verb));
   }
@@ -236,7 +233,7 @@ function renderMarkdown(doc: IHelpDocument): string {
  */
 function renderVerbBlock(verb: IHelpVerb): string[] {
   const out: string[] = [];
-  out.push(`### \`sm ${verb.name}\``, '');
+  out.push(tx(HELP_TEXTS.mdVerbHeading, { name: verb.name }), '');
   if (verb.description) out.push(verb.description, '');
   if (verb.details) out.push(verb.details, '');
   if (verb.flags.length > 0) out.push(...renderVerbFlags(verb.flags));
@@ -246,12 +243,14 @@ function renderVerbBlock(verb: IHelpVerb): string[] {
 
 /** Markdown flags table for one verb. */
 function renderVerbFlags(flags: IHelpVerb['flags']): string[] {
-  const lines: string[] = ['**Flags:**', ''];
+  const lines: string[] = [HELP_TEXTS.mdLabelFlags, ''];
   for (const flag of flags) {
     const names = [flag.name, ...flag.aliases].map((n) => `\`${n}\``).join(', ');
-    const req = flag.required ? ' (required)' : '';
-    const desc = flag.description ? ` — ${flag.description}` : '';
-    lines.push(`- ${names} \`${flag.type}\`${req}${desc}`);
+    const required = flag.required ? HELP_TEXTS.mdFlagBulletRequiredFragment : '';
+    const description = flag.description
+      ? tx(HELP_TEXTS.mdFlagBulletDescriptionFragment, { description: flag.description })
+      : '';
+    lines.push(tx(HELP_TEXTS.mdFlagBullet, { names, type: flag.type, required, description }));
   }
   lines.push('');
   return lines;
@@ -259,9 +258,9 @@ function renderVerbFlags(flags: IHelpVerb['flags']): string[] {
 
 /** Markdown examples block for one verb. */
 function renderVerbExamples(examples: IHelpVerb['examples']): string[] {
-  const lines: string[] = ['**Examples:**', ''];
+  const lines: string[] = [HELP_TEXTS.mdLabelExamples, ''];
   for (const ex of examples) {
-    lines.push(`- ${ex.title}`);
+    lines.push(tx(HELP_TEXTS.mdExampleBullet, { title: ex.title }));
     lines.push('  ```');
     lines.push(`  ${ex.command}`);
     lines.push('  ```');
@@ -285,14 +284,14 @@ function renderSingle(verb: IHelpVerb, format: THelpFormat): string {
   }
   // human single-verb
   const out: string[] = [];
-  out.push(`sm ${verb.name} — ${verb.description}`);
+  out.push(tx(HELP_TEXTS.humanVerbHeader, { name: verb.name, description: verb.description }));
   if (verb.details) out.push('', verb.details);
   if (verb.flags.length > 0) {
-    out.push('', 'Flags:');
+    out.push('', HELP_TEXTS.humanLabelFlags);
     for (const flag of verb.flags) {
       const names = [flag.name, ...flag.aliases].join(', ');
-      const req = flag.required ? ' (required)' : '';
-      out.push(`  ${names}${req} — ${flag.description}`);
+      const required = flag.required ? HELP_TEXTS.humanFlagRowRequiredFragment : '';
+      out.push(tx(HELP_TEXTS.humanFlagRow, { names, required, description: flag.description }));
     }
   }
   return out.join('\n') + '\n';

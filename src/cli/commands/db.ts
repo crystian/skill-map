@@ -620,7 +620,7 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
     } catch (err) {
       const reason = formatErrorMessage(err);
       stderr.write(tx(DB_TEXTS.pluginMigrateFailure, { pluginId: plugin.id, reason }));
-      exit = 2;
+      exit = ExitCode.Error;
       continue;
     }
     if (dryRun) {
@@ -652,7 +652,7 @@ async function runPluginMigrations(opts: IRunPluginMigrationsOpts): Promise<numb
           intrusions: result.intrusions.join(', '),
         }),
       );
-      exit = 2;
+      exit = ExitCode.Error;
     }
   }
   return exit;

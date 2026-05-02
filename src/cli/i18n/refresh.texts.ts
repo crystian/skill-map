@@ -48,4 +48,12 @@ export const REFRESH_TEXTS = {
 
   // --- failures -------------------------------------------------------------
   refreshFailed: 'sm refresh: {{message}}\n',
+
+  /**
+   * Sub-detail composed inside `refreshFailed` when the failure is a
+   * filesystem read on a specific node body. Catalogued separately so the
+   * "read failed for <path>: <err>" copy lives in the i18n surface, not
+   * in a TS string template.
+   */
+  readFailedDetail: 'read failed for {{path}}: {{message}}',
 } as const;

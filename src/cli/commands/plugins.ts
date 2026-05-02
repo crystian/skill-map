@@ -32,7 +32,6 @@
  */
 
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { Command, Option } from 'clipanion';
@@ -71,17 +70,17 @@ interface IScopeOptions {
   pluginDir: string | undefined;
 }
 
-function resolveSearchPaths(opts: IScopeOptions): string[] {
+function resolveSearchPaths(opts: IScopeOptions, cwd: string, homedir: string): string[] {
   if (opts.pluginDir) return [resolve(opts.pluginDir)];
-  const project = resolve(process.cwd(), PLUGINS_DIR);
-  const user = join(homedir(), PLUGINS_DIR);
+  const project = resolve(cwd, PLUGINS_DIR);
+  const user = join(homedir, PLUGINS_DIR);
   return opts.global ? [user] : [project, user];
 }
 
-function resolveDbPath(global: boolean): string {
+function resolveDbPath(global: boolean, cwd: string, homedir: string): string {
   return global
-    ? join(homedir(), '.skill-map', DB_FILENAME)
-    : resolve(process.cwd(), '.skill-map', DB_FILENAME);
+    ? join(homedir, '.skill-map', DB_FILENAME)
+    : resolve(cwd, '.skill-map', DB_FILENAME);
 }
 
 /**
@@ -90,11 +89,13 @@ function resolveDbPath(global: boolean): string {
  * settings.json, no DB) — both fall through gracefully.
  */
 async function buildResolver(global: boolean): Promise<(id: string) => boolean> {
+  const ctx = defaultRuntimeContext();
   const { effective: cfg } = loadConfig({
     scope: global ? 'global' : 'project',
-    ...defaultRuntimeContext(),
+    cwd: ctx.cwd,
+    homedir: ctx.homedir,
   });
-  const dbPath = resolveDbPath(global);
+  const dbPath = resolveDbPath(global, ctx.cwd, ctx.homedir);
   const dbOverrides =
     (await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
@@ -104,9 +105,10 @@ async function buildResolver(global: boolean): Promise<(id: string) => boolean> 
 }
 
 async function loadAll(opts: IScopeOptions): Promise<IDiscoveredPlugin[]> {
+  const ctx = defaultRuntimeContext();
   const validators = loadSchemaValidators();
   const loaderOpts: IPluginLoaderOptions = {
-    searchPaths: resolveSearchPaths(opts),
+    searchPaths: resolveSearchPaths(opts, ctx.cwd, ctx.homedir),
     validators,
     specVersion: installedSpecVersion(),
     resolveEnabled: await buildResolver(opts.global),
@@ -563,31 +565,32 @@ interface IProviderExplorationDirWarning {
 }
 
 /**
- * Resolve `~` and `~user` prefixes against the current user's home dir.
+ * Resolve `~` and `~user` prefixes against the supplied home dir.
  * Mirrors the canonical shell convention so the doctor's existence check
  * matches what the Provider's `walk()` would actually traverse at scan
  * time. Returns the input verbatim when no `~` prefix is present.
  */
-function expandHome(p: string): string {
-  if (p === '~') return homedir();
-  if (p.startsWith('~/')) return join(homedir(), p.slice(2));
+function expandHome(p: string, homedir: string): string {
+  if (p === '~') return homedir;
+  if (p.startsWith('~/')) return join(homedir, p.slice(2));
   return p;
 }
 
 /**
  * Walk every loaded Provider (built-in + user plugin) and emit one warning
  * per declared `explorationDir` that does not exist on disk. The lookup
- * resolves `~` against the current user's home; relative paths fall back
+ * resolves `~` against the supplied home dir; relative paths fall back
  * to the cwd.
  */
 function collectExplorationDirWarnings(
   plugins: IDiscoveredPlugin[],
+  homedir: string,
 ): IProviderExplorationDirWarning[] {
   const out: IProviderExplorationDirWarning[] = [];
   forEachProviderInstance(plugins, ({ id, pluginId, instance }) => {
     const dir = instance['explorationDir'];
     if (typeof dir !== 'string' || dir.length === 0) return;
-    const resolved = expandHome(dir);
+    const resolved = expandHome(dir, homedir);
     if (!existsSync(resolved)) {
       out.push({
         providerQualifiedId: qualifiedExtensionId(pluginId, id),
@@ -673,7 +676,7 @@ export class PluginsDoctorCommand extends Command {
     const applicableKindWarnings = collectApplicableKindWarnings(plugins, knownKinds);
     // Provider explorationDir validation. Non-blocking — the user may not
     // have installed that platform yet, so missing dir is informational.
-    const explorationDirWarnings = collectExplorationDirWarnings(plugins);
+    const explorationDirWarnings = collectExplorationDirWarnings(plugins, defaultRuntimeContext().homedir);
     if (applicableKindWarnings.length > 0 || explorationDirWarnings.length > 0) {
       this.context.stdout.write(PLUGINS_TEXTS.doctorWarningsHeader);
       for (const w of applicableKindWarnings) {
@@ -878,7 +881,8 @@ abstract class TogglePluginsBase extends Command {
       targets = [resolved.key];
     }
 
-    const dbPath = resolveDbPath(this.global);
+    const ctx = defaultRuntimeContext();
+    const dbPath = resolveDbPath(this.global, ctx.cwd, ctx.homedir);
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       for (const id of targets) {
         await adapter.pluginConfig.set(id, enabled);

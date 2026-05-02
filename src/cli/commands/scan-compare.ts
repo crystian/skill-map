@@ -114,6 +114,7 @@ export class ScanCompareCommand extends Command {
   // `loadAndValidateDump` and `computeScanDelta`.
   // eslint-disable-next-line complexity
   async execute(): Promise<number> {
+    const ctx = defaultRuntimeContext();
     const roots = this.roots.length > 0 ? this.roots : ['.'];
 
     // 1. Load + validate the dump. Errors here are operational (exit 2)
@@ -142,13 +143,13 @@ export class ScanCompareCommand extends Command {
 
     let cfg;
     try {
-      cfg = loadConfig({ scope: 'project', strict: this.strict, ...defaultRuntimeContext() }).effective;
+      cfg = loadConfig({ scope: 'project', strict: this.strict, cwd: ctx.cwd, homedir: ctx.homedir }).effective;
     } catch (err) {
       const message = formatErrorMessage(err);
       this.context.stderr.write(tx(SCAN_TEXTS.compareErrorPrefix, { message }));
       return ExitCode.Error;
     }
-    const ignoreFileText = readIgnoreFileText(process.cwd());
+    const ignoreFileText = readIgnoreFileText(ctx.cwd);
     const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
     if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
     if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
