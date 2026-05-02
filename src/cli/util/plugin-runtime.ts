@@ -51,6 +51,8 @@ import type {
   IDiscoveredPlugin,
   ILoadedExtension,
 } from '../../kernel/types/plugin.js';
+import { tx } from '../../kernel/util/tx.js';
+import { PLUGIN_RUNTIME_TEXTS } from '../i18n/plugin-runtime.texts.js';
 import { defaultRuntimeContext } from './runtime-context.js';
 import { tryWithSqlite } from './with-sqlite.js';
 
@@ -514,11 +516,15 @@ function isExtensionInstance(v: unknown): v is { id: string; kind: string; versi
 
 /**
  * Render a single-line, scannable diagnostic for a non-loaded plugin.
- * Format: `plugin <id>: <status> — <reason>`. The status name doubles
- * as the failure category so a user can grep `incompatible-spec` /
- * `invalid-manifest` / `load-error` and see the full context.
+ * The status name doubles as the failure category so a user can grep
+ * `incompatible-spec` / `invalid-manifest` / `load-error` and see the
+ * full context. Template lives in `cli/i18n/plugin-runtime.texts.ts`.
  */
 function formatWarning(plugin: IDiscoveredPlugin): string {
-  const reason = plugin.reason ?? '(no reason recorded)';
-  return `plugin ${plugin.id}: ${plugin.status} — ${reason}`;
+  const reason = plugin.reason ?? PLUGIN_RUNTIME_TEXTS.warningReasonMissing;
+  return tx(PLUGIN_RUNTIME_TEXTS.warningRow, {
+    id: plugin.id,
+    status: plugin.status,
+    reason,
+  });
 }

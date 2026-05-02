@@ -3,9 +3,11 @@
  * (`sm db restore`, `sm db reset --state`, `sm db reset --hard`,
  * `sm orphans undo-rename`).
  *
- * Writes the question + `[y/N] ` suffix to the supplied `stderr`.
- * Returns true only for inputs that match `/^y(es)?$/i` (trim,
- * case-insensitive). Any other answer (including empty) returns false.
+ * Writes the question + `[y/N] ` suffix to the supplied `stderr`. The
+ * affirmative-answer regex is sourced from `UTIL_TEXTS` so a future
+ * non-English locale can extend the alternation without touching this
+ * helper. Match is trimmed and case-insensitive; any other answer
+ * (including empty) returns false.
  *
  * Streams are supplied by the caller (typically `this.context.stdin` /
  * `this.context.stderr` from Clipanion) so commands can be tested with
@@ -23,13 +25,15 @@ export interface IConfirmStreams {
   stderr: Writable;
 }
 
+const YES_PATTERN = new RegExp(UTIL_TEXTS.confirmYesPatternSource, 'i');
+
 export async function confirm(question: string, streams: IConfirmStreams): Promise<boolean> {
   const rl = createInterface({ input: streams.stdin, output: streams.stderr });
   try {
     const answer = await new Promise<string>((resolveP) =>
       rl.question(`${question}${UTIL_TEXTS.confirmPromptSuffix}`, resolveP),
     );
-    return /^y(es)?$/i.test(answer.trim());
+    return YES_PATTERN.test(answer.trim());
   } finally {
     rl.close();
   }

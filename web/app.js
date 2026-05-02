@@ -850,9 +850,9 @@
   };
 
   const SECTION_LABEL = {
-    highlights: { en: 'Highlights', es: 'Hitos' },
-    steps:      { en: 'Steps',      es: 'Pasos' },
-    sketches:   { en: 'Sketches',   es: 'Bocetos' },
+    highlights: { en: 'Milestones', es: 'Milestones' },
+    steps:      { en: 'Milestones', es: 'Milestones' },
+    sketches:   { en: 'Milestones', es: 'Milestones' },
   };
 
   const tx = (obj) => obj[lang] ?? obj.en;
@@ -976,17 +976,13 @@
     ul.innerHTML = '';
     for (const item of p.items) {
       const li = document.createElement('li');
-      if (p.list === 'steps' || p.list === 'highlights') {
-        li.dataset.status = item.status ?? 'done';
-        const titleObj = item.title ?? item;
-        li.innerHTML = `
-          <span class="roadmap__step-mark" aria-hidden="true"></span>
-          <span class="roadmap__step-text">
-            <strong>${escapeHtml(tx(titleObj))}</strong>
-          </span>`;
-      } else {
-        li.innerHTML = `<span>${escapeHtml(tx(item))}</span>`;
-      }
+      li.dataset.status = item.status ?? p.status;
+      const titleObj = item.title ?? item;
+      li.innerHTML = `
+        <span class="roadmap__step-mark" aria-hidden="true"></span>
+        <span class="roadmap__step-text">
+          <strong>${escapeHtml(tx(titleObj))}</strong>
+        </span>`;
       ul.appendChild(li);
     }
   }

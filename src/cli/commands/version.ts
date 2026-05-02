@@ -3,6 +3,7 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { VERSION_TEXTS } from '../i18n/version.texts.js';
 import { resolveDbPath } from '../util/db-path.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { VERSION } from '../version.js';
 import { tryWithSqlite } from '../util/with-sqlite.js';
@@ -108,7 +109,7 @@ async function resolveSpecVersion(): Promise<string> {
  *   - PRAGMA returns null / non-numeric (engine quirk; never observed).
  */
 async function resolveDbSchemaVersion(): Promise<string> {
-  const dbPath = resolveDbPath({ global: false, db: undefined });
+  const dbPath = resolveDbPath({ global: false, db: undefined, ...defaultRuntimeContext() });
   try {
     const v = await tryWithSqlite({ databasePath: dbPath, autoBackup: false }, async (port) =>
       port.migrations.currentSchemaVersion(),

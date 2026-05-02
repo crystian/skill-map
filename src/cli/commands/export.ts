@@ -28,6 +28,7 @@ import {
 import type { IExportSubset } from '../../kernel/scan/query.js';
 import type { Issue, Link, Node } from '../../kernel/types.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { tx } from '../../kernel/util/tx.js';
 import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
@@ -40,7 +41,7 @@ import { withSqlite } from '../util/with-sqlite.js';
 const KIND_ORDER: readonly string[] = ['agent', 'command', 'hook', 'skill', 'note'];
 const SUPPORTED_FORMATS = ['json', 'md'] as const;
 const DEFERRED_FORMATS: Record<string, string> = {
-  mermaid: 'lands at Step 12 with the mermaid formatter',
+  mermaid: EXPORT_TEXTS.formatDeferredReasonMermaid,
 };
 
 export class ExportCommand extends Command {
@@ -108,7 +109,7 @@ export class ExportCommand extends Command {
       throw err;
     }
 
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {

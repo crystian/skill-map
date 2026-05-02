@@ -2413,9 +2413,10 @@ svg    { display: block; max-width: 100%; }
   gap: 6px;
 }
 
-/* Steps / Highlights list (Phase 0 / A / B / C) */
+/* All phase detail lists (Phase 0 / A / B / C / D) */
 .roadmap__detail-list--steps li,
-.roadmap__detail-list--highlights li {
+.roadmap__detail-list--highlights li,
+.roadmap__detail-list--sketches li {
   display: grid;
   grid-template-columns: 22px 1fr;
   gap: 12px;
@@ -2455,22 +2456,6 @@ svg    { display: block; max-width: 100%; }
   font-size: 14px;
 }
 
-/* Sketches list (Phase D) */
-.roadmap__detail-list--sketches li {
-  position: relative;
-  padding: 4px 0 4px 22px;
-  font-size: 14px;
-  color: rgba(255,255,255,.78);
-  line-height: 1.5;
-}
-.roadmap__detail-list--sketches li::before {
-  content: '·';
-  position: absolute;
-  left: 6px;
-  top: -4px;
-  color: rgba(255,255,255,.4);
-  font-size: 24px;
-}
 
 .roadmap__hint {
   margin-top: 14px;
@@ -2504,7 +2489,8 @@ svg    { display: block; max-width: 100%; }
   }
   .roadmap__detail-title { font-size: 22px; }
   .roadmap__detail-list--steps li,
-  .roadmap__detail-list--highlights li {
+  .roadmap__detail-list--highlights li,
+  .roadmap__detail-list--sketches li {
     grid-template-columns: 18px 1fr;
     gap: 10px;
   }

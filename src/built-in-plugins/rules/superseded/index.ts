@@ -12,6 +12,8 @@
 
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
 import type { Issue } from '../../../kernel/types.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { SUPERSEDED_TEXTS } from '../../i18n/superseded.texts.js';
 
 const ID = 'superseded';
 
@@ -36,7 +38,10 @@ export const supersededRule: IRule = {
         ruleId: ID,
         severity: 'info',
         nodeIds: [node.path],
-        message: `${node.path} is superseded by ${supersededBy}`,
+        message: tx(SUPERSEDED_TEXTS.message, {
+          path: node.path,
+          supersededBy,
+        }),
         data: { supersededBy },
       });
     }

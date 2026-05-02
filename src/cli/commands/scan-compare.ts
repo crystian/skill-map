@@ -221,14 +221,20 @@ function renderDeltaHuman(delta: IScanDelta): string {
   const totalChanged = delta.nodes.changed.length;
 
   out.push(
-    `Delta vs ${delta.comparedWith}: ` +
-      `${delta.nodes.added.length} nodes added, ${delta.nodes.removed.length} removed, ${delta.nodes.changed.length} changed; ` +
-      `${delta.links.added.length} links added, ${delta.links.removed.length} removed; ` +
-      `${delta.issues.added.length} issues added, ${delta.issues.removed.length} removed.`,
+    tx(SCAN_TEXTS.compareDeltaSummary, {
+      comparedWith: delta.comparedWith,
+      nodesAdded: delta.nodes.added.length,
+      nodesRemoved: delta.nodes.removed.length,
+      nodesChanged: delta.nodes.changed.length,
+      linksAdded: delta.links.added.length,
+      linksRemoved: delta.links.removed.length,
+      issuesAdded: delta.issues.added.length,
+      issuesRemoved: delta.issues.removed.length,
+    }),
   );
 
   if (totalAdded === 0 && totalRemoved === 0 && totalChanged === 0) {
-    out.push('', '(no differences)');
+    out.push('', SCAN_TEXTS.compareDeltaNoDifferences);
     return out.join('\n') + '\n';
   }
 
@@ -240,25 +246,64 @@ function renderDeltaHuman(delta: IScanDelta): string {
 
 function renderDeltaNodes(nodes: IScanDelta['nodes']): string[] {
   if (nodes.added.length + nodes.removed.length + nodes.changed.length === 0) return [];
-  const lines: string[] = ['', '## nodes'];
-  for (const n of nodes.added) lines.push(`+ ${sanitizeForTerminal(n.path)} (${sanitizeForTerminal(n.kind)})`);
-  for (const n of nodes.removed) lines.push(`- ${sanitizeForTerminal(n.path)} (${sanitizeForTerminal(n.kind)})`);
-  for (const c of nodes.changed) lines.push(`~ ${sanitizeForTerminal(c.after.path)} (${c.reason} changed)`);
+  const lines: string[] = ['', SCAN_TEXTS.compareDeltaNodesHeader];
+  for (const n of nodes.added) {
+    lines.push(tx(SCAN_TEXTS.compareDeltaNodeAdded, {
+      path: sanitizeForTerminal(n.path),
+      kind: sanitizeForTerminal(n.kind),
+    }));
+  }
+  for (const n of nodes.removed) {
+    lines.push(tx(SCAN_TEXTS.compareDeltaNodeRemoved, {
+      path: sanitizeForTerminal(n.path),
+      kind: sanitizeForTerminal(n.kind),
+    }));
+  }
+  for (const c of nodes.changed) {
+    lines.push(tx(SCAN_TEXTS.compareDeltaNodeChanged, {
+      path: sanitizeForTerminal(c.after.path),
+      reason: c.reason,
+    }));
+  }
   return lines;
 }
 
 function renderDeltaLinks(links: IScanDelta['links']): string[] {
   if (links.added.length + links.removed.length === 0) return [];
-  const lines: string[] = ['', '## links'];
-  for (const l of links.added) lines.push(`+ ${sanitizeForTerminal(l.source)} --${sanitizeForTerminal(l.kind)}--> ${sanitizeForTerminal(l.target)}`);
-  for (const l of links.removed) lines.push(`- ${sanitizeForTerminal(l.source)} --${sanitizeForTerminal(l.kind)}--> ${sanitizeForTerminal(l.target)}`);
+  const lines: string[] = ['', SCAN_TEXTS.compareDeltaLinksHeader];
+  for (const l of links.added) {
+    lines.push(tx(SCAN_TEXTS.compareDeltaLinkAdded, {
+      source: sanitizeForTerminal(l.source),
+      kind: sanitizeForTerminal(l.kind),
+      target: sanitizeForTerminal(l.target),
+    }));
+  }
+  for (const l of links.removed) {
+    lines.push(tx(SCAN_TEXTS.compareDeltaLinkRemoved, {
+      source: sanitizeForTerminal(l.source),
+      kind: sanitizeForTerminal(l.kind),
+      target: sanitizeForTerminal(l.target),
+    }));
+  }
   return lines;
 }
 
 function renderDeltaIssues(issues: IScanDelta['issues']): string[] {
   if (issues.added.length + issues.removed.length === 0) return [];
-  const lines: string[] = ['', '## issues'];
-  for (const i of issues.added) lines.push(`+ [${i.severity}] ${sanitizeForTerminal(i.ruleId)}: ${sanitizeForTerminal(i.message)}`);
-  for (const i of issues.removed) lines.push(`- [${i.severity}] ${sanitizeForTerminal(i.ruleId)}: ${sanitizeForTerminal(i.message)}`);
+  const lines: string[] = ['', SCAN_TEXTS.compareDeltaIssuesHeader];
+  for (const i of issues.added) {
+    lines.push(tx(SCAN_TEXTS.compareDeltaIssueAdded, {
+      severity: i.severity,
+      ruleId: sanitizeForTerminal(i.ruleId),
+      message: sanitizeForTerminal(i.message),
+    }));
+  }
+  for (const i of issues.removed) {
+    lines.push(tx(SCAN_TEXTS.compareDeltaIssueRemoved, {
+      severity: i.severity,
+      ruleId: sanitizeForTerminal(i.ruleId),
+      message: sanitizeForTerminal(i.message),
+    }));
+  }
   return lines;
 }

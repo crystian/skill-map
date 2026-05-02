@@ -12,6 +12,13 @@ export const EXPORT_TEXTS = {
   formatUnsupported:
     'Unsupported format: {{format}}. Supported: {{supported}}. Deferred: {{deferred}}.\n',
 
+  /**
+   * Reason emitted by `formatNotImplemented` when the user asks for
+   * `--format mermaid`. Pre-1.0 placeholder until the formatter lands as
+   * a built-in.
+   */
+  formatDeferredReasonMermaid: 'lands at Step 12 with the mermaid formatter',
+
   // --- markdown body ---------------------------------------------------------
   /** Top-level heading for the markdown export. */
   mdTitle: '# skill-map export',

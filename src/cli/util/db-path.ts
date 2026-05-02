@@ -11,16 +11,22 @@
  */
 
 import { existsSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { tx } from '../../kernel/util/tx.js';
 import { UTIL_TEXTS } from '../i18n/util.texts.js';
+import type { IRuntimeContext } from './runtime-context.js';
 
 const DEFAULT_PROJECT_DB = '.skill-map/skill-map.db';
 const DEFAULT_GLOBAL_DB = '.skill-map/skill-map.db';
 
-export interface IDbLocationOptions {
+/**
+ * Inputs for `resolveDbPath`. Extends `IRuntimeContext` so the helper
+ * never reads `process.cwd()` / `homedir()` directly — every caller
+ * threads the runtime context (mandatory) alongside the spec flags.
+ * Pattern: `resolveDbPath({ global, db, ...defaultRuntimeContext() })`.
+ */
+export interface IDbLocationOptions extends IRuntimeContext {
   global: boolean;
   db: string | undefined;
 }
@@ -33,22 +39,11 @@ export interface IDbLocationOptions {
  *
  * Always returns an absolute path. Does NOT verify existence — pair with
  * `assertDbExists` for read-side verbs.
- *
- * TODO(cli-architect M3): this helper reads `homedir()` and
- * `process.cwd()` directly instead of accepting an `IRuntimeContext` like
- * the rest of the CLI surface. Promoted to TODO (rather than rewritten
- * inline) because 18 call sites across 11 commands would have to thread
- * the context through to call this — high churn for a helper that lives
- * in `cli/util` (not in `kernel/**`, where the no-Node-globals invariant
- * actually bites). Day this is fixed, change `IDbLocationOptions` to
- * extend `IRuntimeContext` (mandatory), drop the imports below, and
- * update every call site to pass `...defaultRuntimeContext()` alongside
- * `{ global, db }`.
  */
 export function resolveDbPath(options: IDbLocationOptions): string {
   if (options.db) return resolve(options.db);
-  if (options.global) return join(homedir(), DEFAULT_GLOBAL_DB);
-  return resolve(process.cwd(), DEFAULT_PROJECT_DB);
+  if (options.global) return join(options.homedir, DEFAULT_GLOBAL_DB);
+  return resolve(options.cwd, DEFAULT_PROJECT_DB);
 }
 
 /**

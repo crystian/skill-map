@@ -13,4 +13,11 @@ export const UTIL_TEXTS = {
 
   // confirm.ts (default-no prompt suffix)
   confirmPromptSuffix: ' [y/N] ',
+  /**
+   * Regex source matching affirmative answers in `confirm()`. Compiled
+   * with the `i` flag in the helper. Pre-i18n today the pattern is
+   * English-only; when a non-English locale lands the catalog grows
+   * alternations (e.g. `^(y(es)?|s(í|i)?)$`).
+   */
+  confirmYesPatternSource: '^y(es)?$',
 } as const;

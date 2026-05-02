@@ -48,6 +48,7 @@ import { qualifiedExtensionId } from '../../kernel/registry.js';
 import type { Issue, Severity } from '../../kernel/types.js';
 import { CHECK_TEXTS } from '../i18n/check.texts.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
   composeScanExtensions,
@@ -114,7 +115,7 @@ export class CheckCommand extends Command {
   });
 
   async execute(): Promise<number> {
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     // Parse `--rules` once. Empty / whitespace tokens dropped.

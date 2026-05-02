@@ -31,6 +31,7 @@ import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { IPluginApplyResult } from '../../kernel/adapters/sqlite/plugin-migrations.js';
 import type { IDiscoveredPlugin } from '../../kernel/types/plugin.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import {
@@ -72,7 +73,7 @@ export class DbBackupCommand extends Command {
   out = Option.String('--out', { required: false });
 
   async execute(): Promise<number> {
-    const path = resolveDbPath({ global: this.global, db: this.db });
+    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     const ts = new Date().toISOString().replace(/[:.]/g, '-');
@@ -118,7 +119,7 @@ export class DbRestoreCommand extends Command {
   });
 
   async execute(): Promise<number> {
-    const target = resolveDbPath({ global: this.global, db: this.db });
+    const target = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     const sourcePath = resolve(this.source);
 
     if (!existsSync(sourcePath)) {
@@ -206,7 +207,7 @@ export class DbResetCommand extends Command {
       return ExitCode.Error;
     }
 
-    const path = resolveDbPath({ global: this.global, db: this.db });
+    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
 
     if (this.hard) {
       if (this.dryRun) {
@@ -331,7 +332,7 @@ export class DbShellCommand extends Command {
   db = Option.String('--db', { required: false });
 
   async execute(): Promise<number> {
-    const path = resolveDbPath({ global: this.global, db: this.db });
+    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     const result = spawnSync('sqlite3', [path], { stdio: 'inherit' });
@@ -363,7 +364,7 @@ export class DbDumpCommand extends Command {
   // away from the value it gates.
   // eslint-disable-next-line complexity
   async execute(): Promise<number> {
-    const path = resolveDbPath({ global: this.global, db: this.db });
+    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(path, this.context.stderr)) return ExitCode.NotFound;
 
     const args = ['-readonly', path, '.dump'];
@@ -432,7 +433,7 @@ export class DbMigrateCommand extends Command {
       return ExitCode.Error;
     }
 
-    const path = resolveDbPath({ global: this.global, db: this.db });
+    const path = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
 
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
 

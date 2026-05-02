@@ -57,13 +57,13 @@ import type {
 } from '../../kernel/types/plugin.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../i18n/plugins.texts.js';
+import { resolveDbPath } from '../util/db-path.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { tryWithSqlite, withSqlite } from '../util/with-sqlite.js';
 
 const PLUGINS_DIR = '.skill-map/plugins';
-const DB_FILENAME = 'skill-map.db';
 
 interface IScopeOptions {
   global: boolean;
@@ -75,12 +75,6 @@ function resolveSearchPaths(opts: IScopeOptions, cwd: string, homedir: string): 
   const project = resolve(cwd, PLUGINS_DIR);
   const user = join(homedir, PLUGINS_DIR);
   return opts.global ? [user] : [project, user];
-}
-
-function resolveDbPath(global: boolean, cwd: string, homedir: string): string {
-  return global
-    ? join(homedir, '.skill-map', DB_FILENAME)
-    : resolve(cwd, '.skill-map', DB_FILENAME);
 }
 
 /**
@@ -95,7 +89,7 @@ async function buildResolver(global: boolean): Promise<(id: string) => boolean> 
     cwd: ctx.cwd,
     homedir: ctx.homedir,
   });
-  const dbPath = resolveDbPath(global, ctx.cwd, ctx.homedir);
+  const dbPath = resolveDbPath({ global, db: undefined, cwd: ctx.cwd, homedir: ctx.homedir });
   const dbOverrides =
     (await tryWithSqlite(
       { databasePath: dbPath, autoBackup: false },
@@ -882,7 +876,7 @@ abstract class TogglePluginsBase extends Command {
     }
 
     const ctx = defaultRuntimeContext();
-    const dbPath = resolveDbPath(this.global, ctx.cwd, ctx.homedir);
+    const dbPath = resolveDbPath({ global: this.global, db: undefined, cwd: ctx.cwd, homedir: ctx.homedir });
     await withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
       for (const id of targets) {
         await adapter.pluginConfig.set(id, enabled);

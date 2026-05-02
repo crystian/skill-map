@@ -17,6 +17,8 @@
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../kernel/types.js';
 import { normalizeTrigger } from '../../../kernel/trigger-normalize.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { BROKEN_REF_TEXTS } from '../../i18n/broken-ref.texts.js';
 
 const ID = 'broken-ref';
 
@@ -40,7 +42,11 @@ export const brokenRefRule: IRule = {
         ruleId: ID,
         severity: 'warn',
         nodeIds: [link.source],
-        message: `Broken ${link.kind} reference from ${link.source} → ${link.target}`,
+        message: tx(BROKEN_REF_TEXTS.message, {
+          kind: link.kind,
+          source: link.source,
+          target: link.target,
+        }),
         data: {
           target: link.target,
           kind: link.kind,

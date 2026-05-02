@@ -301,11 +301,6 @@ async function runFirstScan(
 }
 
 /**
- * Append every `entry` to `<scopeRoot>/.gitignore` that is not already
- * present (compared as trimmed line). Creates the file if absent.
- * Returns true if the file was written.
- */
-/**
  * Compute which `entries` would be appended to `<scopeRoot>/.gitignore`
  * by the live `ensureGitignoreEntries` call, WITHOUT writing. Used by
  * `--dry-run` to render an honest preview of what `sm init` would
@@ -325,6 +320,11 @@ function previewGitignoreEntries(scopeRoot: string, entries: readonly string[]):
   return entries.filter((entry) => !present.has(entry));
 }
 
+/**
+ * Append every `entry` to `<scopeRoot>/.gitignore` that is not already
+ * present (compared as trimmed line). Creates the file if absent.
+ * Returns true if the file was written.
+ */
 function ensureGitignoreEntries(scopeRoot: string, entries: readonly string[]): boolean {
   const path = join(scopeRoot, '.gitignore');
   let body = '';

@@ -26,6 +26,7 @@ import type {
 import type { Issue } from '../../kernel/types.js';
 import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { confirm } from '../util/confirm.js';
 import { emitDoneStderr, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
@@ -103,7 +104,7 @@ export class OrphansCommand extends Command {
       ruleFilter = resolved;
     }
 
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
@@ -160,7 +161,7 @@ export class OrphansReconcileCommand extends Command {
   async execute(): Promise<number> {
     const elapsed = startElapsed();
 
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
@@ -285,7 +286,7 @@ export class OrphansUndoRenameCommand extends Command {
   async execute(): Promise<number> {
     const elapsed = startElapsed();
 
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {

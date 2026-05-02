@@ -35,6 +35,8 @@
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
 import { normalizeTrigger } from '../../../kernel/trigger-normalize.js';
 import type { Issue } from '../../../kernel/types.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { TRIGGER_COLLISION_TEXTS } from '../../i18n/trigger-collision.texts.js';
 
 const ID = 'trigger-collision';
 
@@ -185,17 +187,29 @@ function analyzeTriggerBucket(normalized: string, claims: IClaim[]): Issue | nul
   const parts: string[] = [];
   if (advertiserAmbiguous) {
     parts.push(
-      `${advertiserPaths.length} nodes advertise it: ${advertiserPaths.join(', ')}`,
+      tx(TRIGGER_COLLISION_TEXTS.partAdvertisers, {
+        count: advertiserPaths.length,
+        paths: advertiserPaths.join(', '),
+      }),
     );
   }
   if (invocationAmbiguous) {
     parts.push(
-      `${invocationTargets.length} distinct invocation forms: ${invocationTargets.join(', ')}`,
+      tx(TRIGGER_COLLISION_TEXTS.partInvocations, {
+        count: invocationTargets.length,
+        forms: invocationTargets.join(', '),
+      }),
     );
   } else if (crossKindAmbiguous) {
+    const template =
+      nonCanonicalInvocations.length > 1
+        ? TRIGGER_COLLISION_TEXTS.partNonCanonicalPlural
+        : TRIGGER_COLLISION_TEXTS.partNonCanonicalSingular;
     parts.push(
-      `non-canonical invocation${nonCanonicalInvocations.length > 1 ? 's' : ''} ` +
-        `${nonCanonicalInvocations.join(', ')} against advertiser ${advertiserPaths[0]}`,
+      tx(template, {
+        forms: nonCanonicalInvocations.join(', '),
+        advertiser: advertiserPaths[0]!,
+      }),
     );
   }
 
@@ -203,7 +217,10 @@ function analyzeTriggerBucket(normalized: string, claims: IClaim[]): Issue | nul
     ruleId: ID,
     severity: 'error',
     nodeIds,
-    message: `Trigger "${normalized}" has ${parts.join('; and ')}.`,
+    message: tx(TRIGGER_COLLISION_TEXTS.message, {
+      normalized,
+      parts: parts.join(TRIGGER_COLLISION_TEXTS.partsJoiner),
+    }),
     data: {
       normalizedTrigger: normalized,
       invocationTargets,

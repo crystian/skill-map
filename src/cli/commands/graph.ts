@@ -25,6 +25,7 @@ import { Command, Option } from 'clipanion';
 import { tx } from '../../kernel/util/tx.js';
 import { GRAPH_TEXTS } from '../i18n/graph.texts.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
 import {
   composeFormatters,
@@ -65,7 +66,7 @@ export class GraphCommand extends Command {
   });
 
   async execute(): Promise<number> {
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     const pluginRuntime = this.noPlugins

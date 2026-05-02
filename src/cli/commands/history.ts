@@ -26,6 +26,7 @@ import type {
 } from '../../kernel/types.js';
 import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
+import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { emitDoneStderr, formatElapsed, startElapsed } from '../util/elapsed.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { withSqlite } from '../util/with-sqlite.js';
@@ -148,7 +149,7 @@ export class HistoryCommand extends Command {
     }
 
     // --- DB --------------------------------------------------------------
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {
@@ -244,7 +245,7 @@ export class HistoryStatsCommand extends Command {
     }
 
     // --- DB --------------------------------------------------------------
-    const dbPath = resolveDbPath({ global: this.global, db: this.db });
+    const dbPath = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     if (!assertDbExists(dbPath, this.context.stderr)) return ExitCode.NotFound;
 
     return withSqlite({ databasePath: dbPath, autoBackup: false }, async (adapter) => {

@@ -5,12 +5,14 @@
  * migrations, and exposes the namespaced port surface plus the typed
  * Kysely instance.
  *
- * **Storage-port-promotion (Phase A).** The adapter implements the
- * port's `scans` / `issues` / `enrichments` / `transaction`
- * namespaces. The remaining namespaces (history / jobs / pluginConfig
- * / migrations / pluginMigrations) ship as the matching phases land;
- * the port interface advertises them now and adapters fail to compile
- * when their share is incomplete on their end.
+ * **Storage-port-promotion (Phase A).** The adapter exposes the
+ * non-transactional namespaces (`scans`, `issues`, `history`, `jobs`,
+ * `pluginConfig`, `migrations`, `pluginMigrations`) as direct
+ * properties. `enrichments` is transactional-only by design — it lives
+ * exclusively on the `ITransactionalStorage` subset returned by
+ * `port.transaction(...)`, never as a top-level namespace, so writers
+ * are forced to share a transaction with `scans.persist`. Adapters
+ * fail to compile when their share is incomplete on their end.
  *
  * **camelCase ↔ snake_case bridging.** This adapter installs Kysely's
  * `CamelCasePlugin`, so the typed schema (`schema.ts`) speaks

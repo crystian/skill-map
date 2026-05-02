@@ -137,6 +137,7 @@ User-facing text in the **CLI** uses the `tx(*_TEXTS.*)` system end-to-end:
 - Hardcoded inline strings (e.g. `this.context.stdout.write('No issues.\n')`) are forbidden in command files. The pattern goes through `tx(<VERB>_TEXTS.noIssues)`.
 - Pure passthrough of an external string (`this.context.stderr.write(\`${warn}\n\`)` for a plugin warning that already came formatted from the kernel) is allowed — the warning text was already authored elsewhere.
 - The kernel emits text via `kernel/i18n/<module>.texts.ts` for the same reason; mirroring the pattern keeps the future Transloco / message-format migration trivial.
+- **Built-in plugins follow the same rule.** `Issue.message` strings emitted by `built-in-plugins/rules/*` and any user-visible text rendered by `built-in-plugins/formatters/*` (or `extractors/*`, when a future built-in extractor surfaces user-readable output) MUST come from `built-in-plugins/i18n/<id>.texts.ts`. Issue messages persist in `scan_issues.message` and surface through `sm check` / `sm show` / `sm export` — they are user-facing exactly like CLI stdout. The catalog naming mirrors the rule / formatter id (`broken-ref.texts.ts`, `ascii.texts.ts`).
 
 Why this discipline today even without a real i18n framework: it keeps every user-visible string in a flat, greppable, JSON-shaped catalog, ready to drop into a translator pipeline the day a non-English locale lands. Until then, it is also the cheapest way to enforce "no copy-changes hidden inside command logic" — every wording lives in one place.
 

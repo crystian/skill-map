@@ -25,6 +25,8 @@
 
 import type { IFormatter, IFormatterContext } from '../../../kernel/extensions/index.js';
 import { sanitizeForTerminal } from '../../../kernel/util/safe-text.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { ASCII_FORMATTER_TEXTS } from '../../i18n/ascii.texts.js';
 
 const ID = 'ascii';
 // Built-in Claude Provider catalog rendered first, in this canonical
@@ -49,7 +51,11 @@ export const asciiFormatter: IFormatter = {
   format(ctx: IFormatterContext): string {
     const out: string[] = [];
     out.push(
-      `skill-map graph — ${ctx.nodes.length} nodes, ${ctx.links.length} links, ${ctx.issues.length} issues`,
+      tx(ASCII_FORMATTER_TEXTS.header, {
+        nodes: ctx.nodes.length,
+        links: ctx.links.length,
+        issues: ctx.issues.length,
+      }),
       '',
     );
 
@@ -81,7 +87,7 @@ export const asciiFormatter: IFormatter = {
     }
 
     if (ctx.links.length > 0) {
-      out.push(`## links (${ctx.links.length})`);
+      out.push(tx(ASCII_FORMATTER_TEXTS.linksSectionHeader, { count: ctx.links.length }));
       const sorted = [...ctx.links].sort((a, b) => {
         const aKey = `${a.source}\0${a.kind}\0${a.target}`;
         const bKey = `${b.source}\0${b.kind}\0${b.target}`;
@@ -89,16 +95,27 @@ export const asciiFormatter: IFormatter = {
       });
       for (const link of sorted) {
         out.push(
-          `- ${sanitizeForTerminal(link.source)} --${sanitizeForTerminal(link.kind)}--> ${sanitizeForTerminal(link.target)}  [${link.confidence}]`,
+          tx(ASCII_FORMATTER_TEXTS.linkBullet, {
+            source: sanitizeForTerminal(link.source),
+            kind: sanitizeForTerminal(link.kind),
+            target: sanitizeForTerminal(link.target),
+            confidence: link.confidence,
+          }),
         );
       }
       out.push('');
     }
 
     if (ctx.issues.length > 0) {
-      out.push(`## issues (${ctx.issues.length})`);
+      out.push(tx(ASCII_FORMATTER_TEXTS.issuesSectionHeader, { count: ctx.issues.length }));
       for (const issue of ctx.issues) {
-        out.push(`- [${issue.severity}] ${issue.ruleId}: ${sanitizeForTerminal(issue.message)}`);
+        out.push(
+          tx(ASCII_FORMATTER_TEXTS.issueBullet, {
+            severity: issue.severity,
+            ruleId: issue.ruleId,
+            message: sanitizeForTerminal(issue.message),
+          }),
+        );
       }
       out.push('');
     }
@@ -119,10 +136,22 @@ function renderSection(
   group: ReadonlyArray<{ path: string; title?: string | null; frontmatter?: Record<string, unknown> }>,
 ): void {
   const sorted = [...group].sort((a, b) => a.path.localeCompare(b.path));
-  out.push(`## ${sanitizeForTerminal(kind)} (${sorted.length})`);
+  out.push(
+    tx(ASCII_FORMATTER_TEXTS.kindSectionHeader, {
+      kind: sanitizeForTerminal(kind),
+      count: sorted.length,
+    }),
+  );
   for (const node of sorted) {
     const title = pickTitle(node);
-    out.push(`- ${sanitizeForTerminal(node.path)}${title ? ` — "${sanitizeForTerminal(title)}"` : ''}`);
+    out.push(
+      title
+        ? tx(ASCII_FORMATTER_TEXTS.nodeBulletWithTitle, {
+            path: sanitizeForTerminal(node.path),
+            title: sanitizeForTerminal(title),
+          })
+        : tx(ASCII_FORMATTER_TEXTS.nodeBullet, { path: sanitizeForTerminal(node.path) }),
+    );
   }
   out.push('');
 }

@@ -25,6 +25,8 @@
 import type { IRule, IRuleContext } from '../../../kernel/extensions/index.js';
 import type { Issue, Link, Node } from '../../../kernel/types.js';
 import { loadSchemaValidators, type ISchemaValidators } from '../../../kernel/adapters/schema-validators.js';
+import { tx } from '../../../kernel/util/tx.js';
+import { VALIDATE_ALL_TEXTS } from '../../i18n/validate-all.texts.js';
 
 const ID = 'validate-all';
 
@@ -59,7 +61,10 @@ function collectNodeFindings(v: ISchemaValidators, node: Node, out: Issue[]): vo
     ruleId: ID,
     severity: 'error',
     nodeIds: [node.path],
-    message: `Node ${node.path} failed schema validation: ${result.errors}`,
+    message: tx(VALIDATE_ALL_TEXTS.nodeFailure, {
+      path: node.path,
+      errors: result.errors,
+    }),
     data: { target: 'node', path: node.path },
   });
 }
@@ -71,7 +76,11 @@ function collectLinkFindings(v: ISchemaValidators, link: Link, out: Issue[]): vo
     ruleId: ID,
     severity: 'error',
     nodeIds: [link.source],
-    message: `Link ${link.source} → ${link.target} failed schema validation: ${result.errors}`,
+    message: tx(VALIDATE_ALL_TEXTS.linkFailure, {
+      source: link.source,
+      target: link.target,
+      errors: result.errors,
+    }),
     data: { target: 'link', source: link.source, to: link.target },
   });
 }
