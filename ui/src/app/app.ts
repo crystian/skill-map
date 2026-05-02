@@ -5,7 +5,7 @@ import { ButtonModule } from 'primeng/button';
 import { APP_TEXTS } from '../i18n/app.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
 import { CollectionLoaderService } from '../services/collection-loader';
-import { ScanSimulatorService } from '../services/scan-simulator';
+import { FilterUrlSyncService } from '../services/filter-url-sync';
 import { ThemeService } from '../services/theme';
 
 @Component({
@@ -17,12 +17,14 @@ import { ThemeService } from '../services/theme';
 })
 export class App implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
-  private readonly simulator = inject(ScanSimulatorService);
   private readonly theme = inject(ThemeService);
+  // Boot the URL ↔ filter sync (constructor-driven; the inject() call
+  // is sufficient — the service self-wires its router subscription
+  // and signal effects on construction).
+  private readonly _filterUrlSync = inject(FilterUrlSyncService);
 
   protected readonly texts = APP_TEXTS;
   readonly count = this.loader.count;
-  readonly scanRunning = this.simulator.running;
   readonly themeMode = this.theme.mode;
   readonly themeIcon = computed(() =>
     this.themeMode() === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
@@ -33,10 +35,6 @@ export class App implements OnInit {
 
   ngOnInit(): void {
     void this.loader.load();
-  }
-
-  simulateScan(): void {
-    void this.simulator.runScan();
   }
 
   toggleTheme(): void {

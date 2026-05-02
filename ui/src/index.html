@@ -5,6 +5,12 @@
     <title>skill-map · ui prototype</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      Runtime-mode discriminator. `live` makes the SPA talk to the BFF
+      (`sm serve`); the demo build pipeline (Step 14.3.b) rewrites
+      `content` to `demo` and bundles a precomputed snapshot alongside.
+    -->
+    <meta name="skill-map-mode" content="live" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
   </head>
   <body>

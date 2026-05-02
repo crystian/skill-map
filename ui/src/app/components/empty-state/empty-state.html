@@ -1,0 +1,6 @@
+@let id = testId();
+<div class="empty-state-card" [attr.data-testid]="id">
+  <span class="empty-state-card__icon" [class]="icon()" aria-hidden="true"></span>
+  <p class="empty-state-card__title">{{ title() }}</p>
+  <p class="empty-state-card__body">{{ body() }}</p>
+</div>

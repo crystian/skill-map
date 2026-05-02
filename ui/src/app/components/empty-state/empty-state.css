@@ -1,0 +1,40 @@
+/*
+ * Placeholder card used for "feature pending" copy and other
+ * informational empty states. Mirrors the visual weight of a
+ * <p-card> without depending on PrimeNG's CardModule (the host
+ * inspector grid already wraps cards; we render a sibling block
+ * that fits the same grid track).
+ */
+:host {
+  display: block;
+}
+
+.empty-state-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border: 1px dashed var(--p-content-border-color);
+  border-radius: var(--p-border-radius-md);
+  background: var(--p-content-background);
+  color: var(--p-text-muted-color);
+}
+
+.empty-state-card__icon {
+  font-size: 1.25rem;
+  color: var(--p-text-muted-color);
+  opacity: 0.7;
+}
+
+.empty-state-card__title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--p-text-color);
+}
+
+.empty-state-card__body {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}

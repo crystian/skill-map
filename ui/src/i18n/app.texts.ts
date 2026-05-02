@@ -15,9 +15,7 @@ export const APP_TEXTS = {
     graph: 'Graph',
     inspector: 'Inspector',
   },
-  actions: {
-    simulateScan: 'Simulate scan',
-  },
+  actions: {},
   badge: {
     nodes: 'nodes',
   },

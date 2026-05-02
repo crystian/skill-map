@@ -29,18 +29,22 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
-import { detectLinks, type TLinkKind } from '../../../services/mock-links';
-import { buildMockSummary } from '../../../services/mock-summary';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
 import type {
-  TNodeKind,
+  IReportSafety,
   INodeStats,
   INodeView,
+  ISummaryNote,
+  TNodeKind,
   TSummary,
 } from '../../../models/node';
+import type { ILinkApi, INodeApi, IScanResultApi, TLinkKindApi } from '../../../models/api';
+
+/** Local alias for the BFF link kinds — graph code reads as `TLinkKind`. */
+type TLinkKind = TLinkKindApi;
 
 interface IGraphNode {
   id: string;
@@ -178,7 +182,9 @@ export class GraphView implements OnInit, OnDestroy {
    * (`nodePositions`) are NOT a dagre input — they override per-node at
    * projection time, so dragging a node never invalidates the cache.
    */
-  private readonly fullLayout = computed<IFullLayout>(() => computeFullLayout(this.loader.nodes()));
+  private readonly fullLayout = computed<IFullLayout>(() =>
+    computeFullLayout(this.loader.nodes(), this.loader.scan()),
+  );
 
   readonly graph = computed<IGraphData>(() => {
     const visibleIds = new Set(this.visibleNodes().map((n) => n.path));
@@ -469,6 +475,8 @@ export class GraphView implements OnInit, OnDestroy {
 interface IFullLayout {
   /** Node views indexed by path — handy to project without re-iterating. */
   nodesByPath: Map<string, INodeView>;
+  /** BFF-shaped node rows by path — used to read persisted byte/token counts. */
+  apiNodesByPath: Map<string, INodeApi>;
   /** Deduped, valid edges (both endpoints present in the loaded set). */
   edges: IGraphEdge[];
   /** Dagre-computed top-left positions for every loaded node. */
@@ -481,17 +489,24 @@ interface IFullLayout {
  * One-shot layout over the FULL loaded collection. Result is cached and
  * reused as the user filters — see `fullLayout` computed in GraphView.
  * Filters never trigger a re-layout, so unmoved nodes never jump.
+ *
+ * Edges come straight from the persisted `ScanResult.links` (kernel
+ * extractor output). Until the BFF starts emitting links, `scan` may be
+ * `null` — in that case the graph renders nodes only.
  */
-function computeFullLayout(allNodes: INodeView[]): IFullLayout {
-  // Step 4 will replace this with kernel-emitted detector output;
-  // the shape of `IDetectedLink` is identical to `IGraphEdge` minus
-  // `id`/`label`, so the swap is local to this function.
-  const detected = detectLinks(allNodes);
+function computeFullLayout(
+  allNodes: INodeView[],
+  scan: IScanResultApi | null,
+): IFullLayout {
+  const validPaths = new Set(allNodes.map((n) => n.path));
   const byId = new Map<string, IGraphEdge>();
-  for (const link of detected) {
-    const id = edgeId(link.kind, link.from, link.to);
+  const links: ILinkApi[] = scan?.links ?? [];
+  for (const link of links) {
+    if (!validPaths.has(link.source) || !validPaths.has(link.target)) continue;
+    if (link.source === link.target) continue;
+    const id = edgeId(link.kind, link.source, link.target);
     if (!byId.has(id)) {
-      byId.set(id, { id, from: link.from, to: link.to, kind: link.kind });
+      byId.set(id, { id, from: link.source, to: link.target, kind: link.kind });
     }
   }
   const uniqueEdges = [...byId.values()];
@@ -521,7 +536,16 @@ function computeFullLayout(allNodes: INodeView[]): IFullLayout {
   const nodesByPath = new Map<string, INodeView>();
   for (const n of allNodes) nodesByPath.set(n.path, n);
 
-  return { nodesByPath, edges: uniqueEdges, positions, computedAt: performance.now() };
+  const apiNodesByPath = new Map<string, INodeApi>();
+  for (const n of scan?.nodes ?? []) apiNodesByPath.set(n.path, n);
+
+  return {
+    nodesByPath,
+    apiNodesByPath,
+    edges: uniqueEdges,
+    positions,
+    computedAt: performance.now(),
+  };
 }
 
 /**
@@ -550,10 +574,10 @@ function projectVisible(
   for (const id of visibleIds) {
     const view = layout.nodesByPath.get(id);
     if (!view) continue;
+    const apiNode = layout.apiNodesByPath.get(id);
     const override = stored[id];
     const cached = layout.positions.get(id) ?? { x: 0, y: 0 };
     const position = override ? { x: override.x, y: override.y } : cached;
-    const bytesTotal = utf8ByteLength(view.raw);
     nodes.push({
       id,
       path: id,
@@ -563,18 +587,40 @@ function projectVisible(
       stats: {
         linksIn: inCount.get(id) ?? 0,
         linksOut: outCount.get(id) ?? 0,
-        // The kernel will publish these once `sm scan` ships; in the
-        // browser-only prototype we derive from the parsed file directly
-        // so the card's footer + sub-stats render with realistic values.
-        bytesTotal,
-        tokensTotal: estimateTokens(bytesTotal),
-        externalRefsCount: countExternalUrls(view.body),
+        // BFF-persisted counts. Older snapshots / partial scans may omit
+        // tokens; default to undefined so the card hides the pill cleanly.
+        bytesTotal: apiNode?.bytes.total,
+        tokensTotal: apiNode?.tokens?.total,
+        externalRefsCount: apiNode?.externalRefsCount,
       },
-      summary: buildMockSummary(view),
+      summary: deriveStubSummary(view),
     });
   }
 
   return { nodes, edges: visibleEdges };
+}
+
+/**
+ * Lightweight stand-in for the kernel's per-kind summarizer (Step 9+).
+ * `<sm-node-card>` requires a `TSummary` — once the real summarizer
+ * lands, this collapses to a no-op and the kernel's payload flows
+ * through verbatim.
+ */
+function deriveStubSummary(view: INodeView): TSummary {
+  const safety: IReportSafety = {
+    injectionDetected: false,
+    contentQuality: 'clean',
+  };
+  const whatItDoes = (view.frontmatter.description ?? view.frontmatter.name ?? '').trim();
+  const stub: ISummaryNote = {
+    kind: 'note',
+    confidence: 0.6,
+    safety,
+    whatItCovers: whatItDoes || `${view.kind} entry`,
+    topics: [],
+    keyFacts: [],
+  };
+  return stub;
 }
 
 function readStoredViewport(): IStoredViewport | null {
@@ -682,34 +728,5 @@ function isStoredViewport(value: unknown): value is IStoredViewport {
 function edgeId(prefix: string, from: string, to: string): string {
   const [a, b] = [from, to].sort();
   return `${prefix}:${a}::${b}`;
-}
-
-/**
- * UTF-8 byte length of the raw file. Used to populate `bytesTotal` from
- * the in-browser loader. `TextEncoder` is universal in modern browsers
- * (the only target the prototype ships to today).
- */
-function utf8ByteLength(text: string): number {
-  return new TextEncoder().encode(text).length;
-}
-
-/**
- * Rough token-count estimator based on the OpenAI rule-of-thumb
- * (1 token ≈ 4 bytes for English-leaning prose). Replaced by the
- * kernel's real tokenizer once scan results expose `tokensTotal`.
- */
-function estimateTokens(bytesTotal: number): number {
-  return Math.max(1, Math.round(bytesTotal / 4));
-}
-
-/**
- * Count of unique http(s) URLs present in the body. Mirrors the
- * "external refs" footer pill described in `spec/architecture.md`
- * — anything that looks like a link out of the collection counts.
- */
-function countExternalUrls(body: string): number {
-  const matches = body.match(/https?:\/\/[^\s)>\]"']+/g);
-  if (!matches) return 0;
-  return new Set(matches).size;
 }
 

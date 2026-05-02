@@ -41,30 +41,26 @@
 
     <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
 
-    <div class="inspector__actions">
-      <p-button
-        [label]="texts.actions.det.label"
-        icon="pi pi-sync"
-        severity="secondary"
-        [outlined]="true"
-        size="small"
-        [pTooltip]="texts.actions.det.tooltip"
-        (onClick)="triggerDet()"
-        data-testid="action-det"
-      />
-      <p-button
-        [label]="texts.actions.prob.label"
-        icon="pi pi-sparkles"
-        severity="info"
-        [outlined]="true"
-        size="small"
-        [pTooltip]="texts.actions.prob.tooltip"
-        (onClick)="triggerProb()"
-        data-testid="action-prob"
-      />
-    </div>
-
     <div class="inspector__grid">
+      <!-- v0.8.0 placeholder cards: enrichment / summary / findings. -->
+      <sm-empty-state
+        [title]="texts.placeholders.enrichmentTitle"
+        [body]="texts.placeholders.body"
+        icon="pi pi-sparkles"
+        testId="inspector-empty-enrichment"
+      />
+      <sm-empty-state
+        [title]="texts.placeholders.summaryTitle"
+        [body]="texts.placeholders.body"
+        icon="pi pi-file"
+        testId="inspector-empty-summary"
+      />
+      <sm-empty-state
+        [title]="texts.placeholders.findingsTitle"
+        [body]="texts.placeholders.body"
+        icon="pi pi-search"
+        testId="inspector-empty-findings"
+      />
       <!-- Summary (hero — mocked, simulates per-kind summarizer output) -->
       @if (n.mockSummary) {
         <p-card [header]="texts.cards.summary" styleClass="inspector__card inspector__card--full inspector__card--hero" data-testid="inspector-card-summary">

@@ -1,44 +1,59 @@
 /**
- * Loads the mock collection at runtime by fetching /mock-collection/index.json,
- * then fetching each .md listed there and parsing its frontmatter + body.
+ * `CollectionLoaderService` — top-level node store for the SPA.
  *
- * Simulates what `sm scan` will later do on disk — but in the browser, against
- * the build-time assets served under /mock-collection/. The kernel's real scan
- * pipeline is NOT consumed here; this is the Step 0c prototype's sole data
- * source.
+ * Step 14.3.a refactor: the service no longer fetches `/mock-collection/...`
+ * directly. It delegates to the injected `IDataSourcePort` (which talks
+ * to the BFF in live mode, or to a precomputed bundle in demo mode at
+ * 14.3.b). The exposed signals (`nodes`, `loading`, `error`, `count`,
+ * `byKind`) keep their pre-refactor surface so list / graph / inspector
+ * views consume them unchanged.
+ *
+ * The full `IScanResultApi` is also exposed via `scan()` so consumers
+ * that need `links` / `issues` / `stats` (graph-view today; future
+ * inspector cards) can read them without a second round-trip.
+ *
+ * Projection from `INodeApi` to the legacy `INodeView` shape:
+ *   - `path`, `kind`, `frontmatter` come straight from the BFF row.
+ *   - `body` and `raw` are left empty. The BFF doesn't ship raw bodies
+ *     (Step 14 deliberately excluded body content from `/api/scan` to
+ *     keep payloads small). Components that need body content read it
+ *     via a future `/api/nodes/:pathB64?include=body` once that endpoint
+ *     ships; today nothing in the SPA depends on it (mock-links and
+ *     mock-summary, which were the only body consumers, were removed
+ *     in the same change).
+ *   - `mockSummary` derives from `description` / `title`; the kernel's
+ *     real summarizer (Step 9+) will replace this entirely.
  */
 
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { load as parseYaml } from 'js-yaml';
-import { firstValueFrom } from 'rxjs';
 
-import { COLLECTION_LOADER_TEXTS } from '../i18n/collection-loader.texts';
 import type {
-  IMockIndex,
+  INodeView,
   TFrontmatter,
   TNodeKind,
-  INodeView,
 } from '../models/node';
+import type { INodeApi, IScanResultApi } from '../models/api';
+import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
 
-const FRONTMATTER_RE = /^---\n([\s\S]*?)\n---\n?([\s\S]*)$/;
-// Relative (no leading slash) so it resolves against the document's
-// <base href>. When the UI ships under a non-root path (e.g. /demo/ for
-// the public prototype on skill-map.dev), Angular's --base-href build
-// flag injects <base href="/demo/">, and these fetches go to
-// /demo/mock-collection/... automatically. At dev time `ng serve` keeps
-// <base href="/">, so the dev URL stays /mock-collection/...
-const MOCK_BASE = 'mock-collection';
+const KNOWN_KINDS: ReadonlySet<TNodeKind> = new Set([
+  'skill',
+  'agent',
+  'command',
+  'hook',
+  'note',
+]);
 
 @Injectable({ providedIn: 'root' })
 export class CollectionLoaderService {
-  private readonly http = inject(HttpClient);
+  private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
 
   private readonly _nodes = signal<INodeView[]>([]);
+  private readonly _scan = signal<IScanResultApi | null>(null);
   private readonly _loading = signal<boolean>(false);
   private readonly _error = signal<string | null>(null);
 
   readonly nodes = this._nodes.asReadonly();
+  readonly scan = this._scan.asReadonly();
   readonly loading = this._loading.asReadonly();
   readonly error = this._error.asReadonly();
 
@@ -62,13 +77,9 @@ export class CollectionLoaderService {
     this._loading.set(true);
     this._error.set(null);
     try {
-      const index = await firstValueFrom(
-        this.http.get<IMockIndex>(`${MOCK_BASE}/index.json`),
-      );
-      const files = await Promise.all(
-        index.paths.map((p) => this.fetchOne(p)),
-      );
-      this._nodes.set(files.filter((n): n is INodeView => n !== null));
+      const scan = await this.dataSource.loadScan();
+      this._scan.set(scan);
+      this._nodes.set(scan.nodes.map(projectNode));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       this._error.set(msg);
@@ -76,74 +87,57 @@ export class CollectionLoaderService {
       this._loading.set(false);
     }
   }
-
-  private async fetchOne(relPath: string): Promise<INodeView | null> {
-    const url = `${MOCK_BASE}/${relPath}`;
-    const raw = await firstValueFrom(
-      this.http.get(url, { responseType: 'text' }),
-    );
-    const parsed = this.parseFrontmatter(raw);
-    if (!parsed) {
-      console.warn(COLLECTION_LOADER_TEXTS.warnNoFrontmatter(relPath));
-      return null;
-    }
-    return {
-      path: relPath,
-      kind: classifyKind(relPath, parsed.frontmatter),
-      frontmatter: parsed.frontmatter,
-      body: parsed.body,
-      raw,
-      mockSummary: deriveMockSummary(parsed.body, parsed.frontmatter),
-    };
-  }
-
-  private parseFrontmatter(
-    raw: string,
-  ): { frontmatter: TFrontmatter; body: string } | null {
-    const match = FRONTMATTER_RE.exec(raw);
-    if (!match) return null;
-    try {
-      const fm = parseYaml(match[1]) as TFrontmatter;
-      return { frontmatter: fm, body: match[2] };
-    } catch (err) {
-      console.warn(COLLECTION_LOADER_TEXTS.warnYamlParseFailed, err);
-      return null;
-    }
-  }
 }
 
 /**
- * Deterministic kind classifier for the prototype. Matches the directory
- * convention used in ui/mock-collection (`.claude/<plural>/` + `notes/` +
- * top-level README). Not a substitute for the real claude adapter in `src/` —
- * that one will classify based on the adapter's own rules at Step 2.
+ * Project a `INodeApi` (BFF / spec shape) into the legacy `INodeView`
+ * shape consumed by list / graph / inspector views. Lossy: `body` and
+ * `raw` are empty because the BFF doesn't ship them.
  */
-function deriveMockSummary(body: string, fm: TFrontmatter): string | null {
-  const lines = body
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('#'));
-  if (lines.length > 0) return lines[0];
-  return fm.description ?? null;
+function projectNode(api: INodeApi): INodeView {
+  const kind = normalizeKind(api.kind);
+  const frontmatter = (api.frontmatter ?? {}) as Partial<TFrontmatter>;
+  // The spec keeps `frontmatter.metadata` optional; the legacy view
+  // assumes a defined object so existing template bindings (`meta?.tags`
+  // etc.) keep working without optional chaining changes everywhere.
+  const fm: TFrontmatter = {
+    name: typeof frontmatter.name === 'string' ? frontmatter.name : api.title ?? '',
+    description:
+      typeof frontmatter.description === 'string'
+        ? frontmatter.description
+        : api.description ?? '',
+    metadata: {
+      version: api.version ?? '',
+      stability: api.stability ?? undefined,
+      ...((frontmatter.metadata ?? {}) as Record<string, unknown>),
+    },
+    ...(frontmatter as Record<string, unknown>),
+  } as TFrontmatter;
+  // Re-overlay metadata so the spread above doesn't drop the
+  // synthesised version / stability when the source frontmatter omits them.
+  fm.metadata = {
+    ...fm.metadata,
+    ...((frontmatter.metadata ?? {}) as Record<string, unknown>),
+  } as TFrontmatter['metadata'];
+  if (!fm.metadata.version) fm.metadata.version = api.version ?? '';
+  if (!fm.metadata.stability && api.stability) fm.metadata.stability = api.stability;
+
+  return {
+    path: api.path,
+    kind,
+    frontmatter: fm,
+    body: '',
+    raw: '',
+    mockSummary: deriveSummary(api),
+  };
 }
 
-function classifyKind(path: string, fm: TFrontmatter): TNodeKind {
-  if (path.startsWith('.claude/agents/')) return 'agent';
-  if (path.startsWith('.claude/commands/')) return 'command';
-  if (path.startsWith('.claude/hooks/')) return 'hook';
-  if (path.startsWith('.claude/skills/')) return 'skill';
-  if (path.startsWith('notes/')) return 'note';
-  if (typeof fm.type === 'string') {
-    const hint = fm.type.toLowerCase();
-    if (
-      hint === 'agent' ||
-      hint === 'command' ||
-      hint === 'hook' ||
-      hint === 'skill' ||
-      hint === 'note'
-    ) {
-      return hint;
-    }
-  }
-  return 'note';
+function normalizeKind(raw: string): TNodeKind {
+  return KNOWN_KINDS.has(raw as TNodeKind) ? (raw as TNodeKind) : 'note';
+}
+
+function deriveSummary(api: INodeApi): string | null {
+  if (api.description && api.description.trim().length > 0) return api.description.trim();
+  if (api.title && api.title.trim().length > 0) return api.title.trim();
+  return null;
 }

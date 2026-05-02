@@ -16,17 +16,6 @@
 
     <div class="shell__actions">
       <p-button
-        [label]="texts.actions.simulateScan"
-        icon="pi pi-play"
-        severity="secondary"
-        [outlined]="true"
-        size="small"
-        [disabled]="scanRunning()"
-        [loading]="scanRunning()"
-        (onClick)="simulateScan()"
-        data-testid="action-simulate-scan"
-      />
-      <p-button
         [icon]="themeIcon()"
         [ariaLabel]="themeLabel()"
         severity="secondary"

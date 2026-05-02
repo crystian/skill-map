@@ -10,44 +10,16 @@
       <ng-template #content>
         <span class="pi" [class.pi-chevron-down]="expanded()" [class.pi-chevron-up]="!expanded()"></span>
         <strong>{{ texts.title }}</strong>
-        <span class="eventlog__count">{{ count() }}</span>
-        @if (scanRunning()) {
-          <span class="eventlog__live">
-            <span class="dot"></span> {{ texts.scanning }}
-          </span>
-        }
       </ng-template>
     </p-togglebutton>
-
-    @if (expanded() && count() > 0) {
-      <p-button
-        [label]="texts.clear"
-        severity="secondary"
-        [text]="true"
-        size="small"
-        styleClass="eventlog__clear"
-        (onClick)="clear()"
-        data-testid="event-log-clear"
-      />
-    }
   </header>
 
   @if (expanded()) {
-    <div class="eventlog__body" #scroll>
-      @if (recent().length === 0) {
-        <div class="eventlog__empty-state">
-          <span class="pi pi-inbox"></span>
-          {{ texts.emptyState }}
-        </div>
-      } @else {
-        @for (e of recent(); track e.id) {
-          <div class="eventlog__row eventlog__row--{{ e.severity }}">
-            <time>{{ formatTime(e.timestamp) }}</time>
-            <span class="name">{{ e.name }}</span>
-            <span class="msg">{{ e.message }}</span>
-          </div>
-        }
-      }
+    <div class="eventlog__body">
+      <div class="eventlog__empty-state" data-testid="event-log-empty">
+        <span class="pi pi-inbox"></span>
+        {{ texts.emptyState }}
+      </div>
     </div>
   }
 </aside>

@@ -1,13 +1,90 @@
+import { describe, expect, it, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+
 import { App } from './app';
+import { DATA_SOURCE, type IDataSourcePort } from '../services/data-source/data-source.port';
+import { EMPTY } from 'rxjs';
+
+const STUB_DATA_SOURCE: IDataSourcePort = {
+  health: () =>
+    Promise.resolve({
+      ok: true,
+      schemaVersion: '1',
+      specVersion: '0.0.0',
+      implVersion: '0.0.0',
+      scope: 'project',
+      db: 'missing',
+    }),
+  loadScan: () =>
+    Promise.resolve({
+      schemaVersion: 1,
+      scannedAt: 0,
+      scope: 'project',
+      roots: ['.'],
+      providers: [],
+      nodes: [],
+      links: [],
+      issues: [],
+      stats: {
+        filesWalked: 0,
+        filesSkipped: 0,
+        nodesCount: 0,
+        linksCount: 0,
+        issuesCount: 0,
+        durationMs: 0,
+      },
+    }),
+  listNodes: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'nodes',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0 },
+    }),
+  getNode: () => Promise.resolve(null),
+  listLinks: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'links',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0 },
+    }),
+  listIssues: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'issues',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0 },
+    }),
+  loadGraph: () => Promise.resolve(''),
+  loadConfig: () => Promise.resolve({}),
+  listPlugins: () =>
+    Promise.resolve({
+      schemaVersion: '1',
+      kind: 'plugins',
+      items: [],
+      filters: {},
+      counts: { total: 0, returned: 0 },
+    }),
+  events: () => EMPTY,
+};
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
+      ],
     }).compileComponents();
   });
 
@@ -20,6 +97,7 @@ describe('App', () => {
   it('should render the prototype heading', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
+    fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('skill-map');
   });

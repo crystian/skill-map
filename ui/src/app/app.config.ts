@@ -5,6 +5,9 @@ import { providePrimeNG } from 'primeng/config';
 import Aura from '@primeuix/themes/aura';
 
 import { routes } from './app.routes';
+import { dataSourceFactory } from '../services/data-source/data-source.factory';
+import { DATA_SOURCE } from '../services/data-source/data-source.port';
+import { SKILL_MAP_MODE, readSkillMapModeFromMeta } from '../services/data-source/runtime-mode';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -19,5 +22,9 @@ export const appConfig: ApplicationConfig = {
         },
       },
     }),
+    // Runtime-mode token: read once from <meta name="skill-map-mode">
+    // (defaults to 'live'). The data-source factory branches on it.
+    { provide: SKILL_MAP_MODE, useFactory: readSkillMapModeFromMeta },
+    { provide: DATA_SOURCE, useFactory: dataSourceFactory },
   ],
 };
