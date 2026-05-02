@@ -34,10 +34,11 @@
   // ============================================================
   // Hero graph — selection + drag + inspector
   // ============================================================
-  // The card is `display: none` below 769px (see styles.css). Skip the
-  // whole init on mobile — saves event listener registration, adjacency
-  // map build, and inspector wiring on a card the user can't see.
-  if (window.matchMedia('(max-width: 768px)').matches) return;
+  // The card is `display: none` below 768px (see styles.css; 768 inclusive
+  // shows the graph). Skip the whole init on mobile — saves event listener
+  // registration, adjacency map build, and inspector wiring on a card the
+  // user can't see.
+  if (window.matchMedia('(max-width: 767px)').matches) return;
   const graphCard = document.getElementById('hero-graph');
   if (!graphCard) return;
   const svg = graphCard.querySelector('.hero__graph-svg');
@@ -543,9 +544,9 @@
 // DPR-aware via ResizeObserver. No external deps.
 // ============================================================
 (() => {
-  // Card is hidden on mobile via CSS; bail before allocating particles,
-  // canvas context, and observers.
-  if (window.matchMedia('(max-width: 768px)').matches) return;
+  // Card is hidden on mobile via CSS (≤767px); bail before allocating
+  // particles, canvas context, and observers.
+  if (window.matchMedia('(max-width: 767px)').matches) return;
   const card = document.getElementById('hero-graph');
   if (!card) return;
   const canvas = card.querySelector('.hg-particles');
@@ -948,22 +949,54 @@
     : 'Click any phase to read the brief.';
   mount.appendChild(hint);
 
+  // Accordion mode: on tablet & phone the detail panel docks right under
+  // the clicked segment so the user doesn't have to scroll past the strip
+  // to read the brief. On desktop the panel stays after the strip (its
+  // original position) so the segment grid keeps the horizontal rhythm.
+  const accordionMQ = window.matchMedia('(max-width: 1023px)');
+
+  // Lookup by data-idx, NOT by `segments.children[i]`. Once the detail
+  // panel is parented inside `.roadmap__segments`, it counts as a child
+  // and shifts the index → segments.children[1] could resolve to the
+  // detail itself instead of seg-1, leaving the panel stuck above the
+  // newly-clicked segment ("opens upward" symptom).
+  const segByIdx = (i) => segments.querySelector(`.roadmap__seg[data-idx="${i}"]`);
+  const allSegs = () => segments.querySelectorAll('.roadmap__seg');
+
+  function placeDetail() {
+    if (selected < 0) return;
+    if (accordionMQ.matches) {
+      const seg = segByIdx(selected);
+      if (seg && detail.previousElementSibling !== seg) {
+        seg.after(detail);
+      }
+    } else {
+      // Desktop home: between the strip and the hint, as a child of mount.
+      if (detail.parentNode !== mount || detail.previousElementSibling !== strip) {
+        mount.insertBefore(detail, hint);
+      }
+    }
+  }
+
+  accordionMQ.addEventListener('change', () => placeDetail());
+
   function setSelected(i) {
     if (i < 0 || i >= PHASES.length) return;
     // Clicking the currently-open segment collapses the detail panel.
     if (i === selected) {
       selected = -1;
       detail.classList.add('roadmap__detail--hidden');
-      for (const btn of segments.children) {
+      for (const btn of allSegs()) {
         btn.setAttribute('aria-current', 'false');
       }
       return;
     }
     selected = i;
-    for (const btn of segments.children) {
+    for (const btn of allSegs()) {
       btn.setAttribute('aria-current', String(+btn.dataset.idx === i));
     }
     detail.classList.remove('roadmap__detail--hidden');
+    placeDetail();
     renderDetail();
   }
 
@@ -1008,7 +1041,7 @@
     if (!focused?.classList.contains('roadmap__seg')) return;
     const i = +focused.dataset.idx;
     const next = e.key === 'ArrowLeft' ? Math.max(0, i - 1) : Math.min(PHASES.length - 1, i + 1);
-    segments.children[next].focus();
+    segByIdx(next)?.focus();
     setSelected(next);
     e.preventDefault();
   });
@@ -1508,4 +1541,122 @@
   // Clean up transform whenever the dialog closes (Escape, close button,
   // backdrop click, or any future code path) so the next open starts fresh.
   dialog.addEventListener('close', resetTransform);
+})();
+
+// ============================================================
+// Footer → mobile drawer migration
+// ------------------------------------------------------------
+// On phones (≤767px) the footer is hidden by CSS and its content
+// (link columns + bottom strip) is moved into the nav drawer so
+// the user reaches every link from a single overlay. On desktop
+// the original DOM is restored. Brand block stays in the footer
+// because the nav already shows the logo on every page.
+// ============================================================
+(() => {
+  const drawer = document.getElementById('nav-drawer');
+  const footer = document.querySelector('.lp-footer');
+  if (!drawer || !footer) return;
+
+  // Only the link columns migrate. The bottom strip (copyright + Makersia
+   // attribution) stays in the footer at every viewport — it carries the
+   // author / license signal and must remain visible on the page itself.
+  const movable = [
+    ...footer.querySelectorAll('.lp-footer__col'),
+  ];
+  if (movable.length === 0) return;
+
+  // Stable destination inside the drawer. Only created once; the JS toggles
+  // its children via DOM moves rather than rebuilding it on each viewport
+  // change so listeners on inner anchors stay attached.
+  const slot = document.createElement('div');
+  slot.className = 'lp-nav__footer-mobile';
+  drawer.appendChild(slot);
+
+  // Comment placeholders mark where each node lives in the footer so we can
+  // put it back when returning to desktop, regardless of how the surrounding
+  // markup has changed in the meantime.
+  const anchors = movable.map((node) => {
+    const placeholder = document.createComment('footer-slot');
+    node.parentNode.insertBefore(placeholder, node);
+    return { node, placeholder };
+  });
+
+  const apply = (mobile) => {
+    if (mobile) {
+      for (const { node } of anchors) slot.appendChild(node);
+    } else {
+      for (const { node, placeholder } of anchors) {
+        placeholder.parentNode.insertBefore(node, placeholder);
+      }
+    }
+  };
+
+  const mq = window.matchMedia('(max-width: 767px)');
+  apply(mq.matches);
+  mq.addEventListener('change', (e) => apply(e.matches));
+})();
+
+// ============================================================
+// Cookie consent + Google Analytics gating
+// ------------------------------------------------------------
+// Shows the consent dialog the first time the page loads (no
+// `cookieConsent` entry in localStorage). Accept → load GA and
+// remember. Decline → remember refusal, GA never loads.
+// To re-prompt the user (e.g., a "Cookie preferences" link in
+// the footer), call `window.smCookieConsent.reset()`.
+// ============================================================
+(() => {
+  const dialog = document.querySelector('[data-cookie-consent]');
+  if (!dialog) return;
+
+  const KEY = 'cookieConsent';
+  const GA_ID = 'G-XWJCEH8R9T';
+
+  const stored = localStorage.getItem(KEY);
+
+  // Auto-load analytics on subsequent visits if the user already accepted.
+  if (stored === 'accepted') loadAnalytics();
+
+  // First visit: show the dialog. showModal() gives focus trap + Escape
+  // handling for free; we don't bind Escape ourselves because we *want*
+  // Escape to close the dialog without persisting either choice (the
+  // user can still see it on next page load).
+  if (!stored && typeof dialog.showModal === 'function') {
+    // Defer one tick so any data-i18n pass that ran on DOMContentLoaded
+    // has already updated the dialog's text content.
+    queueMicrotask(() => dialog.showModal());
+  }
+
+  dialog.querySelector('[data-cookie-accept]')?.addEventListener('click', () => {
+    localStorage.setItem(KEY, 'accepted');
+    loadAnalytics();
+    dialog.close();
+  });
+  dialog.querySelector('[data-cookie-decline]')?.addEventListener('click', () => {
+    localStorage.setItem(KEY, 'declined');
+    dialog.close();
+  });
+
+  // Public hook for re-prompting (e.g. footer link). Mounted on window so
+  // markup can wire `onclick="smCookieConsent.reset()"` without imports.
+  window.smCookieConsent = {
+    reset: () => {
+      localStorage.removeItem(KEY);
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+    },
+  };
+
+  function loadAnalytics() {
+    // Standard gtag.js loader. The async script registers gtag globally;
+    // the inline initializer queues the page_view event for the current
+    // session.
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+    document.head.appendChild(s);
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { window.dataLayer.push(arguments); }
+    gtag('js', new Date());
+    gtag('config', GA_ID);
+  }
 })();

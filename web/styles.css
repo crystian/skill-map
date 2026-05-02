@@ -512,7 +512,10 @@ svg    { display: block; max-width: 100%; }
 
   /* Drawer: full panel, slides in from right. The drawer wraps both
      .lp-nav__links and .lp-nav__right so the same DOM works on both
-     viewports — desktop just promotes its children via display:contents. */
+     viewports — desktop just promotes its children via display:contents.
+     overflow-y: auto so the migrated footer block (link cols + bottom
+     strip injected by app.js) is reachable on short viewports without
+     overflow being clipped. */
   .lp-nav__drawer {
     position: fixed;
     inset: 64px 0 0 0;
@@ -521,6 +524,8 @@ svg    { display: block; max-width: 100%; }
     display: flex;
     flex-direction: column;
     gap: var(--s-4);
+    overflow-y: auto;
+    overscroll-behavior: contain;
     z-index: 40;
     transform: translateX(100%);
     transition: transform var(--dur-base) var(--ease-out);
@@ -542,8 +547,19 @@ svg    { display: block; max-width: 100%; }
     color: rgba(255,255,255,.85);
     border-bottom: 1px solid rgba(255,255,255,.06);
   }
-  .lp-nav__right { align-self: flex-start; }
-  .lp-nav__cta { height: 44px; font-size: 14px; }
+  /* Drawer right-cluster (lang + listen + star) stays as a single row,
+     right-aligned, with compact chip-sized controls. The trio fits in
+     ~250px so even at 360px viewport (≈312px usable) they don't crowd. */
+  .lp-nav__right {
+    align-self: flex-end;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+  .lp-lang { padding: 3px; }
+  .lp-lang__btn { min-height: 28px; padding: 4px 10px; font-size: 11px; }
+  .lp-nav__listen { height: 32px; font-size: 12px; padding: 0 12px; }
+  .lp-nav__cta { height: 32px; font-size: 12px; padding: 0 12px; }
 
   body.is-nav-open { overflow: hidden; }
 }
@@ -621,6 +637,18 @@ svg    { display: block; max-width: 100%; }
   color: rgba(255,255,255,.55);
   padding-right: 10px;
   border-right: 1px solid rgba(255,255,255,.14);
+}
+
+/* On narrow viewports, the full `npm i -g @skill-map/cli` command is wider
+   than the available row (≥340px at btn--xl). Hide the command and keep the
+   label — the click still copies the command via data-copy on the button. */
+@media (max-width: 480px) {
+  .btn--mono .btn__cmd { display: none; }
+  .btn--mono .btn__label {
+    border-right: 0;
+    padding-right: 0;
+    color: rgba(255,255,255,.85);
+  }
 }
 
 /* ============================================================
@@ -969,8 +997,8 @@ svg    { display: block; max-width: 100%; }
 .hero__inspector__warn svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
 
 /* On narrow viewports, dock the inspector at the bottom of the card so it
-   doesn't overlap the legend or eat half the canvas. */
-@media (max-width: 640px) {
+   doesn't overlap the legend or eat half the canvas. Phone breakpoint. */
+@media (max-width: 480px) {
   .hero__inspector {
     top: auto;
     right: 12px;
@@ -982,7 +1010,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 /* Hide hero__graph-legend / counts on tiny viewports to keep the card readable. */
-@media (max-width: 540px) {
+@media (max-width: 480px) {
   .hero__graph-legend { display: none; }
   .hero__graph-counts { font-size: 10px; gap: 4px; }
   .hero__graph-counts .sep { display: none; }
@@ -991,9 +1019,9 @@ svg    { display: block; max-width: 100%; }
 /* On mobile, drop the interactive graph card entirely. The hero leans on
    title + sub + CTAs; the live graph belongs to /demo/. The drag/pan/particle
    JS is also short-circuited via matchMedia in app.js, so the cost is zero.
-   Above 540px we already hide legend + collapse counts; below 769px we
-   remove the whole card. */
-@media (max-width: 768px) {
+   Above 480px we already hide legend + collapse counts; below 768px we
+   remove the whole card (768 inclusive shows the graph). */
+@media (max-width: 767px) {
   .hero__graph { display: none; }
 }
 
@@ -1214,8 +1242,11 @@ svg    { display: block; max-width: 100%; }
   overflow: hidden;
   border: 1px solid rgba(255,255,255,.06);
 }
-@media (max-width: 960px) { .features-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 560px) { .features-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1023px) { .features-grid { grid-template-columns: repeat(2, 1fr); } }
+/* Single column threshold consolidated to 768 (was 560) so features-grid
+   collapses at the same breakpoint as features-list and the rest of the
+   site. One mental model instead of six. */
+@media (max-width: 768px) { .features-grid { grid-template-columns: 1fr; } }
 
 .feature {
   background: var(--ink-900);
@@ -1234,11 +1265,11 @@ svg    { display: block; max-width: 100%; }
 .feature--hero {
   grid-column: span 2;
 }
-.feature--hero .feature__title { font-size: 26px; line-height: 1.2; }
+.feature--hero .feature__title { font-size: clamp(20px, 2.8vw, 26px); line-height: 1.2; }
 .feature--hero .feature__body  { font-size: 15px; max-width: 560px; }
 .feature--hero .feature__icon { width: 56px; height: 56px; border-radius: 12px; margin-bottom: 32px; }
 .feature--hero .feature__icon svg { width: 26px; height: 26px; }
-@media (max-width: 960px) { .feature--hero { grid-column: auto; } }
+@media (max-width: 1023px) { .feature--hero { grid-column: auto; } }
 
 /* ---------- Compact list (the 4 supplementary checks) ---------- */
 .features-list {
@@ -1354,7 +1385,7 @@ svg    { display: block; max-width: 100%; }
   font-size: 13px;
   font-weight: 500;
   color: var(--violet-400);
-  margin-bottom: 56px;
+  margin-bottom: clamp(28px, 4vw, 56px);
 }
 .howit-step__num::after {
   content: '';
@@ -1364,7 +1395,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 .howit-step__title {
-  font-size: 24px;
+  font-size: clamp(20px, 2.5vw, 24px);
   font-weight: 600;
   letter-spacing: -.02em;
   color: #fff;
@@ -1406,7 +1437,7 @@ svg    { display: block; max-width: 100%; }
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
 }
-@media (max-width: 960px) { .cases-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1023px) { .cases-grid { grid-template-columns: 1fr; } }
 
 .case {
   padding: 36px;
@@ -1442,7 +1473,7 @@ svg    { display: block; max-width: 100%; }
   margin-bottom: 24px;
 }
 .case__title {
-  font-size: 26px;
+  font-size: clamp(20px, 3vw, 26px);
   font-weight: 600;
   letter-spacing: -.02em;
   color: #fff;
@@ -1492,7 +1523,7 @@ svg    { display: block; max-width: 100%; }
   grid-template-columns: repeat(3, 1fr);
   gap: 24px;
 }
-@media (max-width: 960px) { .quotes-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1023px) { .quotes-grid { grid-template-columns: 1fr; } }
 
 .quote {
   padding: 32px;
@@ -1620,11 +1651,11 @@ svg    { display: block; max-width: 100%; }
 .lp-footer__grid {
   display: grid;
   grid-template-columns: 1.5fr 1fr 1fr 1fr;
-  gap: 40px;
-  margin-bottom: 64px;
+  gap: clamp(24px, 4vw, 40px);
+  margin-bottom: clamp(40px, 6vw, 64px);
 }
 /* Mid: brand spans full width, 4 link cols become 2×2. */
-@media (max-width: 960px) {
+@media (max-width: 1023px) {
   .lp-footer__grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 32px 24px;
@@ -1633,7 +1664,7 @@ svg    { display: block; max-width: 100%; }
   .lp-footer__tagline { max-width: 480px; }
 }
 /* Small: single column, generous spacing. */
-@media (max-width: 540px) {
+@media (max-width: 480px) {
   .lp-footer__grid {
     grid-template-columns: 1fr;
     gap: 32px;
@@ -1730,7 +1761,7 @@ svg    { display: block; max-width: 100%; }
   transition: color var(--dur-fast) var(--ease-out);
 }
 .lp-footer__powered a:hover { color: #fff; }
-@media (max-width: 540px) {
+@media (max-width: 480px) {
   .lp-footer__bottom {
     flex-direction: column;
     align-items: flex-start;
@@ -1762,7 +1793,7 @@ svg    { display: block; max-width: 100%; }
   gap: 48px;
   align-items: center;
 }
-@media (max-width: 960px) {
+@media (max-width: 1023px) {
   .peco__grid { grid-template-columns: 1fr; gap: 32px; }
 }
 
@@ -1946,11 +1977,11 @@ svg    { display: block; max-width: 100%; }
   font-size: 9px;
 }
 .peco__brief-title {
-  font-size: 38px;
+  font-size: clamp(28px, 5vw, 38px);
   font-weight: 600;
   color: #fff;
   letter-spacing: -.025em;
-  line-height: 1;
+  line-height: 1.05;
   margin-bottom: 6px;
 }
 .peco__brief-one {
@@ -2042,6 +2073,7 @@ svg    { display: block; max-width: 100%; }
 .peco__cta-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 /* ============================================================
@@ -2396,9 +2428,24 @@ svg    { display: block; max-width: 100%; }
   text-align: center;
 }
 
-/* Responsive: stack segments and detail panel */
-@media (max-width: 900px) {
+/* Responsive: stack segments and detail panel.
+   Stacking threshold consolidated to the canonical 1024 desktop boundary so
+   the roadmap collapses in line with cases-grid, quotes-grid, and peco-grid
+   (see AGENTS.md § Web for the full breakpoint set).
+   Accordion mode: app.js docks `.roadmap__detail` as a child of
+   `.roadmap__segments` right after the clicked segment, so the brief reads
+   inline. The strip drops `overflow: hidden` so the detail isn't clipped
+   by its border-radius, and the detail itself loses its outer chrome
+   (margin-top, rounded corners) since it's now flush with the segments. */
+@media (max-width: 1023px) {
+  .roadmap__strip { overflow: visible; }
   .roadmap__segments { grid-template-columns: 1fr; }
+  .roadmap__segments > .roadmap__detail {
+    margin-top: 0;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+  }
   .roadmap__seg {
     flex-direction: row;
     flex-wrap: wrap;
@@ -2685,7 +2732,9 @@ svg    { display: block; max-width: 100%; }
 .audio-player[data-state="playing"] .audio-player__icon--pause { display: inline-block; }
 
 /* Mobile: pin to bottom, full-width with safe insets so it doesn't
-   overlap the home-indicator on iOS. */
+   overlap the home-indicator on iOS. Aligned to the canonical 480 phone
+   breakpoint (see AGENTS.md § Web). Above 480 the floating-right card
+   sits at 340px which fits comfortably on phablets and small tablets. */
 @media (max-width: 480px) {
   .audio-player {
     left: 12px;
@@ -2694,6 +2743,19 @@ svg    { display: block; max-width: 100%; }
     width: auto;
     padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* Touch targets ≥36px (ideally 44) on mobile for the player + lightbox +
+   peco nav controls. WCAG 2.5.5 recommends 44×44 — we hit the bar on the
+   primary actions (play/pause, lightbox close) and bring the rest closer. */
+@media (max-width: 768px) {
+  .audio-player__icon-btn { width: 36px; height: 36px; }
+  .audio-player__icon-btn svg { width: 16px; height: 16px; }
+  .audio-player__playpause { width: 44px; height: 44px; }
+  .audio-player__playpause svg { width: 18px; height: 18px; }
+  .lightbox__close { width: 44px; height: 44px; top: 16px; right: 16px; }
+  .lightbox__close svg { width: 20px; height: 20px; }
+  .peco__nav-btn { padding: 10px 14px; min-height: 36px; }
 }
 
 /* ============================================================
@@ -2799,3 +2861,203 @@ svg    { display: block; max-width: 100%; }
   outline-offset: 2px;
 }
 .lightbox__close svg { width: 18px; height: 18px; }
+
+/* ============================================================
+   COOKIE CONSENT MODAL
+   ------------------------------------------------------------
+   Native <dialog> for focus trap + Escape close. The dialog is
+   the modal box itself (centered, max-width 480px); ::backdrop
+   blurs the whole page behind it.
+   Accept = green brand chip, prominent. Decline = unstyled link
+   in muted gray, deliberately low visual weight so the path of
+   least resistance is consent rather than rejection.
+   ============================================================ */
+.cookie-consent { display: none; }
+.cookie-consent[open] {
+  display: block;
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: calc(100% - 32px);
+  max-width: 480px;
+  height: max-content;
+  max-height: calc(100vh - 32px);
+  border: 1px solid rgba(167, 139, 250, .35);
+  border-radius: var(--r-xl);
+  background: rgba(8, 12, 18, .96);
+  color: rgba(255, 255, 255, .9);
+  padding: 28px 28px 22px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .6),
+              0 0 0 1px rgba(167, 139, 250, .12);
+  font-family: var(--font-sans);
+  z-index: 200;
+}
+.cookie-consent::backdrop {
+  background: rgba(6, 8, 12, .55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.cookie-consent__title {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: #fff;
+  margin: 0 0 10px;
+}
+.cookie-consent__body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: rgba(255, 255, 255, .72);
+  margin: 0 0 22px;
+}
+
+.cookie-consent__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+}
+
+/* Accept: violet accent pill, the visual primary. */
+.cookie-consent__accept {
+  height: 42px;
+  padding: 0 22px;
+  border-radius: var(--r-md);
+  border: 0;
+  background: var(--violet-600);
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -.005em;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              transform var(--dur-fast) var(--ease-out);
+}
+.cookie-consent__accept:hover {
+  background: var(--violet-500);
+  transform: translateY(-1px);
+}
+.cookie-consent__accept:active { transform: translateY(0); }
+/* Override the site-wide green focus ring (`--sh-focus`) on the modal's
+   accept button so the focus halo matches the violet pill instead of
+   clashing with it. */
+.cookie-consent__accept:focus-visible {
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, .45);
+}
+
+/* Decline: low-contrast text link. No background, no border, small font.
+   The button is reachable by tab + click but the visual ranking puts it
+   below the accept pill — deliberate dark-pattern-adjacent. */
+.cookie-consent__decline {
+  background: transparent;
+  border: 0;
+  padding: 4px 8px;
+  color: rgba(255, 255, 255, .35);
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 400;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, .15);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out),
+              text-decoration-color var(--dur-fast) var(--ease-out);
+}
+.cookie-consent__decline:hover {
+  color: rgba(255, 255, 255, .55);
+  text-decoration-color: rgba(255, 255, 255, .35);
+}
+.cookie-consent__decline:focus-visible {
+  outline: 2px solid var(--violet-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (max-width: 480px) {
+  .cookie-consent[open] {
+    padding: 22px 20px 18px;
+  }
+  .cookie-consent__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .cookie-consent__decline {
+    align-self: center;
+  }
+}
+
+/* ============================================================
+   MOBILE TITLE SCALE — uniform reduction on phones (≤767px)
+   ------------------------------------------------------------
+   Every title in the site shrinks on phones so the hierarchy
+   stays compact and readable on 360–430px viewports. Tablet
+   portrait (≥768) keeps the desktop scale via the existing
+   clamp() floors.
+   ============================================================ */
+
+/* Footer-in-drawer slot — populated by app.js on phones, empty on
+   desktop. Defined OUTSIDE the @media so the cascade order is
+   `display: none` (default) → `display: flex` (mobile override).
+   If the override sat after this rule the desktop default would win
+   on every viewport. */
+.lp-nav__footer-mobile { display: none; }
+
+@media (max-width: 767px) {
+  .hero__title              { font-size: 36px; line-height: 1.1; }
+  .cta-bar__title           { font-size: 30px; line-height: 1.05; }
+  .section-title            { font-size: 24px; }
+  .roadmap__title           { font-size: 22px; }
+  .peco__brief-title        { font-size: 22px; }
+  .roadmap__detail-title    { font-size: 20px; }
+  .case__title              { font-size: 18px; }
+  .howit-step__title        { font-size: 18px; }
+  .feature--hero .feature__title { font-size: 18px; }
+  .feature__title           { font-size: 18px; }
+  .peco__cta-title          { font-size: 16px; }
+  .features-list__title     { font-size: 15px; }
+
+  /* Plugin definitions panel (.peco__brief) — body, subtitle, code snippet
+     and tag all step down so the card reads compact on phones. */
+  .peco__brief-tag    { font-size: 10px; margin-bottom: 12px; }
+  .peco__brief-one    { font-size: 12px; margin-bottom: 14px; }
+  .peco__brief-body   { font-size: 13px; line-height: 1.55; margin-bottom: 18px; }
+  .peco__brief-code   { font-size: 10.5px; padding: 12px 14px; }
+  .peco__panel        { padding: 24px 20px 20px; }
+
+  /* Hide the "A plugin is ~30 lines of code" CTA strip on phones — the
+     panel above already carries the message and the strip just adds noise. */
+  .peco__cta          { display: none; }
+
+  /* Footer link columns migrate into the nav drawer on phones (see app.js
+     "Footer → mobile drawer migration"). The grid + brand block hide
+     because their content is either redundant (logo already in the nav)
+     or moved (link cols). The .lp-footer__bottom strip stays visible —
+     it carries the copyright + author + Makersia attribution and must
+     read on the page itself, not behind a hamburger menu. */
+  .lp-footer__grid    { display: none; }
+  .lp-footer          { padding-block: 0 24px; }
+  .lp-footer__bottom  { margin-top: 0; padding-top: 24px; }
+  .lp-nav__footer-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    gap: 28px;
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+  }
+  .lp-nav__footer-mobile .lp-footer__col ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .lp-nav__footer-mobile .lp-footer__col a { font-size: 15px; }
+}
