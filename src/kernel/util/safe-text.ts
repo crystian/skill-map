@@ -18,11 +18,17 @@
  * dedicated helper rather than extending this one.
  */
 
-// CSI / OSC / single-char ESC sequences. Mirrors the conservative
-// pattern recommended by `strip-ansi` (vendored to avoid an extra
-// runtime dep and keep the kernel self-contained).
+// CSI / OSC / single-char ESC sequences. Pattern adapted from
+// `strip-ansi` v7 (MIT, Sindre Sorhus). The kernel deliberately stays
+// dependency-free for security-critical helpers, so the regex is
+// vendored verbatim (with the `` / `` lead-byte anchors
+// preserved) instead of pulling in the package. Compared to the
+// pre-audit (M6) version, the OSC tail accepts the full
+// `-a-zA-Z\d/#&.:=?%@~_` charset that real OSC 8 hyperlinks use, so
+// `\x1B]8;;https://...\x07label\x1B]8;;\x07` strips cleanly instead
+// of leaving the URL fragment behind. The CSI tail is unchanged.
 // eslint-disable-next-line no-control-regex
-const ANSI_ESCAPE_RE = /[][[\]()#;?]*(?:(?:(?:[a-zA-Z\d]*(?:;[a-zA-Z\d]*)*)?)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
+const ANSI_ESCAPE_RE = /[][[\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\d/#&.:=?%@~_]+)*|[a-zA-Z\d]+(?:;[-a-zA-Z\d/#&.:=?%@~_]*)*)?)|(?:(?:\d{1,4}(?:;\d{0,4})*)?[\dA-PR-TZcf-nq-uy=><~]))/g;
 
 // C0 control characters except TAB (\x09), LF (\x0A), CR (\x0D). DEL
 // (\x7F) is included — terminals interpret it as backspace.

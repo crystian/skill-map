@@ -11,7 +11,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { copyFile, mkdir, rm, stat } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, rm, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { confirm } from '../util/confirm.js';
@@ -70,6 +70,20 @@ async function statOrNull(path: string): Promise<import('node:fs').Stats | null>
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw err;
+  }
+}
+
+/**
+ * Force `0o600` perms on a file, swallowing failures (Windows / non-POSIX
+ * filesystems may reject `chmod`). Used after `db restore` to keep the
+ * restored DB owner-readable only — see audit L4.
+ */
+async function chmodOwnerOnlyBestEffort(target: string): Promise<void> {
+  try {
+    await chmod(target, 0o600);
+  } catch {
+    // Best effort — the DB is already in place; tightening perms is a
+    // hardening pass, not a correctness gate.
   }
 }
 
@@ -178,6 +192,10 @@ export class DbRestoreCommand extends Command {
 
     await mkdir(dirname(target), { recursive: true });
     await copyFile(sourcePath, target);
+    // Defence in depth (audit L4): force restrictive owner-only perms on
+    // the restored DB. Helper-extracted so the try/catch doesn't push
+    // `execute` past the cyclomatic budget.
+    await chmodOwnerOnlyBestEffort(target);
     // WAL sidecars from the old DB would be out of sync — delete them so
     // next open starts clean against the restored main file.
     for (const sidecar of [`${target}-wal`, `${target}-shm`]) {

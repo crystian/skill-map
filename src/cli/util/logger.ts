@@ -20,6 +20,7 @@ import type {
   LoggerPort,
 } from '../../kernel/ports/logger.js';
 import { LOG_LEVELS, logLevelRank, parseLogLevel } from '../../kernel/ports/logger.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LOGGER_TEXTS } from '../i18n/logger.texts.js';
 
@@ -134,7 +135,10 @@ export function resolveLogLevel(opts: IResolveLogLevelOptions): LogLevel {
     if (raw === undefined || raw === null || raw === '') continue;
     const parsed = parseLogLevel(raw);
     if (parsed) return parsed;
-    errStream.write(tx(LOGGER_TEXTS.invalidLevel, { value: raw, allowed }));
+    // `raw` is user-controlled (CLI flag value or env var). A hostile
+    // env (e.g. shared dotfile, CI variable) could ship ANSI escapes
+    // through this warning; sanitize before printing.
+    errStream.write(tx(LOGGER_TEXTS.invalidLevel, { value: sanitizeForTerminal(raw), allowed }));
   }
   return opts.fallback;
 }

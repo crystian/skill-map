@@ -55,6 +55,7 @@ import {
   emptyPluginRuntime,
   loadPluginRuntime,
 } from '../util/plugin-runtime.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
@@ -258,12 +259,16 @@ function renderHuman(issues: Issue[]): string {
   for (const sev of SEVERITY_ORDER) {
     const bucket = grouped.get(sev) ?? [];
     for (const issue of bucket) {
+      // Defence in depth: `ruleId` / `message` / `nodeIds` originate from
+      // plugin-authored strings persisted in the DB. Strip ANSI / C0
+      // bytes before printing so a hostile plugin cannot repaint the
+      // user's terminal via a stored issue row.
       lines.push(
         tx(CHECK_TEXTS.issueRow, {
           severity: issue.severity,
-          ruleId: issue.ruleId,
-          message: issue.message,
-          nodeIds: issue.nodeIds.join(', '),
+          ruleId: sanitizeForTerminal(issue.ruleId),
+          message: sanitizeForTerminal(issue.message),
+          nodeIds: issue.nodeIds.map(sanitizeForTerminal).join(', '),
         }),
       );
     }

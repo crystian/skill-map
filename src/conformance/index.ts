@@ -112,7 +112,13 @@ export function runConformanceCase(options: IRunCaseOptions): IRunCaseResult {
 
   const fixturesRoot = options.fixturesRoot ?? join(options.specRoot, 'conformance', 'fixtures');
 
-  const scope = mkdtempSync(join(tmpdir(), `sm-conformance-${c.id}-`));
+  // Defence in depth (audit L5): the conformance case id is JSON-author-
+  // controlled. Replace anything that isn't a safe filesystem char and
+  // cap the length so an over-long id (or one carrying path separators
+  // / control bytes) can't escape `tmpdir()` or grow the prefix beyond
+  // a reasonable bound.
+  const safeId = c.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+  const scope = mkdtempSync(join(tmpdir(), `sm-conformance-${safeId}-`));
   const setupEnv = disableEnv(c.setup);
   try {
     // 1. Replay every `setup.priorScans` step into the scope DB before

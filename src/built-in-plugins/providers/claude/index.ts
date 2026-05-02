@@ -138,11 +138,22 @@ async function* walkMarkdown(
     const full = join(current, name);
     const rel = relative(root, full).split(sep).join('/');
     if (filter.ignores(rel)) continue;
+    // Symlinks are skipped explicitly (audit M7). The follow-symlinks
+    // config knob (`scan.followSymlinks` in settings.json) is reserved
+    // for a future implementation that would also need cycle detection
+    // and a `realpath`-resolved containment check; until then the
+    // walker stays in the safe default. Without this guard we relied on
+    // `Dirent.isFile()` returning false for symlinks — an implementation
+    // detail of node's `withFileTypes`. The explicit skip is both
+    // self-documenting and resilient to future Dirent API changes.
+    if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
       yield* walkMarkdown(root, full, filter);
     } else if (entry.isFile() && name.endsWith('.md')) {
-      // stat() guards against symlinks that point to non-files after
-      // readdir reported them as a file (rare but possible on some FSes).
+      // stat() guards against TOCTOU races where readdir reported a
+      // regular file and the entry was swapped for a symlink between
+      // calls. `stat` follows symlinks; rejecting non-regular results
+      // closes that lane too.
       try {
         const s = await stat(full);
         if (s.isFile()) yield full;
@@ -168,7 +179,16 @@ function splitFrontmatter(raw: string): ISplitResult {
   const body = match[2]!;
   const parsed: Record<string, unknown> = {};
   try {
-    const doc = yaml.load(frontmatterRaw);
+    // Defence in depth (audit L3): pin the parser schema explicitly.
+    // js-yaml v4's default schema is already safe (no `!!js/function`
+    // tags) but the explicit `JSON_SCHEMA` selection both documents
+    // intent and protects against an upstream default flip. Frontmatter
+    // values that are valid JSON (string, number, bool, null, sequence,
+    // mapping) round-trip unchanged; YAML-only conveniences like
+    // unquoted timestamps would degrade to strings, but the kernel's
+    // node schema does not depend on parsed Date objects so the
+    // tradeoff is safe.
+    const doc = yaml.load(frontmatterRaw, { schema: yaml.JSON_SCHEMA });
     if (doc && typeof doc === 'object' && !Array.isArray(doc)) {
       // js-yaml stores `__proto__:` as an own data property (rather than
       // polluting Object.prototype), but the value still flows into

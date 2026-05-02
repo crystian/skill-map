@@ -15,11 +15,13 @@ import { Command, Option } from 'clipanion';
 
 import type { StoragePort } from '../../kernel/ports/storage.js';
 import type { Node } from '../../kernel/types.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { LIST_TEXTS } from '../i18n/list.texts.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { ExitCode } from '../util/exit-codes.js';
+import { truncateTail } from '../util/text.js';
 import { withSqlite } from '../util/with-sqlite.js';
 
 // Whitelist of sortable columns. NEVER interpolate user input into SQL —
@@ -176,10 +178,14 @@ function renderTable(
   const sep = '-'.repeat(header.length);
   const lines = [header, sep];
   for (const node of nodes) {
+    // Defence in depth: `path` and `kind` originate from extension code
+    // (Provider classification) and persisted SQLite rows. Sanitize
+    // before rendering so a hostile Provider cannot slip ANSI / C0
+    // bytes through `sm list`.
     lines.push(
       formatRow(
-        truncate(node.path, PATH_COL_WIDTH),
-        node.kind,
+        truncateTail(sanitizeForTerminal(node.path), PATH_COL_WIDTH),
+        sanitizeForTerminal(node.kind),
         String(node.linksOutCount),
         String(node.linksInCount),
         String(node.externalRefsCount),
@@ -211,7 +217,3 @@ function formatRow(
   ].join('  ');
 }
 
-function truncate(s: string, max: number): string {
-  if (s.length <= max) return s;
-  return '…' + s.slice(s.length - max + 1);
-}

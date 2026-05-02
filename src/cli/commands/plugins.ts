@@ -55,6 +55,7 @@ import type {
   IDiscoveredPlugin,
   TGranularity,
 } from '../../kernel/types/plugin.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { PLUGINS_TEXTS } from '../i18n/plugins.texts.js';
 import {
@@ -249,19 +250,29 @@ function renderBuiltInBundleRow(bundle: IBuiltInBundleRow): string {
 
 /** Render the single-line status row for one user plugin. */
 function renderPluginRow(p: IDiscoveredPlugin): string {
-  const kinds = p.extensions?.map((e) => `${e.kind}:${e.pluginId}/${e.id}`).join(', ') ?? '';
+  // Defence in depth: every field that originates from the plugin's
+  // manifest (`id`, `version`, `kind`, per-extension ids, `reason`) is
+  // user-controlled string data. The id passes the loader's regex but
+  // we still sanitize as a uniform policy. `path` is composed from
+  // safe constants via `path.join` and stays bare.
+  const kinds =
+    p.extensions
+      ?.map((e) => `${sanitizeForTerminal(e.kind)}:${sanitizeForTerminal(e.pluginId)}/${sanitizeForTerminal(e.id)}`)
+      .join(', ') ?? '';
   const granularitySuffix = p.granularity
     ? tx(PLUGINS_TEXTS.pluginRowGranularitySuffix, { granularity: p.granularity })
     : '';
   const tail =
     p.status === 'enabled'
       ? tx(PLUGINS_TEXTS.pluginRowTailEnabled, { kinds })
-      : tx(PLUGINS_TEXTS.pluginRowTailDisabled, { reason: p.reason ?? '' });
+      : tx(PLUGINS_TEXTS.pluginRowTailDisabled, {
+          reason: sanitizeForTerminal(p.reason ?? ''),
+        });
   return (
     tx(PLUGINS_TEXTS.pluginRow, {
       statusIcon: statusIcon(p.status).padEnd(6),
-      id: p.id,
-      version: p.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown,
+      id: sanitizeForTerminal(p.id),
+      version: sanitizeForTerminal(p.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown),
       granularitySuffix,
       tail,
     }) + '\n'
@@ -341,26 +352,41 @@ function renderBuiltInDetail(builtIn: IBuiltInBundleRow): string[] {
 // Optional manifest fields (`version`, `specCompat`, `granularity`,
 // `description`, `reason`) each fall back via `??` — every coalesce is
 // one cyclomatic branch, none is a real control-flow decision.
+// Defence in depth: every manifest-sourced field is sanitized before
+// rendering. `path` is composed from safe constants via `path.join`
+// and stays bare.
 // eslint-disable-next-line complexity
 function renderPluginDetail(match: IDiscoveredPlugin): string[] {
   const lines = [
-    tx(PLUGINS_TEXTS.detailIdRow, { id: match.id }),
+    tx(PLUGINS_TEXTS.detailIdRow, { id: sanitizeForTerminal(match.id) }),
     tx(PLUGINS_TEXTS.detailPathRow, { path: match.path }),
     tx(PLUGINS_TEXTS.detailStatusRow, { status: match.status }),
     tx(PLUGINS_TEXTS.detailVersionRow, {
-      version: match.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown,
+      version: sanitizeForTerminal(
+        match.manifest?.version ?? PLUGINS_TEXTS.detailVersionUnknown,
+      ),
     }),
     tx(PLUGINS_TEXTS.detailCompatRow, {
-      compat: match.manifest?.specCompat ?? PLUGINS_TEXTS.detailCompatUnknown,
+      compat: sanitizeForTerminal(
+        match.manifest?.specCompat ?? PLUGINS_TEXTS.detailCompatUnknown,
+      ),
     }),
     tx(PLUGINS_TEXTS.detailGranularityRow, {
       granularity: match.granularity ?? PLUGINS_TEXTS.detailGranularityUnknown,
     }),
   ];
   if (match.manifest?.description) {
-    lines.push(tx(PLUGINS_TEXTS.detailSummaryRow, { description: match.manifest.description }));
+    lines.push(
+      tx(PLUGINS_TEXTS.detailSummaryRow, {
+        description: sanitizeForTerminal(match.manifest.description),
+      }),
+    );
   }
-  if (match.reason) lines.push(tx(PLUGINS_TEXTS.detailReasonRow, { reason: match.reason }));
+  if (match.reason) {
+    lines.push(
+      tx(PLUGINS_TEXTS.detailReasonRow, { reason: sanitizeForTerminal(match.reason) }),
+    );
+  }
   if (match.extensions && match.extensions.length > 0) {
     lines.push(...renderExtensionsList(match.extensions));
   }
@@ -373,9 +399,9 @@ function renderExtensionsList(exts: ILoadedExtension[]): string[] {
   for (const ext of exts) {
     lines.push(
       tx(PLUGINS_TEXTS.detailExtensionRow, {
-        kind: ext.kind,
-        qualifiedId: `${ext.pluginId}/${ext.id}`,
-        version: ext.version,
+        kind: sanitizeForTerminal(ext.kind),
+        qualifiedId: `${sanitizeForTerminal(ext.pluginId)}/${sanitizeForTerminal(ext.id)}`,
+        version: sanitizeForTerminal(ext.version),
         tag: '',
       }),
     );

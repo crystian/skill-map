@@ -53,6 +53,7 @@ import { REFRESH_TEXTS } from '../i18n/refresh.texts.js';
 import { defaultProjectDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
+import { assertContained } from '../util/path-guard.js';
 import {
   composeScanExtensions,
   emptyPluginRuntime,
@@ -279,6 +280,11 @@ export class RefreshCommand extends Command {
     for (const node of targetNodes) {
       let body: string;
       try {
+        // Defence in depth (audit M8): reject `node.path` rows that are
+        // absolute or escape `cwd` BEFORE resolving + reading. A manually-
+        // tampered DB row could otherwise route this read at any file
+        // the user can open.
+        assertContained(cwd, node.path);
         // Async read inside a sequential per-node loop. Today the loop
         // body still serializes (the extractor pass is awaited per
         // node), but routing the read through `fs/promises` lets the

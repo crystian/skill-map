@@ -24,6 +24,7 @@ import type {
   StoragePort,
 } from '../../kernel/ports/storage.js';
 import type { Issue } from '../../kernel/types.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
@@ -486,12 +487,18 @@ function renderOrphans(issues: Issue[]): string {
   const lines: string[] = [];
   lines.push(ORPHANS_TEXTS.activeIssuesHeader);
   for (const issue of issues) {
-    const subject = issue.nodeIds[0] ?? ORPHANS_TEXTS.noNodePlaceholder;
+    // Defence in depth: `ruleId`, the subject path (a node id), and the
+    // issue message all originate from plugin-authored strings persisted
+    // in the DB. Sanitize before rendering.
+    const rawSubject = issue.nodeIds[0];
+    const subject = rawSubject !== undefined
+      ? sanitizeForTerminal(rawSubject)
+      : ORPHANS_TEXTS.noNodePlaceholder;
     lines.push(
       tx(ORPHANS_TEXTS.activeIssueRow, {
-        ruleId: issue.ruleId,
+        ruleId: sanitizeForTerminal(issue.ruleId),
         subject,
-        message: issue.message,
+        message: sanitizeForTerminal(issue.message),
       }),
     );
   }

@@ -24,7 +24,9 @@ import type {
   ExecutionStatus,
   HistoryStats,
 } from '../../kernel/types.js';
+import { sanitizeForTerminal } from '../../kernel/util/safe-text.js';
 import { tx } from '../../kernel/util/tx.js';
+import { truncateHead } from '../util/text.js';
 import { assertDbExists, resolveDbPath } from '../util/db-path.js';
 import { defaultRuntimeContext } from '../util/runtime-context.js';
 import { emitDoneStderr, formatElapsed, startElapsed } from '../util/elapsed.js';
@@ -343,15 +345,22 @@ function renderTable(rows: ExecutionRecord[]): string {
     //   failed (timeout)                (reason populated)
     //   cancelled (user-cancelled)      (reason populated)
     //   failed                          (reason missing — defensive)
+    // Defence in depth: `id`, `extensionId`, and `failureReason` are
+    // sourced from rows persisted by extension code; sanitize before
+    // printing so a hostile plugin cannot inject terminal escapes via
+    // its own action ids or failure reasons.
     const status =
       r.failureReason !== null && r.failureReason !== undefined && r.failureReason.length > 0
-        ? tx(HISTORY_TEXTS.statusWithReason, { status: r.status, reason: r.failureReason })
+        ? tx(HISTORY_TEXTS.statusWithReason, {
+            status: r.status,
+            reason: sanitizeForTerminal(r.failureReason),
+          })
         : r.status;
     lines.push(
       formatRow(
-        truncate(r.id, COL_ID),
+        truncateHead(sanitizeForTerminal(r.id), COL_ID),
         new Date(r.startedAt).toISOString().slice(0, 19) + 'Z',
-        truncate(r.extensionId, COL_ACTION),
+        truncateHead(sanitizeForTerminal(r.extensionId), COL_ACTION),
         status,
         duration,
         tokens,
@@ -422,9 +431,4 @@ function renderStats(stats: HistoryStats): string {
 
 function formatRow(...cols: string[]): string {
   return cols.map((c, i) => c.padEnd(COL_WIDTHS[i] ?? 10)).join('');
-}
-
-function truncate(s: string, max: number): string {
-  if (s.length <= max) return s;
-  return s.slice(0, max - 1) + '…';
 }

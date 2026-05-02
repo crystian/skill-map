@@ -49,6 +49,14 @@ Exit codes follow [`spec/cli-contract.md`](../spec/cli-contract.md):
 
 This binary implements the [skill-map spec](https://www.npmjs.com/package/@skill-map/spec). The spec package ships JSON Schemas, conformance cases, and prose contracts; `skill-map` conforms to a declared range via its `specCompat`.
 
+## Security: untrusted repositories
+
+`sm scan` (and the verbs that include a scan: `refresh`, `watch`, `init`) auto-loads JavaScript plugins from `<cwd>/.skill-map/plugins/` by default. Running these commands inside a repository you do not control is equivalent to running `node ./.skill-map/plugins/*/index.js` — the plugin code executes with your user permissions.
+
+If you cloned an untrusted repository, run with `--no-plugins` to disable third-party plugin loading, or audit the contents of `.skill-map/plugins/` before scanning.
+
+A workspace-trust prompt is on the roadmap; until then this is an accepted risk.
+
 ## License
 
 MIT. See [`LICENSE`](../LICENSE).

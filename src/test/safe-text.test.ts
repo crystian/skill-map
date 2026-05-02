@@ -36,6 +36,15 @@ describe('stripAnsi', () => {
   it('preserves newlines and tabs', () => {
     assert.equal(stripAnsi('a\n\tb'), 'a\n\tb');
   });
+
+  it('removes an OSC 8 hyperlink sequence (URL chars in the param)', () => {
+    // OSC 8 emits `ESC ] 8 ; ; <url> BEL <label> ESC ] 8 ; ; BEL`.
+    // The expanded charset (`-/#&.:=?%@~_`) lets the regex match the
+    // `https://example.com` URL. Pre-audit (M6) the regex stopped at the
+    // `:` and left the URL fragment behind.
+    const link = '\x1B]8;;https://example.com\x07label\x1B]8;;\x07';
+    assert.equal(stripAnsi(link), 'label');
+  });
 });
 
 describe('sanitizeForTerminal', () => {
