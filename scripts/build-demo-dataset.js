@@ -245,6 +245,33 @@ async function writeAtomic(path, content) {
   await rename(tmp, path);
 }
 
+/**
+ * Read each `node.path` from disk relative to `fixtureDir`, strip the
+ * YAML frontmatter, and assign the result to `node.body`. Mirrors
+ * `src/server/node-body.ts` (the runtime path live mode uses) so the
+ * demo body bytes match what live would serve byte-for-byte.
+ */
+async function embedBodies(scan, fixtureDir) {
+  for (const node of scan.nodes ?? []) {
+    try {
+      const raw = await readFile(join(fixtureDir, node.path), 'utf8');
+      node.body = stripFrontmatter(raw);
+    } catch (err) {
+      process.stderr.write(
+        `[build-demo-dataset] body read failed for ${node.path} (${err.message}); embedding null\n`,
+      );
+      node.body = null;
+    }
+  }
+}
+
+function stripFrontmatter(raw) {
+  if (!raw.startsWith('---')) return raw;
+  const match = raw.match(/^---\r?\n[\s\S]*?^---\r?\n?/m);
+  if (!match) return raw;
+  return raw.slice(match[0].length);
+}
+
 async function main() {
   if (!existsSync(FIXTURE_DIR)) {
     throw new Error(`demo fixture missing: ${FIXTURE_DIR}`);
@@ -262,6 +289,16 @@ async function main() {
   // Force the timestamp to a deterministic value so re-running the
   // pipeline doesn't churn the bundle on every build.
   scan.scannedAt = STABLE_SCANNED_AT;
+
+  // Step 14.5.a — embed each node's body bytes (post-frontmatter)
+  // directly into the demo `data.json`. Live mode reads bodies on
+  // demand from `/api/nodes/:pathB64?include=body`, but the demo has
+  // no live BFF — bundling them keeps the inspector experience
+  // identical to live without forcing a runtime fetch indirection.
+  // 21 fixtures × ~2 KB each is in the noise (~40 KB on a ~590 KB
+  // bundle). When the fixture grows past ~100 nodes, revisit this
+  // (split into per-node JSON assets fetched on demand).
+  await embedBodies(scan, FIXTURE_DIR);
 
   const ascii = await renderAsciiGraph();
 

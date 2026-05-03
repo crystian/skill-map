@@ -1,0 +1,84 @@
+:host {
+  display: block;
+}
+
+.linked-nodes-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0;
+}
+
+.linked-nodes-panel__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.linked-nodes-panel__status {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+}
+
+.linked-nodes-panel__status--warn {
+  color: var(--sm-severity-warn);
+  font-style: normal;
+}
+
+.linked-nodes-panel__section + .linked-nodes-panel__section {
+  margin-top: 1rem;
+}
+
+.linked-nodes-panel__section-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--p-text-muted-color);
+}
+
+.linked-nodes-panel__rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.linked-nodes-panel__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.5rem;
+  border-radius: 4px;
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+}
+
+.linked-nodes-panel__path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--p-primary-color);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.linked-nodes-panel__path:hover {
+  text-decoration: none;
+}
+
+.linked-nodes-panel__sources {
+  font-size: 0.75rem;
+  color: var(--p-text-muted-color);
+  margin-left: auto;
+}

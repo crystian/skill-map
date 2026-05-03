@@ -61,14 +61,6 @@
         icon="pi pi-search"
         testId="inspector-empty-findings"
       />
-      <!-- Summary (hero — mocked, simulates per-kind summarizer output) -->
-      @if (n.mockSummary) {
-        <p-card [header]="texts.cards.summary" styleClass="inspector__card inspector__card--full inspector__card--hero" data-testid="inspector-card-summary">
-          <p class="inspector__summary-text">{{ n.mockSummary }}</p>
-          <p class="inspector__summary-note">{{ texts.cards.summaryNote }}</p>
-        </p-card>
-      }
-
       <!-- Kind-specific card -->
       @if (asAgent(); as agent) {
         <p-card [header]="texts.cards.agent" styleClass="inspector__card" data-testid="inspector-card-agent">
@@ -150,6 +142,39 @@
         </p-card>
       }
 
+      <!-- Sub-template for relation chips that can dead-end. The Angular
+           way to share a chunk of template across siblings without
+           duplicating the chip + verify-icon pair four times. -->
+      <ng-template #pathChip let-p="path" let-testIdPrefix="testIdPrefix">
+        @let status = linkStatus(p);
+        <span class="rel-chip" [attr.data-testid]="testIdPrefix + '-' + p">
+          <p-chip
+            [label]="p"
+            [styleClass]="status === 'live' ? 'chip--link' : status === 'dead-confirmed' ? 'chip--dead chip--dead-confirmed' : 'chip--dead'"
+            (click)="status === 'live' && openPath(p)"
+          />
+          @if (status !== 'live') {
+            <button
+              type="button"
+              class="rel-chip__verify"
+              [class.rel-chip__verify--confirmed]="status === 'dead-confirmed'"
+              [disabled]="isVerifying(p)"
+              [pTooltip]="status === 'dead-confirmed' ? texts.relations.deadConfirmed : texts.relations.verifyHint"
+              (click)="verifyDeadLink(p)"
+              [attr.data-testid]="testIdPrefix + '-verify-' + p"
+            >
+              @if (isVerifying(p)) {
+                <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+              } @else if (status === 'dead-confirmed') {
+                <i class="pi pi-times-circle" aria-hidden="true"></i>
+              } @else {
+                <i class="pi pi-question-circle" aria-hidden="true"></i>
+              }
+            </button>
+          }
+        </span>
+      </ng-template>
+
       <!-- Relations card -->
       @if (
         meta?.supersedes?.length
@@ -163,22 +188,14 @@
           @if (meta?.supersededBy) {
             <h4>{{ texts.fields.supersededBy }}</h4>
             <div class="chips">
-              <p-chip
-                [label]="meta!.supersededBy!"
-                [styleClass]="pathExists(meta!.supersededBy!) ? 'chip--link' : 'chip--dead'"
-                (click)="pathExists(meta!.supersededBy!) && openPath(meta!.supersededBy!)"
-              />
+              <ng-container *ngTemplateOutlet="pathChip; context: { path: meta!.supersededBy!, testIdPrefix: 'rel-supersededBy' }" />
             </div>
           }
           @if (meta?.supersedes?.length) {
             <h4>{{ texts.fields.supersedes }}</h4>
             <div class="chips">
               @for (p of meta!.supersedes!; track p) {
-                <p-chip
-                  [label]="p"
-                  [styleClass]="pathExists(p) ? 'chip--link' : 'chip--dead'"
-                  (click)="pathExists(p) && openPath(p)"
-                />
+                <ng-container *ngTemplateOutlet="pathChip; context: { path: p, testIdPrefix: 'rel-supersedes' }" />
               }
             </div>
           }
@@ -186,11 +203,7 @@
             <h4>{{ texts.fields.requires }}</h4>
             <div class="chips">
               @for (p of meta!.requires!; track p) {
-                <p-chip
-                  [label]="p"
-                  [styleClass]="pathExists(p) ? 'chip--link' : 'chip--dead'"
-                  (click)="pathExists(p) && openPath(p)"
-                />
+                <ng-container *ngTemplateOutlet="pathChip; context: { path: p, testIdPrefix: 'rel-requires' }" />
               }
             </div>
           }
@@ -198,11 +211,7 @@
             <h4>{{ texts.fields.related }}</h4>
             <div class="chips">
               @for (p of meta!.related!; track p) {
-                <p-chip
-                  [label]="p"
-                  [styleClass]="pathExists(p) ? 'chip--link' : 'chip--dead'"
-                  (click)="pathExists(p) && openPath(p)"
-                />
+                <ng-container *ngTemplateOutlet="pathChip; context: { path: p, testIdPrefix: 'rel-related' }" />
               }
             </div>
           }
@@ -224,6 +233,14 @@
           }
         </p-card>
       }
+
+      <!-- Linked-nodes panel (Step 14.5.b) — outgoing/incoming detected
+           links from the live scan. Distinct from the Relations card
+           above (which renders frontmatter declarations); this card
+           shows what the extractors actually found. -->
+      <div class="inspector__card inspector__card--full" data-testid="inspector-card-linked-nodes">
+        <sm-linked-nodes-panel [path]="n.path" (openPath)="openPath($event)" />
+      </div>
 
       <!-- Metadata card -->
       <p-card [header]="texts.cards.metadata" styleClass="inspector__card" data-testid="inspector-card-metadata">
@@ -326,9 +343,25 @@
         </p-card>
       }
 
-      <!-- Body -->
+      <!-- Body — markdown rendered via MarkdownRenderer (lazy-loaded) -->
       <p-card [header]="texts.cards.body" styleClass="inspector__card inspector__card--full inspector__body" data-testid="inspector-card-body">
-        <pre>{{ n.body.trim() || texts.emptyBody }}</pre>
+        @switch (bodyState()) {
+          @case ('loading') {
+            <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>
+          }
+          @case ('empty') {
+            <p class="inspector__body-status" data-testid="inspector-body-empty">{{ texts.body.empty }}</p>
+          }
+          @case ('unavailable') {
+            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-unavailable">{{ texts.body.unavailable }}</p>
+          }
+          @case ('error') {
+            <p class="inspector__body-status inspector__body-status--warn" data-testid="inspector-body-error">{{ texts.body.renderError }}</p>
+          }
+          @case ('ready') {
+            <div class="inspector__body-rendered" data-testid="inspector-body-rendered" [innerHTML]="bodyHtml()"></div>
+          }
+        }
       </p-card>
     </div>
   </section>

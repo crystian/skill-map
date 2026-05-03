@@ -143,7 +143,16 @@ export class StaticDataSource implements IDataSourcePort {
     };
   }
 
-  async getNode(path: string): Promise<INodeDetailApi | null> {
+  async getNode(
+    path: string,
+    _opts: { includeBody?: boolean } = {},
+  ): Promise<INodeDetailApi | null> {
+    // Demo mode: bodies are pre-baked into `data.json` by
+    // `scripts/build-demo-dataset.js` (Step 14.5.a). The static source
+    // ignores `opts.includeBody` because the body is always present
+    // when one was embedded — there's nothing to opt into. Nodes with
+    // no body in the snapshot return `body: undefined` naturally,
+    // which the inspector treats the same as the live `body: null`.
     const scan = await this.loadData();
     const node = scan.nodes.find((n) => n.path === path);
     if (!node) return null;

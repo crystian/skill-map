@@ -78,10 +78,14 @@ export class RestDataSource implements IDataSourcePort {
     return this.getJson<IListEnvelopeApi<INodeApi>>(`${BASE}/nodes${params}`);
   }
 
-  async getNode(path: string): Promise<INodeDetailApi | null> {
+  async getNode(
+    path: string,
+    opts: { includeBody?: boolean } = {},
+  ): Promise<INodeDetailApi | null> {
     const encoded = encodeNodePath(path);
+    const query = opts.includeBody ? '?include=body' : '';
     try {
-      return await this.getJson<INodeDetailApi>(`${BASE}/nodes/${encoded}`);
+      return await this.getJson<INodeDetailApi>(`${BASE}/nodes/${encoded}${query}`);
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'not-found') return null;
       throw err;

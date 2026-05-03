@@ -106,17 +106,20 @@ export type TFrontmatter =
   | TFrontmatterNote;
 
 /**
- * UI-facing node shape. Composes the parsed frontmatter with ui-only fields
- * (path, body, derived kind). This is the type stored in the in-memory
- * collection and passed to views.
+ * UI-facing node shape. Composes the parsed frontmatter with ui-only
+ * fields (path, derived kind). This is the type stored in the in-memory
+ * collection and passed to list / graph / inspector views.
+ *
+ * **Body is intentionally absent** — `/api/scan` (the loader's source)
+ * doesn't ship body bytes by design (kernel persists `body_hash` only).
+ * The Inspector view fetches the body on-demand via
+ * `dataSource.getNode(path)` with `?include=body`; everywhere else
+ * doesn't need it.
  */
 export interface INodeView {
   path: string;
   kind: TNodeKind;
   frontmatter: TFrontmatter;
-  body: string;
-  raw: string;
-  mockSummary: string | null;
 }
 
 /**

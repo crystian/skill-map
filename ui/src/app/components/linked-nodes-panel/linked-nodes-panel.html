@@ -1,0 +1,97 @@
+@if (path()) {
+  <p-card
+    styleClass="linked-nodes-panel"
+    data-testid="linked-nodes-panel"
+  >
+    <ng-template pTemplate="header">
+      <div class="linked-nodes-panel__header">
+        <h3 class="linked-nodes-panel__title">{{ texts.cardHeader }}</h3>
+        <p-button
+          icon="pi pi-refresh"
+          [rounded]="true"
+          [text]="true"
+          severity="secondary"
+          [ariaLabel]="texts.refreshLabel"
+          [pTooltip]="texts.refreshLabel"
+          (onClick)="refresh()"
+          data-testid="linked-nodes-refresh"
+          [disabled]="state() === 'loading'"
+        />
+      </div>
+    </ng-template>
+    @switch (state()) {
+      @case ('loading') {
+        <p class="linked-nodes-panel__status" data-testid="linked-nodes-loading">{{ texts.loading }}</p>
+      }
+      @case ('error') {
+        <p class="linked-nodes-panel__status linked-nodes-panel__status--warn" data-testid="linked-nodes-error">{{ texts.error }}</p>
+      }
+      @case ('ready') {
+        <section class="linked-nodes-panel__section" data-testid="linked-nodes-outgoing">
+          <h4 class="linked-nodes-panel__section-title">{{ texts.outgoingHeader }}</h4>
+          @if (outgoing().length === 0) {
+            <p class="linked-nodes-panel__status" data-testid="linked-nodes-outgoing-empty">{{ texts.emptyOutgoing }}</p>
+          } @else {
+            <ul class="linked-nodes-panel__rows">
+              @for (link of outgoing(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
+                <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-outgoing-row-' + link.target">
+                  <p-tag [value]="link.kind" [severity]="kindSeverity(link.kind)" />
+                  <button
+                    type="button"
+                    class="linked-nodes-panel__path"
+                    (click)="onOpen(link.target)"
+                    [attr.data-testid]="'linked-nodes-outgoing-link-' + link.target"
+                  >
+                    {{ link.target }}
+                  </button>
+                  <p-tag
+                    [value]="confidenceLabel(link.confidence)"
+                    [severity]="confidenceSeverity(link.confidence)"
+                    [rounded]="true"
+                  />
+                  @if (link.sources.length) {
+                    <span class="linked-nodes-panel__sources">
+                      {{ texts.sourcesPrefix }}{{ link.sources.join(texts.sourcesSeparator) }}
+                    </span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
+        <section class="linked-nodes-panel__section" data-testid="linked-nodes-incoming">
+          <h4 class="linked-nodes-panel__section-title">{{ texts.incomingHeader }}</h4>
+          @if (incoming().length === 0) {
+            <p class="linked-nodes-panel__status" data-testid="linked-nodes-incoming-empty">{{ texts.emptyIncoming }}</p>
+          } @else {
+            <ul class="linked-nodes-panel__rows">
+              @for (link of incoming(); track link.source + '|' + link.target + '|' + link.kind + '|' + (link.trigger?.normalizedTrigger ?? '')) {
+                <li class="linked-nodes-panel__row" [attr.data-testid]="'linked-nodes-incoming-row-' + link.source">
+                  <p-tag [value]="link.kind" [severity]="kindSeverity(link.kind)" />
+                  <button
+                    type="button"
+                    class="linked-nodes-panel__path"
+                    (click)="onOpen(link.source)"
+                    [attr.data-testid]="'linked-nodes-incoming-link-' + link.source"
+                  >
+                    {{ link.source }}
+                  </button>
+                  <p-tag
+                    [value]="confidenceLabel(link.confidence)"
+                    [severity]="confidenceSeverity(link.confidence)"
+                    [rounded]="true"
+                  />
+                  @if (link.sources.length) {
+                    <span class="linked-nodes-panel__sources">
+                      {{ texts.sourcesPrefix }}{{ link.sources.join(texts.sourcesSeparator) }}
+                    </span>
+                  }
+                </li>
+              }
+            </ul>
+          }
+        </section>
+      }
+    }
+  </p-card>
+}

@@ -24,6 +24,12 @@ import type { TStability, TFrontmatter } from './node';
 /**
  * `Node` from `node.schema.json`. Persisted shape returned by the BFF
  * over `/api/scan`, `/api/nodes`, and `/api/nodes/:pathB64`.
+ *
+ * `body` is opt-in: present only on `/api/nodes/:pathB64?include=body`
+ * (Step 14.5.a). The body is read from disk on demand because the
+ * kernel persists `bodyHash` only — see `src/server/node-body.ts`.
+ * `null` means the file disappeared from disk between the last scan
+ * and this request; `undefined` means the caller did not opt in.
  */
 export interface INodeApi {
   path: string;
@@ -42,6 +48,7 @@ export interface INodeApi {
   linksOutCount: number;
   linksInCount: number;
   externalRefsCount: number;
+  body?: string | null;
 }
 
 export interface ITripleSplit {

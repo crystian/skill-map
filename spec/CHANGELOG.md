@@ -174,6 +174,34 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
 
 ### Minor
 
+- **BFF `/api/nodes/:pathB64` body opt-in** — Step 14.5.a extends the
+  single-node detail endpoint with the optional `?include=body` query
+  parameter. When set, the response's `item` carries `body: string |
+  null` (the post-frontmatter file content read from disk on demand);
+  `null` indicates the source file was missing or unreadable when the
+  request landed. Without the flag, `item.body` stays `undefined` and
+  the handler does not touch the filesystem. The single-node response
+  shape is also corrected to the documented `{ schemaVersion, kind:
+  'node', item: Node, links: { incoming: Link[], outgoing: Link[] },
+  issues: Issue[] }` (the `### Server` table previously declared the
+  shape as the legacy `{ node, linksOut, linksIn, issues }` bundle —
+  see prose for the bug-fix rationale). No prod consumer ran against
+  the legacy shape, so the corrected shape ships as a minor.
+
+  **Why on-demand instead of persisting bodies in `scan_nodes`**: the
+  kernel persists `body_hash` only (per `db-schema.md` §scan_nodes) —
+  the body itself is human content, not machine state, and duplicating
+  it in SQLite would inflate the DB without serving any read-side
+  query the kernel cares about. Inspector cards that DO want to render
+  the body (markdown preview at Step 14.5) opt into the filesystem
+  re-read; the list / graph / kind-palette views never need it.
+
+  **Path-traversal defense**: the body reader (`src/server/node-body.ts`)
+  refuses absolute paths and any relative path that resolves outside
+  the scope root. A corrupted DB row or a future Provider that
+  forgets to sanitise its node paths cannot use this endpoint to leak
+  arbitrary files.
+
 - **BFF `/ws` protocol + watcher contract** — Step 14.4.a documents
   the WebSocket surface. The `### Server` subsection grows a
   **WebSocket protocol** block enumerating the wire envelope (delegated

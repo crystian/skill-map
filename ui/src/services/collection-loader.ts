@@ -24,17 +24,18 @@
  * that need `links` / `issues` / `stats` (graph-view today; future
  * inspector cards) can read them without a second round-trip.
  *
- * Projection from `INodeApi` to the legacy `INodeView` shape:
+ * Projection from `INodeApi` to `INodeView` (Step 14.5.a — slimmer):
  *   - `path`, `kind`, `frontmatter` come straight from the BFF row.
- *   - `body` and `raw` are left empty. The BFF doesn't ship raw bodies
- *     (Step 14 deliberately excluded body content from `/api/scan` to
- *     keep payloads small). Components that need body content read it
- *     via a future `/api/nodes/:pathB64?include=body` once that endpoint
- *     ships; today nothing in the SPA depends on it (mock-links and
- *     mock-summary, which were the only body consumers, were removed
- *     in the same change).
- *   - `mockSummary` derives from `description` / `title`; the kernel's
- *     real summarizer (Step 9+) will replace this entirely.
+ *   - `body` is intentionally NOT projected here. The Inspector view
+ *     fetches it on-demand via `dataSource.getNode(path, {includeBody: true})`
+ *     because `/api/scan` doesn't ship body bytes (kernel persists
+ *     `body_hash` only — see `src/server/node-body.ts` for rationale).
+ *     List / graph / kind-palette never read the body, so paying the
+ *     `fs.readFile` per row would be pure waste.
+ *   - `mockSummary` was dropped at Step 14.5.a — it derived from
+ *     `description` / `title` (already rendered in the inspector
+ *     header) and the card it fed was a placeholder waiting for the
+ *     real summarizer (LLM, wave 2). The header carries the same info.
  */
 
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
@@ -153,9 +154,9 @@ export class CollectionLoaderService {
 }
 
 /**
- * Project a `INodeApi` (BFF / spec shape) into the legacy `INodeView`
- * shape consumed by list / graph / inspector views. Lossy: `body` and
- * `raw` are empty because the BFF doesn't ship them.
+ * Project a `INodeApi` (BFF / spec shape) into the `INodeView` shape
+ * consumed by list / graph / inspector views. Body bytes are NOT in
+ * the projection — see the file-level docstring for the rationale.
  */
 function projectNode(api: INodeApi): INodeView {
   const kind = normalizeKind(api.kind);
@@ -189,18 +190,9 @@ function projectNode(api: INodeApi): INodeView {
     path: api.path,
     kind,
     frontmatter: fm,
-    body: '',
-    raw: '',
-    mockSummary: deriveSummary(api),
   };
 }
 
 function normalizeKind(raw: string): TNodeKind {
   return KNOWN_KINDS.has(raw as TNodeKind) ? (raw as TNodeKind) : 'note';
-}
-
-function deriveSummary(api: INodeApi): string | null {
-  if (api.description && api.description.trim().length > 0) return api.description.trim();
-  if (api.title && api.title.trim().length > 0) return api.title.trim();
-  return null;
 }

@@ -85,21 +85,59 @@
   display: block;
 }
 
-.inspector__body pre {
+.inspector__body-status {
   margin: 0;
+  font-size: 0.85rem;
+  color: var(--p-text-muted-color);
+  font-style: italic;
+}
+
+.inspector__body-status--warn {
+  color: var(--sm-severity-warn);
+  font-style: normal;
+}
+
+.inspector__body-rendered {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  max-height: 600px;
+  overflow: auto;
+}
+
+.inspector__body-rendered :first-child {
+  margin-top: 0;
+}
+
+.inspector__body-rendered :last-child {
+  margin-bottom: 0;
+}
+
+.inspector__body-rendered pre {
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin: 0.75rem 0;
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.85rem;
   line-height: 1.5;
-  max-height: 400px;
-  overflow: auto;
+  overflow-x: auto;
+}
+
+.inspector__body-rendered code {
+  background: var(--p-content-background);
+  padding: 0.1rem 0.3rem;
+  border-radius: 3px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+}
+
+.inspector__body-rendered pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
 }
 
 .kv {
@@ -174,6 +212,53 @@ h4:first-child {
   color: var(--sm-kind-command-fg);
 }
 
+:host ::ng-deep .chip--dead-confirmed .p-chip {
+  background: var(--sm-bg-hover);
+  color: var(--sm-severity-error);
+  border: 1px dashed var(--sm-severity-error);
+}
+
+/* Dead-link verify icon (Step 14.5.b — hybrid mode). Sits next to a
+   chip that the in-memory heuristic flagged as dead so the user can
+   ask the BFF for a definitive answer. The icon-only button stays
+   small + transparent so it doesn't compete with the chip itself. */
+.rel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.rel-chip__verify {
+  background: none;
+  border: none;
+  padding: 0.15rem;
+  cursor: pointer;
+  color: var(--p-text-muted-color);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.rel-chip__verify:hover:not(:disabled) {
+  color: var(--p-primary-color);
+  background: var(--sm-bg-hover);
+}
+
+.rel-chip__verify:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.rel-chip__verify--confirmed {
+  color: var(--sm-severity-error);
+}
+
+.rel-chip__verify--confirmed:hover:not(:disabled) {
+  color: var(--sm-severity-error);
+}
+
 .args {
   margin: 0;
   padding-left: 1.25rem;
@@ -218,19 +303,6 @@ h4:first-child {
 .inspector__actions {
   display: flex;
   gap: 0.5rem;
-}
-
-.inspector__summary-text {
-  margin: 0;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-.inspector__summary-note {
-  margin: 0.5rem 0 0;
-  font-size: 0.75rem;
-  color: var(--p-text-muted-color);
-  font-style: italic;
 }
 
 @media (max-width: 1280px) {

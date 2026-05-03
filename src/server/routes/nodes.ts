@@ -15,6 +15,35 @@
  * **Single route** uses base64url-encoded `node.path` as the route
  * param. Malformed pathB64 → `not-found` (treating it as "no such
  * node" is gentler than yelling "bad input"). Missing node → same.
+ *
+ * **Single route response shape** (Step 14.5.a — locked):
+ *
+ *   ```
+ *   {
+ *     schemaVersion: '1',
+ *     kind: 'node',
+ *     item: Node,                                  // (+ optional `body`)
+ *     links: { incoming: Link[], outgoing: Link[] },
+ *     issues: Issue[]
+ *   }
+ *   ```
+ *
+ *   Pre-14.5.a the handler emitted `{ item: { node, linksOut, linksIn,
+ *   issues } }` — the `INodeBundle` shape passed straight through. No
+ *   prod consumer ever ran against it (the SPA's `INodeDetailApi`
+ *   model already declared the new shape, and the only `getNode`
+ *   call sites today are tests and the `StaticDataSource` which
+ *   already produces the new shape). The 14.5.a flip is therefore a
+ *   bug fix, not a breaking change for any deployed surface.
+ *
+ * **`?include=body` (Step 14.5.a)** — opt-in flag that adds `item.body`
+ * to the response. The body is read from disk on demand (the kernel
+ * persists `body_hash` only — see `node-body.ts` for the rationale).
+ * Without the flag the handler never touches the filesystem; with it,
+ * `body` is the post-frontmatter content as a UTF-8 string, or `null`
+ * when the file is missing / unreadable. The Inspector view passes the
+ * flag; the auto-rename UI and other future single-node consumers can
+ * skip it.
  */
 
 import type { Hono } from 'hono';
@@ -24,8 +53,9 @@ import { HTTPException } from 'hono/http-exception';
 import { applyExportQuery } from '../../kernel/index.js';
 import { tryWithSqlite } from '../../cli/util/with-sqlite.js';
 import { tx } from '../../kernel/util/tx.js';
-import { buildListEnvelope, buildSingleEnvelope } from '../envelope.js';
+import { buildListEnvelope, REST_ENVELOPE_SCHEMA_VERSION } from '../envelope.js';
 import { SERVER_TEXTS } from '../i18n/server.texts.js';
+import { readNodeBody } from '../node-body.js';
 import { decodeNodePath, PathCodecError } from '../path-codec.js';
 import {
   filterNodesWithoutIssues,
@@ -62,7 +92,17 @@ export function registerNodesRoutes(app: Hono, deps: IRouteDeps): void {
         message: tx(SERVER_TEXTS.nodeNotFound, { path: nodePath }),
       });
     }
-    return c.json(buildSingleEnvelope('node', bundle));
+    const includes = parseIncludes(new URL(c.req.url).searchParams.get('include'));
+    const item = includes.has('body')
+      ? { ...bundle.node, body: await readNodeBody(deps.runtimeContext.cwd, nodePath) }
+      : bundle.node;
+    return c.json({
+      schemaVersion: REST_ENVELOPE_SCHEMA_VERSION,
+      kind: 'node' as const,
+      item,
+      links: { incoming: bundle.linksIn, outgoing: bundle.linksOut },
+      issues: bundle.issues,
+    });
   });
 
   app.get('/api/nodes', async (c) => {
@@ -133,4 +173,16 @@ function parseNonNegativeInt(
     });
   }
   return parsed;
+}
+
+/**
+ * Parse the comma-separated `?include=` query param into a set of
+ * include flags. Unknown values are silently ignored — callers branch
+ * on `set.has('body')`, etc., so a future `?include=summary,body`
+ * value lands without churning every existing call site. An absent /
+ * empty param resolves to an empty set.
+ */
+function parseIncludes(raw: string | null): ReadonlySet<string> {
+  if (raw === null || raw.length === 0) return new Set();
+  return new Set(raw.split(',').map((s) => s.trim()).filter((s) => s.length > 0));
 }

@@ -141,8 +141,9 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
 async function bootAndUse<T>(
   options: IServerOptions,
   fn: (handle: ServerHandle) => Promise<T>,
+  extra: Parameters<typeof createServer>[1] = {},
 ): Promise<T> {
-  const handle = await createServer(options);
+  const handle = await createServer(options, extra);
   try {
     return await fn(handle);
   } finally {
@@ -290,7 +291,7 @@ describe('/api/nodes (list)', () => {
 // ---------------------------------------------------------------------------
 
 describe('/api/nodes/:pathB64', () => {
-  it('returns the single-node bundle for an existing path', async () => {
+  it('returns the single-node detail envelope for an existing path', async () => {
     // Find a primed path first.
     await bootAndUse(defaultOptions(), async (handle) => {
       const listRes = await fetch(url(handle, '/api/nodes'));
@@ -299,17 +300,14 @@ describe('/api/nodes/:pathB64', () => {
       const encoded = encodeNodePath(target);
       const res = await fetch(url(handle, `/api/nodes/${encoded}`));
       assert.equal(res.status, 200);
-      const env = (await res.json()) as ISingleEnvelope<{
-        node: { path: string };
-        linksOut: unknown[];
-        linksIn: unknown[];
-        issues: unknown[];
-      }>;
+      const env = (await res.json()) as INodeDetailResponse;
       assert.equal(env.kind, 'node');
-      assert.equal(env.item.node.path, target);
-      assert.ok(Array.isArray(env.item.linksOut));
-      assert.ok(Array.isArray(env.item.linksIn));
-      assert.ok(Array.isArray(env.item.issues));
+      assert.equal(env.item.path, target);
+      assert.ok('bodyHash' in env.item, 'item must carry the canonical Node fields');
+      assert.equal(env.item.body, undefined, 'body absent unless ?include=body');
+      assert.ok(Array.isArray(env.links.incoming));
+      assert.ok(Array.isArray(env.links.outgoing));
+      assert.ok(Array.isArray(env.issues));
     });
   });
 
@@ -330,7 +328,54 @@ describe('/api/nodes/:pathB64', () => {
       assert.equal(res.status, 404);
     });
   });
+
+  it('?include=body reads the post-frontmatter body from disk', async () => {
+    // The fixture planted `.claude/agents/architect.md` with body
+    // `Run /deploy.` (see plantFixture). The runtimeContext.cwd must
+    // point at the fixture root so node.path resolves to the real file.
+    await bootAndUse(
+      defaultOptions(),
+      async (handle) => {
+        const target = '.claude/agents/architect.md';
+        const encoded = encodeNodePath(target);
+        const res = await fetch(url(handle, `/api/nodes/${encoded}?include=body`));
+        assert.equal(res.status, 200);
+        const env = (await res.json()) as INodeDetailResponse;
+        assert.equal(env.item.path, target);
+        assert.equal(env.item.body, 'Run /deploy.');
+      },
+      { runtimeContext: { cwd: root.fixtureDir, homedir: tmpdir() } },
+    );
+  });
+
+  it('?include=body returns body=null when the on-disk file disappeared', async () => {
+    // Boot with a runtimeContext pointing at a different (empty) tempdir
+    // so the relative node.path cannot resolve to an actual file. This
+    // simulates a node persisted by a prior scan whose source file was
+    // deleted before the inspector opened it.
+    const ghostCwd = mkdtempSync(join(root.tmp, 'ghost-cwd-'));
+    await bootAndUse(
+      defaultOptions(),
+      async (handle) => {
+        const target = '.claude/agents/architect.md';
+        const encoded = encodeNodePath(target);
+        const res = await fetch(url(handle, `/api/nodes/${encoded}?include=body`));
+        assert.equal(res.status, 200);
+        const env = (await res.json()) as INodeDetailResponse;
+        assert.equal(env.item.body, null);
+      },
+      { runtimeContext: { cwd: ghostCwd, homedir: tmpdir() } },
+    );
+  });
 });
+
+interface INodeDetailResponse {
+  schemaVersion: string;
+  kind: 'node';
+  item: { path: string; bodyHash: string; body?: string | null };
+  links: { incoming: unknown[]; outgoing: unknown[] };
+  issues: unknown[];
+}
 
 // ---------------------------------------------------------------------------
 // /api/links
