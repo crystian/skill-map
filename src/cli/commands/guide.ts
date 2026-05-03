@@ -7,10 +7,11 @@
  *   1. Tester drops into an empty directory.
  *   2. Tester runs `sm guide`. This verb writes `<cwd>/sm-guide.md` —
  *      the canonical SKILL.md content shipped with `@skill-map/cli`.
- *   3. Tester opens Claude Code in that same directory and asks
- *      "guíame" / "empezar la guía". The skill itself ignores
- *      `sm-guide.md` in its empty-dir whitelist (the file is its own
- *      onboarding payload, not a stale fixture).
+ *   3. Tester opens Claude Code in that same directory and types
+ *      `ejecutá @sm-guide.md`, which loads the materialized file as a
+ *      skill. The skill itself ignores `sm-guide.md` in its empty-dir
+ *      whitelist (the file is its own onboarding payload, not a stale
+ *      fixture).
  *
  * Per spec § `sm guide`:
  *
@@ -54,8 +55,9 @@ export class GuideCommand extends SmCommand {
       'Materialize the interactive tester guide (sm-guide.md) in the current directory.',
     details: `
       Drops the canonical SKILL.md content as ./sm-guide.md so a tester
-      can open Claude Code in the cwd and trigger the sm-guide skill
-      ("guíame"). Top-level only — no subdirectory is created.
+      can open Claude Code in the cwd and load the file as a skill by
+      typing "ejecutá @sm-guide.md". Top-level only — no subdirectory
+      is created.
 
       Does NOT require an initialized .skill-map/ project. Refuses to
       overwrite an existing sm-guide.md unless --force is passed.

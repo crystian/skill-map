@@ -84,7 +84,7 @@ describe('sm guide — happy path', () => {
     // Spec-mandated success message contents.
     assert.match(r.stdout, /sm-guide\.md creado en/);
     assert.match(r.stdout, /Abrí Claude Code/);
-    assert.match(r.stdout, /guíame/);
+    assert.match(r.stdout, /@sm-guide\.md/);
   });
 
   it('content matches the canonical SKILL.md byte-for-byte', () => {

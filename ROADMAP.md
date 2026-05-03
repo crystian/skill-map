@@ -1176,7 +1176,7 @@ Normative across every verb (Decision #38; `spec/cli-contract.md §Exit codes`):
 | Command | Purpose |
 |---|---|
 | `sm init [--no-scan] [--force]` | Bootstrap scope (creates `.skill-map/`, DB, runs first scan). `--no-scan` skips the initial scan. `--force` rewrites an existing config. |
-| `sm guide [--force]` | Materialize the `sm-guide` tester walkthrough as `sm-guide.md` in the cwd. Runs in any directory (no `.skill-map/` required); the file is consumed by the matching Claude Code skill when the tester says "guíame". `--force` overwrites an existing `sm-guide.md`. |
+| `sm guide [--force]` | Materialize the `sm-guide` tester walkthrough as `sm-guide.md` in the cwd. Runs in any directory (no `.skill-map/` required); the file is consumed by the matching Claude Code skill when the tester loads it with `ejecutá @sm-guide.md`. `--force` overwrites an existing `sm-guide.md`. |
 | `sm version` | CLI / kernel / spec / DB schema versions. |
 | `sm doctor` | DB integrity, pending migrations, orphan files, plugins in error, LLM runner availability. |
 | `sm help [<verb>] [--format human\|md\|json]` | Self-describing introspection. |

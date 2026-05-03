@@ -1078,8 +1078,8 @@ Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status,
 Materialize the interactive tester guide (sm-guide.md) in the current directory.
 
 Drops the canonical SKILL.md content as ./sm-guide.md so a tester can open 
-Claude Code in the cwd and trigger the sm-guide skill ("guíame"). Top-level only 
-— no subdirectory is created.
+Claude Code in the cwd and load the file as a skill by typing "ejecutá 
+@sm-guide.md". Top-level only — no subdirectory is created.
 
 Does NOT require an initialized .skill-map/ project. Refuses to overwrite an 
 existing sm-guide.md unless --force is passed.

@@ -80,14 +80,16 @@ ls -A
 ```
 
 **Items que ignorás** del listado al evaluar "vacío" (no cuentan
-como contenido del usuario):
+como contenido del usuario, son infraestructura del propio skill):
 
-- `.claude` — infraestructura de skills/agents; puede contener este
-  mismo skill.
-- `SKILL.md` — si el tester tiene una copia del skill suelta acá.
-- `sm-guide.md` — copia del skill materializada por `sm guide`
-  (suelta en la raíz del cwd).
+- `.claude` — infraestructura de skills/agents.
+- `SKILL.md` — copia del skill suelta acá.
+- `sm-guide.md` — copia del skill materializada por `sm guide`.
 - `guide-state.yml` — modo resume (ver §Resume / restart).
+
+La whitelist es **interna** — no se la enumerás al tester. Si todo
+está OK le decís simplemente "Listo, el directorio está limpio.
+Sigamos." sin paréntesis ni aclaraciones de qué items se ignoraron.
 
 Reglas (después de filtrar los items ignorados):
 
@@ -167,51 +169,117 @@ Sugerí `node --version` y guialo.
 
 ### 3. Crear el fixture en el cwd
 
+Cuatro nodos, uno por cada *kind* que skill-map reconoce — un skill,
+un agente, un hook y una nota — todos linkeados entre sí para que el
+grafo tenga forma. Más un `.skill-map-ignore` para que el escaneo no
+levante archivos propios de la guía.
+
 ```
 <cwd>/
-├── docs/
-│   ├── overview.md
-│   └── architecture.md
+├── .claude/
+│   ├── skills/
+│   │   └── demo-skill/
+│   │       └── SKILL.md      # kind: skill
+│   ├── agents/
+│   │   └── demo-agent.md     # kind: agent
+│   └── hooks/
+│       └── demo-hook.md      # kind: hook
 ├── notes/
-│   └── todo.md          # link roto a propósito (sirve en el largo)
+│   └── todo.md               # kind: note (con link roto a propósito)
+├── .skill-map-ignore
 ├── guide-state.yml
 └── findings.md
 ```
 
-`docs/overview.md`:
+`.claude/skills/demo-skill/SKILL.md`:
 ```markdown
 ---
-title: Overview
-tags: [docs, intro]
+name: demo-skill
+description: |
+  Skill de ejemplo que muestra cómo skill-map detecta el frontmatter
+  y los links internos. Útil para inspeccionar el grafo en la UI.
+inputs:
+  - name: target
+    type: path
+    description: Archivo a procesar.
+    required: true
+outputs:
+  - name: report
+    type: string
+    description: Resumen en Markdown.
 ---
 
-# Overview
+# demo-skill
 
-Welcome. See [architecture](./architecture.md).
+Este skill recorre un archivo y devuelve un reporte. Cuando necesita
+delegar trabajo pesado se apoya en el
+[demo-agent](../../agents/demo-agent.md).
+
+## Pasos
+1. Leer el `target`.
+2. Validar el frontmatter contra los schemas.
+3. Generar el reporte.
 ```
 
-`docs/architecture.md`:
+`.claude/agents/demo-agent.md`:
 ```markdown
 ---
-title: Architecture
-tags: [docs, architecture]
+name: demo-agent
+description: |
+  Agente de ejemplo que el demo-skill puede invocar para tareas de
+  lectura y ejecución de comandos.
+tools: Read, Bash
+model: sonnet
 ---
 
-# Architecture
+# demo-agent
 
-Layers: kernel → CLI → UI. Back to [overview](./overview.md).
+Procesa entradas y, al cerrar la sesión, dispara el
+[demo-hook](../hooks/demo-hook.md).
+
+Reglas:
+- Nunca correr comandos destructivos sin confirmación.
+- Loggear cada acción a stderr.
 ```
 
-`notes/todo.md` (con link **roto a propósito**):
+`.claude/hooks/demo-hook.md`:
 ```markdown
 ---
-title: TODO
-tags: [notes]
+event: SubagentStop
+blocking: false
+idempotent: true
 ---
 
-# TODO
+# demo-hook
 
-- Write [missing-page](./missing-page.md) — broken link on purpose.
+Hook que se dispara cuando un subagente termina. Marca el cierre y
+deja una entrada en la lista de pendientes.
+
+Ver [pendientes](../../notes/todo.md) para el contexto operativo.
+```
+
+`notes/todo.md` (con link **roto a propósito** — sirve en la etapa
+L4 del camino largo):
+```markdown
+---
+title: Pendientes del demo
+tags: [notes, demo]
+---
+
+# Pendientes
+
+- [ ] Documentar el [diagrama de flujo](./missing-page.md) — link
+      roto a propósito, no toques.
+- [ ] Pulir el prompt de [demo-skill](../.claude/skills/demo-skill/SKILL.md).
+- [ ] Confirmar el `event` del [demo-hook](../.claude/hooks/demo-hook.md).
+```
+
+`.skill-map-ignore` (formato gitignore-like — evita que `sm scan`
+levante archivos internos de la guía como nodos del grafo):
+```
+sm-guide.md
+findings.md
+guide-state.yml
 ```
 
 `findings.md`:
@@ -366,11 +434,12 @@ sm
 > El server queda corriendo. Abrí en el navegador la URL que muestra
 > la salida (típicamente **http://127.0.0.1:4242**).
 >
-> Recorré las 4 vistas:
-> 1. **Grafo** — los nodos del fixture conectados por links
-> 2. **Lista** — tabla con paths y metadata
-> 3. **Inspector** — clickeá un nodo para ver detalles
-> 4. **Event log** — panel lateral con eventos en vivo
+> Recorré las 3 vistas:
+> 1. **Grafo** — los 4 nodos del fixture (skill, agente, hook, nota)
+>    conectados por sus links internos.
+> 2. **Lista** — tabla con paths, kind y metadata.
+> 3. **Inspector** — clickeá un nodo para ver detalles (frontmatter,
+>    links in/out, issues).
 >
 > ¿Cargó todo bien? Si algo no se ve, registralo en findings.
 
@@ -382,25 +451,34 @@ la UI redibujarse sola.
 
 Cambios que aplicás vos (con `Edit` y `Write`):
 
-1. Editar `docs/architecture.md` — agregar al final:
+1. Editar `.claude/skills/demo-skill/SKILL.md` — agregar al final:
    ```markdown
-   See also [examples](./examples.md).
+   Ver también [ejemplos](../../notes/examples.md).
    ```
-2. Crear `docs/examples.md`:
+2. Crear `notes/examples.md`:
    ```markdown
    ---
-   title: Examples
-   tags: [docs, examples]
+   title: Ejemplos del demo-skill
+   tags: [notes, examples, demo]
    ---
-   # Examples
-   Real-world usages.
+
+   # Ejemplos
+
+   Casos típicos de uso del [demo-skill](../.claude/skills/demo-skill/SKILL.md):
+
+   - Procesar un único archivo `.md`.
+   - Validar frontmatter contra `note.schema.json`.
+   - Reportar links rotos detectados al pasar.
    ```
 
 > Mirá el navegador. En 1-2 segundos deberías ver:
-> - Un nodo nuevo (`examples.md`) en el grafo
-> - Una arista nueva: `architecture.md → examples.md`
-> - Eventos en el panel "Event log" tipo `scan.started` /
->   `scan.completed`
+> - Un nodo nuevo (`examples.md`, kind `note`) en el grafo.
+>   **Si no lo ves, hacé zoom con la rueda del mouse o el control de
+>   zoom de la UI** — los nodos nuevos a veces aparecen en un
+>   extremo del canvas.
+> - Un conector nuevo: `demo-skill → examples.md`.
+> - Eventos en el panel lateral tipo `scan.started` /
+>   `scan.completed`.
 >
 > ¿Lo viste moverse? Si no se actualizó, refrescá el navegador y
 > decime.
@@ -464,35 +542,39 @@ que él puede hacer lo mismo desde su editor.
 Pedile que vuelva a arrancar el server (`sm` desde el cwd de la guía)
 y abra el navegador.
 
-> Tu turno. Editá `docs/overview.md` con tu editor favorito y borrá
-> la línea que linkea a `architecture.md`. Guardá. Mirá la UI.
+> Tu turno. Editá `.claude/skills/demo-skill/SKILL.md` con tu editor
+> favorito y borrá la línea que linkea a `demo-agent.md`. Guardá.
+> Mirá la UI.
 >
-> Esperado: la arista `overview → architecture` desaparece. Si
-> `architecture.md` queda sin nadie linkeándolo, aparece como
-> huérfano (lo vamos a explotar en la etapa L4).
+> Esperado: el conector `demo-skill → demo-agent` desaparece. Si
+> `demo-agent.md` queda sin nadie linkeándolo, aparece como huérfano
+> (lo vamos a explotar en la etapa L4).
 
-Verificás leyendo `docs/overview.md` para confirmar que el cambio se
-aplicó. Cuando confirme, pedile **Ctrl+C** para apagar el server.
+Verificás leyendo `.claude/skills/demo-skill/SKILL.md` para confirmar
+que el cambio se aplicó. Cuando confirme, pedile **Ctrl+C** para
+apagar el server.
 
 ### Etapa L2 — Browse CLI: list / show / check (~3 min)
 
 ```bash
 sm list
-sm list --kind doc --limit 10
-sm show docs/overview.md
+sm list --kind skill
+sm list --kind agent
+sm show .claude/skills/demo-skill/SKILL.md
 sm check
 ```
 
-Esperado: ves los nodos del fixture listados; `check` reporta el
-issue del link roto en `notes/todo.md` apuntando a `missing-page.md`.
+Esperado: ves los 4 nodos del fixture listados con su kind; `check`
+reporta el issue del link roto en `notes/todo.md` apuntando a
+`missing-page.md`.
 
 ### Etapa L3 — ASCII: graph + export (~3 min)
 
 ```bash
 sm graph
-sm graph --root docs/overview.md
+sm graph --root .claude/skills/demo-skill/SKILL.md
 sm export --format md > export.md
-sm export --format json --kind doc > export.json
+sm export --format json --kind note > export-notes.json
 ls -la export.*
 ```
 
@@ -516,16 +598,16 @@ sm orphans undo-rename --from <path-renombrado>
 ```
 
 Para no romper nada, sugerí al tester apuntar el link roto de
-`notes/todo.md` a un archivo existente (ej. `docs/architecture.md`).
+`notes/todo.md` a un archivo existente (ej. `notes/examples.md`).
 Es un test, no importa que la semántica sea fea.
 
 ### Etapa L5 — Delta + historia (~4 min)
 
 ```bash
 sm export --format json > .skill-map/baseline.json
-# editá algún .md (ej. agregá una línea en docs/overview.md)
+# editá algún .md (ej. agregá una línea en notes/todo.md)
 sm scan compare-with .skill-map/baseline.json
-sm refresh -n docs/overview.md
+sm refresh -n notes/todo.md
 sm refresh --stale
 sm history
 sm history --action scan
@@ -616,31 +698,58 @@ sm db reset --hard
 
 ## Cierre final
 
-Cuando todo terminó (corto solo, o corto + largo):
+Cuando todo terminó (corto solo, o corto + largo), **ofrecé generar
+un archivo de reporte para enviarle a Pusher**:
+
+> ¡Gracias! Llegamos al final. Antes de cerrar:
+>
+> ¿Querés que genere un **archivo de resultados** consolidado (resumen
+> del recorrido + findings + entorno) listo para mandarle a
+> **Pusher**? Lo guardo como `<cwd>/sm-guide-report.md`.
+>
+> 1. **Sí, generámelo**
+> 2. **No, ya está**
+
+Si dice **1**, escribís `<cwd>/sm-guide-report.md` con esta plantilla:
 
 ```markdown
-# Guía completada 🎉
+# sm-guide — reporte para Pusher
 
-- Ruta: <corto solo | corto + largo>
-- Tester: nivel <N> (si aplica)
-- Directorio de la guía: <cwd>
-- Pasos del corto: 4 / 4
-- Etapas del largo: X / 9 (Y skipped) — si aplica
-- Findings reportados: Z
-- Tiempo total: ~<calculado de timestamps>
+- **Fecha**: <ISO-8601>
+- **Ruta**: <corto solo | corto + largo>
+- **Tester**: nivel <N> (si aplica)
+- **Directorio de la guía**: <cwd>
+- **Pasos del corto**: 4 / 4
+- **Etapas del largo**: X / 9 (Y skipped) — si aplica
+- **Tiempo total**: ~<calculado de timestamps>
 
-## Para borrar todo lo que dejó la guía
-Si el cwd era un dir dedicado (ej. `~/sm-guide`), salí y borralo
-entero:
+## Entorno
+- `sm version`: <versión>
+- Node: <versión>
+- OS: <plataforma>
 
-    cd ~ && rm -rf <cwd>
+## Findings registrados
+<volcar el contenido relevante de findings.md, sin el header genérico>
 
-## Para mandar tus findings al equipo
-Mandame por <canal-acordado-por-fuera>:
-<cwd>/findings.md
+## Notas adicionales del tester
+<si dejó comentarios libres>
 ```
 
-Si quedaron findings, listalos también y agradecé.
+Después le mostrás:
+
+> Listo. Te dejé el reporte en:
+>
+>     <cwd>/sm-guide-report.md
+>
+> Mandámelo a Pusher cuando quieras (por el canal acordado).
+>
+> Para borrar todo lo que dejó la guía, si el cwd era un dir
+> dedicado:
+>
+>     cd ~ && rm -rf <cwd>
+
+Si dice **2**, le mostrás solo las instrucciones de borrado y
+agradecés.
 
 ## Resume / restart
 
@@ -659,8 +768,9 @@ arrancás así (NO repetís pre-flight desde cero):
 
 Si elige "empezar de cero", confirmás explícitamente. Solo después
 borrás los archivos de la guía del cwd (`guide-state.yml`,
-`findings.md`, `docs/`, `notes/`, `.skill-map/`, y cualquier
-`export.*` o `dump.sql` que haya quedado) y arrancás todo desde el
+`findings.md`, `.skill-map-ignore`, `.claude/`, `notes/`,
+`.skill-map/`, y cualquier `export.*`, `dump.sql` o
+`sm-guide-report.md` que haya quedado) y arrancás todo desde el
 pre-flight.
 
 ## Edge cases
