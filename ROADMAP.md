@@ -103,12 +103,12 @@ Each README also ships a short essentials-only glossary with a pointer back to t
 
 | Concept | Description |
 |---|---|
-| **Provider** | Extension kind. Recognizes a platform (claude, codex, gemini, generic), classifies each file into its node kind, and declares its `kinds` catalog (per-kind frontmatter schema + `defaultRefreshAction`) plus its `explorationDir`. **Deterministic-only**. (Pre-0.8.0 name: `Adapter`.) |
-| **Extractor** | Extension kind. Reads a node's body and emits work through three callbacks: `ctx.emitLink(link)`, `ctx.enrichNode(partial)`, `ctx.store.write(...)`. **Dual-mode**: deterministic Extractors run during scan; probabilistic Extractors invoke an LLM and run only as queued jobs. (Pre-0.8.0 name: `Detector`, returned `Link[]` from `detect(ctx)`.) |
+| **Provider** | Extension kind. Recognizes a platform (claude, codex, gemini, generic), classifies each file into its node kind, and declares its `kinds` catalog (per-kind frontmatter `schema` + `defaultRefreshAction` + `ui` presentation block) plus its `explorationDir`. **Deterministic-only**. |
+| **Extractor** | Extension kind. Reads a node's body and emits work through three callbacks: `ctx.emitLink(link)`, `ctx.enrichNode(partial)`, `ctx.store.write(...)`. **Dual-mode**: deterministic Extractors run during scan; probabilistic Extractors invoke an LLM and run only as queued jobs. |
 | **Rule** | Extension kind. Evaluates the graph and emits issues. **Dual-mode**: deterministic Rules run in `sm check`; probabilistic Rules run only as queued jobs (opt-in via `sm check --include-prob`). |
 | **Action** | Extension kind. Operation executable over one or more nodes. **Dual-mode**: `deterministic` (plugin code, in-process) or `probabilistic` (rendered prompt the runner executes against an LLM). |
-| **Formatter** | Extension kind. Serializes the graph into ascii / mermaid / dot / json. **Deterministic-only** (snapshot diffability). (Pre-0.8.0 name: `Renderer`.) |
-| **Hook** | Extension kind. Reacts declaratively to one of eight curated lifecycle events (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`). **Dual-mode**. Reaction-only: a Hook cannot mutate, block, or steer the pipeline. (New in 0.8.0.) |
+| **Formatter** | Extension kind. Serializes the graph into ascii / mermaid / dot / json. **Deterministic-only** (snapshot diffability). |
+| **Hook** | Extension kind. Reacts declaratively to one of eight curated lifecycle events (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`). **Dual-mode**. Reaction-only: a Hook cannot mutate, block, or steer the pipeline. |
 
 ### Execution modes
 

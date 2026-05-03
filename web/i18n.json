@@ -65,8 +65,8 @@
 
   "pe.provider.title": { "en": "Provider", "es": "Provider" },
   "pe.provider.one":   { "en": "Defines an agent (Claude, Codex, etc)", "es": "Define un agente (Claude, Codex, etc)" },
-  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / hook / note / command for Claude) and how to classify them. The Claude provider ships built-in; write one for Cursor, Copilot, or your own runner.",
-                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / hook / note / command para Claude) y cómo clasificarlos. El provider de Claude viene built-in; escribe uno para Cursor, Copilot, o tu propio runner." },
+  "pe.provider.brief": { "en": "Declares the file kinds an agent exposes (skill / agent / hook / note / command for Claude), how to classify them, and how the UI renders each kind (label, color, icon). The Claude provider ships built-in; write one for Cursor, Copilot, or your own runner.",
+                         "es": "Declara los tipos de archivo que un agente expone (skill / agent / hook / note / command para Claude), cómo clasificarlos y cómo la UI dibuja cada tipo (etiqueta, color, ícono). El provider de Claude viene built-in; escribe uno para Cursor, Copilot, o tu propio runner." },
 
   "pe.extractor.title": { "en": "Extractor", "es": "Extractor" },
   "pe.extractor.one":   { "en": "Extracts data from a node", "es": "Extrae datos de un nodo" },

@@ -346,6 +346,8 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 
 List endpoints conform to [`schemas/api/rest-envelope.schema.json`](schemas/api/rest-envelope.schema.json). The `/api/scan` and `/api/health` responses carry their underlying `ScanResult` / `IHealthResponse` shapes directly (no envelope wrap). The `/api/graph` response carries the formatter's native textual output.
 
+**`kindRegistry` envelope field.** Every payload-bearing variant of the REST envelope (`nodes` / `links` / `issues` / `plugins` lists, the `node` single, the `config` value envelope) embeds a required `kindRegistry: { [kindName]: { providerId, label, color, colorDark?, emoji?, icon? } }` field. Sentinel envelopes (`health`, `scan`, `graph`) are exempt — they carry no payload at the wire level. The BFF assembles the registry once at boot from every enabled Provider's `kinds[*].ui` block (see [`architecture.md` §Provider · `ui` presentation](architecture.md#provider--ui-presentation)) and attaches the same map to every applicable response. The UI consumes `kindRegistry` directly to render kind palettes, list rows, and inspector headers — built-in and user-plugin kinds render identically. A kind appearing in a response payload (e.g. `node.kind`) without a matching `kindRegistry` entry is a contract violation; the kernel rejects Providers without a `ui` block at load time so the registry is always complete for whatever kinds appear in the response.
+
 **Error envelope** (mirrors `§Machine-readable output rules`):
 
 ```json

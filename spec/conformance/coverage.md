@@ -25,7 +25,7 @@ This file is hand-maintained. A CI check before spec release compares the schema
 | 15 | `summaries/hook.schema.json` | — | 🔴 missing | Blocked by Step 11. |
 | 16 | `summaries/note.schema.json` | — | 🔴 missing | Blocked by Step 11. |
 | 17 | `extensions/base.schema.json` | — | 🔴 missing | Meta-case: every manifest under `src/extensions/` validates against the appropriate kind schema (which extends base via `allOf`). |
-| 18 | `extensions/provider.schema.json` | — | 🔴 missing | Case: the `claude` Provider manifest validates; a crafted invalid manifest (missing `kinds` or `explorationDir`) fails with `invalid-manifest`. |
+| 18 | `extensions/provider.schema.json` | `plugin-missing-ui-rejected` | 🟡 partial | A drop-in Provider whose `kinds[*]` entry omits the required `ui` block fails AJV validation with `invalid-manifest` while the rest of the pipeline keeps running (built-in Claude Provider, exit 0). The complementary positive case (canonical Claude Provider manifest validates) lives in `provider:claude` conformance. Direct cases for missing `kinds` / `explorationDir` rejection still pending. |
 | 19 | `extensions/extractor.schema.json` | — | 🔴 missing | Case: `frontmatter` + `slash` + `at-directive` extractor manifests validate; an extractor emitting a disallowed `emitsLinkKinds` value fails. |
 | 20 | `extensions/rule.schema.json` | — | 🔴 missing | Case: `trigger-collision`, `broken-ref`, `superseded` manifests validate. |
 | 21 | `extensions/action.schema.json` | — | 🔴 missing | Case: a `deterministic` action manifest validates; a `probabilistic` action WITHOUT `promptTemplateRef` fails. |
