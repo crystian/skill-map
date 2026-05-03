@@ -121,7 +121,7 @@ function captureContext(): ICapturedContext {
 }
 
 interface IExportOverrides {
-  query: string;
+  query?: string | undefined;
   format?: string | undefined;
   db?: string | undefined;
   global?: boolean;
@@ -314,6 +314,26 @@ describe('sm export', () => {
     ok(Array.isArray(payload['nodes']));
     ok(Array.isArray(payload['links']));
     ok(Array.isArray(payload['issues']));
+  });
+
+  it('omitting the query positional entirely behaves the same as passing ""', async () => {
+    // F11 follow-up: `sm export --format json` (no positional) should
+    // export the whole graph, identical to passing `query: ""`.
+    const fixture = freshFixture('export-no-query');
+    plantMixedFixture(fixture);
+    const dbPath = freshDbPath('export-no-query');
+    await primeDb(fixture, dbPath);
+
+    const cap = captureContext();
+    const cmd = buildExport({ db: dbPath }); // query omitted entirely
+    cmd.context = cap.context;
+    const code = await cmd.execute();
+
+    strictEqual(code, 0, `unexpected exit ${code}; stderr=${cap.stderr()}`);
+    const payload = JSON.parse(cap.stdout()) as Record<string, unknown>;
+    strictEqual(payload['query'], '', 'omitted query renders as empty string in the report');
+    const counts = payload['counts'] as Record<string, number>;
+    strictEqual(counts['nodes'], 3, 'whole graph exported when query is omitted');
   });
 
   it('--format json + kind=command filters to commands only', async () => {

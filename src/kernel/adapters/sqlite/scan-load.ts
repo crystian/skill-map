@@ -318,7 +318,8 @@ export async function loadNodeEnrichments(
   }));
 }
 
-function parseJsonObject(s: string): Record<string, unknown> {
+function parseJsonObject(s: string | null | undefined): Record<string, unknown> {
+  if (s == null) return {};
   const parsed = JSON.parse(s) as unknown;
   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
     return parsed as Record<string, unknown>;
@@ -326,7 +327,16 @@ function parseJsonObject(s: string): Record<string, unknown> {
   return {};
 }
 
-function parseJsonArray<T>(s: string): T[] {
+/**
+ * Tolerant of `null` / `undefined`: a missing column on a row from a
+ * stale schema (pre-migration DB) shows up here as `undefined` and a
+ * NULL JSON column comes through as `null`. Both collapse to `[]`
+ * instead of crashing `JSON.parse("undefined")`. The strict shape is
+ * still enforced for legitimate values — anything that parses to a
+ * non-array also returns `[]`.
+ */
+function parseJsonArray<T>(s: string | null | undefined): T[] {
+  if (s == null) return [];
   const parsed = JSON.parse(s) as unknown;
   return Array.isArray(parsed) ? (parsed as T[]) : [];
 }

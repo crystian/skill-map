@@ -60,19 +60,20 @@ export class ExportCommand extends SmCommand {
       (POSIX glob — \`*\` matches a single segment, \`**\` matches across
       segments).
 
-      Pass an empty query (\`""\`) to export every node.
+      Pass an empty query (\`""\`) — or omit the argument entirely — to
+      export every node.
 
       Run \`sm scan\` first to populate the DB.
     `,
     examples: [
+      ['Whole graph (no query)', '$0 export --format md'],
       ['Every command node', '$0 export "kind=command" --format json'],
       ['Skills + agents with issues', '$0 export "kind=skill,agent has=issues" --format md'],
       ['Files under a path glob', '$0 export "path=.claude/commands/**" --format json'],
-      ['Whole graph as Markdown', '$0 export "" --format md'],
     ],
   });
 
-  query = Option.String({ required: true });
+  query = Option.String({ required: false });
   format = Option.String('--format', { required: false });
 
   protected async run(): Promise<number> {
@@ -99,7 +100,11 @@ export class ExportCommand extends SmCommand {
 
     let parsedQuery;
     try {
-      parsedQuery = parseExportQuery(this.query);
+      // Omitted positional → empty query → match everything (per
+      // `parseExportQuery`'s contract). The flag-only invocation
+      // `sm export --format md` is the documented "export the whole
+      // graph" shape.
+      parsedQuery = parseExportQuery(this.query ?? '');
     } catch (err) {
       if (err instanceof ExportQueryError) {
         this.context.stderr.write(tx(EXPORT_TEXTS.errorPrefix, { message: err.message }));
