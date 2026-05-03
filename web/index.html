@@ -686,30 +686,30 @@
       <header class="section-header section-header--center">
         <div>
           <div class="section-badge" data-i18n="how.eyebrow">How it works</div>
-          <h2 class="section-title" data-i18n="how.title">Three steps. No config file.</h2>
+          <h2 class="section-title" data-i18n="how.title">One command. No config file.</h2>
         </div>
       </header>
 
       <ol class="howit-grid">
         <li class="howit-step">
           <div class="howit-step__num"><span>01</span></div>
-          <h3 class="howit-step__title" data-i18n="how.s1.t">Point it at a folder.</h3>
-          <p class="howit-step__body" data-i18n="how.s1.b">Run it from the repo root where your skills live — it picks up `.claude`, `.agents`, etc. — plus whatever's in your home folder, for the full map.</p>
-          <div class="howit-step__code"><span class="prompt">$</span> sm scan</div>
+          <h3 class="howit-step__title" data-i18n="how.s1.t">Anyone can run it.</h3>
+          <p class="howit-step__body" data-i18n="how.s1.b">No config, no setup, nothing to read first. Run `sm` from any folder and it scans your skills, opens the explorer in your browser, and keeps watching for changes.</p>
+          <div class="howit-step__code"><span class="prompt">$</span> sm</div>
         </li>
 
         <li class="howit-step">
           <div class="howit-step__num"><span>02</span></div>
-          <h3 class="howit-step__title" data-i18n="how.s2.t">Get the graph.</h3>
-          <p class="howit-step__body" data-i18n="how.s2.b">skill-map reads the files, parses frontmatter and body, and builds the full reference graph. No LLM, no network — local analysis, in milliseconds.</p>
-          <div class="howit-step__code">Scanned 1 root in 287ms<br>142 nodes, 318 links, 7 issues</div>
+          <h3 class="howit-step__title" data-i18n="how.s2.t">It spots the problems.</h3>
+          <p class="howit-step__body" data-i18n="how.s2.b">Trigger collisions, orphans, broken references, bloated skills, semantic duplicates. Static analysis runs locally in milliseconds; semantic checks (LLM) run when you want them.</p>
+          <div class="howit-step__code"><span>7 issues</span><span>3 collisions · 2 orphans</span><span>2 broken refs</span></div>
         </li>
 
         <li class="howit-step">
           <div class="howit-step__num"><span>03</span></div>
-          <h3 class="howit-step__title" data-i18n="how.s3.t">Open the explorer.</h3>
-          <p class="howit-step__body" data-i18n="how.s3.b">Explore from the terminal with sm list, sm show, sm check, or open the visual graph in your browser. Whichever you prefer.</p>
-          <div class="howit-step__code"><span class="prompt">$</span> sm open</div>
+          <h3 class="howit-step__title" data-i18n="how.s3.t">Fix with actions.</h3>
+          <p class="howit-step__body" data-i18n="how.s3.b">Actions are the plugin kind that touches disk. Deterministic ones run as code (rename a trigger, edit frontmatter); probabilistic ones run a prompt on the LLM (regenerate a summary, rewrite copy).</p>
+          <div class="howit-step__code"><span>rename-trigger (deterministic)</span><span>regenerate-summary (LLM)</span></div>
         </li>
       </ol>
     </section>
