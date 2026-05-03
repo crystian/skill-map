@@ -98,15 +98,8 @@ skill-map/                     raíz de npm workspaces (privada)
 ├── ui/                        SPA Angular (grafo, lista, inspector) — incluido en @skill-map/cli
 ├── web/                       sitio público (skill-map.dev) — aloja la demo bundle
 ├── scripts/                   scripts de build y validación (spec index, CLI reference, demo dataset, …)
-├── .changeset/                config de changesets + release notes pendientes
-├── .github/workflows/         ci.yml · release.yml
-├── Dockerfile                 imagen Caddy deployada a Railway
-├── Caddyfile                  sirve los schemas en las URLs canónicas
+├── ...
 ├── AGENTS.md                  manual operativo para agentes
-├── CLAUDE.md                  pointer de persona a AGENTS.md
-├── CONTRIBUTING.md            workflow de PRs + reglas de changesets
-├── README.md                  landing en inglés (default)
-├── README.es.md               este archivo (espejo en español)
 └── ROADMAP.md                 narrativa de diseño (decisiones, fases, diferidos)
 ```
 

@@ -1466,7 +1466,7 @@ svg    { display: block; max-width: 100%; }
    ============================================================ */
 .cases-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 24px;
 }
 @media (max-width: 1023px) { .cases-grid { grid-template-columns: 1fr; } }
@@ -1495,6 +1495,11 @@ svg    { display: block; max-width: 100%; }
   background: linear-gradient(135deg, rgba(245,184,80,.10), rgba(245,184,80,.02));
   border-color: rgba(245,184,80,.18);
   --case-accent: #F5B850;
+}
+.case--blue {
+  background: linear-gradient(135deg, rgba(45,123,255,.12), rgba(45,123,255,.02));
+  border-color: rgba(45,123,255,.20);
+  --case-accent: var(--info);
 }
 
 .case__tag {
