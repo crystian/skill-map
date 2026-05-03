@@ -411,6 +411,97 @@ describe('InspectorView — body refresh (Step 14.5.c)', () => {
 
     expect(calls).toBe(1);
   });
+
+  it('recovers from an initial error when the user clicks refresh', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    // First call fails, second succeeds — the user-facing recovery
+    // path: an error state ought to be reachable AND escapable via
+    // the refresh button without forcing a navigate-away-and-back.
+    let calls = 0;
+    dataSource.getNode.mockImplementation(() => {
+      calls++;
+      if (calls === 1) return Promise.reject(new Error('transient'));
+      return Promise.resolve(makeDetail(makeApiNode({ body: '# recovered' })));
+    });
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-body-error"]')).not.toBeNull();
+
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-body-refresh"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+
+    const rendered = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-body-rendered"]',
+    );
+    expect(rendered).not.toBeNull();
+    expect(rendered!.innerHTML).toContain('# recovered');
+    expect(fixture.nativeElement.querySelector('[data-testid="inspector-body-error"]')).toBeNull();
+  });
+
+  it('clears the rendered body during the refresh loading window so stale HTML is never shown', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    let resolveSecond!: (v: INodeDetailApi) => void;
+    let calls = 0;
+    dataSource.getNode.mockImplementation(() => {
+      calls++;
+      if (calls === 1) {
+        return Promise.resolve(makeDetail(makeApiNode({ body: '# first' })));
+      }
+      // Second call hangs so we can inspect the loading window.
+      return new Promise<INodeDetailApi>((res) => {
+        resolveSecond = res;
+      });
+    });
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    // First render landed.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-body-rendered"]'),
+    ).not.toBeNull();
+
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-body-refresh"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+
+    // While the refresh fetch is in flight, the rendered HTML must be
+    // gone (no stale "# first" leaking through). Loading state shows.
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-body-loading"]'),
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-body-rendered"]'),
+    ).toBeNull();
+
+    // Now resolve so the test cleans up its dangling promise.
+    resolveSecond(makeDetail(makeApiNode({ body: '# second' })));
+    await flush(fixture);
+  });
+
+  it('refreshBody() is a no-op when no path is selected', async () => {
+    const loader = makeStubLoader();
+    const dataSource = makeStubDataSource();
+    const { fixture, cmp } = bootstrap({ loader, dataSource });
+    await flush(fixture);
+    // No setInput('path', …) — path() stays undefined.
+
+    (cmp as unknown as { refreshBody: () => void }).refreshBody();
+    await flush(fixture);
+
+    expect(dataSource.getNode).not.toHaveBeenCalled();
+  });
 });
 
 describe('InspectorView — dead-link verify (Step 14.5.b)', () => {
