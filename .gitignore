@@ -40,8 +40,14 @@ Thumbs.db
 # Project-local temp
 .tmp/
 
-# skill-map runtime artifacts (local cache, shouldn't be committed)
+# skill-map runtime artifacts (local cache, shouldn't be committed).
+# Exception: conformance fixtures intentionally ship a `.skill-map/`
+# subtree as source (drop-in plugin layouts, etc.) — those MUST be
+# tracked so CI's `spec:check` sees the same files the local runner
+# does.
 .skill-map/
+!spec/conformance/fixtures/**/.skill-map/
+!spec/conformance/fixtures/**/.skill-map/**
 
 .codex
 
