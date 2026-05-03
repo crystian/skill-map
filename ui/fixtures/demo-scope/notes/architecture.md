@@ -10,7 +10,7 @@ metadata:
   created: 2026-01-14
   updated: 2026-04-12
   related:
-    - notes/readme.md
+    - README.md
     - .claude/agents/backend-architect.md
 ---
 

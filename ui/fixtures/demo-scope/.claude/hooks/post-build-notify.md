@@ -14,7 +14,7 @@ metadata:
   created: 2026-02-28
   related:
     - .claude/commands/deploy.md
-    - .claude/agents/doc-writer.md
+    - .claude/agents/backend-architect.md
 ---
 
 # post-build-notify

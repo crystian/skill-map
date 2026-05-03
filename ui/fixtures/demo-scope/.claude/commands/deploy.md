@@ -1,6 +1,6 @@
 ---
 name: deploy
-description: Runs the deploy-preflight skill, asks for confirmation, then invokes the CI deploy workflow.
+description: Asks for confirmation, then invokes the CI deploy workflow. Reviews are delegated to #code-review.
 type: command
 args:
   - name: env
@@ -17,9 +17,9 @@ metadata:
   created: 2025-08-22
   updated: 2026-03-18
   requires:
-    - .claude/skills/deploy-preflight/SKILL.md
+    - .claude/skills/code-review/SKILL.md
 ---
 
 # /deploy
 
-Runs #deploy-preflight first. Production deploys require a green preflight and an explicit confirmation prompt. Rollback path documented in /rollback.
+Runs #code-review on the staged diff first. Production deploys require a green review and an explicit confirmation prompt. Triggered after a successful build via @backend-architect's release checklist.

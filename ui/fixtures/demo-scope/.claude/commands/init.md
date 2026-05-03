@@ -19,8 +19,8 @@ metadata:
   tags: [scaffold, onboarding]
   created: 2025-10-01
   related:
-    - notes/readme.md
-    - .claude/hooks/session-greeter.md
+    - notes/architecture.md
+    - .claude/hooks/post-build-notify.md
 ---
 
 # /init

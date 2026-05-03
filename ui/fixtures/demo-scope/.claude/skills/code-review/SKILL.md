@@ -26,4 +26,4 @@ metadata:
 
 # Code Review skill
 
-Reads the diff with `Read`, groups hunks by file, applies rule packs. Escalates to @security-auditor on any auth/crypto hunk. See https://google.github.io/eng-practices/review/ for the underlying principles.
+Reads the diff with `Read`, groups hunks by file, applies rule packs. Escalates to @backend-architect on any module-boundary or data-model hunk. See https://google.github.io/eng-practices/review/ for the underlying principles.
