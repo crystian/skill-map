@@ -613,9 +613,11 @@ function longestVerbPrefix(positionals: string[], verbPaths: string[][]): string
 /**
  * Snapshot of every registered verb path as a token array, e.g.
  * `[['scan'], ['scan', 'compare-with'], ['db', 'migrate'], ...]`.
- * Excludes Clipanion built-ins.
+ * Excludes Clipanion built-ins. Exported so the entry-level parse-error
+ * handler can suggest the closest verb when the user types an unknown
+ * one.
  */
-function registeredVerbPaths(cli: Cli): string[][] {
+export function registeredVerbPaths(cli: Cli): string[][] {
   const rawDefs = cli.definitions() as ICliDefinition[];
   const paths: string[][] = [];
   for (const def of rawDefs) {

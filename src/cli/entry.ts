@@ -26,6 +26,7 @@ import {
 } from './util/logger.js';
 import { defaultProjectDbPath } from './util/db-path.js';
 import { ExitCode } from './util/exit-codes.js';
+import { formatParseError, isClipanionParseError } from './util/parse-error.js';
 import { defaultRuntimeContext } from './util/runtime-context.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
@@ -33,7 +34,7 @@ import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
 import { DB_COMMANDS } from './commands/db.js';
 import { ExportCommand } from './commands/export.js';
 import { GraphCommand } from './commands/graph.js';
-import { HelpCommand, RootHelpCommand, routeHelpArgs } from './commands/help.js';
+import { HelpCommand, RootHelpCommand, registeredVerbPaths, routeHelpArgs } from './commands/help.js';
 import { InitCommand } from './commands/init.js';
 import { HistoryCommand, HistoryStatsCommand } from './commands/history.js';
 import { JobPruneCommand } from './commands/jobs.js';
@@ -98,6 +99,32 @@ configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 // RootHelpCommand and are NOT intercepted here.
 const bareArgs = args.length === 0 ? resolveBareDefault() : null;
 const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
+
+// Pre-parse so we can intercept Clipanion's UnknownSyntaxError /
+// AmbiguousSyntaxError before its default handler dumps every command's
+// USAGE line to stdout. Our replacement writes a concise diagnostic to
+// stderr and exits with `ExitCode.Error` (2) per spec/cli-contract.md
+// §Exit codes — "unknown flag" is operational error, not result issue.
+try {
+  cli.process(routedArgs, {
+    stdin: process.stdin,
+    stdout: process.stdout,
+    stderr: process.stderr,
+  });
+} catch (err) {
+  if (isClipanionParseError(err)) {
+    process.stderr.write(
+      formatParseError({
+        args: routedArgs,
+        verbPaths: registeredVerbPaths(cli),
+        error: err,
+      }),
+    );
+    process.exit(ExitCode.Error);
+  }
+  throw err;
+}
+
 const exitCode = await cli.run(routedArgs, {
   stdin: process.stdin,
   stdout: process.stdout,
