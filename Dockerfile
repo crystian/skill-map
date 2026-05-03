@@ -24,6 +24,13 @@ COPY ui/package.json ./ui/
 RUN npm ci
 COPY ui/ ./ui/
 RUN npm run build -w ui -- --base-href=/demo/
+# Patch the built index.html to flip <meta name="skill-map-mode"> from
+# `live` (Angular default) to `demo`. Without this the SPA boots in
+# live mode at skill-map.dev/demo/, hits /api/scan against the static
+# host, and 404s. The script is shared with `npm run demo:build` so the
+# Docker deploy and the local snapshot stay in lockstep.
+COPY scripts/patch-demo-mode.js ./scripts/patch-demo-mode.js
+RUN node scripts/patch-demo-mode.js ui/dist/ui/browser/index.html
 
 # ------------ landing build stage ------------
 FROM node:24-alpine AS build

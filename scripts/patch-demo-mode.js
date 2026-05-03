@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * `scripts/patch-demo-mode.js` — flip the runtime-mode meta-tag and the
- * `<base href>` on the bundled `web/demo/index.html` so the SPA boots
- * in demo mode under the `/demo/` sub-path.
+ * `scripts/patch-demo-mode.js [<target-html>]` — flip the runtime-mode
+ * meta-tag and the `<base href>` on a built SPA `index.html` so it
+ * boots in demo mode under the `/demo/` sub-path.
  *
  * Two replacements:
  *
@@ -10,6 +10,13 @@
  *     (the factory at `data-source.factory.ts` keys off this).
  *   - `<base href="/">` → `<base href="/demo/">` (the deploy target on
  *     `skill-map.dev`).
+ *
+ * **Target** — defaults to `web/demo/index.html` for the local
+ * `npm run demo:build` flow (which copies the Angular dist into
+ * `web/demo/` for e2e + preview). The Dockerfile passes the
+ * `ui/dist/ui/browser/index.html` path explicitly because production
+ * deploys directly from the Angular dist without going through
+ * `web/demo/`.
  *
  * **Idempotent**: running twice is a no-op. The script reads the file,
  * regex-replaces both attributes, writes back only if anything changed.
@@ -24,7 +31,14 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
-const TARGET = join(REPO_ROOT, 'web', 'demo', 'index.html');
+const DEFAULT_TARGET = join(REPO_ROOT, 'web', 'demo', 'index.html');
+const TARGET = resolveTarget(process.argv.slice(2));
+
+function resolveTarget(args) {
+  const explicit = args.find((arg) => !arg.startsWith('-'));
+  if (!explicit) return DEFAULT_TARGET;
+  return resolve(process.cwd(), explicit);
+}
 
 const META_PATTERN = /<meta\s+name="skill-map-mode"\s+content="[^"]*"\s*\/?\s*>/i;
 const META_REPLACEMENT = '<meta name="skill-map-mode" content="demo" />';
