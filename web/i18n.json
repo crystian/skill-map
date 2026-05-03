@@ -191,7 +191,7 @@
 
   "audio.title":         { "en": "Audio overview",          "es": "Resumen en audio" },
   "audio.duration":      { "en": "7 min",                   "es": "7 min" },
-  "audio.fallbackDuration": { "en": "340",                  "es": "379" },
+  "audio.fallbackDuration": { "en": "311",                  "es": "379" },
   "audio.open.notebook": { "en": "Open in NotebookLM",      "es": "Abrir en NotebookLM" },
   "audio.close":         { "en": "Close audio player",      "es": "Cerrar reproductor de audio" },
   "audio.play":          { "en": "Play",                    "es": "Reproducir" },
