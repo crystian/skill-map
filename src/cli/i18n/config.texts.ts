@@ -7,6 +7,7 @@
 
 export const CONFIG_TEXTS = {
   unknownKey: 'Unknown config key: {{key}}\n',
+  unknownKeySuggestion: 'Did you mean {{suggestions}}?\n',
   valueWithLayer: '{{value}}  (from {{layer}})\n',
   invalidAfterSet: 'Invalid config after set: {{errors}}\n',
   setWritten: '{{key}} = {{value}}  (wrote {{path}})\n',

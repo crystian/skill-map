@@ -17,6 +17,7 @@ export const ENTRY_TEXTS = {
   parseErrorIncompleteCommand: 'incomplete command \'{{name}}\'',
   parseErrorSubcommandList: 'Available subcommands: {{suggestions}}.',
   parseErrorVerbUsage: '{{verb}}: {{message}}',
+  parseErrorMissingPositional: '{{verb}}: missing required positional argument(s) {{positionals}}',
   parseErrorFlagSuggestion: 'Did you mean \'{{suggestion}}\'?',
   parseErrorVerbSuggestion: 'Did you mean {{suggestions}}?',
   parseErrorVerbHelpHint: 'Run \'sm help {{verb}}\' for usage.',

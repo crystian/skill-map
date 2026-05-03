@@ -129,6 +129,24 @@ describe('sm config get', () => {
     assert.equal(r.status, 5);
     assert.match(r.stderr, /Unknown config key/);
   });
+
+  it('suggests close matches on a typo (Did you mean?)', () => {
+    const scope = freshScope('get-typo');
+    // `scan.tokenizr` is one char away from the real `scan.tokenize`.
+    const r = sm(['config', 'get', 'scan.tokenizr'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Unknown config key: scan\.tokenizr/);
+    assert.match(r.stderr, /Did you mean 'scan\.tokenize'\?/);
+  });
+
+  it('omits the suggestion when nothing is close enough', () => {
+    const scope = freshScope('get-no-suggest');
+    // `xyzzy` is far from every real key — Levenshtein distance > cap.
+    const r = sm(['config', 'get', 'xyzzy'], scope);
+    assert.equal(r.status, 5);
+    assert.match(r.stderr, /Unknown config key: xyzzy/);
+    assert.doesNotMatch(r.stderr, /Did you mean/);
+  });
 });
 
 describe('sm config show', () => {

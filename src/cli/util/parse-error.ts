@@ -25,6 +25,7 @@
 
 import { tx } from '../../kernel/util/tx.js';
 import { ENTRY_TEXTS } from '../i18n/entry.texts.js';
+import { editDistance } from './edit-distance.js';
 
 /**
  * Shape we match against when sniffing a thrown error. We intentionally
@@ -94,7 +95,18 @@ export function formatParseError(params: IFormatParseErrorParams): string {
 
   const verbPrefix = matchedVerbPrefix(args, verbPaths);
   if (verbPrefix) {
-    const headline = tx(ENTRY_TEXTS.parseErrorVerbUsage, { verb: verbPrefix, message: error.message.trim() });
+    const missing = extractMissingPositionals(error.message);
+    if (missing !== null) {
+      const headline = tx(ENTRY_TEXTS.parseErrorMissingPositional, {
+        verb: verbPrefix,
+        positionals: missing,
+      });
+      return renderError(headline, tx(ENTRY_TEXTS.parseErrorVerbHelpHint, { verb: verbPrefix }));
+    }
+    const headline = tx(ENTRY_TEXTS.parseErrorVerbUsage, {
+      verb: verbPrefix,
+      message: firstLine(error.message),
+    });
     return renderError(headline, tx(ENTRY_TEXTS.parseErrorVerbHelpHint, { verb: verbPrefix }));
   }
 
@@ -167,6 +179,39 @@ function extractOffendingFlag(message: string): string | null {
 }
 
 /**
+ * Detect Clipanion's "Not enough positional arguments" UsageError and
+ * extract the names of the required positionals from the appended
+ * USAGE hint. Clipanion appends a literal usage line that looks like:
+ *
+ *   `Not enough positional arguments.\n\n$ sm export [...] <query>`
+ *
+ * We pull every `<name>` token from that hint (angle brackets are
+ * Clipanion's required-positional notation; `[...]` are optional flags
+ * which we ignore here) and return them joined with spaces, or null
+ * if the message does not match the pattern at all.
+ */
+function extractMissingPositionals(message: string): string | null {
+  if (!message.startsWith('Not enough positional arguments')) return null;
+  const hintLine = message
+    .split('\n')
+    .map((l) => l.trim())
+    .find((l) => l.startsWith('$'));
+  if (!hintLine) return '';
+  const names = [...hintLine.matchAll(/<([A-Za-z][A-Za-z0-9_-]*)>/g)].map((m) => `<${m[1]!}>`);
+  return names.length > 0 ? names.join(' ') : '';
+}
+
+/**
+ * First non-empty line of the message — strips Clipanion's appended
+ * usage hint when we re-render the error under our own footer (which
+ * already points at `sm help <verb>`, so the inline hint is redundant
+ * noise that bloats the diagnostic).
+ */
+function firstLine(message: string): string {
+  return message.split('\n')[0]!.trim();
+}
+
+/**
  * Single-dash long option detector. `-version` → `--version`,
  * `-help` → `--help`. Any single-dash token longer than two chars
  * (i.e. not `-v` / `-h` etc) is treated as an attempted long form.
@@ -179,53 +224,6 @@ function suggestFlag(token: string): string | null {
   if (token.length <= 2) return null;
   const longForm = '-' + token;
   return tx(ENTRY_TEXTS.parseErrorFlagSuggestion, { suggestion: longForm });
-}
-
-/**
- * Levenshtein distance bounded at `max` for early exit. We don't need
- * exact distances — only "is this within N edits". Capping makes the
- * cost O(n*m) for short strings (verbs are short) and effectively free.
- */
-function editDistance(a: string, b: string, max: number): number {
-  if (a === b) return 0;
-  if (Math.abs(a.length - b.length) > max) return max + 1;
-  const m = a.length;
-  const n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-  let prev = Array.from({ length: n + 1 }, (_, i) => i);
-  let curr = new Array<number>(n + 1);
-  for (let i = 1; i <= m; i++) {
-    const rowMin = fillEditRow({ a, b, i, prev, curr });
-    if (rowMin > max) return max + 1;
-    [prev, curr] = [curr, prev];
-  }
-  return prev[n]!;
-}
-
-/**
- * Compute one row of the Levenshtein matrix in-place into `curr` from
- * the preceding row `prev`. Returns the row's minimum cell so the
- * caller can early-exit when every entry already exceeds the cap.
- * Extracted to keep `editDistance` under the project's complexity cap.
- */
-function fillEditRow(args: {
-  a: string;
-  b: string;
-  i: number;
-  prev: number[];
-  curr: number[];
-}): number {
-  const { a, b, i, prev, curr } = args;
-  curr[0] = i;
-  let rowMin = curr[0]!;
-  for (let j = 1; j < curr.length; j++) {
-    const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
-    const value = Math.min(curr[j - 1]! + 1, prev[j]! + 1, prev[j - 1]! + cost);
-    curr[j] = value;
-    if (value < rowMin) rowMin = value;
-  }
-  return rowMin;
 }
 
 interface IVerbCandidate {

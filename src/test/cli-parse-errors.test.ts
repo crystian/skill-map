@@ -84,6 +84,20 @@ describe('CLI parse-error handler', () => {
     assert.match(r.stderr, /scan: unknown option '--definitely-not-a-flag'/);
   });
 
+  it('rewrites Clipanion\'s "Not enough positional arguments" with the missing positional names', () => {
+    // `sm export` requires <query>; running it with only `--format` flag
+    // should surface the missing positional name explicitly, not just
+    // "Not enough positional arguments" which leaves users guessing.
+    const r = sm(['export', '--format', 'md']);
+    assert.equal(r.status, 2);
+    assert.equal(r.stdout, '');
+    assert.match(r.stderr, /export: missing required positional argument\(s\) <query>/);
+    assert.match(r.stderr, /Run 'sm help export' for usage/);
+    // The redundant Clipanion usage hint line ("$ sm export [...]")
+    // must be stripped — `sm help export` is the single point of truth.
+    assert.doesNotMatch(r.stderr, /\$ sm export \[/);
+  });
+
   it('lists subcommands on an incomplete namespace invocation', () => {
     const r = sm(['db']);
     assert.equal(r.status, 2);

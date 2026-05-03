@@ -48,6 +48,7 @@ import {
   type ILoadedConfig,
   type TConfigLayer,
 } from '../../kernel/config/loader.js';
+import { closestMatches } from '../util/edit-distance.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -84,6 +85,45 @@ function assertSafeSegments(segments: string[], key: string): void {
   for (const seg of segments) {
     if (FORBIDDEN_SEGMENTS.has(seg)) throw new ForbiddenSegmentError(seg, key);
   }
+}
+
+/**
+ * Walk the merged config tree and collect every dot-path that resolves
+ * to a leaf (anything that is not a plain object). Used to power
+ * "Did you mean?" hints when `config get`/`set` receives an unknown
+ * key — the catalog comes from the live merged config rather than the
+ * JSON Schema, which keeps the suggestion list aligned with what
+ * `sm config list` would print.
+ */
+function enumerateConfigPaths(obj: unknown, prefix = ''): string[] {
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return prefix ? [prefix] : [];
+  const out: string[] = [];
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    const path = prefix ? `${prefix}.${key}` : key;
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      out.push(...enumerateConfigPaths(value, path));
+    } else {
+      out.push(path);
+    }
+  }
+  return out;
+}
+
+/**
+ * Format a "Did you mean?" line for an unknown config key. Returns
+ * `null` when no candidate is close enough — in that case the caller
+ * surfaces only the bare unknown-key error and moves on.
+ *
+ * Distance cap is intentionally tight (3 edits) so suggestions stay
+ * relevant. With dot-paths, a single typo in any segment is usually
+ * within 1-2 edits.
+ */
+function suggestConfigKey(effective: unknown, typed: string): string | null {
+  const candidates = enumerateConfigPaths(effective);
+  const matches = closestMatches(typed, candidates, { topN: 3, maxDistance: 3 });
+  if (matches.length === 0) return null;
+  const formatted = matches.map((m) => `'${m}'`).join(', ');
+  return tx(CONFIG_TEXTS.unknownKeySuggestion, { suggestions: formatted });
 }
 
 function getAtPath(obj: unknown, dotPath: string): unknown {
@@ -337,6 +377,8 @@ export class ConfigGetCommand extends SmCommand {
     }
     if (value === undefined) {
       this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
+      const suggestion = suggestConfigKey(effective, this.key);
+      if (suggestion !== null) this.context.stderr.write(suggestion);
       return ExitCode.NotFound;
     }
     if (this.json) {
