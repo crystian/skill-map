@@ -159,6 +159,10 @@ El workspace `ui/` shipea el SPA Angular (Foblex Flow para la vista de grafo + c
 - Versión en inglés de este README: [README.md](./README.md)
 - Licencia: [MIT](./LICENSE)
 
+## Historial de stars
+
+[![Star History Chart](https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&legend=top-left)](https://www.star-history.com/?repos=crystian%2Fskill-map&type=timeline&legend=top-left)
+
 ## Licencia
 
 MIT © Crystian

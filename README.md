@@ -159,6 +159,10 @@ The `ui/` workspace ships the Angular SPA (Foblex Flow for the graph view + Prim
 - Spanish version of this README: [README.es.md](./README.es.md)
 - License: [MIT](./LICENSE)
 
+## Star history
+
+[![Star History Chart](https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&legend=top-left)](https://www.star-history.com/?repos=crystian%2Fskill-map&type=timeline&legend=top-left)
+
 ## License
 
 MIT © Crystian
