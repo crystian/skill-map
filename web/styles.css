@@ -428,6 +428,27 @@ svg    { display: block; max-width: 100%; }
 }
 .lp-nav__logo-mark img { width: 100%; height: 100%; }
 
+/* Temporary "Beta" stamp — sits next to the wordmark.
+   Stencil typography + thin red rule frame, slight tilt to read as a hand-stamped seal. */
+.lp-nav__beta {
+  font-family: "Stardos Stencil", "Geist", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #cf4640;
+  border: 1.5px solid #cf4640;
+  border-radius: 3px;
+  padding: 3px 7px 2px;
+  margin-left: 6px;
+  transform: rotate(-4deg);
+  transform-origin: center;
+  opacity: 0.92;
+  user-select: none;
+}
+.theme-light .lp-nav__beta { color: #ad322b; border-color: #ad322b; }
+
 .lp-nav__links {
   display: flex; align-items: center; gap: 36px;
   font-size: 14px; color: rgba(255,255,255,.7);
