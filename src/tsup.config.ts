@@ -65,6 +65,33 @@ export default defineConfig({
     if (existsSync('config/defaults')) {
       cpSync('config/defaults', 'dist/config/defaults', { recursive: true });
     }
+    copyUiBundle();
     restoreNodeSqliteImports('dist');
   },
 });
+
+/**
+ * Copy the Angular SPA build output into `dist/ui/` so the published
+ * `@skill-map/cli` tarball ships the UI inside the package. The
+ * runtime resolver in `src/server/paths.ts` looks here first when no
+ * `--ui-dist` is given, which is what end users hit after `npm i -g
+ * @skill-map/cli`.
+ *
+ * Soft-fail: when the UI workspace hasn't been built yet (a fresh
+ * clone running `npm run build` only inside `src/`), warn and move on
+ * instead of failing the CLI build. The release workflow has its own
+ * step that builds UI before CLI; dev iteration on TS shouldn't be
+ * blocked on Angular being built. The runtime resolver falls back to
+ * the upward `cwd` walk in the monorepo case.
+ */
+function copyUiBundle(): void {
+  const source = '../ui/dist/ui/browser';
+  if (!existsSync(source)) {
+    process.stderr.write(
+      `tsup: skipping UI bundle copy — ${source} not found ` +
+      '(run `npm run build --workspace=ui` to populate; required for npm publish).\n',
+    );
+    return;
+  }
+  cpSync(source, 'dist/ui', { recursive: true });
+}

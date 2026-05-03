@@ -31,6 +31,15 @@ jobs:
       - name: Install deps
         run: npm ci --ignore-scripts
 
+      - name: Build UI
+        # The CLI publish step depends on the Angular SPA being built so
+        # tsup's onSuccess hook can copy `ui/dist/ui/browser/` into
+        # `src/dist/ui/`. The runtime resolver in `src/server/paths.ts`
+        # serves the bundle from there in installed mode; without this
+        # step the published tarball would ship without any UI and
+        # `sm` would render the placeholder forever.
+        run: npm run build --workspace=ui
+
       - name: Build CLI
         run: npm run build
 

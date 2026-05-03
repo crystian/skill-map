@@ -67,7 +67,7 @@ const PLACEHOLDER_HTML = `<!doctype html>
   </head>
   <body>
     <h1>skill-map server is running</h1>
-    <p>The UI bundle was not found. Run <code>npm run build --workspace=ui</code> from the repo root, or pass <code>--ui-dist &lt;path&gt;</code>, then restart <code>sm serve</code>.</p>
+    <p>The UI bundle was not found. If you installed <code>@skill-map/cli</code> from npm, this is a packaging bug — please report it. If you're developing in the monorepo, run <code>npm run build --workspace=ui</code> from the repo root and restart <code>sm serve</code> (or pass <code>--ui-dist &lt;path&gt;</code> to point at a custom build).</p>
     <p>The REST API is available at <code>/api/health</code>.</p>
   </body>
 </html>
