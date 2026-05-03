@@ -1,7 +1,11 @@
 @if (visible()) {
   <div class="demo-banner" role="status" data-testid="demo-banner">
     <span class="demo-banner__icon pi pi-info-circle" aria-hidden="true"></span>
-    <p class="demo-banner__body">{{ texts.body }}</p>
+    <p class="demo-banner__body">
+      {{ texts.body }}
+      <code class="demo-banner__cmd" data-testid="demo-banner-install">{{ texts.installCommand }}</code>
+    </p>
+    <a class="demo-banner__home" [href]="texts.homeHref" data-testid="demo-banner-home">{{ texts.homeCta }}</a>
     <p-button
       icon="pi pi-times"
       [ariaLabel]="texts.dismissAria"

@@ -29,3 +29,25 @@
   margin: 0;
   line-height: 1.4;
 }
+
+.demo-banner__cmd {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  background: var(--p-content-background);
+  border: 1px solid var(--p-content-border-color);
+  border-radius: 0.25rem;
+  padding: 0.05rem 0.4rem;
+  font-size: 0.85em;
+  margin-left: 0.25rem;
+}
+
+.demo-banner__home {
+  color: var(--p-primary-color);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.demo-banner__home:hover,
+.demo-banner__home:focus-visible {
+  text-decoration: underline;
+}

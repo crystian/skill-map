@@ -9,7 +9,9 @@
  * stays Transloco-ready.
  */
 export const DEMO_BANNER_TEXTS = {
-  body:
-    "You are viewing a static demo of skill-map's UI. Run `npx @skill-map/cli serve` for the full experience.",
+  body: "You are viewing a static demo of skill-map's UI. Install it:",
+  installCommand: 'npm i -g @skill-map/cli',
+  homeCta: '← Back to skill-map.dev',
+  homeHref: '/',
   dismissAria: 'Dismiss demo banner',
 } as const;

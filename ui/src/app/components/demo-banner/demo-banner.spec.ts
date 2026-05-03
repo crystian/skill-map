@@ -32,6 +32,26 @@ describe('DemoBanner', () => {
     expect(root.querySelector('[data-testid="demo-banner"]')).not.toBeNull();
   });
 
+  it('renders the install command in a <code> element', () => {
+    const fixture = makeFixture('demo');
+    const root = fixture.nativeElement as HTMLElement;
+    const cmd = root.querySelector<HTMLElement>('[data-testid="demo-banner-install"]');
+    expect(cmd).not.toBeNull();
+    expect(cmd?.tagName).toBe('CODE');
+    expect(cmd?.textContent?.trim()).toBe('npm i -g @skill-map/cli');
+  });
+
+  it('renders a back-to-home link pointing at the marketing site root', () => {
+    const fixture = makeFixture('demo');
+    const root = fixture.nativeElement as HTMLElement;
+    const link = root.querySelector<HTMLAnchorElement>('[data-testid="demo-banner-home"]');
+    expect(link).not.toBeNull();
+    expect(link?.textContent?.trim()).toContain('skill-map.dev');
+    // Href is relative — `/` resolves against <base href="/demo/"> to
+    // skill-map.dev/, the landing page.
+    expect(link?.getAttribute('href')).toBe('/');
+  });
+
   it('hides the banner entirely when mode is "live"', () => {
     const fixture = makeFixture('live');
     const root = fixture.nativeElement as HTMLElement;
