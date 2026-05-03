@@ -13,9 +13,10 @@
  *   (c) ['skill', 'agent'] → runs on skills + agents only.
  *   (d) `extract()` is NOT called for excluded kinds (zero-cost skip).
  *
- * The fixture seeds one node per built-in kind: skill, agent, command,
- * hook, note. The Claude provider classifies each one based on path
- * prefix (`.claude/skills/<name>/SKILL.md`, `.claude/agents/*.md`, etc.).
+ * The fixture seeds one node per built-in Claude Provider kind: skill,
+ * agent, command, hook, note. The Claude provider classifies each one
+ * based on path prefix (`.claude/skills/<name>/SKILL.md`,
+ * `.claude/agents/*.md`, etc.).
  */
 
 import { describe, it, before, after } from 'node:test';
@@ -38,7 +39,7 @@ before(() => {
     mkdirSync(join(abs, '..'), { recursive: true });
     writeFileSync(abs, content);
   };
-  // One node per built-in kind. Frontmatter shape is irrelevant — the
+  // One node per built-in Claude Provider kind. Frontmatter shape is irrelevant — the
   // probe extractor runs unconditionally on whichever nodes the
   // orchestrator hands it.
   write(
@@ -110,7 +111,7 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
         rules: [],
       },
     });
-    // Five built-in kinds in the fixture; sort to remove walk-order
+    // Five built-in Claude Provider kinds in the fixture; sort to remove walk-order
     // sensitivity (the claude provider's traversal is deterministic but
     // alphabetical-by-directory, not by kind).
     deepStrictEqual(

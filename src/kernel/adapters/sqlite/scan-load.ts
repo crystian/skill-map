@@ -319,7 +319,7 @@ export async function loadNodeEnrichments(
 }
 
 function parseJsonObject(s: string | null | undefined): Record<string, unknown> {
-  if (s == null) return {};
+  if (s === null || s === undefined) return {};
   const parsed = JSON.parse(s) as unknown;
   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
     return parsed as Record<string, unknown>;
@@ -336,7 +336,7 @@ function parseJsonObject(s: string | null | undefined): Record<string, unknown> 
  * non-array also returns `[]`.
  */
 function parseJsonArray<T>(s: string | null | undefined): T[] {
-  if (s == null) return [];
+  if (s === null || s === undefined) return [];
   const parsed = JSON.parse(s) as unknown;
   return Array.isArray(parsed) ? (parsed as T[]) : [];
 }

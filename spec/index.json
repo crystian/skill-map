@@ -204,7 +204,7 @@
       "schemas/issue.schema.json": "40f6f8abadcce0fd8eac9df27ffcc20b2fc9fda6970142ddb8e7e56b1760b9b1",
       "schemas/job.schema.json": "ffbdd51c54b487c44eb57fabd07f624ac1030c14ef69b46933c154092853a84c",
       "schemas/link.schema.json": "0a95a24849a38b9ef5bad5361519a9f9e012b5bc3001289fad29d0851fceff6b",
-      "schemas/node.schema.json": "f9a0cc5d5a7f581915719e91ae401e46a82688e0865fd3a2eb64bd42798a6b2b",
+      "schemas/node.schema.json": "646f2b2c266b5bf1c61b9933c6defdb05565db044a766c4c575c0dcd1e68df57",
       "schemas/plugins-registry.schema.json": "5ca1d4970ae64f064f05c237a649d9f82d5edbeb7c121ec50cb4aaca13f4bc51",
       "schemas/project-config.schema.json": "4f5b1ce01446d78ebf524d11c36e0a3ae101e69008c922a2b3f53fccfd1cb87f",
       "schemas/report-base.schema.json": "a1021e9a59b4df9f99cd92454d797e88469766e7d49f52d231c4645ffdfdad8f",

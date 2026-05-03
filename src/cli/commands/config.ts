@@ -87,6 +87,10 @@ function assertSafeSegments(segments: string[], key: string): void {
   }
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v);
+}
+
 /**
  * Walk the merged config tree and collect every dot-path that resolves
  * to a leaf (anything that is not a plain object). Used to power
@@ -96,11 +100,11 @@ function assertSafeSegments(segments: string[], key: string): void {
  * `sm config list` would print.
  */
 function enumerateConfigPaths(obj: unknown, prefix = ''): string[] {
-  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return prefix ? [prefix] : [];
+  if (!isPlainObject(obj)) return prefix ? [prefix] : [];
   const out: string[] = [];
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+  for (const [key, value] of Object.entries(obj)) {
     const path = prefix ? `${prefix}.${key}` : key;
-    if (value && typeof value === 'object' && !Array.isArray(value)) {
+    if (isPlainObject(value)) {
       out.push(...enumerateConfigPaths(value, path));
     } else {
       out.push(path);
@@ -271,6 +275,27 @@ function tryLoadConfig(
   }
 }
 
+/**
+ * Walk `effective` to `key`, surfacing `ForbiddenSegmentError` as a
+ * uniform error line + exit 2 so each read verb's `run()` doesn't
+ * need to repeat the try/catch + instanceof shape.
+ */
+function safeGetAtPath(
+  effective: unknown,
+  key: string,
+  stderr: NodeJS.WritableStream,
+): { ok: true; value: unknown } | { ok: false; exitCode: number } {
+  try {
+    return { ok: true, value: getAtPath(effective, key) };
+  } catch (err) {
+    if (err instanceof ForbiddenSegmentError) {
+      stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
+      return { ok: false, exitCode: ExitCode.Error };
+    }
+    throw err;
+  }
+}
+
 // eslint-disable-next-line complexity
 function* iterDotPaths(
   obj: unknown,
@@ -365,16 +390,9 @@ export class ConfigGetCommand extends SmCommand {
     if (!result.ok) return result.exitCode;
     const { effective, warnings } = result.loaded;
     for (const w of warnings) this.context.stderr.write(w + '\n');
-    let value: unknown;
-    try {
-      value = getAtPath(effective, this.key);
-    } catch (err) {
-      if (err instanceof ForbiddenSegmentError) {
-        this.context.stderr.write(tx(CONFIG_TEXTS.forbiddenKeySegment, { segment: err.segment, key: err.key }));
-        return ExitCode.Error;
-      }
-      throw err;
-    }
+    const lookup = safeGetAtPath(effective, this.key, this.context.stderr);
+    if (!lookup.ok) return lookup.exitCode;
+    const { value } = lookup;
     if (value === undefined) {
       this.context.stderr.write(tx(CONFIG_TEXTS.unknownKey, { key: this.key }));
       const suggestion = suggestConfigKey(effective, this.key);

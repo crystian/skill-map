@@ -66,14 +66,11 @@ export interface IFormatParseErrorParams {
  *   - First positional matches a registered verb → flag/positional
  *     error scoped to that verb. Surface Clipanion's message verbatim
  *     under the `sm <verb>:` prefix; we don't have the per-verb flag
- *     catalog needed to suggest a fix.
+ *     catalog needed to suggest a fix. The verb-scoped formatting
+ *     (incl. the missing-positionals special case) lives in
+ *     `formatVerbScopedError` so the top-level dispatch stays flat.
  *   - Otherwise → unknown verb. Suggest the closest registered verbs
  *     by edit distance.
- *
- * Exception #2 (dispatcher pattern): three short branches dispatched
- * by the same input pair (args, error.message); splitting per helper
- * would obscure the dispatch. See AGENTS.md "When eslint-disable-next-line
- * is acceptable".
  */
 export function formatParseError(params: IFormatParseErrorParams): string {
   const { args, verbPaths, error } = params;
@@ -94,21 +91,7 @@ export function formatParseError(params: IFormatParseErrorParams): string {
   }
 
   const verbPrefix = matchedVerbPrefix(args, verbPaths);
-  if (verbPrefix) {
-    const missing = extractMissingPositionals(error.message);
-    if (missing !== null) {
-      const headline = tx(ENTRY_TEXTS.parseErrorMissingPositional, {
-        verb: verbPrefix,
-        positionals: missing,
-      });
-      return renderError(headline, tx(ENTRY_TEXTS.parseErrorVerbHelpHint, { verb: verbPrefix }));
-    }
-    const headline = tx(ENTRY_TEXTS.parseErrorVerbUsage, {
-      verb: verbPrefix,
-      message: firstLine(error.message),
-    });
-    return renderError(headline, tx(ENTRY_TEXTS.parseErrorVerbHelpHint, { verb: verbPrefix }));
-  }
+  if (verbPrefix) return formatVerbScopedError(verbPrefix, error.message);
 
   const subcommands = subcommandsUnder(firstToken, verbPaths);
   if (subcommands.length > 0) {
@@ -124,6 +107,28 @@ export function formatParseError(params: IFormatParseErrorParams): string {
     ? tx(ENTRY_TEXTS.parseErrorVerbSuggestion, { suggestions: formatSuggestionList(candidates) })
     : null;
   return renderError(tx(ENTRY_TEXTS.parseErrorUnknownCommand, { name: firstToken }), suggestion);
+}
+
+/**
+ * Verb is known; format either the missing-positionals diagnostic or
+ * the generic verb-scoped usage error. Pulled out of `formatParseError`
+ * so the top-level dispatcher doesn't carry the inner branch.
+ */
+function formatVerbScopedError(verbPrefix: string, errorMessage: string): string {
+  const helpHint = tx(ENTRY_TEXTS.parseErrorVerbHelpHint, { verb: verbPrefix });
+  const missing = extractMissingPositionals(errorMessage);
+  if (missing !== null) {
+    const headline = tx(ENTRY_TEXTS.parseErrorMissingPositional, {
+      verb: verbPrefix,
+      positionals: missing,
+    });
+    return renderError(headline, helpHint);
+  }
+  const headline = tx(ENTRY_TEXTS.parseErrorVerbUsage, {
+    verb: verbPrefix,
+    message: firstLine(errorMessage),
+  });
+  return renderError(headline, helpHint);
 }
 
 /**

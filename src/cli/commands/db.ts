@@ -474,13 +474,16 @@ function writeTableData(db: DatabaseSync, out: NodeJS.WritableStream, tableName:
   }
 }
 
+/** Number → SQL literal. NaN / ±Infinity collapse to NULL (sqlite has no
+ *  literal for either). */
+function formatSqlNumber(value: number): string {
+  return Number.isFinite(value) ? String(value) : 'NULL';
+}
+
 /** SQL literal serialiser. Mirrors sqlite3 `.dump`'s formatting. */
 function formatSqlValue(value: unknown): string {
   if (value === null || value === undefined) return 'NULL';
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) return 'NULL';
-    return String(value);
-  }
+  if (typeof value === 'number') return formatSqlNumber(value);
   if (typeof value === 'bigint') return value.toString();
   if (typeof value === 'boolean') return value ? '1' : '0';
   if (value instanceof Uint8Array) return `X'${Buffer.from(value).toString('hex')}'`;
