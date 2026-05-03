@@ -24,10 +24,22 @@ import { normalizeTrigger } from '../../../kernel/trigger-normalize.js';
 
 const ID = 'slash';
 
-// Allow `/` at start of body, after whitespace, or after any non-word char
-// other than `/` itself (so `//` doesn't match, and filenames like `foo/bar`
-// don't trigger on `/bar`).
-const SLASH_RE = /(?:^|[^A-Za-z0-9_/])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
+// Match `/command` only when the preceding character is NOT one that
+// would make the `/` part of a URL, file path, or markdown relative
+// link. Negative lookbehind enumerates the disallowed predecessors:
+//
+//   - `A-Za-z0-9_` — mid-word (`foo/bar` shouldn't match `/bar`).
+//   - `/`           — `//` shouldn't match.
+//   - `.`           — `./foo`, `../foo`, `domain.com/path`. This is
+//                     the "markdown relative link" footgun: `[link](./
+//                     file.md)` was extracting `/file` and producing a
+//                     broken-ref link to a non-existent command.
+//   - `:`           — `https://foo`, `c:/Win`. URL schemes / drive letters.
+//   - `?` `#`       — query strings and fragments inside URLs.
+//
+// JS supports fixed-width negative lookbehind in V8 since 2018 — safe
+// in all our targets (Node 24 / current evergreen browsers).
+const SLASH_RE = /(?<![A-Za-z0-9_/.:?#])(\/[a-z0-9][a-z0-9_-]*(?::[a-z0-9][a-z0-9_-]*)?)/gi;
 
 export const slashExtractor: IExtractor = {
   id: ID,

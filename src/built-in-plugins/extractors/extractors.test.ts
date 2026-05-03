@@ -127,6 +127,24 @@ describe('slash extractor', () => {
     strictEqual(links.length, 0);
   });
 
+  it('does not match slashes after `.` (markdown relative links / dotfiles)', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'Link to [docs](./readme.md) and [parent](../README.md). Domain at example.com/api.',
+    );
+    await extract(slashExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('does not match slashes after `:` (URL schemes / drive letters)', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'Visit https://example.com/path and the file at c:/Windows/foo.',
+    );
+    await extract(slashExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
   it('supports namespaced commands (/ns:verb)', async () => {
     const { ctx: context, links } = ctx('a.md', 'Run /skill-map:explore please.');
     await extract(slashExtractor, context);
@@ -181,3 +199,4 @@ describe('at-directive extractor', () => {
     strictEqual(atDirectiveExtractor.scope, 'body');
   });
 });
+
