@@ -69,6 +69,7 @@ export const INSPECTOR_VIEW_TEXTS = {
     empty: 'This file has no body content (only frontmatter).',
     unavailable: 'Body content unavailable — the source file may have moved or been deleted since the last scan.',
     renderError: 'Failed to render markdown body.',
+    refreshLabel: 'Refresh body',
   },
   /** Strings for the dead-link verify icon on relation chips (Step 14.5.b). */
   relations: {

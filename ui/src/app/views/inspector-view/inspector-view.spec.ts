@@ -328,6 +328,91 @@ describe('InspectorView — body card lifecycle', () => {
   });
 });
 
+describe('InspectorView — body refresh (Step 14.5.c)', () => {
+  it('renders a refresh button in the body card header', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '# initial' })));
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    expect(
+      fixture.nativeElement.querySelector('[data-testid="inspector-body-refresh"]'),
+    ).not.toBeNull();
+  });
+
+  it('re-fetches the body when the refresh button is clicked', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    let calls = 0;
+    dataSource.getNode.mockImplementation(() => {
+      calls++;
+      return Promise.resolve(makeDetail(makeApiNode({ body: `# render ${calls}` })));
+    });
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(calls).toBe(1);
+
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-body-refresh"] button',
+    ) as HTMLButtonElement;
+    btn.click();
+    await flush(fixture);
+
+    expect(calls).toBe(2);
+    const rendered = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-body-rendered"]',
+    );
+    expect(rendered!.innerHTML).toContain('# render 2');
+  });
+
+  it('disables the refresh button while a fetch is in flight', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    // Never-resolving promise locks bodyState at 'loading'.
+    dataSource.getNode.mockReturnValue(new Promise(() => {}));
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const btn = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-body-refresh"] button',
+    ) as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  it('refresh is a no-op while a fetch is already in flight (idempotent guard)', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    let calls = 0;
+    dataSource.getNode.mockImplementation(() => {
+      calls++;
+      return new Promise(() => {});
+    });
+
+    const { fixture, cmp } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    expect(calls).toBe(1);
+
+    // Component-level call (bypasses the disabled DOM button) — the
+    // guard inside refreshBody() must still short-circuit.
+    (cmp as unknown as { refreshBody: () => void }).refreshBody();
+    await flush(fixture);
+
+    expect(calls).toBe(1);
+  });
+});
+
 describe('InspectorView — dead-link verify (Step 14.5.b)', () => {
   /**
    * Build a node whose frontmatter declares an out-of-scope `requires`

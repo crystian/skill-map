@@ -14,6 +14,7 @@ import { NgTemplateOutlet } from '@angular/common';
 import { TagModule } from 'primeng/tag';
 import { ChipModule } from 'primeng/chip';
 import { CardModule } from 'primeng/card';
+import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { INSPECTOR_VIEW_TEXTS } from '../../../i18n/inspector-view.texts';
@@ -65,7 +66,7 @@ type TBodyState = 'idle' | 'loading' | 'empty' | 'unavailable' | 'error' | 'read
 
 @Component({
   selector: 'app-inspector-view',
-  imports: [RouterLink, NgTemplateOutlet, TagModule, ChipModule, CardModule, TooltipModule, EmptyState, LinkedNodesPanel],
+  imports: [RouterLink, NgTemplateOutlet, TagModule, ChipModule, CardModule, ButtonModule, TooltipModule, EmptyState, LinkedNodesPanel],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -231,6 +232,23 @@ export class InspectorView implements OnInit {
         return next;
       });
     }
+  }
+
+  /**
+   * Manual refresh hook (Step 14.5.c). Wired to the body card's
+   * header refresh button. Idempotent while a fetch is already in
+   * flight (the button is disabled in the template while
+   * `bodyState() === 'loading'`, and a fresh token would only orphan
+   * the in-flight resolution anyway). No-op when no path is selected.
+   */
+  protected refreshBody(): void {
+    const path = this.path();
+    if (!path) return;
+    if (this.bodyState() === 'loading') return;
+    const myToken = ++this.fetchToken;
+    this.bodyHtml.set(null);
+    this.bodyState.set('loading');
+    void this.fetchAndRenderBody(path, myToken);
   }
 
   private async fetchAndRenderBody(path: string, token: number): Promise<void> {

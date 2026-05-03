@@ -344,7 +344,23 @@
       }
 
       <!-- Body — markdown rendered via MarkdownRenderer (lazy-loaded) -->
-      <p-card [header]="texts.cards.body" styleClass="inspector__card inspector__card--full inspector__body" data-testid="inspector-card-body">
+      <p-card styleClass="inspector__card inspector__card--full inspector__body" data-testid="inspector-card-body">
+        <ng-template pTemplate="header">
+          <div class="inspector__body-header">
+            <h3 class="inspector__body-title">{{ texts.cards.body }}</h3>
+            <p-button
+              icon="pi pi-refresh"
+              [rounded]="true"
+              [text]="true"
+              severity="secondary"
+              [ariaLabel]="texts.body.refreshLabel"
+              [pTooltip]="texts.body.refreshLabel"
+              (onClick)="refreshBody()"
+              [disabled]="bodyState() === 'loading' || !path()"
+              data-testid="inspector-body-refresh"
+            />
+          </div>
+        </ng-template>
         @switch (bodyState()) {
           @case ('loading') {
             <p class="inspector__body-status" data-testid="inspector-body-loading">{{ texts.body.loading }}</p>

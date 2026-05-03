@@ -85,6 +85,20 @@
   display: block;
 }
 
+.inspector__body-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem 0;
+}
+
+.inspector__body-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
 .inspector__body-status {
   margin: 0;
   font-size: 0.85rem;
