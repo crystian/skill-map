@@ -1,5 +1,34 @@
 # skill-map
 
+## 0.13.0
+
+### Minor Changes
+
+- 34768b2: Replace Clipanion's full-catalog error dump with a concise diagnostic on argv parse errors.
+
+  Clipanion's default `UnknownSyntaxError` / `AmbiguousSyntaxError` handler prints the USAGE block of every registered command (~50 verbs for skill-map) to **stdout** and exits with code `1`. Three problems in one: it floods the screen for what is almost always a typo, it pollutes stdout (breaking `sm <verb> | jq` pipelines when an upstream typo trips the parser), and it uses the wrong exit code (per `spec/cli-contract.md` §Exit codes, "unknown flag" is operational error → `2`, not result-issue → `1`).
+
+  `src/cli/entry.ts` now pre-parses argv via `cli.process()` inside try/catch before delegating to `cli.run()`. On a parse error, `src/cli/util/parse-error.ts` formats a single-screen diagnostic (headline + at most one suggestion + `sm help` footer), writes it to **stderr**, and exits `ExitCode.Error` (2). Detection is duck-typed on `name` + `input` shape so a Clipanion version bump that re-exports the class can't silently flip the handler off.
+
+  Suggestion branches:
+
+  - Single-dash long flag (`sm -version`) → suggest the `--` form (`'--version'`).
+  - Unknown flag scoped to a known verb (`sm scan --foo`) → headline as `scan: unknown option '--foo'` + `Run 'sm help scan' for usage.`
+  - Incomplete namespace (`sm db`) → list up to three registered subcommands alphabetically.
+  - Unknown verb (`sm sacn`) → Levenshtein-ranked top-3 within 2-3 edits (cap tightened on short inputs to avoid `fooooo` matching `db backup`).
+
+  The exit-code change from `1` → `2` is technically observable for any caller that special-cased Clipanion's old behaviour, but it brings the binary into conformance with the documented contract. Pre-1.0 minor per `spec/versioning.md`.
+
+  Adds `src/test/cli-parse-errors.test.ts` (9 cases) covering each branch and the happy paths (`--version`, `-v`) to guard against regressions.
+
+- e42cb62: Ship the Angular UI bundle inside `@skill-map/cli` and resolve the correct Angular `application`-builder output path so `sm serve` actually serves the SPA in installed mode.
+
+  Three layered bugs landed at once: (1) `src/server/paths.ts` looked for `ui/dist/browser/`, but Angular CLI v17+'s default `application` builder emits to `<project>/dist/<project-name>/browser/` — for this repo that's `ui/dist/ui/browser/`. The resolver had been pointed at the wrong directory all along; it just stayed silent because `serveStatic` falls back to an inline placeholder instead of erroring. (2) `resolveDefaultUiDist` only walked upwards from `cwd`, so when the package was installed at `node_modules/@skill-map/cli/`, walking up from a consumer project never found a UI bundle. (3) `tsup`'s `onSuccess` copied `migrations/` and `config/defaults/` but not the SPA, and the `release.yml` workflow built the CLI without ever building UI first — the published tarball shipped without any UI at all.
+
+  The resolver in `src/server/paths.ts` is now three-branch and ordered: explicit `--ui-dist` → package-bundled `<package>/dist/ui/` (installed mode, located via `import.meta.url`) → upward walk for `ui/dist/ui/browser/` (dev / monorepo). The package-bundled branch comes BEFORE the upward walk so a developer running an installed `@skill-map/cli` from inside a fork still gets the package's own version-matched bundle instead of accidentally picking up a stale local build higher up the tree. `src/tsup.config.ts` gains a `copyUiBundle()` post-build step that copies `../ui/dist/ui/browser/` → `dist/ui/`, soft-failing with a stderr warning when the source is missing so dev iteration on TS doesn't require an Angular rebuild every time. `.github/workflows/release.yml` now builds UI before CLI so the changesets-published tarball always carries the SPA. The placeholder copy in `src/server/static.ts` is updated to distinguish installed-mode (packaging bug, please report) from monorepo-dev mode (run `npm run build --workspace=ui`).
+
+  Adds `src/test/server-paths.test.ts` (11 cases) covering `isUiBundleDir`, `resolveExplicitUiDist`, the new `resolvePackageBundledUiFrom` testable inner (synthesizes fake package layouts in tmp without depending on the live `src/dist/ui/`), and a `resolveDefaultUiDist` integration smoke. Behaviour is observable to end users (the published tarball now contains the UI; the resolver accepts a different path layout), so this ships as a pre-1.0 minor per `spec/versioning.md`.
+
 ## 0.12.0
 
 ### Minor Changes
@@ -3042,9 +3071,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                           `--json` output is byte-identical to before — raw rows, no merge.
-                                                           Storage is byte-identical to before. The grouping is purely a
-                                                           read-time presentation choice for human eyes.
+                                                                 `--json` output is byte-identical to before — raw rows, no merge.
+                                                                 Storage is byte-identical to before. The grouping is purely a
+                                                                 read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
