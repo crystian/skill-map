@@ -49,11 +49,10 @@ export const DB_TEXTS = {
   migrateKernelAppliedWithBackup:
     'kernel · Applied {{count}} migration(s) · backup: {{backupPath}}\n',
 
-  // --- shell / dump (system sqlite3 binary required) ------------------
+  // --- shell (system sqlite3 binary required for the interactive REPL) ---
   shellSqlite3NotFound:
     'sqlite3 binary not found on PATH. Install it (macOS: brew install sqlite; Debian/Ubuntu: apt install sqlite3) or use `sm db dump` for read-only inspection.\n',
-  dumpSqlite3NotFound:
-    'sqlite3 binary not found on PATH. Install it to use `sm db dump`.\n',
+  // --- dump (pure node:sqlite, no external binary) ----------------------
   dumpInvalidTable:
     '--tables: refusing non-identifier name {{table}}. Table names must match [a-zA-Z_][a-zA-Z0-9_]*\n',
 

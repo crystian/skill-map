@@ -223,6 +223,64 @@ describe('sm db restore --dry-run', () => {
   });
 });
 
+describe('sm db dump — pure node:sqlite (no external sqlite3 binary)', () => {
+  it('emits the .dump envelope (PRAGMA + BEGIN/COMMIT + schema) on a fresh init', () => {
+    const scope = freshScope('dump-envelope');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['db', 'dump'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    assert.match(r.stdout, /^PRAGMA foreign_keys=OFF;\nBEGIN TRANSACTION;\n/);
+    assert.match(r.stdout, /\nCOMMIT;\n$/);
+    // At least one CREATE TABLE for a kernel scan_* table must appear.
+    assert.match(r.stdout, /CREATE TABLE scan_nodes/);
+  });
+
+  it('respects --tables filter: emits only the named table', () => {
+    const scope = freshScope('dump-filter');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['db', 'dump', '--tables', 'scan_nodes'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+    // scan_nodes IS in the dump.
+    assert.match(r.stdout, /CREATE TABLE scan_nodes/);
+    // scan_links is NOT (filtered out).
+    assert.doesNotMatch(r.stdout, /CREATE TABLE scan_links/);
+  });
+
+  it('exits 5 (not-found) when the DB does not exist', () => {
+    const scope = freshScope('dump-missing');
+    // No `sm init` — the DB file is not created.
+    const r = sm(['db', 'dump'], scope);
+    assert.equal(r.status, 5);
+  });
+
+  it('roundtrips: dump output is valid SQL that loads into a fresh sqlite DB', async () => {
+    const scope = freshScope('dump-roundtrip');
+    sm(['init', '--no-scan'], scope);
+
+    const r = sm(['db', 'dump'], scope);
+    assert.equal(r.status, 0, `stderr: ${r.stderr}`);
+
+    // Reload into a fresh DB via node:sqlite (no external binary).
+    const { DatabaseSync } = await import('node:sqlite');
+    const reloadedPath = join(scope.cwd, 'reloaded.db');
+    const reloaded = new DatabaseSync(reloadedPath);
+    try {
+      reloaded.exec(r.stdout);
+      // The reloaded DB must contain at least the same kernel tables
+      // the dump promised.
+      const tables = (reloaded
+        .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+        .all() as Array<{ name: string }>)
+        .map((row) => row.name);
+      assert.ok(tables.includes('scan_nodes'), `reloaded DB missing scan_nodes: ${tables.join(',')}`);
+    } finally {
+      reloaded.close();
+    }
+  });
+});
+
 describe('sm db dump --tables — identifier whitelist (audit L1)', () => {
   it('rejects a table name with a semicolon', () => {
     const scope = freshScope('dump-semi');
