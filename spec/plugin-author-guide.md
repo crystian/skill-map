@@ -300,7 +300,6 @@ export default {
 };
 ```
 
-> **Migration note (spec 0.8.x).** This kind was previously named `Detector` with a `detect(ctx) → Link[]` signature. The rename to `Extractor` and the move to callback-based output landed as a single breaking minor in the pre-1.0 line. The mechanical migration: rename `kind: 'detector'` → `kind: 'extractor'`, rename `detect` → `extract`, replace `return links` with `for (const l of links) ctx.emitLink(l)`. The `applicableKinds`, `emitsLinkKinds`, `defaultConfidence`, and `scope` fields are unchanged.
 
 ### Rules
 

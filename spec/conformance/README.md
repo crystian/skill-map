@@ -2,7 +2,7 @@
 
 Language-neutral test suite the specification demands. A conforming implementation passes every case; failing any case is a conformance bug.
 
-The suite splits across two ownership boundaries (Phase 5 / A.13 of spec 0.8.0):
+The suite splits across two ownership boundaries:
 
 - **Spec-owned cases** — kernel-agnostic. They live in this directory and ship with `@skill-map/spec`. Today: `kernel-empty-boot` (boot invariant) and the `preamble-bitwise-match` deferred case. The universal preamble fixture (`preamble-v1.txt`) lives here too.
 - **Provider-owned cases** — exercise a Provider's own `kinds` catalog. They live next to the Provider's manifest, under `<plugin-dir>/conformance/`. The reference impl ships one such suite at [`src/extensions/providers/claude/conformance/`](../../src/extensions/providers/claude/conformance/) covering Claude's five kinds (`skill` / `agent` / `command` / `hook` / `note`) via cases `basic-scan`, `rename-high`, `orphan-detection`.
@@ -154,7 +154,7 @@ for (const caseFile of await readdir('spec/conformance/cases')) {
 }
 ```
 
-A Provider-owned runner mirrors the loop with a different cases / fixtures root — `<plugin-dir>/conformance/cases/` and `<plugin-dir>/conformance/fixtures/`. The reference CLI ships both as `sm conformance run` (Phase 5 / A.13); the verb resolves the spec scope via `@skill-map/spec` and discovers Provider scopes by walking each built-in plugin's `conformance/` directory.
+A Provider-owned runner mirrors the loop with a different cases / fixtures root — `<plugin-dir>/conformance/cases/` and `<plugin-dir>/conformance/fixtures/`. The reference CLI ships both as `sm conformance run`; the verb resolves the spec scope via `@skill-map/spec` and discovers Provider scopes by walking each built-in plugin's `conformance/` directory.
 
 The reference implementation's runner ships under `src/conformance/index.ts`; the verb lives at `src/cli/commands/conformance.ts` and uses the runner one case at a time.
 
