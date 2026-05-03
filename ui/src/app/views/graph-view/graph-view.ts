@@ -31,6 +31,8 @@ import {
   forceLink,
   forceManyBody,
   forceSimulation,
+  forceX,
+  forceY,
   type SimulationNodeDatum,
 } from 'd3-force';
 
@@ -548,8 +550,15 @@ function computeFullLayout(
   // Tuning notes:
   //   - `linkDistance: 90` ≈ NODE_WIDTH so connected nodes sit
   //     roughly one node-width apart.
-  //   - `chargeStrength: -350` is moderate repulsion; -200 collapses
-  //     the graph too tight, -600 explodes it past the viewport.
+  //   - `chargeStrength: -200` is moderate repulsion (default is -30,
+  //     way too soft for graph layouts; -350 was strong enough to
+  //     fling disconnected nodes off-screen).
+  //   - `forceCenter` only TRANSLATES (per d3-force docs — it shifts
+  //     the centroid to origin but doesn't restrain spread). Real
+  //     "gravity" comes from `forceX(0)` / `forceY(0)` which apply
+  //     velocity towards the origin every tick. Strength 0.06 gives
+  //     a gentle pull that reins in disconnected nodes without
+  //     squashing connected clusters.
   //   - `collideRadius: NODE_WIDTH/2 + 12` adds a 12 px gutter
   //     around each node so labels don't kiss.
   //   - 400 ticks is past d3-force's default cooling threshold
@@ -569,8 +578,10 @@ function computeFullLayout(
       'link',
       forceLink<ISimNode, ISimLink>(simLinks).id((d) => d.id).distance(90).strength(1),
     )
-    .force('charge', forceManyBody<ISimNode>().strength(-350))
+    .force('charge', forceManyBody<ISimNode>().strength(-200))
     .force('center', forceCenter(0, 0))
+    .force('x', forceX<ISimNode>(0).strength(0.06))
+    .force('y', forceY<ISimNode>(0).strength(0.06))
     .force('collide', forceCollide<ISimNode>(NODE_WIDTH / 2 + 12))
     .stop();
 
