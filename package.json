@@ -43,7 +43,7 @@
     "test:all": "npm run test --workspace=@skill-map/cli && npm run test --workspace=@skill-map/testkit && npm run test:ci --workspace=ui",
     "test:coverage": "npm run test:coverage --workspace=@skill-map/cli && npm run test:coverage --workspace=@skill-map/testkit",
     "changeset": "changeset",
-    "changeset:version": "changeset version && npm run spec:index",
+    "changeset:version": "changeset version && npm run spec:index && npm run cli:reference",
     "changeset:publish": "changeset publish"
   },
   "devDependencies": {
