@@ -174,6 +174,36 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
 
 ### Minor
 
+- **BFF `/ws` protocol + watcher contract** — Step 14.4.a documents
+  the WebSocket surface. The `### Server` subsection grows a
+  **WebSocket protocol** block enumerating the wire envelope (delegated
+  to `job-events.md` §Common envelope), the v14.4.a event catalog
+  (`scan.started` / `scan.progress` / `scan.completed` plus the
+  side-effect events `extractor.completed` / `rule.completed` /
+  `extension.error`, plus the BFF-internal advisories
+  `watcher.started` / `watcher.error`), the connection lifecycle (no
+  state push on connect; client polls `/api/scan` to seed; close codes
+  used: 1000 / 1001 / 1009), the backpressure rule (4 MiB `bufferedAmount`
+  → close 1009 + unregister), and the loopback-only assumption (no
+  per-connection auth through v0.6.0 per Decision #119). The endpoint
+  table flips `GET /ws` from `upgrade-only` to `implemented (v14.4.a)`.
+  The `sm serve` flag table grows `--no-watcher` (default off — watcher
+  on per Decision #121); combining `--no-watcher` is documented;
+  combining `--no-built-ins` with the watcher is rejected (would
+  persist empty scans on every batch). The verb-catalog row for
+  `sm serve` mirrors the new flag.
+
+  `issue.added` / `issue.resolved` (the diff-based events from
+  `job-events.md` §Issue events) and `scan.failed` are explicitly
+  flagged as deferred — the 14.4.a surface fans out only what the
+  kernel emitter already produces; per-batch failure events and the
+  diff-based issue stream require additional plumbing in the BFF
+  watcher loop and land in a follow-up.
+
+  Additive minor per `versioning.md` § Pre-1.0; no breaking change to
+  any prior `/ws` behavior (the v14.1 / v14.2 / v14.3 surfaces all had
+  `/ws` documented as "upgrade-only — broadcaster lands at v14.4").
+
 - **BFF read-side endpoints** — Step 14.2 fills the `### Server`
   subsection's endpoint catalogue from the v14.1 stub
   (`GET /api/health` real, `ALL /api/*` 404) to the eight read-side

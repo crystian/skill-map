@@ -46,6 +46,10 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     noPlugins: false,
     open: false,
     devCors: false,
+    // Step 14.4.a — keep the watcher off for boot tests so chokidar
+    // doesn't subscribe to the test runner's cwd. Tests that exercise
+    // the watcher live in `server-ws-integration.test.ts`.
+    noWatcher: true,
     ...overrides,
   };
 }
@@ -135,35 +139,34 @@ describe('server boot — single-port wiring', () => {
     });
   });
 
-  it('accepts a /ws upgrade and closes with code 1000 + reason "no broadcaster yet"', async () => {
+  it('accepts a /ws upgrade and registers the client with the broadcaster (Step 14.4.a)', async () => {
     await bootAndUse(defaultOptions(), async (handle) => {
-      // Use the `ws` package's WebSocket client (the same library that
-      // backs the server). The 14.1 no-op handler closes the connection
-      // immediately on `onOpen` with code 1000 + reason 'no broadcaster
-      // yet' — both surfaces are observable on the client `close` event.
+      // Step 14.1 closed every connection on open with code 1000 +
+      // reason 'no broadcaster yet'. Step 14.4.a swaps that for the
+      // real broadcaster registrar — the connection stays open until
+      // the server shuts down or the client disconnects.
       const { WebSocket } = await import('ws');
       const url = `ws://127.0.0.1:${handle.address.port}/ws`;
-      const result = await new Promise<{ code: number; reason: string }>((resolveConn, rejectConn) => {
+      const opened = await new Promise<boolean>((resolveConn, rejectConn) => {
         const ws = new WebSocket(url);
         const timeout = setTimeout(() => {
           ws.terminate();
-          rejectConn(new Error('WS handshake / close timed out'));
+          rejectConn(new Error('WS handshake timed out'));
         }, 2000);
-        ws.on('close', (code, reasonBuf) => {
+        ws.on('open', () => {
           clearTimeout(timeout);
-          resolveConn({ code, reason: reasonBuf.toString('utf-8') });
+          // Give the onOpen handler a tick to register the client.
+          setTimeout(() => {
+            ws.close();
+            resolveConn(true);
+          }, 50);
         });
         ws.on('error', (err) => {
           clearTimeout(timeout);
           rejectConn(err);
         });
       });
-      assert.equal(result.code, 1000, `expected close code 1000, got ${result.code}`);
-      assert.equal(
-        result.reason,
-        'no broadcaster yet',
-        `expected close reason "no broadcaster yet", got ${JSON.stringify(result.reason)}`,
-      );
+      assert.equal(opened, true);
     });
   });
 

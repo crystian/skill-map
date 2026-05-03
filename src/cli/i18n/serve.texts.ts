@@ -38,6 +38,12 @@ export const SERVE_TEXTS = {
   scopeInvalid:
     'sm serve: --scope must be "project" or "global" (got {{value}}).\n',
 
+  // Watcher option failures — ExitCode.Error.
+  watcherRequiresPipeline:
+    'sm serve: --no-built-ins is incompatible with the watcher (would persist empty scans on every batch). Pass --no-watcher to opt out, or drop --no-built-ins.\n',
+  watcherDebounceInvalid:
+    'sm serve: --watcher-debounce-ms must be a non-negative integer (got {{value}}).\n',
+
   // Generic operational error — surfaced when the server itself throws
   // before the listener binds (e.g. UI bundle missing under explicit
   // --ui-dist).

@@ -57,6 +57,7 @@ import type { ContentfulStatusCode, StatusCode } from 'hono/utils/http-status';
 import { formatErrorMessage } from '../cli/util/error-reporter.js';
 import type { IRuntimeContext } from '../cli/util/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
+import type { WsBroadcaster } from './broadcaster.js';
 import type { IServerOptions } from './options.js';
 import { registerConfigRoute } from './routes/config.js';
 import type { IRouteDeps } from './routes/deps.js';
@@ -68,14 +69,7 @@ import { registerNodesRoutes } from './routes/nodes.js';
 import { registerPluginsRoute } from './routes/plugins.js';
 import { registerScanRoute } from './routes/scan.js';
 import { createSpaFallback, createStaticHandler } from './static.js';
-
-/**
- * Registrar called after the `/api/*` routes and before the static /
- * SPA fallback layers. The composition root passes the no-op closer at
- * 14.1; 14.4 swaps in the broadcaster registrar without touching this
- * file.
- */
-export type TWsRegistrar = (app: Hono) => void;
+import { attachBroadcasterRoute } from './ws.js';
 
 export type TErrorCode = 'not-found' | 'bad-query' | 'db-missing' | 'internal';
 
@@ -92,8 +86,13 @@ export interface IAppDeps {
   options: IServerOptions;
   /** Pre-resolved spec version threaded through to `/api/health`. */
   specVersion: string;
-  /** Registers the `/ws` route. 14.1: no-op closer. 14.4: broadcaster. */
-  attachWs: TWsRegistrar;
+  /**
+   * The `/ws` broadcaster. Step 14.4.a wires `attachBroadcasterRoute`
+   * inside `createApp` against this instance; the composition root
+   * (`createServer`) owns its lifecycle (instantiate → register → close
+   * via `broadcaster.shutdown()`).
+   */
+  broadcaster: WsBroadcaster;
   /**
    * Runtime context (`cwd`, `homedir`) consumed by the read-side routes.
    * `loadConfig` for `/api/config` and the fresh-scan branch of
@@ -149,12 +148,10 @@ export function createApp(deps: IAppDeps): Hono {
     throw new HTTPException(404, { message: `Unknown API endpoint: ${c.req.path}` });
   });
 
-  // 3. /ws — WebSocket upgrade route, registered via the injected
-  //    registrar so 14.4 can swap the no-op closer for the chokidar
-  //    broadcaster without touching this file. Must be declared
-  //    BEFORE the static handler so a literal `/ws` path on disk
-  //    in `uiDist` cannot accidentally shadow the upgrade route.
-  deps.attachWs(app);
+  // 3. /ws — WebSocket upgrade route. Must be declared BEFORE the
+  //    static handler so a literal `/ws` path on disk in `uiDist`
+  //    cannot accidentally shadow the upgrade route.
+  attachBroadcasterRoute(app, deps.broadcaster);
 
   // 4. Static + 5. SPA fallback. Order matters: the static handler
   //    short-circuits on a real file match; everything else falls

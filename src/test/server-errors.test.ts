@@ -46,6 +46,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     noPlugins: true,
     open: false,
     devCors: false,
+    noWatcher: true,
     ...overrides,
   };
 }

@@ -133,6 +133,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     noPlugins: true, // skip plugin discovery — keeps tests deterministic against `process.cwd()`
     open: false,
     devCors: false,
+    noWatcher: true, // dedicated watcher tests live in `server-ws-integration.test.ts`
     ...overrides,
   };
 }

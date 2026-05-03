@@ -63,4 +63,53 @@ export const SERVER_TEXTS = {
     'No node with path "{{path}}".',
   pathB64Malformed:
     'Malformed pathB64 — not a valid base64url-encoded node.path.',
+
+  // ---- WS broadcaster + watcher (Step 14.4.a) ------------------------------
+
+  // Logged once on watcher boot after chokidar's initial walk completes.
+  // Marks the broadcaster as armed and the live event stream as flowing.
+  watcherReady:
+    'skill-map server: watcher ready (roots="{{roots}}", debounceMs={{debounceMs}}).\n',
+
+  // Watcher boot failure inside `createServer`. Non-fatal — the REST
+  // surface stays alive so the operator can fix the underlying issue
+  // (config, plugin, FS permission) and restart.
+  watcherBootFailed:
+    'skill-map server: watcher boot failed — {{message}}. /api/* still serving; pass --no-watcher to silence this on the next boot.\n',
+
+  // Per-batch failure inside the watcher's scan+persist pipeline. The
+  // watcher loop continues — a transient FS error must not kill the
+  // broadcaster.
+  watcherBatchFailed:
+    'skill-map server: watcher batch failed — {{message}}.\n',
+
+  // chokidar surfaced an error. The watcher stays open per IFsWatcher's
+  // contract; the BFF also broadcasts a `watcher.error` advisory so the
+  // SPA can surface it in the live event log.
+  watcherError:
+    'skill-map server: watcher error — {{message}}.\n',
+
+  // chokidar.close() rejected during graceful shutdown. Logged but not
+  // surfaced — close() is best-effort and idempotent.
+  watcherCloseFailed:
+    'skill-map server: watcher close failed — {{message}}.\n',
+
+  // A connected client's outbound buffer exceeded the backpressure
+  // threshold. The broadcaster closes the client with code 1009 and
+  // unregisters it. Logged so operators can spot a wedged consumer.
+  wsBackpressureEvicted:
+    'skill-map server: ws client evicted (bufferedAmount={{buffered}} > threshold={{threshold}}).\n',
+
+  // `WebSocket.send()` threw on a registered client. The client is
+  // unregistered; the broadcast continues with the remaining clients.
+  wsClientSendFailed:
+    'skill-map server: ws send failed — {{message}}.\n',
+
+  // `JSON.stringify(envelope)` threw inside `broadcast()`. The event is
+  // dropped. Per spec/job-events.md §Error handling, the right shape
+  // is a synthetic `emitter.error` event; v14.4.a does not yet route
+  // it through the broadcaster (would re-enter the same stringify
+  // path), so we degrade to a logged warning.
+  wsBroadcastSerializeFailed:
+    'skill-map server: ws broadcast dropped — failed to serialize event: {{message}}.\n',
 } as const;

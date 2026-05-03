@@ -120,6 +120,13 @@ export class ServeCommand extends SmCommand {
   // need it). Clipanion still exposes it on the parser; the Usage
   // omission is the "hidden" contract per the 14.1 brief.
   uiDist = Option.String('--ui-dist', { required: false, hidden: true });
+  noWatcher = Option.Boolean('--no-watcher', false, {
+    description: 'Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments.',
+  });
+  // `--watcher-debounce-ms` is undocumented sugar for advanced users
+  // who want to tighten / relax the watcher's batching window without
+  // editing settings.json. Hidden flag — the Usage block omits it.
+  watcherDebounceMs = Option.String('--watcher-debounce-ms', { required: false, hidden: true });
 
   // Long-running daemon — `done in <…>` after a graceful shutdown is
   // noise. Mirrors `sm watch`'s opt-out.
@@ -176,6 +183,19 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
+    // 4b. Parse --watcher-debounce-ms up front. Empty / non-integer →
+    //     reject with the same template family the other numeric
+    //     parsers use.
+    const debounceResult = parseDebounce(this.watcherDebounceMs);
+    if (!debounceResult.ok) {
+      this.context.stderr.write(
+        tx(SERVE_TEXTS.watcherDebounceInvalid, {
+          value: sanitizeForTerminal(debounceResult.value),
+        }),
+      );
+      return ExitCode.Error;
+    }
+
     // 5. Validate the assembled options bag (loopback + dev-cors check,
     //    port range check). Errors map to the right SERVE_TEXTS template.
     const input: IServerOptionsInput = {
@@ -186,9 +206,11 @@ export class ServeCommand extends SmCommand {
       noPlugins: this.noPlugins,
       open: this.open,
       devCors: this.devCors,
+      noWatcher: this.noWatcher,
     };
     if (portResult.port !== undefined) input.port = portResult.port;
     if (this.host !== undefined) input.host = this.host;
+    if (debounceResult.value !== undefined) input.watcherDebounceMs = debounceResult.value;
 
     const validation = validateServerOptions(input);
     if (!validation.ok) {
@@ -256,6 +278,19 @@ function parsePort(raw: string | undefined): IPortOk | IPortErr {
   return { ok: true, port: parsed };
 }
 
+interface IDebounceOk { ok: true; value: number | undefined; }
+interface IDebounceErr { ok: false; value: string; }
+
+function parseDebounce(raw: string | undefined): IDebounceOk | IDebounceErr {
+  if (raw === undefined) return { ok: true, value: undefined };
+  const trimmed = raw.trim();
+  const parsed = Number.parseInt(trimmed, 10);
+  if (!Number.isInteger(parsed) || parsed < 0 || String(parsed) !== trimmed) {
+    return { ok: false, value: raw };
+  }
+  return { ok: true, value: parsed };
+}
+
 interface IScopeOk { ok: true; scope: TServerScope; }
 interface IScopeErr { ok: false; value: string; }
 
@@ -294,6 +329,10 @@ function formatValidationError(err: { code: string; value: string; message: stri
       return tx(SERVE_TEXTS.portInvalid, { value: sanitizeForTerminal(err.value) });
     case 'scope-invalid':
       return tx(SERVE_TEXTS.scopeInvalid, { value: sanitizeForTerminal(err.value) });
+    case 'watcher-requires-pipeline':
+      return tx(SERVE_TEXTS.watcherRequiresPipeline, { value: sanitizeForTerminal(err.value) });
+    case 'watcher-debounce-invalid':
+      return tx(SERVE_TEXTS.watcherDebounceInvalid, { value: sanitizeForTerminal(err.value) });
     default:
       return tx(SERVE_TEXTS.startupFailed, { message: sanitizeForTerminal(err.message) });
   }

@@ -77,6 +77,23 @@ export interface IServerOptions {
 
   /** Enable permissive CORS for the dev workflow (Angular dev server proxy). Default `false`. */
   devCors: boolean;
+
+  /**
+   * Disable the chokidar-fed scan-and-broadcast loop. Default `false`
+   * (watcher on per Decision #121: a server with stale DB is a footgun).
+   * Set to `true` only for CI / read-only deployments where filesystem
+   * mutations are not expected; in that mode `/ws` still accepts
+   * connections but no `scan.*` events ever fire.
+   */
+  noWatcher: boolean;
+
+  /**
+   * Override for the chokidar debounce window (ms). When `undefined`
+   * the watcher reads `scan.watch.debounceMs` from the merged config
+   * (default 250ms). Undocumented sugar for advanced users — surface
+   * via the hidden `--watcher-debounce-ms` CLI flag.
+   */
+  watcherDebounceMs?: number | undefined;
 }
 
 export interface IServerOptionsInput {
@@ -89,13 +106,17 @@ export interface IServerOptionsInput {
   noPlugins?: boolean | undefined;
   open?: boolean | undefined;
   devCors?: boolean | undefined;
+  noWatcher?: boolean | undefined;
+  watcherDebounceMs?: number | undefined;
 }
 
 export type TServerOptionsErrorCode =
   | 'port-out-of-range'
   | 'port-invalid'
   | 'scope-invalid'
-  | 'host-dev-cors-rejected';
+  | 'host-dev-cors-rejected'
+  | 'watcher-requires-pipeline'
+  | 'watcher-debounce-invalid';
 
 export interface IServerOptionsError {
   code: TServerOptionsErrorCode;
@@ -130,20 +151,28 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   const hostError = validateHost(filled.host, filled.devCors);
   if (hostError !== null) return { ok: false, error: hostError };
 
-  return {
-    ok: true,
-    options: {
-      port: filled.port,
-      host: filled.host,
-      scope: filled.scope as TServerScope,
-      dbPath: input.dbPath,
-      uiDist: filled.uiDist,
-      noBuiltIns: filled.noBuiltIns,
-      noPlugins: filled.noPlugins,
-      open: filled.open,
-      devCors: filled.devCors,
-    },
+  const watcherError = validateWatcher(filled.noWatcher, filled.noBuiltIns, filled.noPlugins);
+  if (watcherError !== null) return { ok: false, error: watcherError };
+
+  const debounceError = validateWatcherDebounce(input.watcherDebounceMs);
+  if (debounceError !== null) return { ok: false, error: debounceError };
+
+  const options: IServerOptions = {
+    port: filled.port,
+    host: filled.host,
+    scope: filled.scope as TServerScope,
+    dbPath: input.dbPath,
+    uiDist: filled.uiDist,
+    noBuiltIns: filled.noBuiltIns,
+    noPlugins: filled.noPlugins,
+    open: filled.open,
+    devCors: filled.devCors,
+    noWatcher: filled.noWatcher,
   };
+  if (input.watcherDebounceMs !== undefined) {
+    options.watcherDebounceMs = input.watcherDebounceMs;
+  }
+  return { ok: true, options };
 }
 
 interface IFilledInput {
@@ -155,6 +184,7 @@ interface IFilledInput {
   noPlugins: boolean;
   open: boolean;
   devCors: boolean;
+  noWatcher: boolean;
 }
 
 /**
@@ -174,6 +204,7 @@ function applyDefaults(input: IServerOptionsInput): IFilledInput {
     noPlugins: input.noPlugins ?? false,
     open: input.open ?? true,
     devCors: input.devCors ?? false,
+    noWatcher: input.noWatcher ?? false,
   };
 }
 
@@ -204,6 +235,46 @@ function validateHost(host: string, devCors: boolean): IServerOptionsError | nul
       code: 'host-dev-cors-rejected',
       message: `--dev-cors requires a loopback --host (got ${host})`,
       value: host,
+    };
+  }
+  return null;
+}
+
+/**
+ * The watcher pipeline depends on the same scan composition the
+ * one-shot `sm scan` uses — running the watcher with `--no-built-ins`
+ * (the only known knob that empties the pipeline) would persist empty
+ * scans on every batch. The validator rejects the combination at boot
+ * so the operator gets a clear error instead of a silent data wipe.
+ *
+ * `--no-plugins` is OK alongside the watcher (the built-in pipeline is
+ * still complete on its own); only `--no-built-ins + watcher` trips
+ * the guard.
+ */
+function validateWatcher(
+  noWatcher: boolean,
+  noBuiltIns: boolean,
+  _noPlugins: boolean,
+): IServerOptionsError | null {
+  if (noWatcher) return null;
+  if (noBuiltIns) {
+    return {
+      code: 'watcher-requires-pipeline',
+      message:
+        'the watcher cannot run with --no-built-ins (would persist empty scans on every batch). Pass --no-watcher to opt out, or drop --no-built-ins.',
+      value: 'no-built-ins',
+    };
+  }
+  return null;
+}
+
+function validateWatcherDebounce(value: number | undefined): IServerOptionsError | null {
+  if (value === undefined) return null;
+  if (!Number.isInteger(value) || value < 0) {
+    return {
+      code: 'watcher-debounce-invalid',
+      message: `--watcher-debounce-ms must be a non-negative integer (got ${value})`,
+      value: String(value),
     };
   }
   return null;

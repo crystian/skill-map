@@ -46,6 +46,10 @@ await freePort(port);
 const child = spawn(
   'node',
   [
+    // Suppress the `node:sqlite` ExperimentalWarning the same way
+    // `src/bin/sm.js` does via its shebang. Without this, every dev
+    // restart prints two extra lines that drown the actual server logs.
+    '--disable-warning=ExperimentalWarning',
     '--import', 'tsx',
     '--watch',
     'cli/entry.ts',

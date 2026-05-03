@@ -316,7 +316,7 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 | Command | Purpose |
 |---|---|
-| `sm serve [--port N] [--host ...] [--scope project\|global] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only through v0.6.0; multi-host deferred — see §Server). |
+| `sm serve [--port N] [--host ...] [--scope project\|global] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>] [--no-watcher]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only through v0.6.0; multi-host deferred — see §Server). The watcher is on by default (Decision #121: a server with stale DB is a footgun); pass `--no-watcher` for CI / read-only deployments. |
 
 #### Server
 
@@ -341,7 +341,7 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 | `GET /api/config` | implemented | `RestEnvelope` (`kind: 'config'`) — merged effective config (defaults → user → user-local → project → project-local → override). |
 | `GET /api/plugins` | implemented | `RestEnvelope` (`kind: 'plugins'`) — list of installed plugins (built-in + drop-in) with status. Item shape: `{ id, version, kinds, status, reason, source: 'built-in'\|'project'\|'global' }`. |
 | `ALL /api/*` (other) | reserved | structured 404 envelope (see below); future endpoints land in subsequent sub-steps. |
-| `GET /ws` | upgrade-only | accepts WebSocket upgrade and immediately closes; broadcaster lands at v14.4. |
+| `GET /ws` | implemented (v14.4.a) | accepts WebSocket upgrade and registers the client with the BFF broadcaster. Server-push only — the server fans `scan.*` (and forthcoming `issue.*`) events to every connected client. See **WebSocket protocol** below. |
 | `GET *` | implemented | static asset from the resolved UI bundle, falling back to `index.html` for SPA deep links. |
 
 List endpoints conform to [`schemas/api/rest-envelope.schema.json`](schemas/api/rest-envelope.schema.json). The `/api/scan` and `/api/health` responses carry their underlying `ScanResult` / `IHealthResponse` shapes directly (no envelope wrap). The `/api/graph` response carries the formatter's native textual output.
@@ -381,8 +381,32 @@ Error code sources at v14.2:
 | `--open` / `--no-open` | `--open` | Auto-open the SPA in the user's default browser after listen. |
 | `--dev-cors` | off | Enable permissive CORS for the Angular dev-server proxy workflow. Loopback-only when set. |
 | `--ui-dist <path>` | auto | Override the UI bundle directory. Hidden flag — used by the demo build pipeline + tests; everyday users never need it. |
+| `--no-watcher` | off | Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments — without the watcher, `/ws` stays open but no `scan.*` events ever fire. Combining with `--no-built-ins` is rejected (the watcher cannot run with an empty pipeline; would persist empty scans on every batch). |
 
-**Graceful shutdown**: SIGINT / SIGTERM trigger a graceful close; the verb returns exit 0 on clean shutdown. Bind failure (port in use, EACCES) returns exit 2.
+**WebSocket protocol** *(Stability: experimental — locks at v0.6.0)*:
+
+The `/ws` endpoint is the live-events channel for the SPA. Clients connect once at bootstrap, the server pushes events as they happen, and the SPA reconciles its in-memory store against the deltas. The wire envelope and `scan.*` payload shapes are normative in [`job-events.md`](./job-events.md) — the BFF emits them verbatim.
+
+- **Wire format**: each event is a single WebSocket text frame carrying one JSON object that conforms to `job-events.md` §Common envelope (`type`, `timestamp`, `runId?`, `jobId? | null`, `data`).
+- **Event catalog at v14.4.a**:
+  - `scan.started` (per `job-events.md` §Scan events line 325).
+  - `scan.progress` (per `job-events.md` line 345 — emitted by the kernel orchestrator at every node; throttling deferred to a follow-up).
+  - `scan.completed` (per `job-events.md` line 363).
+  - `extractor.completed` (per `job-events.md` line 384) and `rule.completed` (per `job-events.md` line 404) ride along as side effects of the same emitter bridge.
+  - `extension.error` (kernel-internal — emitted when an extension violates its declared contract; the BFF forwards verbatim).
+  - `watcher.started` and `watcher.error` — BFF-internal advisories. Non-normative; consumers MUST ignore unknown event types per the forward-compatibility rule.
+- **Deferred to a follow-up**: `issue.added` / `issue.resolved` (per `job-events.md` §Issue events line 446) and `scan.failed`. The 14.4.a surface fans out only the events the kernel emitter already produces; the diff-based issue events and a dedicated batch-failure event require additional plumbing inside the BFF watcher loop.
+- **Connection lifecycle**:
+  1. Client opens `ws://<host>:<port>/ws`. The server completes the WS handshake and registers the underlying socket with the broadcaster.
+  2. Server pushes events. The client sends nothing at v14.4.a — `onMessage` is intentionally not registered. A future heartbeat / subscribe / filter request lands in a follow-up.
+  3. Server has NO state push on connect (no replay of last events). The client SHOULD poll `/api/scan` once on connect to seed initial state, then rely on `/ws` for deltas.
+  4. On normal disconnect: client closes with code 1000 ('normal closure') or 1001 ('going away'). The broadcaster unregisters silently.
+  5. On server shutdown (SIGINT / SIGTERM): the broadcaster sends close code 1001 + reason `'server shutdown'` to every client, then closes the http listener.
+  6. **Backpressure**: if a client's outbound buffer (`bufferedAmount`) exceeds an implementation-defined threshold (the reference impl uses 4 MiB), the broadcaster closes that client with code 1009 ('message too big') and unregisters it. Clients SHOULD reconnect after backpressure eviction with a fresh `/api/scan` poll.
+  7. **Reconnect responsibility**: the server does NOT reconnect on the client's behalf and does NOT replay missed events on reconnect. The client SHOULD treat `/ws` as a best-effort delta channel and re-seed via `/api/scan` whenever the connection drops.
+- **Loopback-only assumption (Decision #119)**: no per-connection authentication on `/ws` through v0.6.0. The transport security boundary is the `--host` flag (defaults to `127.0.0.1`); the server rejects `--dev-cors` combined with a non-loopback `--host` precisely because that combination would expose `/ws` over the network without auth. Multi-host serve and an auth model re-open post-v0.6.0.
+
+**Graceful shutdown**: SIGINT / SIGTERM trigger a graceful close; the verb returns exit 0 on clean shutdown. Bind failure (port in use, EACCES) returns exit 2. The shutdown sequence drains the in-flight watcher batch (if any), closes every WS client with code 1001, then closes the http listener.
 
 ---
 
