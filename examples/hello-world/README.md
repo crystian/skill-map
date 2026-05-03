@@ -4,8 +4,6 @@ The smallest viable plugin. One Extractor, no storage, one test that uses `@skil
 
 Read the [Plugin author guide](../../spec/plugin-author-guide.md) for the full picture; this example is a working starting point you can copy.
 
-> **Example status — pending code-side rename (May 2026)**: this README describes the target post-v0.8.0 Extractor model. The example's `.js` files (`extensions/greet-detector.js`, `test/greet-detector.test.js`) and the manifest still carry legacy `Detector`-era naming (`kind: 'detector'`, `detect(ctx)` returning an array, `runDetectorOnFixture` import) and do not run against the current `@skill-map/testkit`. Treat this example as a documentation reference until the code-side rename PR ships; the file rename, the `extract(ctx) → void` callback shape, and the `runExtractorOnFixture` import all land together.
-
 ## What it does
 
 The `hello-world-greet` Extractor scans node bodies for tokens of the form `[[greet:<name>]]` and emits one `references` link per distinct name. It is intentionally trivial — the goal is to demonstrate the smallest shape of a real Extractor, not to do anything useful at runtime.
@@ -28,11 +26,13 @@ scanning the file above produces two links: `→ architect` and `→ sre`.
 hello-world/
 ├── plugin.json
 ├── README.md
-└── extensions/
-    └── greet-detector.js   # to be renamed to greet-extractor.js in the code-side PR
+├── extensions/
+│   └── greet-extractor.js
+└── test/
+    └── greet-extractor.test.js
 ```
 
-`plugin.json` declares one extension and pins to `^1.0.0` of the spec. `extensions/greet-detector.js` is the runtime instance — its `default` export carries both the manifest fields and (post-rename) the `extract(ctx) → void` method that emits links via `ctx.emitLink(link)`.
+`plugin.json` declares one extension and pins to `^1.0.0` of the spec. `extensions/greet-extractor.js` is the runtime instance — its `default` export carries both the manifest fields and the `extract(ctx) → void` method that emits links via `ctx.emitLink(link)`.
 
 ## Try it locally
 
@@ -43,7 +43,7 @@ cp -r path/to/hello-world .skill-map/plugins/
 
 # 2. Verify the kernel can load it.
 sm plugins list
-# post-rename expected: enabled    hello-world@1.0.0 · extractor:hello-world/hello-world-greet
+# expected: enabled    hello-world@1.0.0 · extractor:hello-world/hello-world-greet
 
 # 3. Plant a fixture node and scan.
 mkdir -p .claude/agents
@@ -62,18 +62,18 @@ sm scan
 
 ## Test it with `@skill-map/testkit`
 
-The `test/` folder contains a Node test that drives the Extractor through `runExtractorOnFixture` (the helper's current name; the example's import will switch from `runDetectorOnFixture` in the code-side rename PR). The test ships JS (no TypeScript) so you can run it without a build step.
+The `test/` folder contains a Node test that drives the Extractor through `runExtractorOnFixture`. The test ships JS (no TypeScript) so you can run it without a build step.
 
 ```bash
 # In a real plugin:
 npm install --save-dev @skill-map/testkit
-node --test test/greet-detector.test.js
+node --test test/greet-extractor.test.js
 
 # Inside this monorepo (where @skill-map/testkit is a workspace):
 mkdir -p node_modules/@skill-map
 ln -sfn ../../testkit node_modules/@skill-map/testkit
 ln -sfn ../../src     node_modules/@skill-map/cli
-node --test test/greet-detector.test.js
+node --test test/greet-extractor.test.js
 ```
 
 For a real plugin you would normally:
