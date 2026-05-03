@@ -11,7 +11,15 @@
       `content` to `demo` and bundles a precomputed snapshot alongside.
     -->
     <meta name="skill-map-mode" content="live" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      Adaptive SVG favicon: the file carries an inline `prefers-color-scheme`
+      <style> block that flips strokes/fills between dark and light browser
+      tabs. The PNG entry is a last-resort fallback for ancient clients that
+      don't render SVG favicons. Mirrors web/index.html so the SPA and the
+      marketing site share one source of truth.
+    -->
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
   </head>
   <body>
     <app-root></app-root>
