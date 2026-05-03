@@ -27,12 +27,26 @@ export class App implements OnInit {
   protected readonly texts = APP_TEXTS;
   readonly count = this.loader.count;
   readonly themeMode = this.theme.mode;
-  readonly themeIcon = computed(() =>
-    this.themeMode() === 'dark' ? 'pi pi-sun' : 'pi pi-moon',
-  );
-  readonly themeLabel = computed(() =>
-    this.themeMode() === 'dark' ? THEME_TEXTS.toggleToLight : THEME_TEXTS.toggleToDark,
-  );
+  readonly themeIcon = computed(() => {
+    switch (this.themeMode()) {
+      case 'auto':
+        return 'pi pi-desktop';
+      case 'light':
+        return 'pi pi-sun';
+      case 'dark':
+        return 'pi pi-moon';
+    }
+  });
+  readonly themeLabel = computed(() => {
+    switch (this.themeMode()) {
+      case 'auto':
+        return THEME_TEXTS.toggleToLight;
+      case 'light':
+        return THEME_TEXTS.toggleToDark;
+      case 'dark':
+        return THEME_TEXTS.toggleToAuto;
+    }
+  });
 
   ngOnInit(): void {
     void this.loader.load();

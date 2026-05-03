@@ -1,3 +1,18 @@
+<!--
+  Viewport guard: skill-map UI is desktop-only (≥1024px) per ROADMAP §Step 14.7.
+  CSS-only — the overlay is always in the DOM and shows itself at narrow
+  widths via media query, so we don't pay a JS / matchMedia listener for
+  what the browser already does for free.
+-->
+<div class="viewport-warning" role="alert" data-testid="viewport-warning">
+  <div class="viewport-warning__card">
+    <i class="pi pi-desktop viewport-warning__icon" aria-hidden="true"></i>
+    <h2 class="viewport-warning__title">{{ texts.viewportWarning.title }}</h2>
+    <p class="viewport-warning__subtitle">{{ texts.viewportWarning.subtitle }}</p>
+    <p class="viewport-warning__body">{{ texts.viewportWarning.body }}</p>
+  </div>
+</div>
+
 <div class="shell" data-testid="shell">
   <sm-demo-banner />
   <header class="shell__topbar" data-testid="shell-topbar">

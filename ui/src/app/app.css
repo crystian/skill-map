@@ -108,6 +108,9 @@
   margin: 0 auto;
 }
 
+/* Tighten the topbar at the lower end of the supported range (1024–1280px).
+   Below 1024px the viewport-warning overlay takes over, so no further
+   responsive shrinking is needed. */
 @media (max-width: 1280px) {
   .shell__topbar {
     gap: 1rem;
@@ -125,16 +128,72 @@
   }
 }
 
-@media (max-width: 1024px) {
-  .shell__topbar {
-    flex-wrap: wrap;
+/* Desktop-only viewport guard (≥1024px). Hidden by default; shown as a
+   sticky top BANNER at narrower widths — not a full-screen overlay.
+   The shell stays rendered underneath; the layout below the banner WILL
+   look broken on mobile (≥1024px is the design target), but the user
+   can still scroll the content. The banner makes the "by design"
+   intent unmistakable while preserving access to whatever the user was
+   trying to reach. CSS-only, no JS — the browser handles the media
+   query natively, so the banner appears/disappears on resize without a
+   reload. */
+.viewport-warning {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .viewport-warning {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100000;
+    padding: 0.75rem 1rem;
+    background: color-mix(in srgb, var(--sm-bg-content) 88%, var(--p-red-500));
+    border-bottom: 4px solid var(--p-red-500);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
   }
-  .shell__nav {
-    order: 3;
-    width: 100%;
-    margin-left: 0;
+  .viewport-warning__card {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.5rem 0.85rem;
+    max-width: 56rem;
+    margin: 0 auto;
   }
-  .shell__actions {
-    margin-left: auto;
+  .viewport-warning__icon {
+    grid-row: span 3;
+    font-size: 2rem;
+    color: var(--p-red-500);
+    align-self: center;
+  }
+  .viewport-warning__title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--p-text-color);
+    line-height: 1.2;
+  }
+  .viewport-warning__subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--p-red-500);
+    line-height: 1.3;
+  }
+  .viewport-warning__body {
+    margin: 0;
+    color: var(--p-text-muted-color);
+    line-height: 1.4;
+    font-size: 0.8rem;
+  }
+
+  /* Push the shell topbar out of the banner's overlap so it is not
+     hidden underneath. The exact offset matches the banner's intrinsic
+     height for a viewport-narrow layout (icon row ~32px + 2 lines of
+     text + padding + border ≈ 88–112px). Generous overshoot keeps the
+     header readable without measuring per-viewport. */
+  .shell {
+    padding-top: 7rem;
   }
 }

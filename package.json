@@ -13,7 +13,8 @@
     "spec",
     "src",
     "testkit",
-    "ui"
+    "ui",
+    "e2e"
   ],
   "scripts": {
     "start": "npm start --workspace=ui",
@@ -23,6 +24,8 @@
     "cli:reference": "node scripts/build-cli-reference.js",
     "cli:check": "node scripts/build-cli-reference.js --check",
     "site:build": "npm run demo:build && node scripts/build-site.js",
+    "ui:bundle-analyze": "npm run build --workspace=ui -- --configuration=analyze && source-map-explorer ui/dist/ui/browser/*.js --no-border-checks",
+    "smoke:demo": "npm run demo:build && npm run test:smoke --workspace=skill-map-e2e",
     "demo:build": "npm run build --workspace=ui && node scripts/build-demo-dataset.js && cp -R ui/dist/ui/browser/. web/demo/ && node scripts/patch-demo-mode.js",
     "web": "node scripts/dev-server.js",
     "web:docker:build": "docker build -t skill-map-test .",
@@ -44,7 +47,8 @@
     "changeset:publish": "changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "2.31.0"
+    "@changesets/cli": "2.31.0",
+    "source-map-explorer": "2.5.3"
   },
   "engines": {
     "node": ">=24.0"

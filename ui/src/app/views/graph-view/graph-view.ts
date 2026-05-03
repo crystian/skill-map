@@ -19,6 +19,9 @@ import {
   FVirtualFor,
   FZoomDirective,
   EFConnectableSide,
+  EFConnectionBehavior,
+  EFConnectionType,
+  EFMarkerType,
   EFZoomDirection,
   type FCanvasChangeEvent,
 } from '@foblex/flow';
@@ -137,6 +140,15 @@ export class GraphView implements OnInit, OnDestroy {
 
   readonly outputSide = EFConnectableSide.BOTTOM;
   readonly inputSide = EFConnectableSide.TOP;
+
+  // Connection visual contract — typed via Foblex enums instead of raw
+  // string literals so a future enum rename surfaces at compile time.
+  // `END_ALL_STATES` covers selected + non-selected with the same arrow
+  // glyph (we currently disable connection selection, but this stays
+  // correct if `[fSelectionDisabled]` is ever flipped).
+  readonly connectionType = EFConnectionType.SEGMENT;
+  readonly connectionBehavior = EFConnectionBehavior.FIXED;
+  readonly markerEnd = EFMarkerType.END_ALL_STATES;
 
   /**
    * Compile-time defaults from `models/settings.ts`. Read directly today;

@@ -57,8 +57,8 @@
               <f-connection
                 [fOutputId]="edge.from + '-out'"
                 [fInputId]="edge.to + '-in'"
-                fType="segment"
-                fBehavior="fixed"
+                [fType]="connectionType"
+                [fBehavior]="connectionBehavior"
                 [fOffset]="4"
                 [fReassignDisabled]="true"
                 [fSelectionDisabled]="true"
@@ -66,7 +66,7 @@
                 [class.f-conn--highlighted]="isEdgeHighlighted(edge)"
                 [class.f-conn--dimmed]="isEdgeDimmed(edge)"
               >
-                <f-connection-marker-arrow type="end" />
+                <f-connection-marker-arrow [type]="markerEnd" />
               </f-connection>
             }
           </ng-container>
