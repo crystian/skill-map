@@ -2141,6 +2141,8 @@ Decisions from working sessions 2026-04-19 / 20 / 21 plus pre-session carry-over
 - **Plugin signing / hash verification**. Post v1.0 distribution hardening.
 - **Telemetry (opt-in)**. Know which Extractors / Actions are used in the wild.
 - **`.ts` migrations** (escape hatch for SQL-impossible data transforms).
+- **`sm graph --root <node-path>` (focused subgraph render)**. Today `sm graph` always renders the whole collection through the chosen formatter; on large scopes the user has no way to focus on "what does THIS node connect to". Surface a `--root` flag that scopes the render to the transitive closure (in + out edges) of the named node, with `--depth N` to bound the walk. Useful for inspector-style flows from the CLI without round-tripping through `sm export`.
+- **`sm conformance run --format json` (machine-readable conformance output)**. Today the runner prints a human summary; CI pipelines that want to gate on per-case results have to parse the prose. Add `--format json` returning `{ scope, cases: [{ id, status, durationMs, message? }], totals }`, mirroring the JSON shape of `sm version` / `/api/health`.
 
 ---
 
