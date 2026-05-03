@@ -54,7 +54,7 @@ This chains: `npm run build --workspace=ui && node scripts/build-demo-dataset.js
 
 ## Test IDs
 
-Every interactive or test-targetable element carries a `data-testid` attribute (kebab-case, shaped as `<area>-<element>` or `<area>-<element>-<modifier>`). The codebase has no E2E tests today, but the IDs are placed proactively so future Playwright / Cypress / Vitest-Testing-Library flows land on stable selectors. Full convention in [`AGENTS.md`](../AGENTS.md) §UI test IDs.
+Every interactive or test-targetable element carries a `data-testid` attribute (kebab-case, shaped as `<area>-<element>` or `<area>-<element>-<modifier>`). The codebase has no E2E tests today, but the IDs are placed proactively so future Playwright / Cypress / Vitest-Testing-Library flows land on stable selectors. Full convention in [`context/ui.md`](../context/ui.md) §UI test IDs.
 
 ## Design system
 
