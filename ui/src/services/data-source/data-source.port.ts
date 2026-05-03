@@ -27,6 +27,7 @@ import type {
   IProjectConfigApi,
   IScanResultApi,
 } from '../../models/api';
+import type { IWsEvent } from '../../models/ws-event';
 
 /**
  * `/api/nodes` query bag. Lists are comma-joined when serialized to
@@ -107,10 +108,15 @@ export interface IDataSourcePort {
   listPlugins(): Promise<IListEnvelopeApi<TPluginItem>>;
 
   /**
-   * WebSocket-backed event stream. Returns `EMPTY` at 14.3.a (no
-   * broadcaster yet); 14.4 swaps in the real impl.
+   * WebSocket-backed event stream. In live mode, returns the
+   * `WsEventStreamService` multicast observable that connects to `/ws`
+   * on first subscribe. In demo mode, returns `EMPTY` (no live updates
+   * — the static bundle is immutable).
+   *
+   * Consumers narrow events by `event.type`; unknown types MUST be
+   * skipped silently per `spec/job-events.md` forward-compat rule.
    */
-  events(): Observable<unknown>;
+  events(): Observable<IWsEvent>;
 }
 
 /**

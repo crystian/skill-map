@@ -10,16 +10,41 @@
       <ng-template #content>
         <span class="pi" [class.pi-chevron-down]="expanded()" [class.pi-chevron-up]="!expanded()"></span>
         <strong>{{ texts.title }}</strong>
+        @if (count() > 0) {
+          <span class="eventlog__count" data-testid="event-log-count">{{ count() }}</span>
+        }
       </ng-template>
     </p-togglebutton>
   </header>
 
   @if (expanded()) {
     <div class="eventlog__body">
-      <div class="eventlog__empty-state" data-testid="event-log-empty">
-        <span class="pi pi-inbox"></span>
-        {{ texts.emptyState }}
-      </div>
+      @if (streamError(); as err) {
+        <div class="eventlog__row eventlog__row--error" data-testid="event-log-stream-error">
+          <span class="msg">{{ texts.streamError(err) }}</span>
+        </div>
+      }
+      @if (events().length === 0) {
+        <div class="eventlog__empty-state" data-testid="event-log-empty">
+          <span class="pi pi-inbox"></span>
+          {{ isDemo ? texts.emptyStateDemo : texts.emptyStateLive }}
+        </div>
+      } @else {
+        @for (row of events(); track row.key) {
+          <div
+            class="eventlog__row"
+            [class.eventlog__row--info]="row.severity === 'info'"
+            [class.eventlog__row--success]="row.severity === 'success'"
+            [class.eventlog__row--warn]="row.severity === 'warn'"
+            [class.eventlog__row--error]="row.severity === 'error'"
+            [attr.data-testid]="'event-log-row-' + row.key"
+          >
+            <time>{{ row.time }}</time>
+            <span class="name">{{ row.type }}</span>
+            <span class="msg">{{ row.digest || texts.noPayloadDetails }}</span>
+          </div>
+        }
+      }
     </div>
   }
 </aside>

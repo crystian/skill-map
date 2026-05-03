@@ -30,6 +30,7 @@ import { inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
+import { WsEventStreamService } from '../ws-event-stream';
 import type { IDataSourcePort } from './data-source.port';
 import { RestDataSource } from './rest-data-source';
 import { StaticDataSource } from './static-data-source';
@@ -38,7 +39,7 @@ import { SKILL_MAP_MODE } from './runtime-mode';
 export function dataSourceFactory(): IDataSourcePort {
   const mode = inject(SKILL_MAP_MODE);
   if (mode === 'live') {
-    return new RestDataSource(inject(HttpClient));
+    return new RestDataSource(inject(HttpClient), inject(WsEventStreamService));
   }
   if (mode === 'demo') {
     return new StaticDataSource();

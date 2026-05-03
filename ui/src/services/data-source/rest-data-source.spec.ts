@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { HttpClient } from '@angular/common/http';
 import {
@@ -6,10 +6,13 @@ import {
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
 import { provideHttpClient } from '@angular/common/http';
+import { Subject } from 'rxjs';
 
 import { DataSourceError } from './data-source.port';
 import { RestDataSource, __testHooks } from './rest-data-source';
 import { encodeNodePath } from './path-codec';
+import { WsEventStreamService } from '../ws-event-stream';
+import type { IWsEvent } from '../../models/ws-event';
 
 const HEALTH_FIXTURE = {
   ok: true,
@@ -58,17 +61,25 @@ const NODE_DETAIL = {
 describe('RestDataSource', () => {
   let httpMock: HttpTestingController;
   let ds: RestDataSource;
+  let wsSubject: Subject<IWsEvent>;
+  let fakeWs: WsEventStreamService;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     httpMock = TestBed.inject(HttpTestingController);
-    ds = new RestDataSource(TestBed.inject(HttpClient));
+    wsSubject = new Subject<IWsEvent>();
+    fakeWs = {
+      events$: wsSubject.asObservable(),
+      disconnect: vi.fn(),
+    } as unknown as WsEventStreamService;
+    ds = new RestDataSource(TestBed.inject(HttpClient), fakeWs);
   });
 
   afterEach(() => {
     httpMock.verify();
+    wsSubject.complete();
   });
 
   it('health() GETs /api/health and returns the body', async () => {
@@ -194,19 +205,18 @@ describe('RestDataSource', () => {
     await promise;
   });
 
-  it('events() returns EMPTY (no broadcaster wired at 14.3.a)', () => {
-    let nextCalled = false;
-    let completeCalled = false;
-    ds.events().subscribe({
-      next: () => {
-        nextCalled = true;
-      },
-      complete: () => {
-        completeCalled = true;
-      },
+  it('events() forwards frames from the injected WsEventStreamService', () => {
+    const received: IWsEvent[] = [];
+    ds.events().subscribe((e) => received.push(e));
+    wsSubject.next({
+      type: 'scan.completed',
+      timestamp: 100,
+      runId: 'r-x',
+      jobId: null,
+      data: { nodes: 1, links: 0, issues: 0, durationMs: 7 },
     });
-    expect(nextCalled).toBe(false);
-    expect(completeCalled).toBe(true);
+    expect(received).toHaveLength(1);
+    expect(received[0]!.type).toBe('scan.completed');
   });
 
   it('translates 5xx with error envelope into DataSourceError carrying the code', async () => {

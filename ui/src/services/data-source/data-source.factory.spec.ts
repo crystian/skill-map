@@ -15,6 +15,10 @@ describe('dataSourceFactory', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
+        // SKILL_MAP_MODE drives both the factory branch and the
+        // WsEventStreamService's connect-vs-no-op decision. Demo mode
+        // here keeps the WS service from trying to open a socket when
+        // the factory probes the live branch under TestBed.
         { provide: SKILL_MAP_MODE, useValue: mode },
       ],
     });

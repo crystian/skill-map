@@ -8,6 +8,18 @@
  * `byKind`) keep their pre-refactor surface so list / graph / inspector
  * views consume them unchanged.
  *
+ * Step 14.4.b reactive refresh: in live mode, the loader subscribes to
+ * `dataSource.events()` and re-runs `load()` whenever a `scan.completed`
+ * event lands. List / graph / inspector views re-render automatically
+ * because they read from the `nodes()` / `scan()` signals.
+ *
+ * Concurrency: a refresh that arrives while one is already in flight
+ * coalesces — `pending = true` is set, and the in-flight resolution
+ * triggers a single follow-up. This avoids the "every event fires a new
+ * `loadScan`" pile-up during a large workspace scan that emits multiple
+ * `scan.completed` envelopes (single-node scans, in-flight reconnect
+ * replays, etc.).
+ *
  * The full `IScanResultApi` is also exposed via `scan()` so consumers
  * that need `links` / `issues` / `stats` (graph-view today; future
  * inspector cards) can read them without a second round-trip.
@@ -25,7 +37,9 @@
  *     real summarizer (Step 9+) will replace this entirely.
  */
 
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { filter } from 'rxjs/operators';
 
 import type {
   INodeView,
@@ -46,11 +60,19 @@ const KNOWN_KINDS: ReadonlySet<TNodeKind> = new Set([
 @Injectable({ providedIn: 'root' })
 export class CollectionLoaderService {
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly _nodes = signal<INodeView[]>([]);
   private readonly _scan = signal<IScanResultApi | null>(null);
   private readonly _loading = signal<boolean>(false);
   private readonly _error = signal<string | null>(null);
+
+  /**
+   * Coalesce flag: set to `true` when a refresh arrives mid-flight. The
+   * in-flight `load()` checks the flag in its `finally` and fires
+   * exactly one follow-up regardless of how many events came in.
+   */
+  private pendingRefresh = false;
 
   readonly nodes = this._nodes.asReadonly();
   readonly scan = this._scan.asReadonly();
@@ -72,8 +94,40 @@ export class CollectionLoaderService {
     return buckets;
   });
 
+  constructor() {
+    // Live-mode reactive refresh: every `scan.completed` event triggers
+    // a re-fetch. Demo mode's `events()` is `EMPTY` so the subscription
+    // immediately completes and never fires.
+    //
+    // We DON'T filter on `extractor.completed` / `rule.completed` /
+    // `scan.progress` — re-fetching mid-scan would thrash the views
+    // for no perceived benefit (the next `scan.completed` carries the
+    // settled snapshot). Future work: per-Issue incremental updates
+    // via `issue.added` / `issue.resolved` once the BFF emits them.
+    this.dataSource
+      .events()
+      .pipe(
+        filter((event) => event.type === 'scan.completed'),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        // Fire-and-forget — load() handles its own errors via the
+        // `error()` signal. We don't await here because the subject's
+        // `next` is synchronous and we don't want to block its dispatch
+        // on a network round-trip.
+        void this.load();
+      });
+  }
+
   async load(): Promise<void> {
-    if (this._loading()) return;
+    if (this._loading()) {
+      // A refresh is in flight. Mark as pending so the in-flight load's
+      // `finally` fires exactly one follow-up. This collapses N
+      // back-to-back `scan.completed` events into at most one extra
+      // round-trip per in-flight load.
+      this.pendingRefresh = true;
+      return;
+    }
     this._loading.set(true);
     this._error.set(null);
     try {
@@ -85,6 +139,15 @@ export class CollectionLoaderService {
       this._error.set(msg);
     } finally {
       this._loading.set(false);
+      if (this.pendingRefresh) {
+        this.pendingRefresh = false;
+        // Defer to a microtask so the loading/false notification flushes
+        // through any sync subscribers before the next `load()` flips
+        // it back to true.
+        queueMicrotask(() => {
+          void this.load();
+        });
+      }
     }
   }
 }

@@ -20,7 +20,7 @@
 
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { EMPTY, type Observable, firstValueFrom } from 'rxjs';
+import { type Observable, firstValueFrom } from 'rxjs';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
 import type {
@@ -35,6 +35,8 @@ import type {
   IScanResultApi,
   IValueEnvelopeApi,
 } from '../../models/api';
+import type { IWsEvent } from '../../models/ws-event';
+import { WsEventStreamService } from '../ws-event-stream';
 import { encodeNodePath } from './path-codec';
 import {
   DataSourceError,
@@ -51,13 +53,16 @@ const BASE = '/api';
 @Injectable({ providedIn: 'root' })
 export class RestDataSource implements IDataSourcePort {
   private readonly http: HttpClient;
+  private readonly ws: WsEventStreamService;
 
-  constructor(http?: HttpClient) {
-    // The factory passes `HttpClient` explicitly; the `@Injectable`
-    // path uses Angular DI. Both call sites resolve to the same
-    // singleton — keep the constructor flexible to support manual
-    // `new RestDataSource(http)` for tests / factory wiring.
+  constructor(http?: HttpClient, ws?: WsEventStreamService) {
+    // The factory passes `HttpClient` + `WsEventStreamService`
+    // explicitly; the `@Injectable` path uses Angular DI. Both call
+    // sites resolve to the same singleton — keep the constructor
+    // flexible to support manual `new RestDataSource(http, ws)` for
+    // tests / factory wiring.
     this.http = http ?? inject(HttpClient);
+    this.ws = ws ?? inject(WsEventStreamService);
   }
 
   async health(): Promise<IHealthResponseApi> {
@@ -116,11 +121,13 @@ export class RestDataSource implements IDataSourcePort {
   }
 
   /**
-   * 14.3.a returns `EMPTY` — there is no broadcaster yet. 14.4 swaps in
-   * a WebSocket-backed observable.
+   * Live event stream from the BFF's `/ws` channel. Multicast — every
+   * subscriber receives every frame while the socket stays open. The
+   * underlying `WsEventStreamService` opens the socket lazily on first
+   * subscribe and reconnects with exponential backoff on abnormal close.
    */
-  events(): Observable<unknown> {
-    return EMPTY;
+  events(): Observable<IWsEvent> {
+    return this.ws.events$;
   }
 
   private async getJson<T>(url: string): Promise<T> {

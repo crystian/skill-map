@@ -46,6 +46,7 @@ import type {
   IProjectConfigApi,
   IScanResultApi,
 } from '../../models/api';
+import type { IWsEvent } from '../../models/ws-event';
 import {
   DataSourceError,
   type IDataSourcePort,
@@ -224,7 +225,7 @@ export class StaticDataSource implements IDataSourcePort {
     return meta.plugins;
   }
 
-  events(): Observable<unknown> {
+  events(): Observable<IWsEvent> {
     return EMPTY;
   }
 
