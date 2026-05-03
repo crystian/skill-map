@@ -72,6 +72,16 @@ export class NodeCard {
   protected readonly texts = NODE_CARD_TEXTS;
 
   /**
+   * Visibility flags for LLM-derived surfaces on the graph card.
+   * Both default to `false` while the dedicated LLM panel / chat owns
+   * this content. Flip to `true` here to bring the markup back without
+   * touching the template — the template still references both flags
+   * around the original elements, preserving structure & position.
+   */
+  protected readonly showLlmWhat = false;
+  protected readonly showLlmConfidence = false;
+
+  /**
    * Expand state as a two-way model so the parent (graph-view) can own
    * persistence. Defaults to collapsed; the chevron toggles it via
    * `toggleExpanded()`, which writes back through the model and lets
@@ -126,8 +136,47 @@ export class NodeCard {
     return s?.kind === 'note' ? s : null;
   });
 
-  /** True if any LLM cluster row would render — gates the cluster wrapper. */
-  protected readonly hasLlmCluster = computed<boolean>(() => this.summary() !== null);
+  /**
+   * True if any LLM cluster row would render — gates the cluster wrapper
+   * so it does not paint its padding around an empty body. WHAT is the
+   * one row every kind has; when `showLlmWhat` is off, we drop the
+   * cluster entirely unless some other kind-specific row has data.
+   */
+  protected readonly hasLlmCluster = computed<boolean>(() => {
+    const s = this.summary();
+    if (s === null) return false;
+    if (this.showLlmWhat) return true;
+    return this.hasNonWhatLlmContent(s);
+  });
+
+  /**
+   * True when any LLM-derived field OTHER than WHAT has content for the
+   * given summary. Used to decide whether the cluster wrapper should
+   * paint its padding when WHAT is hidden — without this check the card
+   * would render an empty bordered box for kinds whose summary only had
+   * `whatItDoes`/`whatItCovers` populated.
+   */
+  private hasNonWhatLlmContent(s: TSummary): boolean {
+    switch (s.kind) {
+      case 'note':
+        return (s.topics?.length ?? 0) > 0 || (s.keyFacts?.length ?? 0) > 0;
+      case 'agent':
+        return Boolean(s.whenToUse) || Boolean(s.interactionStyle) || (s.capabilities?.length ?? 0) > 0;
+      case 'skill':
+        return (
+          (s.recipe?.length ?? 0) > 0 ||
+          (s.preconditions?.length ?? 0) > 0 ||
+          (s.outputs?.length ?? 0) > 0 ||
+          (s.sideEffects?.length ?? 0) > 0
+        );
+      case 'command':
+        return Boolean(s.invocationExample) || (s.sideEffects?.length ?? 0) > 0;
+      case 'hook':
+        return Boolean(s.triggerInferred) || (s.sideEffects?.length ?? 0) > 0;
+      default:
+        return false;
+    }
+  }
 
   /** True if the node has prompt-injection flagged in safety. */
   protected readonly hasInjection = computed<boolean>(
