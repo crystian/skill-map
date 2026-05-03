@@ -171,7 +171,7 @@
     "algorithm": "sha256",
     "files": {
       "CHANGELOG.md": "e99ca15631aa9ce6392612d055379d5cb2f2757df2008c8c184acc059a4178c3",
-      "README.md": "bd30780525e75379eaeb5f8a903bdc601daf3862f3ec69dffc96c437e8d476fc",
+      "README.md": "97fd3079092182c677669c25f44e08b0f6579faaa3406d8cb5a884e37e9eef97",
       "architecture.md": "c14e69faa7ce7f657d6a2790762daaea8a5ff350375de8c254cd870b5494b896",
       "cli-contract.md": "b1bcc891e9d645afe06daeb5f6b54025cae46e090628c926ab112e1e9e641ff7",
       "conformance/README.md": "5f94a6ac637b7c992fcd7e53d32eed1b8887eeef05eb6ca3b5ec8a0b5045cd21",
