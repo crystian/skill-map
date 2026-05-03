@@ -32,6 +32,18 @@ RUN npm run build -w ui -- --base-href=/demo/
 COPY scripts/patch-demo-mode.js ./scripts/patch-demo-mode.js
 RUN node scripts/patch-demo-mode.js ui/dist/ui/browser/index.html
 
+# Generate the demo snapshot the StaticDataSource fetches at runtime
+# (`<base>/data.json` + `<base>/data.meta.json`). Without these the SPA
+# falls through Caddy's SPA fallback to index.html and trips a
+# JSON.parse on `<!DOCTYPE...`. The dataset script spawns `sm scan`
+# over `ui/fixtures/demo-scope/`; with no built CLI in this stage it
+# falls back to its tsx-driven source-entry path, so we need spec/ +
+# src/ + scripts/ in scope.
+COPY spec/ ./spec/
+COPY src/ ./src/
+COPY scripts/build-demo-dataset.js ./scripts/build-demo-dataset.js
+RUN node scripts/build-demo-dataset.js
+
 # ------------ landing build stage ------------
 FROM node:24-alpine AS build
 WORKDIR /app
@@ -50,6 +62,11 @@ COPY --from=build /app/.tmp/site /usr/share/caddy
 # default output of @angular/build:application; we promote it so the
 # demo lives at /usr/share/caddy/demo/index.html.
 COPY --from=ui-build /app/ui/dist/ui/browser /usr/share/caddy/demo
+# Drop the generated demo dataset alongside the bundle. Two files:
+# `data.json` (raw ScanResult) + `data.meta.json` (pre-derived
+# envelopes). StaticDataSource fetches both relative to <base href>.
+COPY --from=ui-build /app/web/demo/data.json /usr/share/caddy/demo/data.json
+COPY --from=ui-build /app/web/demo/data.meta.json /usr/share/caddy/demo/data.meta.json
 COPY Caddyfile /etc/caddy/Caddyfile
 
 # Railway supplies $PORT at runtime; Caddyfile uses it.
