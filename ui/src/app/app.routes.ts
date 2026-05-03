@@ -1,13 +1,7 @@
 import type { Routes } from '@angular/router';
 
 export const routes: Routes = [
-  { path: '', pathMatch: 'full', redirectTo: 'list' },
-  {
-    path: 'list',
-    loadComponent: () =>
-      import('./views/list-view/list-view').then((m) => m.ListView),
-    data: { title: 'List' },
-  },
+  { path: '', pathMatch: 'full', redirectTo: 'graph' },
   {
     path: 'graph',
     loadComponent: () =>
@@ -15,10 +9,16 @@ export const routes: Routes = [
     data: { title: 'Graph' },
   },
   {
+    path: 'list',
+    loadComponent: () =>
+      import('./views/list-view/list-view').then((m) => m.ListView),
+    data: { title: 'List' },
+  },
+  {
     path: 'inspector',
     loadComponent: () =>
       import('./views/inspector-view/inspector-view').then((m) => m.InspectorView),
     data: { title: 'Inspector' },
   },
-  { path: '**', redirectTo: 'list' },
+  { path: '**', redirectTo: 'graph' },
 ];

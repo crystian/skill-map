@@ -11,8 +11,8 @@ export const APP_TEXTS = {
   brand: 'skill-map',
   tag: 'ui prototype · Step 3',
   nav: {
-    list: 'List',
     graph: 'Graph',
+    list: 'List',
     inspector: 'Inspector',
   },
   actions: {},
