@@ -17,6 +17,8 @@ metadata:
   updated: 2026-04-10
   supersedes:
     - .claude/agents/frontend-old.md
+  requires:
+    - .claude/skills/code-review/SKILL.md
 ---
 
 # Frontend Specialist

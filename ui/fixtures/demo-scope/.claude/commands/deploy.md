@@ -22,4 +22,4 @@ metadata:
 
 # /deploy
 
-Runs #code-review on the staged diff first. Production deploys require a green review and an explicit confirmation prompt. Triggered after a successful build via @backend-architect's release checklist.
+Runs #code-review on the staged diff first. Production deploys require a green review and an explicit confirmation prompt. Triggered after a successful build via @frontend-specialist's release checklist.
