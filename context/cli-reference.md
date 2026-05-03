@@ -82,7 +82,8 @@ OR within comma-separated values. Keys: `kind` (skill / agent / command / hook /
 note), `has` (issues), `path` (POSIX glob — `*` matches a single segment, `**` 
 matches across segments).
 
-Pass an empty query (`""`) to export every node.
+Pass an empty query (`""`) — or omit the argument entirely — to export every 
+node.
 
 Run `sm scan` first to populate the DB.
 
@@ -97,6 +98,10 @@ Run `sm scan` first to populate the DB.
 
 **Examples:**
 
+- Whole graph (no query)
+  ```
+  sm export --format md
+  ```
 - Every command node
   ```
   sm export "kind=command" --format json
@@ -108,10 +113,6 @@ Run `sm scan` first to populate the DB.
 - Files under a path glob
   ```
   sm export "path=.claude/commands/**" --format json
-  ```
-- Whole graph as Markdown
-  ```
-  sm export "" --format md
   ```
 
 ### `sm findings`
@@ -432,7 +433,8 @@ afterwards refreshes scan_*.
 
 SQL dump to stdout.
 
-Read-only. Use --tables <names...> to limit the dump to specific tables.
+Read-only. Pure node:sqlite — no external `sqlite3` binary required. Use 
+--tables <names...> to limit the dump to specific tables.
 
 **Flags:**
 
@@ -1070,6 +1072,38 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
 ### `sm doctor`
 
 Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status, runner availability. (planned)
+
+### `sm guide`
+
+Materialize the interactive tester guide (sm-guide.md) in the current directory.
+
+Drops the canonical SKILL.md content as ./sm-guide.md so a tester can open 
+Claude Code in the cwd and trigger the sm-guide skill ("guíame"). Top-level only 
+— no subdirectory is created.
+
+Does NOT require an initialized .skill-map/ project. Refuses to overwrite an 
+existing sm-guide.md unless --force is passed.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+- `--force` `boolean` — Overwrite an existing sm-guide.md without prompting.
+
+**Examples:**
+
+- Materialize the guide in the cwd
+  ```
+  sm guide
+  ```
+- Overwrite an existing sm-guide.md
+  ```
+  sm guide --force
+  ```
 
 ### `sm init`
 

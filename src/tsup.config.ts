@@ -65,10 +65,38 @@ export default defineConfig({
     if (existsSync('config/defaults')) {
       cpSync('config/defaults', 'dist/config/defaults', { recursive: true });
     }
+    copyGuideSkill();
     copyUiBundle();
     restoreNodeSqliteImports('dist');
   },
 });
+
+/**
+ * Copy the `sm-guide` SKILL.md from `.claude/skills/sm-guide/` (repo
+ * root) into `dist/cli/guide/sm-guide.md` so the published tarball
+ * ships the file the `sm guide` verb materializes. The runtime
+ * resolver in `src/cli/commands/guide.ts` walks both layouts (dev →
+ * repo source; bundled → this copy).
+ *
+ * Soft-fail: when running outside the monorepo (rare — we only build
+ * inside `src/`), warn and move on instead of failing the CLI build.
+ * The runtime resolver still falls back to the repo-source candidate
+ * in dev mode, and the verb surfaces `sourceMissing` to users in the
+ * pathological case where neither path resolves.
+ */
+function copyGuideSkill(): void {
+  const source = '../.claude/skills/sm-guide/SKILL.md';
+  if (!existsSync(source)) {
+    process.stderr.write(
+      `tsup: skipping sm-guide copy — ${source} not found ` +
+      '(expected at repo root; required for `sm guide` to ship its payload).\n',
+    );
+    return;
+  }
+  // Ensure the destination dir exists, then copy with the published
+  // filename (`sm-guide.md`) — matches what the verb writes to cwd.
+  cpSync(source, 'dist/cli/guide/sm-guide.md');
+}
 
 /**
  * Copy the Angular SPA build output into `dist/ui/` so the published

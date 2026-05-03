@@ -104,6 +104,19 @@ Flags: `--no-scan` (skip the first scan), `--force` (rewrite an existing config)
 
 Exit: 0 on success, 2 on failure.
 
+#### `sm guide`
+
+Materialize the interactive tester guide as `sm-guide.md` in the current working directory. Companion to the `sm-guide` Claude Code skill: a tester drops into an empty directory, runs `sm guide` to seed the guide source, then opens Claude Code there and triggers the skill (which reads the file as its onboarding payload).
+
+- Writes `<cwd>/sm-guide.md` (single file, top-level — no subdirectory).
+- Content is the canonical `SKILL.md` shipped with the implementation. Any conforming implementation MUST embed an equivalent guide source (the prose itself is informative; what is normative is that `sm guide` produces a single readable file at `<cwd>/sm-guide.md` that a Claude Code skill can consume).
+- Does NOT require an initialized project — runs in any directory, including empty ones, and never reads or writes `.skill-map/`.
+- Is NOT scope-aware: `-g` is accepted (inherited global flag) but has no effect; the file is always written under the cwd.
+
+Flags: `--force` (overwrite an existing `sm-guide.md` without prompting).
+
+Exit: `0` on success; `2` if `<cwd>/sm-guide.md` already exists and `--force` was not passed (operational error — refusing to clobber); `2` on any I/O failure.
+
 #### `sm version`
 
 Prints version matrix:
