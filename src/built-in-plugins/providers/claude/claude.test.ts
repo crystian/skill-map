@@ -117,4 +117,31 @@ describe('claude provider', () => {
       ok(result.ok, `frontmatter for kind ${kind} must validate; got: ${result.ok ? '' : result.errors}`);
     }
   });
+
+  // Step 14.5.d: every kind declares its UI presentation so the BFF can
+  // build the kindRegistry and the UI never has to hardcode visuals for
+  // a built-in. The shape lives in `IProviderKindUi`; this assertion is
+  // a contract guard, not a value assertion (specific colors / labels
+  // can drift across releases).
+  it('every kind declares ui presentation (label + color, optional dark + emoji + icon)', () => {
+    const kinds = ['skill', 'agent', 'command', 'hook', 'note'] as const;
+    for (const kind of kinds) {
+      const entry = claudeProvider.kinds[kind];
+      ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);
+      ok(entry.ui, `kind ${kind} must declare ui presentation`);
+      ok(typeof entry.ui.label === 'string' && entry.ui.label.length > 0, `kind ${kind} ui.label must be a non-empty string`);
+      ok(/^#[0-9a-fA-F]{6}$/.test(entry.ui.color), `kind ${kind} ui.color must be #RRGGBB`);
+      if (entry.ui.colorDark !== undefined) {
+        ok(/^#[0-9a-fA-F]{6}$/.test(entry.ui.colorDark), `kind ${kind} ui.colorDark must be #RRGGBB when present`);
+      }
+      if (entry.ui.icon !== undefined) {
+        ok(entry.ui.icon.kind === 'pi' || entry.ui.icon.kind === 'svg', `kind ${kind} ui.icon.kind must be 'pi' or 'svg'`);
+        if (entry.ui.icon.kind === 'pi') {
+          ok(/^pi-[a-z0-9]+(-[a-z0-9]+)*$/.test(entry.ui.icon.id), `kind ${kind} ui.icon.id must match pi-* pattern`);
+        } else {
+          ok(entry.ui.icon.path.length > 0, `kind ${kind} ui.icon.path must be non-empty`);
+        }
+      }
+    }
+  });
 });

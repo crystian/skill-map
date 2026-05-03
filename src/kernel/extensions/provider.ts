@@ -78,7 +78,69 @@ export interface IProviderKind {
    * disables the Provider with status `invalid-manifest`.
    */
   defaultRefreshAction: string;
+  /**
+   * Presentation metadata the UI consumes to render nodes of this kind
+   * (palette swatches, list tags, graph nodes, filter chips). Required
+   * so the UI never has to invent visuals for a Provider-declared kind.
+   * Mirrors `extensions/provider.schema.json#/properties/kinds/.../ui`.
+   */
+  ui: IProviderKindUi;
 }
+
+/**
+ * Presentation contract for one Provider kind. The Provider declares
+ * intent (label + base color, optional dark variant + emoji + icon);
+ * the UI derives `bg`/`fg` tints per theme via a deterministic helper
+ * and reads the registry from the `kindRegistry` field embedded in REST
+ * envelopes. Single source of truth for what a kind looks like — the
+ * UI never hardcodes presentation for a built-in kind.
+ */
+export interface IProviderKindUi {
+  /**
+   * Plural human-readable label for groups of this kind (e.g. `'Skills'`,
+   * `'Agents'`, `'Cursor Rules'`). Used in filter dropdowns, palette
+   * tooltips, and any list grouping.
+   */
+  label: string;
+  /**
+   * Base hex color (`#RRGGBB`) for the light theme. The UI derives `bg`
+   * and `fg` tints from this value at runtime via a deterministic
+   * helper. Declaring one base value (instead of three) keeps the
+   * manifest small and centralises accessibility-driven contrast in the
+   * UI.
+   */
+  color: string;
+  /**
+   * Optional dark-theme variant of `color`. When absent, the UI falls
+   * back to `color`. Declared explicitly because a luminosity flip
+   * rarely matches the brand intent for kinds that should stand out in
+   * dark mode.
+   */
+  colorDark?: string;
+  /**
+   * Optional decorative emoji used as a fallback when `icon` is absent
+   * or fails to render. Length-bound so the UI can lay it out
+   * predictably alongside text.
+   */
+  emoji?: string;
+  /**
+   * Optional discriminated icon descriptor. The UI prefers `icon` over
+   * `emoji`; when both are absent, the UI falls back to the first
+   * letter of `label` colored with `color`.
+   */
+  icon?: IProviderKindIcon;
+}
+
+/**
+ * Discriminated icon contract. `pi` references a PrimeIcons identifier
+ * (e.g. `'pi-cog'`); `svg` carries raw SVG path data the UI wraps in a
+ * `<svg viewBox="0 0 24 24"><path d="…"/></svg>` element tinted with
+ * `currentColor`. The discriminator (`kind`) keeps the UI dispatch
+ * exhaustive without string-sniffing the payload.
+ */
+export type IProviderKindIcon =
+  | { kind: 'pi'; id: string }
+  | { kind: 'svg'; path: string };
 
 export interface IProvider extends IExtensionBase {
   kind: 'provider';

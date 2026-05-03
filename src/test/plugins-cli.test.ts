@@ -108,7 +108,7 @@ function dropMockProvider(
     `version: '0.1.0'`,
     `description: 'mock provider'`,
     `stability: 'experimental'`,
-    `kinds: { note: { schema: './schemas/note.schema.json', schemaJson: { $id: 'urn:test:${id}/note', type: 'object', additionalProperties: true }, defaultRefreshAction: '${id}/summarize-note' } }`,
+    `kinds: { note: { schema: './schemas/note.schema.json', schemaJson: { $id: 'urn:test:${id}/note', type: 'object', additionalProperties: true }, defaultRefreshAction: '${id}/summarize-note', ui: { label: 'Notes', color: '#5b908c' } } }`,
   ];
   if (!opts.omitExplorationDir) {
     manifestParts.push(`explorationDir: '${opts.explorationDir ?? '~/.mock'}'`);

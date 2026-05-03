@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/api/rest-envelope.schema.json",
   "title": "RestEnvelope",
-  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Three variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds, `item` for single-resource kinds, `value` for `kind: 'config'`). The `/api/scan` and `/api/health` responses are exempt — they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt — it returns the formatter's native textual output (text/plain or text/markdown).",
+  "description": "Wrapper shape for REST responses under `/api/*` (Step 14.2). Three variants distinguished by the `kind` discriminator and which payload field is present (`items` for list kinds, `item` for single-resource kinds, `value` for `kind: 'config'`). The `/api/scan` and `/api/health` responses are exempt — they carry the underlying `ScanResult` / `IHealthResponse` shape directly. The `/api/graph` response is also exempt — it returns the formatter's native textual output (text/plain or text/markdown). Step 14.5.d adds the required `kindRegistry` field on every payload-bearing variant so the UI can render Provider-declared kinds (label, color, icon) without hardcoding visuals; sentinel kinds (`health`, `scan`, `graph`) stay exempt because they don't carry an envelope payload. The change keeps `schemaVersion` at `'1'` — the BFF is greenfield (no released consumers run against `'1'` without `kindRegistry`), so a versioned migration buys nothing.",
   "type": "object",
   "required": ["schemaVersion", "kind"],
   "properties": {
     "schemaVersion": {
       "type": "string",
       "const": "1",
-      "description": "Envelope shape version. Bumped only on breaking changes."
+      "description": "Envelope shape version. Bumped only on breaking changes. The Step 14.5.d addition of `kindRegistry` keeps the version at `'1'` because there are no released consumers in the wild."
     },
     "kind": {
       "type": "string",
@@ -31,6 +31,48 @@
     "filters": {
       "type": "object",
       "description": "Echo of the URL filters the server applied, normalized into a JSON-friendly shape (arrays for multi-value filters, `null` for absent ones). Helps the client correlate the response with the request."
+    },
+    "kindRegistry": {
+      "type": "object",
+      "description": "Catalog of node kinds active in the current scope, keyed by kind name. Built once per server boot from every enabled Provider's `kinds` map and embedded into every payload-bearing envelope so the UI can render kind tags / palette swatches / graph nodes against Provider-declared visuals (label, color, icon) without ever hardcoding a closed kind enum. Sentinel envelopes (`health`, `scan`, `graph`) are exempt.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["providerId", "label", "color"],
+        "additionalProperties": false,
+        "properties": {
+          "providerId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Id of the Provider that contributed this kind. Lets the UI scope kind ownership and disambiguate when two Providers happen to declare the same kind name (kernel surfaces this as `provider-ambiguous` but the UI may still receive the merged registry during the conflict window)."
+          },
+          "label": { "type": "string", "minLength": 1 },
+          "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+          "colorDark": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+          "emoji": { "type": "string", "minLength": 1, "maxLength": 8 },
+          "icon": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["kind", "id"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": { "const": "pi" },
+                  "id": { "type": "string", "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$" }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["kind", "path"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": { "const": "svg" },
+                  "path": { "type": "string", "minLength": 1 }
+                }
+              }
+            ]
+          }
+        }
+      }
     },
     "counts": {
       "type": "object",
@@ -71,8 +113,8 @@
   },
   "oneOf": [
     {
-      "description": "List envelope — `items` payload + `counts`.",
-      "required": ["items", "counts", "filters"],
+      "description": "List envelope — `items` payload + `counts` + `kindRegistry`.",
+      "required": ["items", "counts", "filters", "kindRegistry"],
       "properties": {
         "kind": { "enum": ["nodes", "links", "issues", "plugins"] }
       },
@@ -84,8 +126,8 @@
       }
     },
     {
-      "description": "Single-resource envelope — `item` payload, no `counts` / `filters`.",
-      "required": ["item"],
+      "description": "Single-resource envelope — `item` payload + `kindRegistry`, no `counts` / `filters`.",
+      "required": ["item", "kindRegistry"],
       "properties": {
         "kind": { "const": "node" }
       },
@@ -97,8 +139,8 @@
       }
     },
     {
-      "description": "Value envelope — `value` payload, no `counts` / `filters`.",
-      "required": ["value"],
+      "description": "Value envelope — `value` payload + `kindRegistry`, no `counts` / `filters`.",
+      "required": ["value", "kindRegistry"],
       "properties": {
         "kind": { "const": "config" }
       },
@@ -110,7 +152,7 @@
       }
     },
     {
-      "description": "Sentinel kinds — reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). Documented here for the discriminator enum's sake.",
+      "description": "Sentinel kinds — reserved for routes that do NOT carry an envelope payload at the wire level (`health`, `scan`, `graph`). They do not carry `kindRegistry` either; clients that need it must call any payload-bearing endpoint at boot.",
       "properties": {
         "kind": { "enum": ["health", "scan", "graph"] }
       },
@@ -118,7 +160,8 @@
         "anyOf": [
           { "required": ["items"] },
           { "required": ["item"] },
-          { "required": ["value"] }
+          { "required": ["value"] },
+          { "required": ["kindRegistry"] }
         ]
       }
     }

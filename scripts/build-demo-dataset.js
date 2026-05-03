@@ -155,6 +155,58 @@ function buildHealthEnvelope({ specVersion, implVersion }) {
   };
 }
 
+/**
+ * Pre-baked kindRegistry mirroring the Claude built-in Provider's `ui`
+ * blocks (Step 14.5.d). Hardcoded here because the demo dataset never
+ * boots the kernel; the values track `src/built-in-plugins/providers/claude/index.ts`
+ * and would diverge if a built-in changes its visuals — but the demo
+ * is supposed to showcase the built-ins, so a deliberate sync is fine
+ * (the kind-presentation tests also assert these values exist).
+ */
+const DEMO_KIND_REGISTRY = {
+  agent: {
+    providerId: 'claude',
+    label: 'Agents',
+    color: '#3b82f6',
+    colorDark: '#60a5fa',
+    icon: { kind: 'pi', id: 'pi-user' },
+  },
+  command: {
+    providerId: 'claude',
+    label: 'Commands',
+    color: '#f59e0b',
+    colorDark: '#fbbf24',
+    icon: { kind: 'svg', path: 'M4 17 L10 11 L4 5 M12 19 L20 19' },
+  },
+  hook: {
+    providerId: 'claude',
+    label: 'Hooks',
+    color: '#8b5cf6',
+    colorDark: '#a78bfa',
+    icon: {
+      kind: 'svg',
+      path: 'M12 2 a3 3 0 1 0 0 6 a3 3 0 1 0 0 -6 M12 8 L12 22 M5 12 H2 a10 10 0 0 0 20 0 H19',
+    },
+  },
+  skill: {
+    providerId: 'claude',
+    label: 'Skills',
+    color: '#10b981',
+    colorDark: '#34d399',
+    icon: { kind: 'pi', id: 'pi-bolt' },
+  },
+  note: {
+    providerId: 'claude',
+    label: 'Notes',
+    color: '#5b908c',
+    colorDark: '#9bbcb8',
+    icon: {
+      kind: 'svg',
+      path: 'M14 2 H6 a2 2 0 0 0 -2 2 V20 a2 2 0 0 0 2 2 H18 a2 2 0 0 0 2 -2 V8 L14 2 M14 2 V8 H20 M16 13 H8 M16 17 H8 M10 9 H8',
+    },
+  },
+};
+
 function buildNodesEnvelope(scan) {
   const items = scan.nodes ?? [];
   const total = items.length;
@@ -164,6 +216,7 @@ function buildNodesEnvelope(scan) {
     items,
     filters: { kind: null, hasIssues: null, path: null },
     counts: { total, returned: total, page: { offset: 0, limit: 1000 } },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -176,6 +229,7 @@ function buildLinksEnvelope(scan) {
     items,
     filters: { kind: null, from: null, to: null },
     counts: { total, returned: total },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -188,6 +242,7 @@ function buildIssuesEnvelope(scan) {
     items,
     filters: { severity: null, ruleId: null, node: null },
     counts: { total, returned: total },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -205,6 +260,7 @@ function buildConfigEnvelope() {
       roots: ['.'],
       ignore: [],
     },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -236,6 +292,7 @@ function buildPluginsEnvelope() {
     items,
     filters: {},
     counts: { total: items.length, returned: items.length },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -243,6 +300,33 @@ async function writeAtomic(path, content) {
   const tmp = `${path}.tmp`;
   await writeFile(tmp, content, 'utf8');
   await rename(tmp, path);
+}
+
+/**
+ * Read each `node.path` from disk relative to `fixtureDir`, strip the
+ * YAML frontmatter, and assign the result to `node.body`. Mirrors
+ * `src/server/node-body.ts` (the runtime path live mode uses) so the
+ * demo body bytes match what live would serve byte-for-byte.
+ */
+async function embedBodies(scan, fixtureDir) {
+  for (const node of scan.nodes ?? []) {
+    try {
+      const raw = await readFile(join(fixtureDir, node.path), 'utf8');
+      node.body = stripFrontmatter(raw);
+    } catch (err) {
+      process.stderr.write(
+        `[build-demo-dataset] body read failed for ${node.path} (${err.message}); embedding null\n`,
+      );
+      node.body = null;
+    }
+  }
+}
+
+function stripFrontmatter(raw) {
+  if (!raw.startsWith('---')) return raw;
+  const match = raw.match(/^---\r?\n[\s\S]*?^---\r?\n?/m);
+  if (!match) return raw;
+  return raw.slice(match[0].length);
 }
 
 async function main() {
@@ -262,6 +346,16 @@ async function main() {
   // Force the timestamp to a deterministic value so re-running the
   // pipeline doesn't churn the bundle on every build.
   scan.scannedAt = STABLE_SCANNED_AT;
+
+  // Step 14.5.a — embed each node's body bytes (post-frontmatter)
+  // directly into the demo `data.json`. Live mode reads bodies on
+  // demand from `/api/nodes/:pathB64?include=body`, but the demo has
+  // no live BFF — bundling them keeps the inspector experience
+  // identical to live without forcing a runtime fetch indirection.
+  // 21 fixtures × ~2 KB each is in the noise (~40 KB on a ~590 KB
+  // bundle). When the fixture grows past ~100 nodes, revisit this
+  // (split into per-node JSON assets fetched on demand).
+  await embedBodies(scan, FIXTURE_DIR);
 
   const ascii = await renderAsciiGraph();
 

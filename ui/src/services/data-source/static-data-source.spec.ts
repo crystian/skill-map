@@ -1,10 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { KindRegistryService } from '../kind-registry';
 import { DataSourceError } from './data-source.port';
 import {
   StaticDataSource,
   type IDemoMetaPayload,
 } from './static-data-source';
+
+/**
+ * Minimal fake of `KindRegistryService` for tests that don't run in an
+ * Angular TestBed context. The data source only calls `ingest()` on it,
+ * so a `vi.fn()` covers the contract.
+ */
+function makeFakeRegistry(): KindRegistryService {
+  return { ingest: vi.fn() } as unknown as KindRegistryService;
+}
 
 const META_FIXTURE: IDemoMetaPayload = {
   schemaVersion: '1',
@@ -27,6 +37,7 @@ const META_FIXTURE: IDemoMetaPayload = {
     ],
     filters: { kind: null, hasIssues: null, path: null },
     counts: { total: 2, returned: 2, page: { offset: 0, limit: 1000 } },
+    kindRegistry: {},
   },
   links: {
     schemaVersion: '1',
@@ -34,6 +45,7 @@ const META_FIXTURE: IDemoMetaPayload = {
     items: [],
     filters: { kind: null, from: null, to: null },
     counts: { total: 0, returned: 0 },
+    kindRegistry: {},
   },
   issues: {
     schemaVersion: '1',
@@ -41,11 +53,13 @@ const META_FIXTURE: IDemoMetaPayload = {
     items: [],
     filters: { severity: null, ruleId: null, node: null },
     counts: { total: 0, returned: 0 },
+    kindRegistry: {},
   },
   config: {
     schemaVersion: '1',
     kind: 'config',
     value: { tokenizer: 'cl100k_base' },
+    kindRegistry: {},
   },
   plugins: {
     schemaVersion: '1',
@@ -53,6 +67,7 @@ const META_FIXTURE: IDemoMetaPayload = {
     items: [],
     filters: {},
     counts: { total: 0, returned: 0 },
+    kindRegistry: {},
   },
   graph: { ascii: 'graph contents' },
 };
@@ -115,6 +130,7 @@ describe('StaticDataSource', () => {
   beforeEach(() => {
     ds = new StaticDataSource(
       makeFetch({ 'data.meta.json': META_FIXTURE, 'data.json': SCAN_FIXTURE }),
+      makeFakeRegistry(),
     );
   });
 
@@ -225,7 +241,7 @@ describe('StaticDataSource', () => {
       }
       return new Response(JSON.stringify(SCAN_FIXTURE), { status: 200 });
     }) as unknown as typeof fetch;
-    const cached = new StaticDataSource(fetchSpy);
+    const cached = new StaticDataSource(fetchSpy, makeFakeRegistry());
     await cached.health();
     await cached.health();
     await cached.listPlugins();
@@ -235,7 +251,7 @@ describe('StaticDataSource', () => {
   });
 
   it('wraps a 404 on the asset fetch as a DataSourceError', async () => {
-    const broken = new StaticDataSource(makeFetch({}));
+    const broken = new StaticDataSource(makeFetch({}), makeFakeRegistry());
     await expect(broken.health()).rejects.toBeInstanceOf(DataSourceError);
   });
 
@@ -244,6 +260,7 @@ describe('StaticDataSource', () => {
       vi.fn(async () => {
         throw new Error('boom');
       }) as unknown as typeof fetch,
+      makeFakeRegistry(),
     );
     await expect(failing.health()).rejects.toMatchObject({
       name: 'DataSourceError',

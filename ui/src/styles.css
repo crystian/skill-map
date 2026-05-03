@@ -12,24 +12,12 @@
   --sm-border: #e2e8f0;
   --sm-nav-active-bg: #eff6ff;
 
-  /* Kind accent — border */
-  --sm-kind-skill: #10b981;
-  --sm-kind-agent: #3b82f6;
-  --sm-kind-command: #f59e0b;
-  --sm-kind-hook: #8b5cf6;
-  --sm-kind-note: #5b908c;
-
-  /* Kind accent — badge bg / fg */
-  --sm-kind-skill-bg: #d1fae5;
-  --sm-kind-skill-fg: #065f46;
-  --sm-kind-agent-bg: #dbeafe;
-  --sm-kind-agent-fg: #1e3a8a;
-  --sm-kind-command-bg: #fef3c7;
-  --sm-kind-command-fg: #92400e;
-  --sm-kind-hook-bg: #ede9fe;
-  --sm-kind-hook-fg: #5b21b6;
-  --sm-kind-note-bg: #d6e8e6;
-  --sm-kind-note-fg: #1f4f4b;
+  /* Kind accent (`--sm-kind-<id>`, `-bg`, `-fg`, light + dark) lives at
+     runtime now — `KindRegistryService.applyCssVars()` (Step 14.5.d)
+     injects a `<style id="sm-kind-vars">` block in `<head>` populated
+     from every enabled Provider's `kinds[*].ui`. Single source of truth
+     is the Provider manifest; the BFF surfaces the catalog via the
+     `kindRegistry` field embedded in every payload-bearing envelope. */
 
   /* Edge colors — one per spec link kind (invokes / references /
      mentions / supersedes). The four kinds describe how a node refers
@@ -71,22 +59,8 @@
   --sm-border: #3f3f46;
   --sm-nav-active-bg: rgba(96, 165, 250, 0.15);
 
-  --sm-kind-skill: #34d399;
-  --sm-kind-agent: #60a5fa;
-  --sm-kind-command: #fbbf24;
-  --sm-kind-hook: #a78bfa;
-  --sm-kind-note: #9bbcb8;
-
-  --sm-kind-skill-bg: #064e3b;
-  --sm-kind-skill-fg: #6ee7b7;
-  --sm-kind-agent-bg: #1e3a5a;
-  --sm-kind-agent-fg: #93c5fd;
-  --sm-kind-command-bg: #78350f;
-  --sm-kind-command-fg: #fcd34d;
-  --sm-kind-hook-bg: #4c1d95;
-  --sm-kind-hook-fg: #ddd6fe;
-  --sm-kind-note-bg: #1a3a37;
-  --sm-kind-note-fg: #bcdbd6;
+  /* Kind accent dark-mode overrides also live at runtime via
+     `KindRegistryService.applyCssVars()` (`.app-dark { … }` block). */
 
   --sm-edge-invokes: #fbbf24;
   --sm-edge-references: #60a5fa;

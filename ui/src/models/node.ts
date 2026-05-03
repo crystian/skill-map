@@ -10,7 +10,18 @@
  * reflections of the spec; put ui state on `INodeView` below.
  */
 
-export type TNodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
+/**
+ * Open kind type. Step 14.5.d switched from a closed union (limited to
+ * the five Claude built-in kinds) to a free `string` so user-plugin
+ * Providers can declare their own kinds (`cursorRule`, `daily`, …) and
+ * the UI renders them through the runtime `KindRegistryService` instead
+ * of a hardcoded enum. The label / color / icon come from the registry,
+ * keyed by the same `string`. Pre-14.5.d call sites that switch on
+ * literal kind names (`'agent'`, `'command'`, …) still work because
+ * the string accepts those exact values; new code should look up
+ * presentation through the registry rather than branching on the kind.
+ */
+export type TNodeKind = string;
 
 export type TStability = 'experimental' | 'stable' | 'deprecated';
 
@@ -106,17 +117,20 @@ export type TFrontmatter =
   | TFrontmatterNote;
 
 /**
- * UI-facing node shape. Composes the parsed frontmatter with ui-only fields
- * (path, body, derived kind). This is the type stored in the in-memory
- * collection and passed to views.
+ * UI-facing node shape. Composes the parsed frontmatter with ui-only
+ * fields (path, derived kind). This is the type stored in the in-memory
+ * collection and passed to list / graph / inspector views.
+ *
+ * **Body is intentionally absent** — `/api/scan` (the loader's source)
+ * doesn't ship body bytes by design (kernel persists `body_hash` only).
+ * The Inspector view fetches the body on-demand via
+ * `dataSource.getNode(path)` with `?include=body`; everywhere else
+ * doesn't need it.
  */
 export interface INodeView {
   path: string;
   kind: TNodeKind;
   frontmatter: TFrontmatter;
-  body: string;
-  raw: string;
-  mockSummary: string | null;
 }
 
 /**

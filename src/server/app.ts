@@ -58,6 +58,7 @@ import { formatErrorMessage } from '../cli/util/error-reporter.js';
 import type { IRuntimeContext } from '../cli/util/runtime-context.js';
 import { ExportQueryError } from '../kernel/index.js';
 import type { WsBroadcaster } from './broadcaster.js';
+import type { IKindRegistry } from './envelope.js';
 import type { IServerOptions } from './options.js';
 import { registerConfigRoute } from './routes/config.js';
 import type { IRouteDeps } from './routes/deps.js';
@@ -100,6 +101,14 @@ export interface IAppDeps {
    * itself. Threaded in by the composition root via `defaultRuntimeContext()`.
    */
   runtimeContext: IRuntimeContext;
+  /**
+   * Registry of kinds active in the current scope (Step 14.5.d).
+   * Composition root builds it once at boot from every enabled
+   * Provider via `buildKindRegistry`; every payload-bearing envelope
+   * embeds it so the UI never has to hardcode kind visuals. Sentinel
+   * envelopes (`health`, `scan`, `graph`) stay exempt.
+   */
+  kindRegistry: IKindRegistry;
 }
 
 /**
@@ -132,6 +141,7 @@ export function createApp(deps: IAppDeps): Hono {
   const routeDeps: IRouteDeps = {
     options: deps.options,
     runtimeContext: deps.runtimeContext,
+    kindRegistry: deps.kindRegistry,
   };
   registerScanRoute(app, routeDeps);
   registerNodesRoutes(app, routeDeps);

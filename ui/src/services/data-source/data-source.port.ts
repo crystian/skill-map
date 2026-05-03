@@ -86,8 +86,13 @@ export interface IDataSourcePort {
   /**
    * Single-node detail bundle. Returns `null` when the BFF responds
    * 404 (no such node) — callers branch on the null instead of catching.
+   *
+   * `opts.includeBody` (Step 14.5.a): when `true`, instructs the BFF to
+   * read the markdown body from disk and attach it to `item.body`.
+   * Inspector view passes `true`; other consumers (e.g. linked-nodes
+   * panels that only need metadata) leave it false / unset.
    */
-  getNode(path: string): Promise<INodeDetailApi | null>;
+  getNode(path: string, opts?: { includeBody?: boolean }): Promise<INodeDetailApi | null>;
 
   /** Filtered list of persisted links. */
   listLinks(q?: ILinksQuery): Promise<IListEnvelopeApi<ILinkApi>>;

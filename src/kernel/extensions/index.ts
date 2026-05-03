@@ -22,7 +22,7 @@
  * apart even though they used to share the word historically.
  */
 
-export type { IProvider, IRawNode } from './provider.js';
+export type { IProvider, IRawNode, IProviderKind, IProviderKindUi, IProviderKindIcon } from './provider.js';
 export type { IExtractor, IExtractorContext, IExtractorCallbacks } from './extractor.js';
 export type { IRule, IRuleContext } from './rule.js';
 export type { IAction, IActionPrecondition } from './action.js';

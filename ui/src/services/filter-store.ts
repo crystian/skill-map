@@ -2,22 +2,24 @@
  * Cross-view filter state. Kept in a root-level service so the list view,
  * graph view, and (future) inspector-list all read the same filter values
  * without URL coupling. Resetting is a single call.
+ *
+ * Step 14.5.d — kinds are open per Provider. The "all kinds active"
+ * universe is no longer a hardcoded enum; the toggle reads it from the
+ * `KindRegistryService` (Provider-declared visual catalog) at call time
+ * so a user-plugin Provider that adds a new kind participates in the
+ * toggle / filter-bar without code changes here.
  */
 
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import type { TNodeKind, INodeView, TStability } from '../models/node';
+import { KindRegistryService } from './kind-registry';
 
-/**
- * Display order of kinds across the UI (palette, filter-bar dropdown,
- * any future kind-iterating widget). Agent first because it is the
- * primary actor in most user mental models; skills follow as the tools
- * an agent uses.
- */
-export const ALL_KINDS: readonly TNodeKind[] = ['agent', 'skill', 'command', 'hook', 'note'];
 export const ALL_STABILITIES: readonly TStability[] = ['stable', 'experimental', 'deprecated'];
 
 @Injectable({ providedIn: 'root' })
 export class FilterStoreService {
+  private readonly kindRegistry = inject(KindRegistryService);
+
   readonly searchText = signal<string>('');
   readonly selectedKinds = signal<TNodeKind[]>([]);
   readonly selectedStabilities = signal<TStability[]>([]);
@@ -50,13 +52,14 @@ export class FilterStoreService {
    */
   toggleKind(kind: TNodeKind): void {
     const sel = this.selectedKinds();
-    const startSet = sel.length === 0 ? new Set<TNodeKind>(ALL_KINDS) : new Set(sel);
+    const universe = this.kindRegistry.kinds().map((k) => k.name);
+    const startSet = sel.length === 0 ? new Set<TNodeKind>(universe) : new Set(sel);
     if (startSet.has(kind)) {
       startSet.delete(kind);
     } else {
       startSet.add(kind);
     }
-    if (startSet.size === ALL_KINDS.length) {
+    if (startSet.size === universe.length) {
       this.selectedKinds.set([]);
     } else {
       this.selectedKinds.set([...startSet]);

@@ -45,6 +45,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       items: [],
       filters: {},
       counts: { total: 0, returned: 0 },
+      kindRegistry: {},
     }),
   getNode: () => Promise.resolve(null),
   listLinks: () =>
@@ -54,6 +55,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       items: [],
       filters: {},
       counts: { total: 0, returned: 0 },
+      kindRegistry: {},
     }),
   listIssues: () =>
     Promise.resolve({
@@ -62,6 +64,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       items: [],
       filters: {},
       counts: { total: 0, returned: 0 },
+      kindRegistry: {},
     }),
   loadGraph: () => Promise.resolve(''),
   loadConfig: () => Promise.resolve({}),
@@ -72,6 +75,7 @@ const STUB_DATA_SOURCE: IDataSourcePort = {
       items: [],
       filters: {},
       counts: { total: 0, returned: 0 },
+      kindRegistry: {},
     }),
   events: () => EMPTY,
 };

@@ -26,7 +26,8 @@ import { Injectable, effect, inject } from '@angular/core';
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router';
 
 import type { TNodeKind, TStability } from '../models/node';
-import { ALL_KINDS, ALL_STABILITIES, FilterStoreService } from './filter-store';
+import { ALL_STABILITIES, FilterStoreService } from './filter-store';
+import { KindRegistryService } from './kind-registry';
 
 const PARAM_SEARCH = 'search';
 const PARAM_KINDS = 'kinds';
@@ -38,6 +39,7 @@ export class FilterUrlSyncService {
   private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
   private readonly activatedRoute = inject(ActivatedRoute);
+  private readonly kindRegistry = inject(KindRegistryService);
 
   /** Suppress the URL→store sync while the store→URL effect is mid-flush. */
   private suppressUrlReadback = false;
@@ -94,7 +96,7 @@ export class FilterUrlSyncService {
       this.filters.setSearchText(search);
     }
 
-    const kinds = parseKinds(params.get(PARAM_KINDS));
+    const kinds = parseKinds(params.get(PARAM_KINDS), this.kindRegistry.kinds().map((k) => k.name));
     if (!arraysEqual(kinds, this.filters.selectedKinds())) {
       this.filters.setKinds(kinds);
     }
@@ -165,13 +167,20 @@ export class FilterUrlSyncService {
   }
 }
 
-function parseKinds(raw: string | null): TNodeKind[] {
+/**
+ * Parse the comma-joined `kinds` query param. The allowed set comes
+ * from the KindRegistryService at call time so the URL layer never
+ * locks in a closed enum — a user-plugin Provider that ships a new
+ * kind name participates in deep-link parsing as soon as the registry
+ * ingests the BFF envelope.
+ */
+function parseKinds(raw: string | null, knownKinds: readonly TNodeKind[]): TNodeKind[] {
   if (!raw) return [];
-  const allowed = new Set<TNodeKind>(ALL_KINDS);
+  const allowed = new Set<TNodeKind>(knownKinds);
   return raw
     .split(',')
     .map((s) => s.trim())
-    .filter((s): s is TNodeKind => allowed.has(s as TNodeKind));
+    .filter((s) => allowed.has(s));
 }
 
 function parseStabilities(raw: string | null): TStability[] {
