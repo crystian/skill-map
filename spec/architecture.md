@@ -1,6 +1,6 @@
 # Architecture
 
-Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the five **extension kinds** that live outside the kernel.
+Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the six **extension kinds** that live outside the kernel.
 
 Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces the kernel-agnostic invariants; per-Provider suites (e.g. `src/extensions/providers/claude/conformance/` for the reference impl's Claude Provider) enforce the kind-catalog cases. Both are driven via `sm conformance run`.
 
@@ -400,7 +400,9 @@ This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel funct
 
 The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bump.
 
-The **extension kind list** (5 kinds) is stable as of spec v1.0.0. Adding a sixth kind is a major bump.
+The **extension kind list** (6 kinds: Provider, Extractor, Rule, Action, Formatter, Hook) is stable as of spec v1.0.0. Adding a seventh kind is a major bump. Removing or renaming a kind is a major bump.
+
+The **Hook curated trigger set** (eight events: `scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) is stable as of spec v1.0.0. Adding a ninth trigger is a minor bump; removing or renaming any of the eight is a major bump.
 
 The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode or changing which kinds are dual-mode is a major bump. Renaming or repurposing the mode enum values is a major bump.
 

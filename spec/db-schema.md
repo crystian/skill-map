@@ -177,7 +177,7 @@ Primary key: `(node_path, extractor_id)`. Indexes: `ix_scan_extractor_runs_node`
 
 Universal enrichment layer (A.8). Stores `ctx.enrichNode(partial)` outputs separately from the author-supplied frontmatter on `scan_nodes.frontmatter_json`, which the Extractor pipeline NEVER mutates.
 
-One row per `(node_path, extractor_id)` pair an Extractor enriched. Both deterministic and probabilistic Extractors write here; only probabilistic rows participate in stale tracking — when a body changes between scans, the kernel flags the surviving probabilistic row `stale = 1` (NOT deleted, preserving the LLM cost paid to produce it). Deterministic rows simply pisar via PRIMARY KEY conflict on the next re-extract through the A.9 cache.
+One row per `(node_path, extractor_id)` pair an Extractor enriched. Both deterministic and probabilistic Extractors write here; only probabilistic rows participate in stale tracking — when a body changes between scans, the kernel flags the surviving probabilistic row `stale = 1` (NOT deleted, preserving the LLM cost paid to produce it). Deterministic rows are simply overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache.
 
 | Column | Type | Constraint |
 |---|---|---|

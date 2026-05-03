@@ -40,7 +40,7 @@ No official tool — Anthropic, Cursor, GitHub, skills.sh — covers this. Obsid
 
 There are five layers, designed as concentric rings:
 
-1. **The deterministic scanner.** Walks the filesystem, parses Markdown frontmatter, runs detectors that extract references between files, runs rules that flag deterministic problems (broken references, trigger collisions, superseded nodes), and emits structured graph data — nodes, links, issues. Every single piece of this is deterministic, offline, byte-reproducible.
+1. **The deterministic scanner.** Walks the filesystem, parses Markdown frontmatter, runs Extractors that extract references between files, runs Rules that flag deterministic problems (broken references, trigger collisions, superseded nodes), and emits structured graph data — nodes, links, issues. Every single piece of this is deterministic, offline, byte-reproducible.
 
 2. **The optional LLM layer (planned).** Consumes the deterministic graph and adds semantic intelligence: it validates ambiguous references, clusters equivalent triggers, compares similar nodes, summarizes them per kind, answers questions over the graph. Crucially, this layer is *external*. The `sm` binary never touches an LLM directly. The LLM lives in a separate runner process; `sm` only renders prompts and records the results.
 
@@ -48,22 +48,22 @@ There are five layers, designed as concentric rings:
 
 4. **The web UI.** A graph view, a list view, an inspector panel. The Step 0c prototype is already shipped against mocked data, and the full integration with the kernel is planned for the v1.0 release. The UI consumes the same kernel API as the CLI — they are peers, not stacked layers.
 
-5. **The plugin system.** Drop-in. Anyone can add new data sources, detectors, rules, actions, audits, or renderers without touching the kernel. This is the part that deserves its own section — see below.
+5. **The plugin system.** Drop-in. Anyone can add new Providers, Extractors, Rules, Actions, Formatters, or Hooks without touching the kernel. This is the part that deserves its own section — see below.
 
 ---
 
 ## 5. The plugin philosophy — *anyone can add data and behavior*
 
-This is the heart of the project. From day one, the kernel is **empty of platform knowledge**. There is no built-in concept of "this is a Claude file" or "this is a Codex file" inside the core. Every recognizer, every detector, every rule, every renderer lives outside the kernel — even the official ones. They are all extensions, exposed through the same six-category contract that third-party plugins use.
+This is the heart of the project. From day one, the kernel is **empty of platform knowledge**. There is no built-in concept of "this is a Claude file" or "this is a Codex file" inside the core. Every recognizer, every Extractor, every Rule, every Formatter lives outside the kernel — even the official ones. They are all extensions, exposed through the same six-category contract that third-party plugins use.
 
 **The six extension kinds** (this set is stable and frozen as the kernel contract):
 
-1. **Adapter** — recognizes a platform (Claude, Codex, Gemini, generic) and classifies each file into its kind: skill, agent, command, hook, note.
-2. **Detector** — reads a node's body and extracts links: invokes, references, mentions, supersedes.
+1. **Provider** — recognizes a platform (Claude, Codex, Gemini, generic) and classifies each file into its kind: skill, agent, command, hook, note.
+2. **Extractor** — reads a node's body and extracts links: invokes, references, mentions, supersedes.
 3. **Rule** — evaluates the graph and emits deterministic problems (issues).
 4. **Action** — an executable operation over one or more nodes. Can run locally (plugin code) or as a rendered prompt sent to an LLM.
-5. **Audit** — a deterministic workflow that composes rules and actions.
-6. **Renderer** — serializes the graph (ASCII, Mermaid, DOT, JSON).
+5. **Formatter** — serializes the graph (ASCII, Mermaid, DOT, JSON).
+6. **Hook** — reacts declaratively to lifecycle events (`scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`).
 
 **Drop-in installation.** No `sm plugins add` command. The user creates a folder under `<project>/.skill-map/plugins/<plugin-id>/` (or globally under `~/.skill-map/plugins/`), drops a `plugin.json` manifest and the extension files, and the next time the kernel boots it discovers them. That's it.
 
@@ -71,7 +71,7 @@ This is the heart of the project. From day one, the kernel is **empty of platfor
 
 **Spec compatibility.** Each plugin manifest declares which spec version it works against (`specCompat: "^0.4.0"`). At load time, the kernel checks compatibility. Incompatible plugins are disabled with a clear reason — they don't crash the boot.
 
-**Why this matters.** The drop-in proof was demonstrated in Step 4, when the project shipped a fourth detector (`external-url-counter`) by adding one new file under `src/extensions/detectors/` and one entry in the built-ins registry. **Zero kernel edits.** That is the litmus test the architecture was designed to pass: a third party can extend the system without forking it.
+**Why this matters.** The drop-in proof was demonstrated in Step 4, when the project shipped a fourth Extractor (`external-url-counter`) by adding one new file under `src/built-in-plugins/extractors/` and one entry in the built-ins registry. **Zero kernel edits.** That is the litmus test the architecture was designed to pass: a third party can extend the system without forking it.
 
 ---
 
@@ -131,15 +131,15 @@ skill-map is in active development. The `@skill-map/spec` package is live on npm
 
 The author has explicitly listed work that is *deferred past v1.0* — not because it's unimportant, but because it shouldn't gate the first stable release:
 
-- **Write-back from the UI.** Edit, create, refactor nodes from the graph view. Git-based undo. Detectors become bidirectional — they currently *read* references; they would also *write* them.
-- **More platform adapters.** Codex, Gemini, Copilot, generic. Today the only adapter is Claude, but the architecture supports any Markdown ecosystem.
-- **Density and token-economy plugin.** A drop-in bundle that closes the loop between *identifying* token-heavy nodes (deterministic rule) and *recovering* the value (LLM-backed summarizer optimizer). This is a perfect plugin demonstration: zero kernel changes, pure composition of Rule + Finding + Audit + Action.
+- **Write-back from the UI.** Edit, create, refactor nodes from the graph view. Git-based undo. Extractors become bidirectional — they currently *read* references; they would also *write* them.
+- **More platform Providers.** Codex, Gemini, Copilot, generic. Today the only Provider is Claude, but the architecture supports any Markdown ecosystem.
+- **Density and token-economy plugin.** A drop-in bundle that closes the loop between *identifying* token-heavy nodes (deterministic Rule) and *recovering* the value (LLM-backed summarizer optimizer). This is a perfect plugin demonstration: zero kernel changes, pure composition of Rule + Finding + Action.
 - **URL liveness plugin.** Network HEAD checks for external links — kept out of the core because it requires a network and would compromise the offline-by-default principle.
 - **Schema v2 with migration tooling.** When breaking changes to the JSON output become necessary.
 - **Test harness for plugin authors.** Dry-run, real execution, subprocess execution.
 - **Richer workflows.** Node-pipe API, JSON declarative workflows, visual DAG.
 - **Plugin signing and hash verification.** Distribution hardening.
-- **Telemetry, opt-in.** Visibility into which detectors and audits are used in the wild.
+- **Telemetry, opt-in.** Visibility into which Extractors and Actions are used in the wild.
 - **Marketplace.** Once external plugin authors appear in volume.
 
 There is also an explicit *discarded* list — things the author has decided are out of scope and will not be revisited: Cursor support, scanning remote repos as a source, a query language over the graph, MCP as the primary interface, hook-based activation (this is manual inspection, not reactive), Python (Node ESM preferred for unification with the future web server), full ORMs (incompatible with hand-written SQL migrations), soft deletes (real deletes plus backups), audit columns, lookup tables for enums.

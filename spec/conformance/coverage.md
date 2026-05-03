@@ -62,3 +62,11 @@ These have their own conformance cases even though they are not JSON Schemas.
 - **spec v0.x**: partial coverage acceptable. Every case added as the reference impl lands the verb that makes it runnable.
 - **spec v1.0.0 release**: all rows above MUST be 🟢 covered or explicitly 🟠 deferred to v1.1 with a linked issue.
 - **CI check**: [`scripts/check-coverage.js`](../../scripts/check-coverage.js) compares `spec/schemas/**/*.schema.json` against the matrix above on every PR. A schema without a row here, or a row pointing at a missing schema, fails CI (exit 1 with a `::error::` annotation). Wired into `ci.yml` §validate and into `npm run spec:check`.
+
+## Stability
+
+The **coverage matrix gating policy** (every shipped schema MUST have a row; every row MUST be 🟢 covered or 🟠 deferred-to-v1.1 before the spec v1.0.0 tag) is stable as of spec v1.0.0. Relaxing the v1.0 release gate (e.g. allowing 🔴 missing rows to ship) is a major bump. Tightening the gate further (e.g. forbidding 🟠 deferrals) is a minor bump.
+
+The **assertion-type vocabulary** (`exit-code`, `json-path`, `file-exists`, `file-contains-verbatim`, `file-matches-schema`, `stderr-matches`) is stable as of spec v1.0.0. Adding a new assertion type is a minor bump; renaming or removing one is a major bump.
+
+The **per-row schema and case set** above is mutable through every spec release: rows are added when a new schema or normative artifact lands, marked deferred when the runtime that exercises them ships in a later step, and flipped to 🟢 covered when the case file is committed. Adding rows is non-breaking; deleting rows MUST coincide with deleting the corresponding schema (which is itself a major bump).

@@ -22,9 +22,9 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
 
 ## Arquitecto persona (only when activated per rule above)
 
+- Saludo de respuesta (literal, the only correct opener): **"Hola Arquitecto! Que vamos a hacer hoy?"** — used once on the first reply of the session, never repeated. The strict "Do not use the Spanish greeting response" rule in the activation gate above refers to this exact string.
 - Informal, español argentino, respuestas cortas y directas, evitar ambigüedad.
 - El usuario se llama "Arquitecto", vos sos "Claudio". No seas condescendiente; advertirle si pide algo incorrecto, tanto en lo funcional como técnico.
-- Saludo de respuesta: "Hola Arquitecto! Que vamos a hacer hoy?"
 - **Options format**: when presenting choices with "o/or", ALWAYS use numbered lists so the user can reply with just a number.
 
 ## Rules for agents working in this repo
@@ -35,10 +35,10 @@ Operating manual for AI agents working on **skill-map**. Day-to-day agent guidan
   - **Exception — README badges**: the hardcoded `spec-vX.Y.Z` and `impl-vX.Y.Z` badges in `README.md` and `README.es.md` must be bumped manually alongside the Version Packages PR. Keep both READMEs in sync. See the "README badges — manual version bump" section in `CONTRIBUTING.md`.
 - **Pre-1.0: never bump to a major** — while a workspace (`spec/`, `src/`, `testkit/`) is in `0.Y.Z`, every breaking change ships as a **minor** (`0.X.Y → 0.X+1.0`), never `1.0.0`. Per `spec/versioning.md` § Pre-1.0, breakings are allowed inside minor bumps pre-1; the first `1.0.0` is a deliberate stabilization moment, not a side-effect of a normal PR. If a changeset proposes `major` while the workspace is pre-1, downgrade it to `minor` and document the breaking change in `CHANGELOG.md`.
 - **Regenerate `spec/index.json` after any `spec/` change** — `npm run spec:index`. CI runs `npm run spec:check` and fails on drift. The integrity block is deterministic; do not hand-edit.
+- **Regenerate `context/cli-reference.md` after any CLI verb change** (new flags, renamed commands, edited help text) — `npm run cli:reference`. CI runs `npm run cli:check` on every PR and fails on drift. The file is generated from `sm help --format md` against the live command surface; do not hand-edit.
 - **Keep `ROADMAP.md` in sync** — `ROADMAP.md` is a living document, not a one-shot artifact. Whenever you touch `spec/`, `src/`, a changeset, or a decision surfaces in conversation: find the corresponding section in `ROADMAP.md` and update it in the same change (examples, decision table, execution plan, last-updated line, completeness marker). The authority order (`spec/` > `ROADMAP.md` > `AGENTS.md`) still holds — if you cannot reconcile a divergence immediately, flag it and open an issue — but normal flow is spec-and-roadmap edited together. Exceptions are ephemeral exploratory branches where the outcome is not yet decided; once the decision lands, roadmap catches up.
 - **All artifacts in English** — code, commits, PRs, docs. Conversation language follows the activation rule at the top.
-- **Paths**: prefer relative over absolute in bash commands and agent prompts.
-- **Temp files AND scratch directories**: use `.tmp/` (project-local, gitignored), not `/tmp/` or `/var/tmp/`. This applies to every temp path an AI agent writes, including intermediate files for `awk`, `sed`, `diff`, `grep`, piped scripts, and extracted snippets. It also applies to **smoke-test scratch dirs, throwaway fixtures, and any subdirectory created to exercise the CLI / library out-of-tree** — group them as `.tmp/<scope>/` (e.g. `.tmp/graph-smoke/`, `.tmp/fixture-foo/`). If `.tmp/` does not exist, create it (`mkdir -p .tmp`). Never write a temp file or working directory outside the repo.
+- **Temp files AND scratch directories** (extends the §Always apply `.tmp/` rule): the `.tmp/` baseline applies to every temp path an AI agent writes, including intermediate files for `awk`, `sed`, `diff`, `grep`, piped scripts, and extracted snippets. It also applies to **smoke-test scratch dirs, throwaway fixtures, and any subdirectory created to exercise the CLI / library out-of-tree** — group them as `.tmp/<scope>/` (e.g. `.tmp/graph-smoke/`, `.tmp/fixture-foo/`). If `.tmp/` does not exist, create it (`mkdir -p .tmp`). Never write a temp file or working directory outside the repo.
 - **Every feature**: update `spec/` first, then `src/`. No impl feature without a matching spec change.
 - **Pin every dependency in `package.json`** — no `^` or `~` ranges. Applies to `package.json` at root, `ui/`, and `src/` (while `src/` stays `private: true`). `spec/` has no dependencies. When adding a new package, use `npm install <pkg>@<exact-version>` or edit the manifest to the exact version from the lockfile. Reason: reproducible installs across contributors and CI, and zero surprise upgrades on `npm install` even if the lockfile is regenerated. Re-evaluate the policy for `src/` the day it flips to public — published libs may want caret ranges so consumers can dedupe transitive deps.
 - **CI green, always** — extensions ship with tests or do not boot.
@@ -101,7 +101,7 @@ The kernel uses four naming buckets for TypeScript types / interfaces. The full 
 3. **Runtime extension contracts** — shapes a plugin author implements: `IProvider`, `IExtractor`, `IRule`, `IAction`, `IFormatter`. **`I` prefix.** Reads as "you supply this".
 4. **Internal shapes** — option bags, result records, config slices that live only in TS (never in JSON): `IPluginRuntimeBundle`, `IPruneResult`, `IDbLocationOptions`. **`I` prefix.**
 
-Several public-surface shapes are grandfathered without the `I` prefix because renaming would break downstream consumers:
+**Grandfathered exceptions** — pre-existing public-surface shapes that pre-date the `I*` convention and would break downstream consumers if renamed. These are exempt from the `I` prefix rule:
 
 - **Category 4 option bags**: `RunScanOptions`, `RenameOp`.
 - **Category 4 TS-only exports from `kernel/index.ts` / `kernel/ports/*`**: `Kernel`, `ProgressEvent`, `LogRecord`, `NodeStat`.
