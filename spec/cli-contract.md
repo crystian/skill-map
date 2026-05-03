@@ -340,6 +340,12 @@ The reference implementation ships a Hono BFF rooted at `src/server/`. One Node 
 
 **Boot resilience**: `sm serve` boots even when the project DB is missing. `/api/health` reports `db: 'missing'` so the SPA can render an empty-state CTA instead of failing the connection. Explicit `--db <path>` that doesn't exist is the exception — that exits 5 (NotFound) per `§Exit codes`.
 
+**Boot output**: after the listener binds, `sm serve` writes a startup banner to **stderr**. Stdout is reserved for `--json` payloads on other verbs and stays empty here. The banner shape depends on `isTTY(stderr)` and the standard color toggles (`NO_COLOR`, `FORCE_COLOR`, `--no-color`):
+
+- **TTY + color**: an ASCII-art figlet logo split into a violet upper half and a green lower half, a dim version line right-aligned under the logo, then a dim-labelled data block (`Server <url>`, `Scope <project|global>`, `Path <cwd>`, `DB <path>`) and the `Press Ctrl+C to stop.` hint. The `Path` row shows the cwd the verb is running from; when it sits under the user's home, the prefix is replaced with `~` for legibility. The URL value is rendered in green with an underline. Implementations MAY choose any figlet-style rendering and any palette consistent with the violet-upper / green-lower split; the reference impl uses xterm 256-color codes (`\x1b[38;5;141m` violet, `\x1b[38;5;42m` green) and does NOT degrade to 16-color terminals — users on legacy terminals MUST set `NO_COLOR`.
+- **TTY + `NO_COLOR` (or `--no-color`)**: same figlet block + version + data block, with zero ANSI escapes.
+- **Non-TTY (pipes / redirects)**: banner suppressed; the verb emits two flat lines — `sm serve: listening on http://<host>:<port> (scope=<scope>, db=<path>)` followed by `sm serve: opening <url>/ in your browser. Press Ctrl+C to stop.` (or `sm serve: visit <url>/ ...` under `--no-open`). This shape is **stable**; tooling that scrapes those lines (CI capture, `tee log.txt`) MUST keep working across releases.
+
 **Endpoints (v14.2 surface)**:
 
 | Path | Status | Shape |

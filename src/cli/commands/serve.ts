@@ -53,7 +53,9 @@ import { resolveDbPath } from '../util/db-path.js';
 import { ExitCode } from '../util/exit-codes.js';
 import { formatErrorMessage } from '../util/error-reporter.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../util/runtime-context.js';
+import { renderBanner, resolveColorEnabled } from '../util/serve-banner.js';
 import { SmCommand } from '../util/sm-command.js';
+import { VERSION } from '../version.js';
 
 export class ServeCommand extends SmCommand {
   static override paths = [['serve']];
@@ -234,20 +236,27 @@ export class ServeCommand extends SmCommand {
       return ExitCode.Error;
     }
 
-    // 7. Boot banner — sanitized because `--db` / `--ui-dist` can carry
-    //    user-supplied paths.
+    // 7. Boot banner. TTY-aware (color box vs flat legacy lines) so
+    //    pipes / redirects keep grep-friendly output. Color toggle
+    //    honours `--no-color`, `NO_COLOR`, and `FORCE_COLOR`.
+    const stderr = this.context.stderr as NodeJS.WritableStream & { isTTY?: boolean };
+    const isTTY = stderr.isTTY === true;
+    const colorEnabled = resolveColorEnabled({
+      isTTY,
+      noColorFlag: this.noColor,
+      env: process.env,
+    });
     this.context.stderr.write(
-      tx(SERVE_TEXTS.boot, {
+      renderBanner({
+        version: VERSION,
         host: sanitizeForTerminal(handle.address.host),
         port: handle.address.port,
         scope,
-        db: sanitizeForTerminal(dbPath),
-      }),
-    );
-    this.context.stderr.write(
-      tx(validation.options.open ? SERVE_TEXTS.bootOpening : SERVE_TEXTS.bootVisitHint, {
-        host: sanitizeForTerminal(handle.address.host),
-        port: handle.address.port,
+        dbPath,
+        cwd: runtimeCtx.cwd,
+        openBrowser: validation.options.open,
+        isTTY,
+        colorEnabled,
       }),
     );
 

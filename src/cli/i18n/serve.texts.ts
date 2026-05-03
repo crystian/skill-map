@@ -6,19 +6,13 @@
  */
 
 export const SERVE_TEXTS = {
-  // Banner emitted to stderr after the listener binds. Mirrors `sm watch`
-  // by writing operational status to stderr (stdout is reserved for
-  // future `--json` boot payloads).
-  boot:
-    'sm serve: listening on http://{{host}}:{{port}} (scope={{scope}}, db={{db}})\n',
-
-  // Hint shown after the boot line. Branches on --open: when auto-open
-  // is on (default), the message states intent ("opening …"); when
-  // --no-open, it instructs the user to visit the URL manually.
-  // Both end with the Ctrl+C reminder so the operational tail is
-  // identical regardless of branch.
-  bootOpening: 'sm serve: opening http://{{host}}:{{port}}/ in your browser. Press Ctrl+C to stop.\n',
-  bootVisitHint: 'sm serve: visit http://{{host}}:{{port}}/ in your browser. Press Ctrl+C to stop.\n',
+  // The boot banner (TTY box / flat-line fallback) is rendered by
+  // `cli/util/serve-banner.ts` rather than templated through `tx` —
+  // ANSI escapes + box-drawing aren't a good fit for the flat
+  // `{{name}}` interpolation surface. The flat-mode strings live in
+  // that helper and stay byte-equivalent to the pre-banner format so
+  // existing pipes / redirects ('listening on <url>' scrapers) don't
+  // break.
 
   // Browser-open failure. Non-fatal — the URL is already printed; the
   // user can open it manually.
