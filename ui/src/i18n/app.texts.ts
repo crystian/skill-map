@@ -23,8 +23,8 @@ export const APP_TEXTS = {
     viewSwitcher: 'View switcher',
   },
   viewportWarning: {
-    title: 'Mobile not supported',
-    subtitle: 'By design — skill-map is desktop-only.',
-    body: 'The graph, inspector, and linked-nodes panels need real screen real estate. Open this on a display at least 1024px wide.',
+    title: "Looks like you're on a small screen",
+    subtitle: 'skill-map is built for desktop',
+    body: 'The graph and inspector need room to breathe. Pop this open on a screen at least 768px wide — see you there.',
   },
 } as const;
