@@ -4,33 +4,24 @@ import { ToggleButtonModule } from 'primeng/togglebutton';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { KIND_PALETTE_TEXTS } from '../../../i18n/kind-palette.texts';
-import { KIND_LABELS } from '../../../i18n/kinds.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
-import { ALL_KINDS, FilterStoreService } from '../../../services/filter-store';
+import { FilterStoreService } from '../../../services/filter-store';
+import { KindRegistryService } from '../../../services/kind-registry';
 import type { TNodeKind } from '../../../models/node';
 
 interface IKindEntry {
   readonly kind: TNodeKind;
+  /**
+   * PrimeIcon class string. Falls back to a generic `pi pi-tag` when the
+   * Provider declared a non-`pi` icon (SVG path) — the toggle-button
+   * icon input only accepts a class, so SVG-based kinds get a neutral
+   * icon here while the rich `<sm-kind-icon>` renders the SVG variant
+   * everywhere else (list rows, inspector, graph nodes).
+   */
   readonly icon: string;
   readonly label: string;
   readonly count: number;
 }
-
-/**
- * Best-effort PrimeIcon match for the prototype iconography. Exact set
- * (terminal SVG for command, anchor SVG for hook, file-with-lines SVG
- * for note) lives on `<sm-kind-icon>`; the toggle-button icon prop only
- * accepts a class string, so commands/hooks/notes use their closest
- * PrimeIcon proxy here. TODO: refactor to a content template that
- * embeds `<sm-kind-icon>` for full consistency.
- */
-const KIND_ICON: Record<TNodeKind, string> = {
-  skill: 'pi pi-bolt',
-  agent: 'pi pi-user',
-  command: 'pi pi-code',
-  hook: 'pi pi-link',
-  note: 'pi pi-file',
-};
 
 /**
  * Floating top-left palette for toggling node-kind visibility on the graph
@@ -43,6 +34,10 @@ const KIND_ICON: Record<TNodeKind, string> = {
  *
  * Counts are total loaded nodes per kind (not "visible" — those would
  * shrink to 0 when this palette deactivates a kind, which is confusing).
+ *
+ * Step 14.5.d: the kind catalog comes from `KindRegistryService` (fed by
+ * the BFF's `kindRegistry` envelope field) instead of a hardcoded enum.
+ * A user-plugin Provider that declares a new kind shows up automatically.
  */
 @Component({
   selector: 'app-kind-palette',
@@ -54,23 +49,20 @@ const KIND_ICON: Record<TNodeKind, string> = {
 export class KindPalette {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
+  private readonly kindRegistry = inject(KindRegistryService);
 
   protected readonly texts = KIND_PALETTE_TEXTS;
 
   protected readonly entries = computed<readonly IKindEntry[]>(() => {
-    const counts: Record<TNodeKind, number> = {
-      skill: 0,
-      agent: 0,
-      command: 0,
-      hook: 0,
-      note: 0,
-    };
-    for (const n of this.loader.nodes()) counts[n.kind] += 1;
-    return ALL_KINDS.map((kind) => ({
-      kind,
-      icon: KIND_ICON[kind],
-      label: KIND_LABELS[kind],
-      count: counts[kind],
+    const counts = new Map<string, number>();
+    for (const n of this.loader.nodes()) {
+      counts.set(n.kind, (counts.get(n.kind) ?? 0) + 1);
+    }
+    return this.kindRegistry.kinds().map((entry) => ({
+      kind: entry.name,
+      icon: entry.icon?.kind === 'pi' ? `pi ${entry.icon.id}` : 'pi pi-tag',
+      label: entry.label,
+      count: counts.get(entry.name) ?? 0,
     }));
   });
 

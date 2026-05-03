@@ -69,6 +69,7 @@ function makeDetail(item: INodeApi): INodeDetailApi {
     item,
     links: { incoming: [], outgoing: [] },
     issues: [],
+    kindRegistry: {},
   };
 }
 
@@ -96,6 +97,7 @@ function makeStubDataSource(): IStubDataSource {
       items: [],
       filters: { kind: null, from: null, to: null },
       counts: { total: 0, returned: 0 },
+      kindRegistry: {},
     }),
     listIssues: vi.fn(),
     loadGraph: vi.fn(),

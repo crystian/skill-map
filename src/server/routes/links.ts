@@ -51,6 +51,7 @@ export function registerLinksRoute(app: Hono, deps: IRouteDeps): void {
           to: to ?? null,
         },
         total: filtered.length,
+        kindRegistry: deps.kindRegistry,
       }),
     );
   });

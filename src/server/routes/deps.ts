@@ -13,6 +13,7 @@
  */
 
 import type { IRuntimeContext } from '../../cli/util/runtime-context.js';
+import type { IKindRegistry } from '../envelope.js';
 import type { IServerOptions } from '../options.js';
 
 export interface IRouteDeps {
@@ -23,4 +24,13 @@ export interface IRouteDeps {
    * scan runner's plugin discovery + ignore filter resolution).
    */
   runtimeContext: IRuntimeContext;
+  /**
+   * Registry of kinds active in the current scope (Step 14.5.d). Built
+   * once per server boot from every enabled Provider's `kinds[*].ui`
+   * map and embedded into every payload-bearing envelope so the UI can
+   * render Provider-declared kinds without hardcoding a closed kind
+   * enum. Sentinel routes (`health`, `scan`, `graph`) don't carry it
+   * on the wire either.
+   */
+  kindRegistry: IKindRegistry;
 }

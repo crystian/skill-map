@@ -40,6 +40,7 @@ function envelope(items: ILinkApi[]): IListEnvelopeApi<ILinkApi> {
     items,
     filters: { kind: null, from: null, to: null },
     counts: { total: items.length, returned: items.length },
+    kindRegistry: {},
   };
 }
 

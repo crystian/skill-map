@@ -91,6 +91,7 @@ const cursorProvider: IProvider = {
       schema: 'schemas/cursorRule.schema.json',
       schemaJson: { type: 'object', additionalProperties: true },
       defaultRefreshAction: 'cursor/refresh-rule',
+      ui: { label: 'Cursor Rules', color: '#e11d48' },
     },
   },
   async *walk(roots): AsyncIterable<IRawNode> {
@@ -254,6 +255,7 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
               additionalProperties: true,
             },
             defaultRefreshAction: 'cursor/refresh-rule',
+            ui: { label: 'Cursor Rules', color: '#e11d48' },
           },
         },
       };
@@ -301,6 +303,7 @@ describe('open-node-kinds end-to-end (Phase E)', () => {
             schema: 'schemas/cursorRule.schema.json',
             schemaJson: { type: 'object', additionalProperties: true },
             defaultRefreshAction: 'cursor/refresh-rule',
+            ui: { label: 'Cursor Rules', color: '#e11d48' },
           },
         },
         classify(): string {

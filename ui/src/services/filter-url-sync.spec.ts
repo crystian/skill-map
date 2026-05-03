@@ -5,6 +5,7 @@ import { Component } from '@angular/core';
 
 import { FilterStoreService } from './filter-store';
 import { FilterUrlSyncService } from './filter-url-sync';
+import { KindRegistryService } from './kind-registry';
 
 @Component({ template: '' })
 class BlankPage {}
@@ -12,6 +13,7 @@ class BlankPage {}
 describe('FilterUrlSyncService', () => {
   let router: Router;
   let store: FilterStoreService;
+  let registry: KindRegistryService;
 
   beforeEach(async () => {
     TestBed.configureTestingModule({
@@ -24,6 +26,14 @@ describe('FilterUrlSyncService', () => {
     });
     router = TestBed.inject(Router);
     store = TestBed.inject(FilterStoreService);
+    registry = TestBed.inject(KindRegistryService);
+    // Seed the registry so `parseKinds` recognises the test inputs. Step
+    // 14.5.d opened the kind universe — without an ingest the registry
+    // is empty and any deep-link kind would be rejected as unknown.
+    registry.ingest({
+      agent: { providerId: 'claude', label: 'Agents', color: '#3b82f6' },
+      skill: { providerId: 'claude', label: 'Skills', color: '#10b981' },
+    });
     await router.navigateByUrl('/');
   });
 

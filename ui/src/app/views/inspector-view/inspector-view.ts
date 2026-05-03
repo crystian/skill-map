@@ -23,6 +23,7 @@ import {
   DATA_SOURCE,
   type IDataSourcePort,
 } from '../../../services/data-source/data-source.port';
+import { KindRegistryService } from '../../../services/kind-registry';
 import { MarkdownRenderer } from '../../../services/markdown-renderer';
 import { EmptyState } from '../../components/empty-state/empty-state';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
@@ -35,14 +36,6 @@ import type {
   INodeView,
   TStability,
 } from '../../../models/node';
-
-const KIND_SEVERITY: Record<TNodeKind, 'info' | 'success' | 'warn' | 'danger' | 'secondary'> = {
-  skill: 'info',
-  agent: 'success',
-  command: 'warn',
-  hook: 'danger',
-  note: 'secondary',
-};
 
 const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
   stable: 'success',
@@ -74,6 +67,7 @@ type TBodyState = 'idle' | 'loading' | 'empty' | 'unavailable' | 'error' | 'read
 export class InspectorView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly router = inject(Router);
+  private readonly kindRegistry = inject(KindRegistryService);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly markdown = inject(MarkdownRenderer);
 
@@ -166,8 +160,20 @@ export class InspectorView implements OnInit {
     }
   }
 
-  kindSeverity(kind: TNodeKind): 'info' | 'success' | 'warn' | 'danger' | 'secondary' {
-    return KIND_SEVERITY[kind];
+  kindLabel(kind: TNodeKind): string {
+    return this.kindRegistry.labelOf(kind);
+  }
+
+  /**
+   * Inline tag style derived from the runtime kind registry — replaces
+   * the pre-14.5.d hardcoded `<p-tag severity>` mapping. Same `--sm-kind-<id>`
+   * vars list-view uses, so kind tinting stays consistent app-wide.
+   */
+  kindStyle(kind: TNodeKind): Record<string, string> {
+    return {
+      background: `var(--sm-kind-${kind}-bg)`,
+      color: `var(--sm-kind-${kind}-fg)`,
+    };
   }
 
   stabilitySeverity(s: TStability): 'success' | 'info' | 'warn' {

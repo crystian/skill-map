@@ -46,6 +46,11 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { WebSocketServer } from 'ws';
 
+import {
+  composeScanExtensions,
+  emptyPluginRuntime,
+  loadPluginRuntime,
+} from '../cli/util/plugin-runtime.js';
 import { defaultRuntimeContext, type IRuntimeContext } from '../cli/util/runtime-context.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
@@ -54,6 +59,7 @@ import { createApp } from './app.js';
 import { WsBroadcaster } from './broadcaster.js';
 import { resolveSpecVersion } from './health.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
+import { buildKindRegistry } from './kind-registry.js';
 import type { IServerOptions } from './options.js';
 import { createWatcherService, type IWatcherServiceHandle } from './watcher.js';
 
@@ -102,11 +108,14 @@ export async function createServer(
   const specVersion = await resolveSpecVersion();
   const runtimeContext = extra.runtimeContext ?? defaultRuntimeContext();
   const broadcaster = new WsBroadcaster();
+  const kindRegistry = await assembleKindRegistry(options);
+
   const app = createApp({
     options,
     specVersion,
     broadcaster,
     runtimeContext,
+    kindRegistry,
   });
 
   // `noServer: true` is mandatory — node-server's `setupWebSocket` throws
@@ -182,6 +191,30 @@ export async function createServer(
  * we wire `'error'` ourselves so a port-in-use rejects cleanly instead
  * of leaking an unhandled error event.
  */
+/**
+ * Step 14.5.d: assemble the kindRegistry once at boot from every
+ * enabled Provider — same composition the scan composer uses, so the
+ * registry never diverges from what `sm scan` actually classified.
+ * Plugin warnings are surfaced exactly once at boot (subsequent
+ * requests reuse the cached registry; if the operator installs a new
+ * plugin they restart `sm serve`).
+ */
+async function assembleKindRegistry(
+  options: IServerOptions,
+): Promise<ReturnType<typeof buildKindRegistry>> {
+  const pluginRuntime = options.noPlugins
+    ? emptyPluginRuntime()
+    : await loadPluginRuntime({ scope: options.scope });
+  for (const warn of pluginRuntime.warnings) {
+    log.warn(sanitizeForTerminal(warn));
+  }
+  const composed = composeScanExtensions({
+    noBuiltIns: options.noBuiltIns,
+    pluginRuntime,
+  });
+  return buildKindRegistry(composed?.providers ?? []);
+}
+
 function listenAsync(
   fetchCallback: (req: Request) => Response | Promise<Response>,
   wss: WebSocketServer,

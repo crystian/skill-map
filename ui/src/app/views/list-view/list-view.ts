@@ -9,6 +9,7 @@ import { ButtonModule } from 'primeng/button';
 import { LIST_VIEW_TEXTS } from '../../../i18n/list-view.texts';
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
+import { KindRegistryService } from '../../../services/kind-registry';
 import { FilterBar } from '../../components/filter-bar/filter-bar';
 import type {
   TNodeKind,
@@ -38,13 +39,6 @@ const STABILITY_SEVERITY: Record<TStability | '—', 'success' | 'info' | 'warn'
   '—': 'secondary',
 };
 
-const KIND_SEVERITY: Record<TNodeKind, 'info' | 'success' | 'warn' | 'danger' | 'secondary'> = {
-  skill: 'info',
-  agent: 'success',
-  command: 'warn',
-  hook: 'danger',
-  note: 'secondary',
-};
 
 @Component({
   selector: 'app-list-view',
@@ -64,6 +58,7 @@ export class ListView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
+  private readonly kindRegistry = inject(KindRegistryService);
 
   protected readonly texts = LIST_VIEW_TEXTS;
 
@@ -94,8 +89,22 @@ export class ListView implements OnInit {
     }
   }
 
-  kindSeverity(kind: TNodeKind): 'info' | 'success' | 'warn' | 'danger' | 'secondary' {
-    return KIND_SEVERITY[kind];
+  kindLabel(kind: TNodeKind): string {
+    return this.kindRegistry.labelOf(kind);
+  }
+
+  /**
+   * Inline tag style derived from the runtime kind registry — replaces
+   * the pre-14.5.d hardcoded `<p-tag severity>` mapping. Background and
+   * foreground come from the same `--sm-kind-<id>-bg` / `-fg` CSS vars
+   * the rest of the UI uses, so the tag tints stay consistent with
+   * graph nodes / palette buttons / inspector cards.
+   */
+  kindStyle(kind: TNodeKind): Record<string, string> {
+    return {
+      background: `var(--sm-kind-${kind}-bg)`,
+      color: `var(--sm-kind-${kind}-fg)`,
+    };
   }
 
   stabilitySeverity(s: TStability | '—'): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {

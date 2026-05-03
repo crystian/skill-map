@@ -155,6 +155,58 @@ function buildHealthEnvelope({ specVersion, implVersion }) {
   };
 }
 
+/**
+ * Pre-baked kindRegistry mirroring the Claude built-in Provider's `ui`
+ * blocks (Step 14.5.d). Hardcoded here because the demo dataset never
+ * boots the kernel; the values track `src/built-in-plugins/providers/claude/index.ts`
+ * and would diverge if a built-in changes its visuals — but the demo
+ * is supposed to showcase the built-ins, so a deliberate sync is fine
+ * (the kind-presentation tests also assert these values exist).
+ */
+const DEMO_KIND_REGISTRY = {
+  agent: {
+    providerId: 'claude',
+    label: 'Agents',
+    color: '#3b82f6',
+    colorDark: '#60a5fa',
+    icon: { kind: 'pi', id: 'pi-user' },
+  },
+  command: {
+    providerId: 'claude',
+    label: 'Commands',
+    color: '#f59e0b',
+    colorDark: '#fbbf24',
+    icon: { kind: 'svg', path: 'M4 17 L10 11 L4 5 M12 19 L20 19' },
+  },
+  hook: {
+    providerId: 'claude',
+    label: 'Hooks',
+    color: '#8b5cf6',
+    colorDark: '#a78bfa',
+    icon: {
+      kind: 'svg',
+      path: 'M12 2 a3 3 0 1 0 0 6 a3 3 0 1 0 0 -6 M12 8 L12 22 M5 12 H2 a10 10 0 0 0 20 0 H19',
+    },
+  },
+  skill: {
+    providerId: 'claude',
+    label: 'Skills',
+    color: '#10b981',
+    colorDark: '#34d399',
+    icon: { kind: 'pi', id: 'pi-bolt' },
+  },
+  note: {
+    providerId: 'claude',
+    label: 'Notes',
+    color: '#5b908c',
+    colorDark: '#9bbcb8',
+    icon: {
+      kind: 'svg',
+      path: 'M14 2 H6 a2 2 0 0 0 -2 2 V20 a2 2 0 0 0 2 2 H18 a2 2 0 0 0 2 -2 V8 L14 2 M14 2 V8 H20 M16 13 H8 M16 17 H8 M10 9 H8',
+    },
+  },
+};
+
 function buildNodesEnvelope(scan) {
   const items = scan.nodes ?? [];
   const total = items.length;
@@ -164,6 +216,7 @@ function buildNodesEnvelope(scan) {
     items,
     filters: { kind: null, hasIssues: null, path: null },
     counts: { total, returned: total, page: { offset: 0, limit: 1000 } },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -176,6 +229,7 @@ function buildLinksEnvelope(scan) {
     items,
     filters: { kind: null, from: null, to: null },
     counts: { total, returned: total },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -188,6 +242,7 @@ function buildIssuesEnvelope(scan) {
     items,
     filters: { severity: null, ruleId: null, node: null },
     counts: { total, returned: total },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -205,6 +260,7 @@ function buildConfigEnvelope() {
       roots: ['.'],
       ignore: [],
     },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 
@@ -236,6 +292,7 @@ function buildPluginsEnvelope() {
     items,
     filters: {},
     counts: { total: items.length, returned: items.length },
+    kindRegistry: DEMO_KIND_REGISTRY,
   };
 }
 

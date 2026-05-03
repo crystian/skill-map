@@ -61,31 +61,79 @@ export const claudeProvider: IProvider = {
   // pairs the relative manifest-style schema path (mirrors what the
   // spec's provider.schema.json validates) with the loaded JSON Schema
   // (`schemaJson`) the kernel registers with AJV at scan boot.
+  // Step 14.5.d: each kind declares its UI presentation (label, color,
+  // dark variant, icon). The UI consumes this registry via the
+  // `kindRegistry` field embedded in REST envelopes; it derives bg/fg
+  // tints from `color` per theme via a deterministic helper, so the
+  // Provider only declares intent (one base color per theme) instead of
+  // four hex values. Colors and SVG paths transplanted verbatim from
+  // the previous static UI catalog (`ui/src/styles.css` for hex,
+  // `ui/src/app/components/kind-icon/kind-icon.html` for SVG path data,
+  // `ui/src/i18n/kinds.texts.ts` for labels).
   kinds: {
     agent: {
       schema: './schemas/agent.schema.json',
       schemaJson: agentSchema,
       defaultRefreshAction: 'claude/summarize-agent',
+      ui: {
+        label: 'Agents',
+        color: '#3b82f6',
+        colorDark: '#60a5fa',
+        icon: { kind: 'pi', id: 'pi-user' },
+      },
     },
     command: {
       schema: './schemas/command.schema.json',
       schemaJson: commandSchema,
       defaultRefreshAction: 'claude/summarize-command',
+      ui: {
+        label: 'Commands',
+        color: '#f59e0b',
+        colorDark: '#fbbf24',
+        icon: {
+          kind: 'svg',
+          path: 'M4 17 L10 11 L4 5 M12 19 L20 19',
+        },
+      },
     },
     hook: {
       schema: './schemas/hook.schema.json',
       schemaJson: hookSchema,
       defaultRefreshAction: 'claude/summarize-hook',
+      ui: {
+        label: 'Hooks',
+        color: '#8b5cf6',
+        colorDark: '#a78bfa',
+        icon: {
+          kind: 'svg',
+          path: 'M12 2 a3 3 0 1 0 0 6 a3 3 0 1 0 0 -6 M12 8 L12 22 M5 12 H2 a10 10 0 0 0 20 0 H19',
+        },
+      },
     },
     skill: {
       schema: './schemas/skill.schema.json',
       schemaJson: skillSchema,
       defaultRefreshAction: 'claude/summarize-skill',
+      ui: {
+        label: 'Skills',
+        color: '#10b981',
+        colorDark: '#34d399',
+        icon: { kind: 'pi', id: 'pi-bolt' },
+      },
     },
     note: {
       schema: './schemas/note.schema.json',
       schemaJson: noteSchema,
       defaultRefreshAction: 'claude/summarize-note',
+      ui: {
+        label: 'Notes',
+        color: '#5b908c',
+        colorDark: '#9bbcb8',
+        icon: {
+          kind: 'svg',
+          path: 'M14 2 H6 a2 2 0 0 0 -2 2 V20 a2 2 0 0 0 2 2 H18 a2 2 0 0 0 2 -2 V8 L14 2 M14 2 V8 H20 M16 13 H8 M16 17 H8 M10 9 H8',
+        },
+      },
     },
   },
 

@@ -11,8 +11,13 @@ import { Subject } from 'rxjs';
 import { DataSourceError } from './data-source.port';
 import { RestDataSource, __testHooks } from './rest-data-source';
 import { encodeNodePath } from './path-codec';
+import { KindRegistryService } from '../kind-registry';
 import { WsEventStreamService } from '../ws-event-stream';
 import type { IWsEvent } from '../../models/ws-event';
+
+function makeFakeRegistry(): KindRegistryService {
+  return { ingest: vi.fn() } as unknown as KindRegistryService;
+}
 
 const HEALTH_FIXTURE = {
   ok: true,
@@ -48,6 +53,7 @@ const NODES_ENVELOPE = {
   items: [{ path: 'a.md' }],
   filters: { kind: null, hasIssues: null, path: null },
   counts: { total: 1, returned: 1, page: { offset: 0, limit: 100 } },
+  kindRegistry: {},
 };
 
 const NODE_DETAIL = {
@@ -56,6 +62,7 @@ const NODE_DETAIL = {
   item: { path: 'a.md' },
   links: { incoming: [], outgoing: [] },
   issues: [],
+  kindRegistry: {},
 };
 
 describe('RestDataSource', () => {
@@ -74,7 +81,7 @@ describe('RestDataSource', () => {
       events$: wsSubject.asObservable(),
       disconnect: vi.fn(),
     } as unknown as WsEventStreamService;
-    ds = new RestDataSource(TestBed.inject(HttpClient), fakeWs);
+    ds = new RestDataSource(TestBed.inject(HttpClient), fakeWs, makeFakeRegistry());
   });
 
   afterEach(() => {
@@ -92,8 +99,13 @@ describe('RestDataSource', () => {
 
   it('loadScan() GETs /api/scan and returns the ScanResult', async () => {
     const promise = ds.loadScan();
-    const req = httpMock.expectOne('/api/scan');
-    req.flush(SCAN_FIXTURE);
+    // Step 14.5.d: loadScan also primes the kindRegistry via a parallel
+    // /api/nodes?limit=0 request. Both must be matched so httpMock.verify()
+    // doesn't see an outstanding request in afterEach.
+    const scanReq = httpMock.expectOne('/api/scan');
+    const primeReq = httpMock.expectOne('/api/nodes?limit=0');
+    scanReq.flush(SCAN_FIXTURE);
+    primeReq.flush(NODES_ENVELOPE);
     await expect(promise).resolves.toEqual(SCAN_FIXTURE);
   });
 

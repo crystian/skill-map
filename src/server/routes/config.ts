@@ -40,6 +40,6 @@ export function registerConfigRoute(app: Hono, deps: IRouteDeps): void {
     for (const warn of loaded.warnings) {
       process.stderr.write(`${warn}\n`);
     }
-    return c.json(buildValueEnvelope('config', loaded.effective));
+    return c.json(buildValueEnvelope('config', loaded.effective, deps.kindRegistry));
   });
 }

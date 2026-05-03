@@ -225,6 +225,59 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
 
 ### Minor
 
+- **Provider-driven kind presentation + envelope `kindRegistry`** —
+  Step 14.5.d. The Provider extension surface gains the required
+  `kinds[*].ui` field (label, color, optional dark-theme color, optional
+  emoji, optional icon) so each kind a Provider declares carries the
+  presentation metadata the UI needs to render it. The icon is a
+  discriminated union — `{ kind: 'pi'; id: 'pi-…' }` for PrimeIcons or
+  `{ kind: 'svg'; path: '…' }` for raw SVG path data wrapped in a
+  `viewBox="0 0 24 24"` tinted with `currentColor`. The UI derives bg /
+  fg tints from `color` per theme via a deterministic helper, so the
+  Provider declares one base color per theme rather than four hex
+  values.
+
+  The REST envelope shape (`schemas/api/rest-envelope.schema.json`)
+  gains a new required `kindRegistry` field on every payload-bearing
+  variant (`nodes` / `links` / `issues` / `plugins` lists, the `node`
+  single, and the `config` value envelope); sentinel envelopes
+  (`health` / `scan` / `graph`) stay exempt because they don't carry a
+  payload at the wire level either. The registry is keyed by kind
+  name and carries `{ providerId, label, color, colorDark?, emoji?,
+  icon? }` — the BFF assembles it once at boot from every enabled
+  Provider and attaches it to every applicable response so the UI can
+  render Provider-declared kinds (built-in and user-plugin alike)
+  without hardcoding a closed kind enum.
+
+  **Why required, not optional**: making `ui` optional reintroduces the
+  trap the UI had pre-14.5.d (silently collapsing unknown kinds to
+  `'note'`). Forcing every Provider to declare presentation up-front
+  means the UI never has to invent visuals; the cost is one small
+  object per kind in the manifest.
+
+  **Why discriminated icon instead of two optional fields**: the
+  `oneOf` shape (with `kind: 'pi' | 'svg'` discriminator) keeps the UI
+  dispatch exhaustive without string-sniffing the payload, and AJV
+  validates each variant cleanly — a manifest cannot ship both `id` and
+  `path` simultaneously.
+
+  **Why `schemaVersion` stays at `'1'`**: the BFF is greenfield — no
+  released consumers depend on the previous (kindRegistry-less)
+  shape, so a versioned migration would only add ceremony. The
+  shape change is documented under this changelog entry; the version
+  bumps the day a third-party consumer ships against the wire.
+
+  Pre-1.0 minor breaking per `versioning.md` § Pre-1.0. The built-in
+  Claude Provider migrates in the same step (every kind declares its
+  `ui` block reusing the visuals previously hardcoded in the UI).
+
+  Conformance: new case `plugin-missing-ui-rejected` (with fixture
+  `plugin-missing-ui/`) locks the loader's behaviour against a drop-in
+  Provider that omits `ui` — `sm scan --json` exits 0, stderr matches
+  the canonical `must have required property 'ui'` diagnostic, and the
+  rest of the pipeline (built-in Claude) keeps running. Suite total:
+  5/5 passing across 2 scopes.
+
 - **BFF `/api/nodes/:pathB64` body opt-in** — Step 14.5.a extends the
   single-node detail endpoint with the optional `?include=body` query
   parameter. When set, the response's `item` carries `body: string |

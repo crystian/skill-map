@@ -45,18 +45,9 @@ import { filter } from 'rxjs/operators';
 import type {
   INodeView,
   TFrontmatter,
-  TNodeKind,
 } from '../models/node';
 import type { INodeApi, IScanResultApi } from '../models/api';
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
-
-const KNOWN_KINDS: ReadonlySet<TNodeKind> = new Set([
-  'skill',
-  'agent',
-  'command',
-  'hook',
-  'note',
-]);
 
 @Injectable({ providedIn: 'root' })
 export class CollectionLoaderService {
@@ -81,16 +72,21 @@ export class CollectionLoaderService {
   readonly error = this._error.asReadonly();
 
   readonly count = computed(() => this._nodes().length);
+  /**
+   * Per-kind buckets — keyed by whatever kind names the active Providers
+   * declared (Step 14.5.d). Built dynamically from the loaded nodes so a
+   * user-plugin Provider that introduces a new kind (`'cursorRule'`,
+   * `'daily'`, …) gets its own bucket without code changes here.
+   */
   readonly byKind = computed(() => {
-    const buckets: Record<TNodeKind, INodeView[]> = {
-      skill: [],
-      agent: [],
-      command: [],
-      hook: [],
-      note: [],
-    };
+    const buckets = new Map<string, INodeView[]>();
     for (const node of this._nodes()) {
-      buckets[node.kind].push(node);
+      const list = buckets.get(node.kind);
+      if (list) {
+        list.push(node);
+      } else {
+        buckets.set(node.kind, [node]);
+      }
     }
     return buckets;
   });
@@ -159,7 +155,10 @@ export class CollectionLoaderService {
  * the projection — see the file-level docstring for the rationale.
  */
 function projectNode(api: INodeApi): INodeView {
-  const kind = normalizeKind(api.kind);
+  // Step 14.5.d: kinds are open per Provider. The UI no longer collapses
+  // unknown kinds to `'note'` — the registry resolves rendering by kind
+  // name, so the projection passes the value through unchanged.
+  const kind = api.kind;
   const frontmatter = (api.frontmatter ?? {}) as Partial<TFrontmatter>;
   // The spec keeps `frontmatter.metadata` optional; the legacy view
   // assumes a defined object so existing template bindings (`meta?.tags`
@@ -191,8 +190,4 @@ function projectNode(api: INodeApi): INodeView {
     kind,
     frontmatter: fm,
   };
-}
-
-function normalizeKind(raw: string): TNodeKind {
-  return KNOWN_KINDS.has(raw as TNodeKind) ? (raw as TNodeKind) : 'note';
 }

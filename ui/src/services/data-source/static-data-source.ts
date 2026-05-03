@@ -33,6 +33,7 @@
  * mirroring the demo-mode contract documented on `IDataSourcePort`.
  */
 
+import { inject } from '@angular/core';
 import { EMPTY, type Observable } from 'rxjs';
 
 import { DATA_SOURCE_TEXTS } from '../../i18n/data-source.texts';
@@ -45,8 +46,10 @@ import type {
   INodeDetailApi,
   IProjectConfigApi,
   IScanResultApi,
+  IValueEnvelopeApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
+import { KindRegistryService } from '../kind-registry';
 import {
   DataSourceError,
   type IDataSourcePort,
@@ -74,7 +77,7 @@ export interface IDemoMetaPayload {
   nodes: IListEnvelopeApi<INodeApi>;
   links: IListEnvelopeApi<ILinkApi>;
   issues: IListEnvelopeApi<IIssueApi>;
-  config: { schemaVersion: '1'; kind: 'config'; value: IProjectConfigApi };
+  config: IValueEnvelopeApi<IProjectConfigApi>;
   plugins: IListEnvelopeApi<TPluginItem>;
   graph: { ascii: string };
 }
@@ -82,26 +85,43 @@ export interface IDemoMetaPayload {
 export class StaticDataSource implements IDataSourcePort {
   private metaPromise: Promise<IDemoMetaPayload> | null = null;
   private dataPromise: Promise<IScanResultApi> | null = null;
+  private readonly kindRegistry: KindRegistryService;
 
   /**
-   * Optional fetch override — exposed for tests so spec files can swap a
-   * stub `fetch` without touching the global. Production code never sets
-   * this; it falls back to the platform `fetch`.
+   * Optional fetch + KindRegistryService overrides — exposed so spec
+   * files can stub `fetch` and pass a synthetic registry service
+   * without depending on Angular DI. Production code leaves both
+   * undefined; the constructor falls back to the platform `fetch` and
+   * the DI singleton.
    */
-  constructor(private readonly fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis)) {}
+  constructor(
+    private readonly fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+    kindRegistry?: KindRegistryService,
+  ) {
+    this.kindRegistry = kindRegistry ?? inject(KindRegistryService);
+  }
 
   async health(): Promise<IHealthResponseApi> {
     const meta = await this.loadMeta();
     return meta.health;
   }
 
+  /**
+   * Demo mode: the bundled `data.meta.json` carries the `kindRegistry`
+   * inside every envelope (the build script bakes it in from the
+   * Claude built-in). Loading the scan also primes the registry so the
+   * SPA's first paint already has labels / colors / icons resolved.
+   */
   async loadScan(): Promise<IScanResultApi> {
-    return this.loadData();
+    const [scan, meta] = await Promise.all([this.loadData(), this.loadMeta()]);
+    this.kindRegistry.ingest(meta.nodes.kindRegistry);
+    return scan;
   }
 
   async listNodes(q: INodesQuery = {}): Promise<IListEnvelopeApi<INodeApi>> {
+    const meta = await this.loadMeta();
     if (isEmptyNodesQuery(q)) {
-      const meta = await this.loadMeta();
+      this.kindRegistry.ingest(meta.nodes.kindRegistry);
       return meta.nodes;
     }
     const scan = await this.loadData();
@@ -126,6 +146,7 @@ export class StaticDataSource implements IDataSourcePort {
     const offset = q.offset ?? 0;
     const limit = q.limit ?? 1000;
     const sliced = items.slice(offset, offset + limit);
+    this.kindRegistry.ingest(meta.nodes.kindRegistry);
     return {
       schemaVersion: '1',
       kind: 'nodes',
@@ -140,6 +161,7 @@ export class StaticDataSource implements IDataSourcePort {
         returned: sliced.length,
         page: { offset, limit },
       },
+      kindRegistry: meta.nodes.kindRegistry,
     };
   }
 
@@ -153,24 +175,27 @@ export class StaticDataSource implements IDataSourcePort {
     // when one was embedded — there's nothing to opt into. Nodes with
     // no body in the snapshot return `body: undefined` naturally,
     // which the inspector treats the same as the live `body: null`.
-    const scan = await this.loadData();
+    const [scan, meta] = await Promise.all([this.loadData(), this.loadMeta()]);
     const node = scan.nodes.find((n) => n.path === path);
     if (!node) return null;
     const incoming = scan.links.filter((l) => l.target === path);
     const outgoing = scan.links.filter((l) => l.source === path);
     const issues = scan.issues.filter((i) => i.nodeIds.includes(path));
+    this.kindRegistry.ingest(meta.nodes.kindRegistry);
     return {
       schemaVersion: '1',
       kind: 'node',
       item: node,
       links: { incoming, outgoing },
       issues,
+      kindRegistry: meta.nodes.kindRegistry,
     };
   }
 
   async listLinks(q: ILinksQuery = {}): Promise<IListEnvelopeApi<ILinkApi>> {
+    const meta = await this.loadMeta();
     if (isEmptyLinksQuery(q)) {
-      const meta = await this.loadMeta();
+      this.kindRegistry.ingest(meta.links.kindRegistry);
       return meta.links;
     }
     const scan = await this.loadData();
@@ -181,18 +206,21 @@ export class StaticDataSource implements IDataSourcePort {
     }
     if (q.from) items = items.filter((l) => l.source === q.from);
     if (q.to) items = items.filter((l) => l.target === q.to);
+    this.kindRegistry.ingest(meta.links.kindRegistry);
     return {
       schemaVersion: '1',
       kind: 'links',
       items,
       filters: { kind: q.kind ?? null, from: q.from ?? null, to: q.to ?? null },
       counts: { total: items.length, returned: items.length },
+      kindRegistry: meta.links.kindRegistry,
     };
   }
 
   async listIssues(q: IIssuesQuery = {}): Promise<IListEnvelopeApi<IIssueApi>> {
+    const meta = await this.loadMeta();
     if (isEmptyIssuesQuery(q)) {
-      const meta = await this.loadMeta();
+      this.kindRegistry.ingest(meta.issues.kindRegistry);
       return meta.issues;
     }
     const scan = await this.loadData();
@@ -200,6 +228,7 @@ export class StaticDataSource implements IDataSourcePort {
     if (q.severity) items = items.filter((i) => i.severity === q.severity);
     if (q.ruleId) items = items.filter((i) => i.ruleId === q.ruleId);
     if (q.node) items = items.filter((i) => i.nodeIds.includes(q.node!));
+    this.kindRegistry.ingest(meta.issues.kindRegistry);
     return {
       schemaVersion: '1',
       kind: 'issues',
@@ -210,6 +239,7 @@ export class StaticDataSource implements IDataSourcePort {
         node: q.node ?? null,
       },
       counts: { total: items.length, returned: items.length },
+      kindRegistry: meta.issues.kindRegistry,
     };
   }
 
@@ -226,11 +256,13 @@ export class StaticDataSource implements IDataSourcePort {
 
   async loadConfig(): Promise<IProjectConfigApi> {
     const meta = await this.loadMeta();
+    this.kindRegistry.ingest(meta.config.kindRegistry);
     return meta.config.value;
   }
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {
     const meta = await this.loadMeta();
+    this.kindRegistry.ingest(meta.plugins.kindRegistry);
     return meta.plugins;
   }
 

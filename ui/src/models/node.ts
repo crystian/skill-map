@@ -10,7 +10,18 @@
  * reflections of the spec; put ui state on `INodeView` below.
  */
 
-export type TNodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
+/**
+ * Open kind type. Step 14.5.d switched from a closed union (limited to
+ * the five Claude built-in kinds) to a free `string` so user-plugin
+ * Providers can declare their own kinds (`cursorRule`, `daily`, …) and
+ * the UI renders them through the runtime `KindRegistryService` instead
+ * of a hardcoded enum. The label / color / icon come from the registry,
+ * keyed by the same `string`. Pre-14.5.d call sites that switch on
+ * literal kind names (`'agent'`, `'command'`, …) still work because
+ * the string accepts those exact values; new code should look up
+ * presentation through the registry rather than branching on the kind.
+ */
+export type TNodeKind = string;
 
 export type TStability = 'experimental' | 'stable' | 'deprecated';
 

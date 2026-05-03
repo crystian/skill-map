@@ -13,7 +13,7 @@
 
   @if (showKinds()) {
     <p-multiselect
-      [options]="kindOptions"
+      [options]="kindOptions()"
       [ngModel]="selectedKinds()"
       (ngModelChange)="onKindsChange($event)"
       optionLabel="label"

@@ -158,24 +158,49 @@ export interface IEnvelopeCountsApi {
   page?: IPageInfoApi;
 }
 
+/**
+ * Wire shape of one entry in the BFF's `kindRegistry` (Step 14.5.d).
+ * Mirrors `spec/schemas/api/rest-envelope.schema.json#/properties/kindRegistry/additionalProperties`.
+ * The UI's runtime `KindRegistryService` enriches this with the kind
+ * name (key from the parent map) so iteration preserves order without a
+ * separate Map.
+ */
+export type TKindIconApi =
+  | { kind: 'pi'; id: string }
+  | { kind: 'svg'; path: string };
+
+export interface IKindRegistryEntryApi {
+  providerId: string;
+  label: string;
+  color: string;
+  colorDark?: string;
+  emoji?: string;
+  icon?: TKindIconApi;
+}
+
+export type IKindRegistryApi = Record<string, IKindRegistryEntryApi>;
+
 export interface IListEnvelopeApi<TItem> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKindApi;
   items: TItem[];
   filters: Record<string, unknown>;
   counts: IEnvelopeCountsApi;
+  kindRegistry: IKindRegistryApi;
 }
 
 export interface ISingleEnvelopeApi<TItem> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKindApi;
   item: TItem;
+  kindRegistry: IKindRegistryApi;
 }
 
 export interface IValueEnvelopeApi<TValue> {
   schemaVersion: typeof REST_ENVELOPE_SCHEMA_VERSION;
   kind: TEnvelopeKindApi;
   value: TValue;
+  kindRegistry: IKindRegistryApi;
 }
 
 /**
@@ -188,6 +213,7 @@ export interface INodeDetailApi {
   item: INodeApi;
   links: { incoming: ILinkApi[]; outgoing: ILinkApi[] };
   issues: IIssueApi[];
+  kindRegistry: IKindRegistryApi;
 }
 
 /**

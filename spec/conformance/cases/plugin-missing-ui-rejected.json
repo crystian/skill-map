@@ -1,0 +1,17 @@
+{
+  "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
+  "id": "plugin-missing-ui-rejected",
+  "description": "A drop-in Provider plugin whose `kinds[*]` entry omits the required `ui` block (Step 14.5.d) MUST be rejected by the loader with a clear `missing required property 'ui'` diagnostic on stderr, AND `sm scan` MUST exit cleanly with the rest of the pipeline (built-in Claude Provider) still running. Locks the contract that one bad plugin does not take down the scan.",
+  "fixture": "plugin-missing-ui",
+  "invoke": {
+    "verb": "scan",
+    "flags": ["--json"]
+  },
+  "assertions": [
+    { "type": "exit-code", "value": 0 },
+    { "type": "stderr-matches", "pattern": "plugin bad-provider:.*invalid.*must have required property 'ui'" },
+    { "type": "json-path", "path": "$.providers.length", "equals": 1 },
+    { "type": "json-path", "path": "$.providers[0]", "equals": "claude" },
+    { "type": "json-path", "path": "$.nodes.length", "equals": 1 }
+  ]
+}

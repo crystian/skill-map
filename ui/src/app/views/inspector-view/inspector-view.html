@@ -22,7 +22,7 @@
   <section class="inspector" data-testid="inspector-view">
     <header class="inspector__header">
       <div class="inspector__title" data-testid="inspector-title">
-        <p-tag [value]="n.kind" [severity]="kindSeverity(n.kind)" />
+        <p-tag [value]="kindLabel(n.kind)" [style]="kindStyle(n.kind)" />
         @if (meta?.stability) {
           <p-tag
             [value]="meta!.stability!"

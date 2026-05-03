@@ -31,7 +31,7 @@
       },
       "additionalProperties": {
         "type": "object",
-        "required": ["schema", "defaultRefreshAction"],
+        "required": ["schema", "defaultRefreshAction", "ui"],
         "additionalProperties": false,
         "properties": {
           "schema": {
@@ -43,6 +43,66 @@
             "type": "string",
             "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*/[a-z][a-z0-9]*(-[a-z0-9]+)*$",
             "description": "Qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The action MUST exist in the registry by the time the graph is queried; a dangling reference disables the Provider with status `invalid-manifest`."
+          },
+          "ui": {
+            "type": "object",
+            "required": ["label", "color"],
+            "additionalProperties": false,
+            "description": "Presentation metadata the UI uses to render nodes of this kind (palette swatches, list tags, graph nodes, filter chips). Required so the UI never has to invent visuals for a kind a Provider declares. The Provider declares intent (label + base color, optional dark variant + emoji + icon); the UI derives bg/fg tints from `color` per theme via a deterministic helper. Reaches the UI via the `kindRegistry` field embedded in REST envelopes (`api/rest-envelope.schema.json`).",
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Plural human-readable label for groups of this kind (e.g. `'Skills'`, `'Agents'`, `'Cursor Rules'`). Used in filter dropdowns, palette tooltips, and any list grouping."
+              },
+              "color": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Base hex color (light theme). The UI derives `bg` and `fg` tints from this value at runtime; declaring a single base value (instead of three) keeps the manifest small and lets the UI control accessibility-driven contrast."
+              },
+              "colorDark": {
+                "type": "string",
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "Optional dark-theme variant of `color`. When absent, the UI falls back to `color`. Declared explicitly because a luminosity flip rarely matches the brand intent for kinds that should stand out in dark mode."
+              },
+              "emoji": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 8,
+                "description": "Optional decorative emoji used as a fallback when `icon` is absent or fails to render. Bound to a small length so the UI can lay it out predictably alongside text."
+              },
+              "icon": {
+                "description": "Optional discriminated icon descriptor. The UI prefers `icon` over `emoji`; when both are absent, the UI falls back to the first letter of `label` colored with `color`.",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "required": ["kind", "id"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": { "const": "pi" },
+                      "id": {
+                        "type": "string",
+                        "pattern": "^pi-[a-z0-9]+(-[a-z0-9]+)*$",
+                        "description": "PrimeIcons identifier (e.g. `pi-cog`, `pi-bolt`). Matched verbatim against the `pi pi-<id>` class the UI emits."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["kind", "path"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "kind": { "const": "svg" },
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "description": "Raw SVG path data (the `d` attribute of one or more `<path>` elements, joined). The UI wraps it in `<svg viewBox=\"0 0 24 24\"><path d=\"...\"/></svg>` and tints it with `currentColor`."
+                      }
+                    }
+                  }
+                ]
+              }
+            }
           }
         }
       }

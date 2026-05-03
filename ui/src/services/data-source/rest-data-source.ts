@@ -27,6 +27,7 @@ import type {
   IErrorEnvelopeApi,
   IHealthResponseApi,
   IIssueApi,
+  IKindRegistryApi,
   ILinkApi,
   IListEnvelopeApi,
   INodeApi,
@@ -36,6 +37,7 @@ import type {
   IValueEnvelopeApi,
 } from '../../models/api';
 import type { IWsEvent } from '../../models/ws-event';
+import { KindRegistryService } from '../kind-registry';
 import { WsEventStreamService } from '../ws-event-stream';
 import { encodeNodePath } from './path-codec';
 import {
@@ -54,8 +56,9 @@ const BASE = '/api';
 export class RestDataSource implements IDataSourcePort {
   private readonly http: HttpClient;
   private readonly ws: WsEventStreamService;
+  private readonly kindRegistry: KindRegistryService;
 
-  constructor(http?: HttpClient, ws?: WsEventStreamService) {
+  constructor(http?: HttpClient, ws?: WsEventStreamService, kindRegistry?: KindRegistryService) {
     // The factory passes `HttpClient` + `WsEventStreamService`
     // explicitly; the `@Injectable` path uses Angular DI. Both call
     // sites resolve to the same singleton — keep the constructor
@@ -63,19 +66,36 @@ export class RestDataSource implements IDataSourcePort {
     // tests / factory wiring.
     this.http = http ?? inject(HttpClient);
     this.ws = ws ?? inject(WsEventStreamService);
+    this.kindRegistry = kindRegistry ?? inject(KindRegistryService);
   }
 
   async health(): Promise<IHealthResponseApi> {
     return this.getJson<IHealthResponseApi>(`${BASE}/health`);
   }
 
+  /**
+   * `/api/scan` is exempt from the envelope shape (returns the raw
+   * `ScanResult` per the spec contract), so it does NOT carry the
+   * `kindRegistry`. The scan flow needs the registry up-front though
+   * (otherwise the first paint of List / Graph renders unstyled kind
+   * tags). Solution: prime the registry in parallel with the scan
+   * fetch via a zero-row `/api/nodes?limit=0` call. The list response
+   * IS payload-bearing and carries the registry; the items array is
+   * empty so the round-trip is cheap.
+   */
   async loadScan(): Promise<IScanResultApi> {
-    return this.getJson<IScanResultApi>(`${BASE}/scan`);
+    const [scan] = await Promise.all([
+      this.getJson<IScanResultApi>(`${BASE}/scan`),
+      this.listNodes({ limit: 0 }).catch(() => null),
+    ]);
+    return scan;
   }
 
   async listNodes(q: INodesQuery = {}): Promise<IListEnvelopeApi<INodeApi>> {
     const params = buildNodesQueryString(q);
-    return this.getJson<IListEnvelopeApi<INodeApi>>(`${BASE}/nodes${params}`);
+    const envelope = await this.getJson<IListEnvelopeApi<INodeApi>>(`${BASE}/nodes${params}`);
+    this.ingestRegistry(envelope.kindRegistry);
+    return envelope;
   }
 
   async getNode(
@@ -85,7 +105,9 @@ export class RestDataSource implements IDataSourcePort {
     const encoded = encodeNodePath(path);
     const query = opts.includeBody ? '?include=body' : '';
     try {
-      return await this.getJson<INodeDetailApi>(`${BASE}/nodes/${encoded}${query}`);
+      const envelope = await this.getJson<INodeDetailApi>(`${BASE}/nodes/${encoded}${query}`);
+      this.ingestRegistry(envelope.kindRegistry);
+      return envelope;
     } catch (err) {
       if (err instanceof DataSourceError && err.code === 'not-found') return null;
       throw err;
@@ -94,12 +116,16 @@ export class RestDataSource implements IDataSourcePort {
 
   async listLinks(q: ILinksQuery = {}): Promise<IListEnvelopeApi<ILinkApi>> {
     const params = buildLinksQueryString(q);
-    return this.getJson<IListEnvelopeApi<ILinkApi>>(`${BASE}/links${params}`);
+    const envelope = await this.getJson<IListEnvelopeApi<ILinkApi>>(`${BASE}/links${params}`);
+    this.ingestRegistry(envelope.kindRegistry);
+    return envelope;
   }
 
   async listIssues(q: IIssuesQuery = {}): Promise<IListEnvelopeApi<IIssueApi>> {
     const params = buildIssuesQueryString(q);
-    return this.getJson<IListEnvelopeApi<IIssueApi>>(`${BASE}/issues${params}`);
+    const envelope = await this.getJson<IListEnvelopeApi<IIssueApi>>(`${BASE}/issues${params}`);
+    this.ingestRegistry(envelope.kindRegistry);
+    return envelope;
   }
 
   async loadGraph(format: TGraphFormat = 'ascii'): Promise<string> {
@@ -117,11 +143,18 @@ export class RestDataSource implements IDataSourcePort {
     const envelope = await this.getJson<IValueEnvelopeApi<IProjectConfigApi>>(
       `${BASE}/config`,
     );
+    this.ingestRegistry(envelope.kindRegistry);
     return envelope.value;
   }
 
   async listPlugins(): Promise<IListEnvelopeApi<TPluginItem>> {
-    return this.getJson<IListEnvelopeApi<TPluginItem>>(`${BASE}/plugins`);
+    const envelope = await this.getJson<IListEnvelopeApi<TPluginItem>>(`${BASE}/plugins`);
+    this.ingestRegistry(envelope.kindRegistry);
+    return envelope;
+  }
+
+  private ingestRegistry(payload: IKindRegistryApi | undefined): void {
+    if (payload) this.kindRegistry.ingest(payload);
   }
 
   /**

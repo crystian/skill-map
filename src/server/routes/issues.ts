@@ -51,6 +51,7 @@ export function registerIssuesRoute(app: Hono, deps: IRouteDeps): void {
           node: nodePath ?? null,
         },
         total: filtered.length,
+        kindRegistry: deps.kindRegistry,
       }),
     );
   });
