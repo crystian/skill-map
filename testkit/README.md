@@ -1,6 +1,6 @@
 # `@skill-map/testkit`
 
-Kernel mocks and builders for plugin authors. Unit-test detectors, rules, and formatters without spinning up a real kernel or DB.
+Kernel mocks and builders for plugin authors. Unit-test Extractors, Rules, and Formatters without spinning up a real kernel or DB.
 
 The full plugin contract lives in [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md). This README is a fast on-ramp: how to ship the smallest viable plugin and validate it with the testkit.
 
@@ -20,7 +20,7 @@ A plugin is a directory with one manifest and one extension file:
 my-plugin/
 ├── plugin.json
 └── extensions/
-    └── my-detector.js
+    └── my-extractor.js
 ```
 
 `plugin.json`:
@@ -30,54 +30,54 @@ my-plugin/
   "id": "my-plugin",
   "version": "1.0.0",
   "specCompat": "^1.0.0",
-  "extensions": ["./extensions/my-detector.js"]
+  "extensions": ["./extensions/my-extractor.js"]
 }
 ```
 
 The directory name MUST equal `id`. Cross-root id collisions block both plugins.
 
-`extensions/my-detector.js` — a detector that emits one `references` link per `[[ref:<name>]]` token in the body:
+`extensions/my-extractor.js` — an Extractor that emits one `references` link per `[[ref:<name>]]` token in the body:
 
 ```javascript
 export default {
-  id: 'my-detector',
-  kind: 'detector',
+  id: 'my-extractor',
+  kind: 'extractor',
   version: '1.0.0',
   emitsLinkKinds: ['references'],
   defaultConfidence: 'medium',
   scope: 'body',
-  detect(ctx) {
-    const out = [];
+  extract(ctx) {
     for (const m of ctx.body.matchAll(/\[\[ref:([a-z0-9-]+)\]\]/gi)) {
-      out.push({
+      ctx.emitLink({
         source: ctx.node.path,
         target: m[1].toLowerCase(),
         kind: 'references',
         confidence: 'medium',
-        sources: ['my-detector'],
+        sources: ['my-extractor'],
         trigger: { originalTrigger: m[0], normalizedTrigger: m[0].toLowerCase() },
       });
     }
-    return out;
   },
 };
 ```
 
-The extension's `id` is short (`my-detector`); the kernel composes the qualified id `my-plugin/my-detector` from the manifest. Pick a token syntax that does not collide with the built-in `@<token>` and `/<token>` detectors.
+The extension's `id` is short (`my-extractor`); the kernel composes the qualified id `my-plugin/my-extractor` from the manifest. Pick a token syntax that does not collide with the built-in `@<token>` and `/<token>` Extractors.
 
-The four other extension kinds (`provider`, `rule`, `formatter`, `action`) follow the same shape — see [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md#the-five-extension-kinds).
+The `extract(ctx) → void` shape is normative: Extractors emit through three callbacks (`ctx.emitLink`, `ctx.enrichNode`, `ctx.store`) instead of returning links. See [`spec/architecture.md` §Extractor · output callbacks](../spec/architecture.md#extractor--output-callbacks).
+
+The five other extension kinds (`provider`, `rule`, `formatter`, `action`, `hook`) follow the same shape — see [`spec/plugin-author-guide.md`](../spec/plugin-author-guide.md#the-six-extension-kinds).
 
 ## Test it
 
 ```javascript
-// test/my-detector.test.js
+// test/my-extractor.test.js
 import { test } from 'node:test';
 import { strictEqual } from 'node:assert';
-import { node, runDetectorOnFixture } from '@skill-map/testkit';
-import detector from '../extensions/my-detector.js';
+import { node, runExtractorOnFixture } from '@skill-map/testkit';
+import extractor from '../extensions/my-extractor.js';
 
 test('emits one link per [[ref:<name>]]', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: 'See [[ref:architect]] and [[ref:sre]].',
     context: { node: node({ path: 'sample.md' }) },
   });
@@ -87,23 +87,23 @@ test('emits one link per [[ref:<name>]]', async () => {
 ```
 
 ```bash
-node --test test/my-detector.test.js
+node --test test/my-extractor.test.js
 ```
 
-The testkit also ships `runRuleOnGraph` (rules), `runFormatterOnGraph` (formatters), `makeFakeStorage` (KV storage), and `makeFakeRunner` (probabilistic mode). Full surface in [`index.ts`](./index.ts).
+The testkit also ships `runRuleOnGraph` (Rules), `runFormatterOnGraph` (Formatters), `makeFakeStorage` (KV storage), and `makeFakeRunner` (probabilistic mode). Full surface in [`index.ts`](./index.ts).
 
 ## Run it under the real CLI
 
 ```bash
 mkdir -p .skill-map/plugins
 cp -r my-plugin .skill-map/plugins/
-sm plugins list   # status should be: loaded
+sm plugins list   # status should be: enabled
 sm scan
 ```
 
 Discovery roots (in order): `<project>/.skill-map/plugins/`, then `~/.skill-map/plugins/`. Override with `--plugin-dir <path>`.
 
-If `sm plugins list` shows anything other than `loaded` / `disabled`, run `sm plugins doctor` for the diagnostic and check the [Diagnostics table](../spec/plugin-author-guide.md#diagnostics).
+If `sm plugins list` shows anything other than `enabled` / `disabled`, run `sm plugins doctor` for the diagnostic and check the [Diagnostics table](../spec/plugin-author-guide.md#diagnostics).
 
 ## A complete worked example
 
@@ -118,4 +118,4 @@ If `sm plugins list` shows anything other than `loaded` / `disabled`, run `sm pl
 
 ## Stability
 
-`experimental` while Step 9 is in flight. The detector / rule / formatter helpers and builders are intended to stay stable through v1.0; `makeFakeRunner` may change to track the Step 10 job subsystem contract.
+`experimental` while Step 9 is in flight. The Extractor / Rule / Formatter helpers and builders are intended to stay stable through v1.0; `makeFakeRunner` may change to track the Step 10 job subsystem contract.

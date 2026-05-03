@@ -1,7 +1,7 @@
 /**
- * Reference test for the `hello-world-greet` detector.
+ * Reference test for the `hello-world-greet` Extractor.
  *
- * Drives the detector through `runDetectorOnFixture` from
+ * Drives the Extractor through `runExtractorOnFixture` from
  * `@skill-map/testkit`. No build step, no kernel, no DB — pure
  * function-call wiring.
  */
@@ -9,12 +9,12 @@
 import { test } from 'node:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
-import { node, runDetectorOnFixture } from '@skill-map/testkit';
+import { node, runExtractorOnFixture } from '@skill-map/testkit';
 
-import detector from '../extensions/greet-detector.js';
+import extractor from '../extensions/greet-extractor.js';
 
 test('emits one link per distinct [[greet:<name>]] token', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: 'Talk to [[greet:architect]] or [[greet:sre]] when in doubt.',
     context: { node: node({ path: 'sample.md' }) },
   });
@@ -25,7 +25,7 @@ test('emits one link per distinct [[greet:<name>]] token', async () => {
 });
 
 test('deduplicates repeated tokens within a node', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[[greet:architect]] again [[greet:architect]] and one more [[greet:ARCHITECT]]',
   });
   strictEqual(links.length, 1, `expected 1 link; got ${links.length}`);
@@ -33,12 +33,12 @@ test('deduplicates repeated tokens within a node', async () => {
 });
 
 test('returns empty when the body has no greet tokens', async () => {
-  const links = await runDetectorOnFixture(detector, { body: 'no greets here' });
+  const { links } = await runExtractorOnFixture(extractor, { body: 'no greets here' });
   deepStrictEqual(links, []);
 });
 
 test('emits the manifest-required link kind only', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[[greet:foo]]',
   });
   strictEqual(links[0].kind, 'references');
@@ -47,13 +47,11 @@ test('emits the manifest-required link kind only', async () => {
 });
 
 test('does not collide with built-in @<token> patterns', async () => {
-  // @greet:foo would have collided with the built-in at-directive
-  // detector before Step 9.4 polish — the wikilink form sidesteps it.
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: 'Mention @architect (built-in territory) and [[greet:architect]] (plugin territory).',
   });
   // The plugin only fires on its own pattern; the bare @architect is
-  // ignored by this detector (the built-in at-directive picks it up).
+  // ignored by this Extractor (the built-in at-directive picks it up).
   strictEqual(links.length, 1);
   strictEqual(links[0].target, 'architect');
   strictEqual(links[0].trigger.originalTrigger, '[[greet:architect]]');
@@ -62,19 +60,19 @@ test('does not collide with built-in @<token> patterns', async () => {
 // --- additional edge cases -------------------------------------------------
 
 test('matches token at the very start of the body', async () => {
-  const links = await runDetectorOnFixture(detector, { body: '[[greet:start]] is the first thing.' });
+  const { links } = await runExtractorOnFixture(extractor, { body: '[[greet:start]] is the first thing.' });
   strictEqual(links.length, 1);
   strictEqual(links[0].target, 'start');
 });
 
 test('matches token at the very end of the body', async () => {
-  const links = await runDetectorOnFixture(detector, { body: 'last thing: [[greet:end]]' });
+  const { links } = await runExtractorOnFixture(extractor, { body: 'last thing: [[greet:end]]' });
   strictEqual(links.length, 1);
   strictEqual(links[0].target, 'end');
 });
 
 test('matches multiple tokens on the same line', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[[greet:a]] [[greet:b]] [[greet:c]]',
   });
   strictEqual(links.length, 3);
@@ -85,7 +83,7 @@ test('matches multiple tokens on the same line', async () => {
 });
 
 test('accepts hyphens, digits, and underscores in the name', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[[greet:senior-architect]] [[greet:agent_42]] [[greet:v2-stable]]',
   });
   strictEqual(links.length, 3);
@@ -98,14 +96,14 @@ test('accepts hyphens, digits, and underscores in the name', async () => {
 test('rejects malformed bracket variants', async () => {
   // None of these should match — single brackets, missing close, missing
   // prefix, wrong prefix.
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[greet:single] [[greet:unclosed [[ref:wrong-prefix]] [[GREETING:wrong]] ',
   });
   deepStrictEqual(links, []);
 });
 
 test('case-insensitive on the prefix; lowercases the name', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[[GREET:Architect]] and [[Greet:SRE]]',
   });
   strictEqual(links.length, 2);
@@ -114,7 +112,7 @@ test('case-insensitive on the prefix; lowercases the name', async () => {
 });
 
 test('preserves the original trigger string verbatim in trigger.originalTrigger', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[[GREET:Architect]]',
   });
   strictEqual(links[0].trigger.originalTrigger, '[[GREET:Architect]]');
@@ -122,7 +120,7 @@ test('preserves the original trigger string verbatim in trigger.originalTrigger'
 });
 
 test('source field reflects the node path passed in context', async () => {
-  const links = await runDetectorOnFixture(detector, {
+  const { links } = await runExtractorOnFixture(extractor, {
     body: '[[greet:x]]',
     context: { node: node({ path: 'deep/nested/file.md' }) },
   });
@@ -130,7 +128,8 @@ test('source field reflects the node path passed in context', async () => {
 });
 
 test('empty body produces no links', async () => {
-  deepStrictEqual(await runDetectorOnFixture(detector, { body: '' }), []);
+  const { links } = await runExtractorOnFixture(extractor, { body: '' });
+  deepStrictEqual(links, []);
 });
 
 test('many tokens scale linearly (smoke for non-pathological regex)', async () => {
@@ -138,7 +137,7 @@ test('many tokens scale linearly (smoke for non-pathological regex)', async () =
   // catastrophic backtracking patterns introduced by future edits.
   const tokens = Array.from({ length: 200 }, (_, i) => `[[greet:n${i}]]`);
   const body = tokens.join(' ');
-  const links = await runDetectorOnFixture(detector, { body });
+  const { links } = await runExtractorOnFixture(extractor, { body });
   strictEqual(links.length, 200);
   strictEqual(links[0].target, 'n0');
   strictEqual(links[199].target, 'n199');

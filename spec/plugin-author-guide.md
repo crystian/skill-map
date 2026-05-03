@@ -264,7 +264,7 @@ Pure single-node analysis. **Never** read another node, the graph, or the databa
 The runtime method is `extract(ctx) → void`. Output flows through three callbacks the kernel binds onto the context:
 
 - **`ctx.emitLink(link)`** — append a `Link` to the kernel's `links` table. The kernel validates against the extractor's declared `emitsLinkKinds` before persistence; off-contract kinds are dropped and surface as `extension.error` events. URL-shaped targets are partitioned into `node.externalRefsCount` and never persisted.
-- **`ctx.enrichNode(partial)`** — merge canonical, kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments` per `db-schema.md`). **Strictly separate from the author-supplied frontmatter** — the latter is IMMUTABLE from any Extractor. Use the enrichment layer for facts the author did not write but the extractor inferred (computed titles, summaries, signals from probabilistic extractors). Probabilistic enrichments track `body_hash_at_enrichment`; when the scan loop sees a body change, those rows are flagged `stale = 1` (NOT deleted, preserving the LLM cost paid to produce them) and surface for refresh via `sm refresh <node>` or `sm refresh --stale`. Deterministic enrichments simply pisar via PRIMARY KEY conflict on the next re-extract through the A.9 cache and are never stale-flagged.
+- **`ctx.enrichNode(partial)`** — merge canonical, kernel-curated properties onto the node's enrichment layer (persisted into `node_enrichments` per `db-schema.md`). **Strictly separate from the author-supplied frontmatter** — the latter is IMMUTABLE from any Extractor. Use the enrichment layer for facts the author did not write but the Extractor inferred (computed titles, summaries, signals from probabilistic Extractors). Probabilistic enrichments track `body_hash_at_enrichment`; when the scan loop sees a body change, those rows are flagged `stale = 1` (NOT deleted, preserving the LLM cost paid to produce them) and surface for refresh via `sm refresh <node>` or `sm refresh --stale`. Deterministic enrichments are simply overwritten via PRIMARY KEY conflict on the next re-extract through the A.9 cache and are never stale-flagged.
 - **`ctx.store`** — plugin-scoped persistence. Optional, only present when your `plugin.json` declares `storage.mode`. Shape depends on the mode (`KvStore` for mode A, scoped `Database` for mode B). See [`plugin-kv-api.md`](./plugin-kv-api.md).
 
 A probabilistic extractor additionally receives `ctx.runner` (the `RunnerPort`) for LLM dispatch.
@@ -300,7 +300,6 @@ export default {
 };
 ```
 
-> **Migration note (spec 0.8.x).** This kind was previously named `Detector` with a `detect(ctx) → Link[]` signature. The rename to `Extractor` and the move to callback-based output landed as a single breaking minor in the pre-1.0 line. The mechanical migration: rename `kind: 'detector'` → `kind: 'extractor'`, rename `detect` → `extract`, replace `return links` with `for (const l of links) ctx.emitLink(l)`. The `applicableKinds`, `emitsLinkKinds`, `defaultConfidence`, and `scope` fields are unchanged.
 
 ### Rules
 
@@ -407,11 +406,15 @@ These ship later in the v1.x line as bundled built-ins; the spec already pins th
 
 #### Provider — `kinds` catalog and `explorationDir`
 
-Every Provider declares two required fields beyond the manifest base.
+Every Provider declares two required top-level fields beyond the manifest base: `kinds` and `explorationDir`.
 
-**`kinds` catalog.** Maps each kind the Provider emits to its frontmatter schema (path relative to the Provider's package directory) and its qualified `defaultRefreshAction`. The catalog is the single source of truth for "which kinds does this Provider emit"; the kernel derives the supported kind set from `Object.keys(kinds)`. The schema MUST extend the spec's universal [`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`, so cross-package resolution works without copying base into every Provider.
+**`kinds` catalog.** Maps each kind the Provider emits to its frontmatter schema, its qualified `defaultRefreshAction`, and its `ui` presentation block. The kernel derives the supported kind set from `Object.keys(kinds)`. Each entry has three required fields:
 
-**`explorationDir`.** Filesystem directory the kernel walks at boot/scan time to discover candidate files; `sm doctor` checks the resolved path exists and emits a non-blocking warning when it does not — the user may legitimately install the matching platform later.
+- **`schema`** — path (relative to the Provider package) to the kind's frontmatter JSON Schema. MUST extend [`schemas/frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`.
+- **`defaultRefreshAction`** — qualified action id (`<plugin-id>/<action-id>`) the UI's `🧠 prob` button dispatches. The action MUST exist in the registry; a dangling reference disables the Provider with `invalid-manifest`.
+- **`ui`** — presentation block: `{ label, color, colorDark?, emoji?, icon? }`. The UI ships every `ui` block to the front-end via the `kindRegistry` envelope so built-in and user-plugin kinds render identically. `icon` is a discriminated union (`{ kind: 'pi'; id }` for PrimeIcons, `{ kind: 'svg'; path }` for raw SVG). The `ui` block is required (not optional) so the UI never has to invent visuals for unknown kinds. See [`architecture.md` §Provider · `ui` presentation](./architecture.md#provider--ui-presentation) for the field-by-field contract.
+
+**`explorationDir`.** Filesystem directory the kernel walks at boot/scan time to discover candidate files. `sm doctor` checks the resolved path exists and emits a non-blocking warning when it does not — the user may legitimately install the matching platform later. Bare `~` and `~/...` resolve against the current user's home (shell convention); relative paths fall back to the cwd.
 
 ```jsonc
 {
@@ -422,19 +425,26 @@ Every Provider declares two required fields beyond the manifest base.
   "kinds": {
     "skill": {
       "schema": "./schemas/skill.schema.json",
-      "defaultRefreshAction": "cursor/summarize-skill"
+      "defaultRefreshAction": "cursor/summarize-skill",
+      "ui": {
+        "label": "Skill",
+        "color": "#7c3aed",
+        "colorDark": "#a78bfa",
+        "icon": { "kind": "pi", "id": "pi-bolt" }
+      }
     },
     "command": {
       "schema": "./schemas/command.schema.json",
-      "defaultRefreshAction": "cursor/summarize-command"
+      "defaultRefreshAction": "cursor/summarize-command",
+      "ui": {
+        "label": "Command",
+        "color": "#0ea5e9",
+        "icon": { "kind": "svg", "path": "M3 6h18M3 12h18M3 18h18" }
+      }
     }
   }
 }
 ```
-
-Bare `~` and `~/...` prefixes in `explorationDir` resolve against the current user's home (the same convention the shell applies); relative paths fall back to the cwd. Keep `explorationDir` short and platform-canonical; the doctor warning is the only place the user sees the field, so misleading values create confusion later.
-
-> **Migration note (spec 0.8.x).** Pre-0.8 Providers declared two separate fields, `emits: string[]` and a flat `defaultRefreshAction: { <kind>: actionId }`. Both collapsed into the `kinds` map in 0.8.0 (Phase 3 of plug-in model overhaul); the per-kind frontmatter schema (which previously lived under `spec/schemas/frontmatter/<kind>.schema.json`) joined the same map entry. Migration: drop `emits` (replaced by `Object.keys(kinds)`); move each `defaultRefreshAction[<kind>]` value into `kinds[<kind>].defaultRefreshAction`; ship your per-kind schemas inside the plugin package and reference them via `kinds[<kind>].schema`.
 
 ---
 

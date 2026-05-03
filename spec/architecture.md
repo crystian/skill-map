@@ -1,6 +1,6 @@
 # Architecture
 
-Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the five **extension kinds** that live outside the kernel.
+Normative description of skill-map's internal boundaries: the **kernel**, the **ports** it exposes, the **adapters** that drive and serve it, and the six **extension kinds** that live outside the kernel.
 
 Any conforming implementation — reference or third-party — MUST respect these boundaries. The conformance suite under [`conformance/`](./conformance/README.md) enforces the kernel-agnostic invariants; per-Provider suites (e.g. `src/extensions/providers/claude/conformance/` for the reference impl's Claude Provider) enforce the kind-catalog cases. Both are driven via `sm conformance run`.
 
@@ -150,7 +150,7 @@ Mode is a property of the extension as a whole, not of an individual call. **An 
 
 Provider and Formatter are locked to deterministic because they sit at the **boundaries** of the system. A Provider resolves `path → kind` during boot; probabilistic classification would make the boot phase slow, costly, and non-reproducible. A formatter must produce diffable output (`sm scan` snapshots round-trip in CI). Probabilistic narrators of the graph are a valid product but they live in jobs and emit Findings, not in formatters.
 
-> **Naming note — `Provider` vs hexagonal `adapter`.** The extension kind formerly named `Adapter` is now `Provider`. The hexagonal-architecture term `adapter` (driving / driven adapters that implement ports — `RunnerPort.adapter`, `StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter`) is unchanged: those live in `kernel/adapters/` and are internal to the impl. A `Provider` is an **extension** authored by plugins; an **adapter** in the hexagonal sense is a **port implementation** internal to the kernel package. The two concepts share an architectural lineage (both bridge two worlds) but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
+> **Naming note — `Provider` vs hexagonal `adapter`.** A `Provider` is an **extension** authored by plugins (it recognises a platform and declares its kind catalog). The hexagonal-architecture term `adapter` refers to **port implementations** internal to the kernel package — `RunnerPort.adapter`, `StoragePort.adapter`, `FilesystemPort.adapter`, `PluginLoaderPort.adapter` — and lives under `kernel/adapters/`. The two concepts share an architectural lineage (both bridge two worlds) but live in deliberately disjoint namespaces so plugin authors and impl maintainers never confuse them.
 
 ### When each mode runs
 
@@ -182,12 +182,27 @@ Six kinds, all first-class, all loaded through the same registry. Each kind has 
 
 ### Provider · `kinds` catalog
 
-Every `Provider` extension MUST declare a map `kinds: { <kind>: { schema: string, defaultRefreshAction: string } }` covering every `kind` it can classify into. Each entry has two required fields:
+Every `Provider` MUST declare a non-empty map `kinds: { <kind>: { schema, defaultRefreshAction, ui } }` covering every `kind` it classifies into. Each entry carries three required fields:
 
-- **`schema`** — path to the kind's frontmatter JSON Schema, relative to the Provider's package directory. The schema MUST extend the spec's universal [`frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id` so cross-package resolution works without copying base into every Provider. The kernel registers each Provider's schemas with AJV at scan boot and validates each node's frontmatter against the entry that matches its classified kind.
-- **`defaultRefreshAction`** — qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The referenced action MUST exist in the registry by the time the graph is queried; a dangling reference is a load-time error for the Provider (status `invalid-manifest`). Consumers dispatch `sm job submit <defaultRefreshAction> -n <nodePath>` when the user asks for a probabilistic refresh. Implementations MAY allow plugins to override the default per-node via `metadata.refreshAction`, but the Provider default is normative.
+- **`schema`** — path (relative to the Provider package) to the kind's frontmatter JSON Schema. The schema MUST extend [`frontmatter/base.schema.json`](./schemas/frontmatter/base.schema.json) via `allOf` + `$ref` to base's `$id`. The kernel registers it with AJV at boot and validates every node's frontmatter against the entry matching its classified kind.
+- **`defaultRefreshAction`** — qualified action id (`<plugin-id>/<action-id>`) the UI's probabilistic-refresh surface (`🧠 prob`) dispatches for nodes of this kind. The action MUST exist in the registry; a dangling reference disables the Provider with status `invalid-manifest`. Plugins MAY override per-node via `metadata.refreshAction`; the Provider default is normative.
+- **`ui`** — presentation block: `{ label, color, colorDark?, emoji?, icon? }`. See §Provider · `ui` presentation below.
 
-The catalog is the single source of truth for "which kinds does this Provider emit" — the `IProvider` runtime contract derives the kind set from `Object.keys(kinds)`. Spec 0.8.0 (Phase 3 of plug-in model overhaul) replaced two earlier fields (`emits: string[]` and a flat `defaultRefreshAction: { <kind>: actionId }`) with this richer map; the catalog also subsumes per-kind frontmatter schemas, which previously lived in spec under `schemas/frontmatter/<kind>.schema.json`.
+The catalog is the single source of truth for "which kinds does this Provider emit" — the `IProvider` runtime contract derives the kind set from `Object.keys(kinds)`.
+
+### Provider · `ui` presentation
+
+Each `kinds[*].ui` entry declares how the UI renders nodes of that kind:
+
+- **`label`** — short human name (e.g. `'Skill'`, `'Agent'`). Used in palette chips, list view, inspector header.
+- **`color`** — base color (any CSS color string) for the kind. The UI derives bg / fg tints per theme via a deterministic helper, so the Provider declares one base color per theme rather than four hex values.
+- **`colorDark?`** — optional dark-theme override. Defaults to `color` when omitted.
+- **`emoji?`** — optional single-glyph emoji rendered alongside the label.
+- **`icon?`** — optional discriminated union: either `{ kind: 'pi'; id: 'pi-…' }` (a PrimeIcons class id) or `{ kind: 'svg'; path: '…' }` (raw SVG path data wrapped by the UI in `viewBox="0 0 24 24"` and tinted with `currentColor`). The discriminator keeps UI dispatch exhaustive without string-sniffing; AJV validates each variant cleanly.
+
+The `ui` block is required (not optional) by design: making it optional would force the UI to invent visuals for missing entries, silently collapsing unknown kinds to a default rendering and hiding manifest gaps. Forcing the Provider to declare presentation up-front means the UI never guesses.
+
+The kernel ships every Provider's `ui` block to the BFF at boot; the BFF aggregates them into a `kindRegistry` map and embeds it in every payload-bearing REST envelope (see [`cli-contract.md` §Server](./cli-contract.md#server)). The UI consumes `kindRegistry` directly — built-in and user-plugin kinds render identically.
 
 ### Provider · `explorationDir`
 
@@ -400,7 +415,9 @@ This is what makes "CLI-first" a coherent rule: every CLI verb is a kernel funct
 
 The **port list** is stable as of spec v1.0.0. Adding a sixth port is a major bump.
 
-The **extension kind list** (5 kinds) is stable as of spec v1.0.0. Adding a sixth kind is a major bump.
+The **extension kind list** (6 kinds: Provider, Extractor, Rule, Action, Formatter, Hook) is stable as of spec v1.0.0. Adding a seventh kind is a major bump. Removing or renaming a kind is a major bump.
+
+The **Hook curated trigger set** (eight events: `scan.started`, `scan.completed`, `extractor.completed`, `rule.completed`, `action.completed`, `job.spawning`, `job.completed`, `job.failed`) is stable as of spec v1.0.0. Adding a ninth trigger is a minor bump; removing or renaming any of the eight is a major bump.
 
 The **execution modes** (`deterministic` / `probabilistic`) and the per-kind mode capability matrix above are stable as of spec v1.0.0. Adding a third mode or changing which kinds are dual-mode is a major bump. Renaming or repurposing the mode enum values is a major bump.
 

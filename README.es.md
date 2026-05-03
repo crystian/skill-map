@@ -4,19 +4,19 @@
 # skill-map
 
 [![npm](https://img.shields.io/npm/v/@skill-map/spec?color=cb3837&logo=npm&label=%40skill-map%2Fspec)](https://www.npmjs.com/package/@skill-map/spec)
-[![spec](https://img.shields.io/badge/spec-v0.8.0-8A2BE2)](./spec/)
-[![impl](https://img.shields.io/badge/impl-v0.6.0-5D3FD3)](./src/)
+[![spec](https://img.shields.io/badge/spec-v0.12.0-8A2BE2)](./spec/)
+[![impl](https://img.shields.io/badge/impl-v0.10.0-5D3FD3)](./src/)
 [![JSON Schema](https://img.shields.io/badge/JSON_Schema-2020--12-005571?logo=json)](https://json-schema.org/)
 [![CI](https://img.shields.io/github/actions/workflow/status/crystian/skill-map/ci.yml?branch=main&logo=github&label=CI)](https://github.com/crystian/skill-map/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A520-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A524-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Angular](https://img.shields.io/badge/Angular-21-DD0031?logo=angular&logoColor=white)](https://angular.dev/)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
 > Mapear, inspeccionar y gestionar colecciones de archivos Markdown interrelacionados — en particular skills, agents, commands, hooks y notas que componen ecosistemas de agentes de IA.
 
-**Estado**: los Steps **0a** (spec bootstrap) y **0b** (implementation bootstrap) están **completos**. El paquete npm `@skill-map/spec` está publicado (versión en [`spec/package.json`](./spec/package.json) y [`spec/CHANGELOG.md`](./spec/CHANGELOG.md)); el CLI `@skill-map/cli` shipea un `scan` stub y bootea limpio. Próximo: **Step 0c — UI prototype**. Ver [ROADMAP.md](./ROADMAP.md) para el marcador de completitud y el plan de ejecución completo.
+**Estado**: pre-1.0, en desarrollo activo. El kernel determinista, el CLI y la Web UI integrada (`sm serve`) shipean hoy. **Próximo**: Step 14.6 (bundle budget hard pass + tipos estrictos de Foblex + dark-mode tri-state) y 14.7 (estado de filtros sincronizado en URL + scope responsive + pulido de producción) cierran `v0.6.0`. **Después**: la wave 2 trae la capa LLM opcional — subsistema de jobs, extensiones probabilísticas, verbos semánticos (`sm what`, `sm cluster-triggers`, `sm findings`) — y shipea `v0.8.0`. Tres paquetes públicos en npm: [`@skill-map/spec`](https://www.npmjs.com/package/@skill-map/spec), [`@skill-map/cli`](https://www.npmjs.com/package/@skill-map/cli), [`@skill-map/testkit`](https://www.npmjs.com/package/@skill-map/testkit). Ver [ROADMAP.md](./ROADMAP.md) para el plan de ejecución.
 
 ## En una frase
 
@@ -47,8 +47,8 @@ Ninguna herramienta oficial (Anthropic, Cursor, GitHub, skills.sh) cubre esto. O
 1. **Scanner determinista** recorre archivos, parsea frontmatter, detecta referencias y produce datos estructurados del grafo (nodos, links, issues).
 2. **Capa LLM opcional** consume esos datos y agrega inteligencia semántica: valida referencias ambiguas, clusteriza triggers equivalentes, compara nodos, responde preguntas.
 3. **CLI `sm`** expone todas las operaciones. Es la superficie primaria.
-4. **Web UI** (prototipo en Step 0c con datos mockeados; integración completa en `v1.0`) consume el mismo kernel y ofrece navegación visual, inspector y ejecución. El prototipo **no** se shipea en `v0.5.0`.
-5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen detectores, reglas, actions, adapters o formatters sin tocar el kernel.
+4. **Web UI** — un SPA Angular incluido en el CLI y lanzado con **`sm serve`** (default `http://127.0.0.1:4242`, solo loopback). Consume el mismo kernel a través de un BFF Hono (endpoints REST read-side + canal WebSocket `/ws` para eventos de scan en vivo) y ofrece navegación de grafo, vista de lista, inspector y un event log en vivo. Un bundle demo standalone con datos mockeados está hosteado en **`skill-map.dev/demo/`** para que cualquiera pueda probar la UI en el navegador sin instalar el CLI.
+5. **Sistema de plugins** (drop-in, kernel + extensiones) permite que terceros agreguen Providers, Extractors, Rules, Actions, Formatters o Hooks sin tocar el kernel.
 
 ## Dos modos de ejecución — la meta-arquitectura
 
@@ -59,13 +59,13 @@ Cada extensión analítica declara uno de dos modos:
 - **`deterministic`** — código puro. Mismo input → mismo output, en cada corrida. Rápido, gratis, reproducible. Corre sincrónicamente dentro de `sm scan` / `sm check`. Apto para CI.
 - **`probabilistic`** — invoca un LLM a través del `RunnerPort` del kernel. La salida puede variar entre corridas. Costo y latencia no son triviales. Corre solo como job en cola (`sm job submit <kind>:<id>`), nunca durante el scan.
 
-Cuatro de los seis tipos de extensión soportan ambos modos (Detector, Rule, Action, Audit). Los dos restantes son solo deterministas (Adapter, Formatter) porque están en las **fronteras** del sistema — filesystem-a-grafo y grafo-a-string — donde la reproducibilidad es esencial.
+Cuatro de los seis tipos de extensión soportan ambos modos (Extractor, Rule, Action, Hook). Los dos restantes son solo deterministas (Provider, Formatter) porque están en las **fronteras** del sistema — filesystem-a-grafo y grafo-a-string — donde la reproducibilidad es esencial.
 
 Esto es lo que destraba el flujo:
 
 - **Pre-commit / CI** corre solo extensiones deterministas. Milisegundos por check, sin red, sin costo de LLM.
 - **Nightly / on-demand** corre extensiones probabilísticas a través de la cola. Mismo snapshot del scan, análisis más profundo, costo proporcional a la demanda.
-- **La comunidad** puede publicar un detector determinista hoy y una contraparte probabilística mañana sin rediseñar nada. Mismo `ctx`, mismo registry, mismo loader.
+- **La comunidad** puede publicar un Extractor determinista hoy y una contraparte probabilística mañana sin rediseñar nada. Mismo `ctx`, mismo registry, mismo loader.
 
 El contrato normativo completo vive en [`spec/architecture.md`](./spec/architecture.md) §Execution modes.
 
@@ -73,7 +73,7 @@ El contrato normativo completo vive en [`spec/architecture.md`](./spec/architect
 
 - **CLI-first**: todo lo que hace la UI se puede hacer en línea de comandos.
 - **Determinista por default**: el LLM es opcional, nunca requerido. El producto funciona offline.
-- **Kernel-first desde commit 1**: el núcleo no contiene conocimiento de ninguna plataforma ni detector específico. Todo vive como extensión.
+- **Kernel-first desde commit 1**: el núcleo no contiene conocimiento de ninguna plataforma ni Provider específico. Todo vive como extensión.
 - **Arquitectura hexagonal** (ports & adapters): el kernel es puro, los adapters (CLI, Server, Skill, SQLite, FS, Plugins, Runner) son intercambiables.
 - **Tests desde commit 1**: pirámide completa (contract, unit, integration, self-scan, CLI, snapshot). Cada extensión trae su test o no bootea.
 - **Agnóstico de plataforma**: aunque el primer adapter es Claude Code, la arquitectura soporta cualquier ecosistema de Markdown.
@@ -101,7 +101,7 @@ Vocabulario completo (en inglés) en [ROADMAP §Glossary](./ROADMAP.md#glossary)
 - **Link** — relación dirigida entre dos nodos (`invokes` / `references` / `mentions` / `supersedes`).
 - **Issue** — problema determinista emitido por una rule.
 - **Finding** — resultado de análisis probabilístico (detección de injection, low confidence, summary stale).
-- **Extension kinds** (seis, estables) — **Adapter** (reconoce plataforma), **Detector** (extrae links), **Rule** (emite issues), **Action** (operación ejecutable), **Audit** (workflow determinista), **Formatter** (serializa el grafo).
+- **Extension kinds** (seis, estables) — **Provider** (reconoce plataforma), **Extractor** (extrae links), **Rule** (emite issues), **Action** (operación ejecutable), **Formatter** (serializa el grafo), **Hook** (reactor del ciclo de vida).
 - **Kernel** — core de dominio puro; no importa conocimiento de plataforma.
 - **Port** — interfaz que declara el kernel (`StoragePort`, `FilesystemPort`, `PluginLoaderPort`, `RunnerPort`, `ProgressEmitterPort`).
 - **Job** — instancia de ejecución de un Action sobre uno o más nodos; vive en `state_jobs`.
@@ -140,7 +140,7 @@ skill-map/                     raíz de npm workspaces (privada)
 └── ROADMAP.md                 narrativa de diseño (decisiones, fases, diferidos)
 ```
 
-El workspace `ui/` se une como tercer peer en Step 0c (Angular SPA + Foblex Flow + PrimeNG).
+El workspace `ui/` shipea el SPA Angular (Foblex Flow para la vista de grafo + componentes PrimeNG). Se incluye dentro de `@skill-map/cli` y se sirve con `sm serve` vía BFF Hono; `@skill-map/testkit` se sumó como tercer peer publicado, junto a `spec` y `src`.
 
 ## Enlaces
 
@@ -158,6 +158,10 @@ El workspace `ui/` se une como tercer peer en Step 0c (Angular SPA + Foblex Flow
 - Implementación de referencia: [src/README.md](./src/README.md)
 - Versión en inglés de este README: [README.md](./README.md)
 - Licencia: [MIT](./LICENSE)
+
+## Historial de stars
+
+[![Star History Chart](https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&legend=top-left)](https://www.star-history.com/?repos=crystian%2Fskill-map&type=timeline&legend=top-left)
 
 ## Licencia
 

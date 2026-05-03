@@ -1371,6 +1371,9 @@ svg    { display: block; max-width: 100%; }
 
 .howit-step {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   padding: 32px;
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 16px;
@@ -1409,6 +1412,7 @@ svg    { display: block; max-width: 100%; }
 }
 
 .howit-step__code {
+  margin-top: auto;
   font-family: var(--font-mono);
   font-size: 13px;
   padding: 12px 14px;
@@ -1416,11 +1420,18 @@ svg    { display: block; max-width: 100%; }
   background: rgba(0,0,0,.4);
   border: 1px solid rgba(255,255,255,.06);
   color: var(--green-300);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .howit-step__code .prompt { color: rgba(255,255,255,.3); }
+.howit-step__code > span:not(.prompt) { display: block; }
+@media (max-width: 768px) {
+  .howit-step__code > span:not(.prompt) { display: inline; }
+  .howit-step__code > span:not(.prompt) + span:not(.prompt)::before {
+    content: ' · ';
+    color: rgba(255,255,255,.3);
+  }
+}
 
 /* Variant: stacked single-column header (used by Use cases). */
 .section-header--stacked {
