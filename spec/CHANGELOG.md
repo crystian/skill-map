@@ -1,5 +1,496 @@
 # Spec changelog
 
+## 0.13.0
+
+### Minor Changes
+
+- e0fb57e: Step 14.2 — REST read-side endpoints + DataSource contract
+
+  Fills the `### Server` subsection's endpoint catalogue from the v14.1 stub
+  (`/api/health` real, `/api/*` 404) to the eight read-side endpoints the
+  Angular SPA at 14.3 will consume. New `spec/schemas/api/rest-envelope.schema.json`
+  formalises the list-envelope shape. Test totals 764 → 832 (+68).
+
+  **Files added (server)**
+
+  - `src/server/path-codec.ts` — `encodeNodePath` / `decodeNodePath`. Base64url (RFC 4648 §5, no padding). Mirrored at `ui/src/services/data-source/path-codec.ts` in 14.3.
+  - `src/server/envelope.ts` — list / single / value envelope builders. `REST_ENVELOPE_SCHEMA_VERSION = '1'`. Hardcoded to track `spec/schemas/api/rest-envelope.schema.json#/properties/schemaVersion/const`.
+  - `src/server/query-adapter.ts` — `urlParamsToExportQuery(params)` lifts URL search params into the kernel's `IExportQuery` via `parseExportQuery` (one grammar, two transports). `filterNodesWithoutIssues` post-filter handles `hasIssues=false` (the one filter the kernel grammar can't express).
+  - `src/server/routes/deps.ts` — shared `IRouteDeps` bag (`options`, `runtimeContext`).
+  - `src/server/routes/health.ts` — extracted from `app.ts` for symmetry with the other routes (no behavior change).
+  - `src/server/routes/scan.ts` — `/api/scan` + `/api/scan?fresh=1`. DB absent → returns the empty `ScanResult` shape (matches the `loadScanResult` synthetic fallback). `?fresh=1` rejects when the server was started with `--no-built-ins` or `--no-plugins`.
+  - `src/server/routes/nodes.ts` — `/api/nodes/:pathB64` (single) registered BEFORE `/api/nodes` (list) so the param doesn't shadow the literal prefix. Pagination defaults `offset=0`, `limit=100`; max `limit=1000`.
+  - `src/server/routes/links.ts` — `/api/links?kind=&from=&to=`.
+  - `src/server/routes/issues.ts` — `/api/issues?severity=&ruleId=&node=`. `ruleId` filter mirrors `sm check`'s qualified-or-suffix match.
+  - `src/server/routes/graph.ts` — `/api/graph?format=ascii|json|md`. Per-format content-type. Unknown format → `bad-query` 400.
+  - `src/server/routes/config.ts` — `/api/config`. Wraps `loadConfig` from the kernel. Layered-loader warnings forwarded to `process.stderr`.
+  - `src/server/routes/plugins.ts` — `/api/plugins`. Built-ins (gated by `noBuiltIns`) + drop-ins (gated by `noPlugins`). `source: 'built-in' | 'project' | 'global'` derived from the plugin's filesystem path against `defaultProjectPluginsDir`.
+
+  **Files edited (server)**
+
+  - `src/server/app.ts` — `IAppDeps` gains `runtimeContext` (mandatory). Routes registered via the new `routes/*` registrars BEFORE the `/api/*` 404 catch-all. `app.onError` extended to map `ExportQueryError` → 400 `bad-query` (alongside the existing HTTPException + uncaught-Error branches).
+  - `src/server/index.ts` — `createServer(options, extra?)` accepts an optional `extra.runtimeContext` so tests can drive against a tempdir scope; production callers (the `sm serve` verb) leave it undefined and the composition root falls back to `defaultRuntimeContext()`.
+  - `src/server/i18n/server.texts.ts` — adds error message templates: `dbMissingHint`, `freshScanRequiresPipeline`, `graphUnknownFormat`, `paginationLimitTooLarge`, `paginationInvalidInteger`, `nodeNotFound`, `pathB64Malformed`.
+
+  **Tests added (68)**
+
+  - `src/test/server-endpoints.test.ts` (24) — happy + error path per endpoint. Uses real `runScan` + `persistScanResult` against a `mkdtempSync` fixture (no `:memory:` per `feedback_sqlite_in_memory_workaround.md`).
+  - `src/test/server-pagination.test.ts` (10) — default page caps at 100, `?limit=1000` accepted, `?limit=1001` rejected, offset/limit boundaries, `?offset=-1` and `?offset=foo` rejected, offset past total returns empty + preserves total.
+  - `src/test/server-errors.test.ts` (8) — every `code` value maps to the documented HTTP status; canonical envelope shape on every error response.
+  - `src/test/server-query-adapter.test.ts` (16) — URL-param → IExportQuery matrix; `filterNodesWithoutIssues` post-filter behaviour.
+  - `src/test/server-path-codec.test.ts` (10) — round-trip on POSIX / unicode / spaces / very long paths; rejection of empty, non-alphabet, single-char inputs; uniqueness for distinct inputs.
+
+  **Spec**
+
+  - `spec/schemas/api/rest-envelope.schema.json` — new schema. `$id: https://skill-map.dev/spec/v0/api/rest-envelope.schema.json`. `oneOf` enforces that an envelope carries exactly one of `items` / `item` / `value` per kind (with sentinel kinds `health` / `scan` / `graph` reserved for routes that don't use the envelope).
+  - `spec/cli-contract.md` `### Server` — endpoint table expanded from 4 rows (v14.1 surface) to 12 rows (v14.2 surface) with full filters / status / shape per row. Error code source enumeration added (`not-found` / `bad-query` / `internal` / reserved `db-missing`). Stability stays `experimental — locks at v0.6.0`.
+  - `spec/CHANGELOG.md` `[Unreleased]` `### Minor` — entry for BFF endpoints + envelope schema.
+  - `spec/conformance/coverage.md` — row 25 added for `api/rest-envelope.schema.json` (status: 🔴 missing — implementation-side coverage exists in `src/test/server-endpoints.test.ts`; a kernel-agnostic conformance case is still required before v1.0.0 ships).
+  - `spec/index.json` — regenerated (40 → 41 files hashed).
+
+  **Decisions during implementation (flag for orchestrator)**
+
+  - The `db-missing` error code is kept in the documented enum but no v14.2 route currently emits it — `/api/scan` returns the empty `ScanResult` when the DB is absent, list routes return zero items, and `/api/health` already advertises `db: 'missing'`. Documented in the spec as "reserved for future endpoints (post-v0.6.0 mutations) where degradation is not safe". Removing the code would be a breaking change to the envelope contract; keeping it costs nothing.
+  - `ExportQueryError` from `parseExportQuery` is funneled to `bad-query` 400 via a new branch in `app.onError`. The brief listed it as a route-level concern; centralising in the global handler means future routes that go through the kernel grammar (e.g. a future `/api/export?q=...`) inherit the same envelope mapping for free.
+  - `urlParamsToExportQuery` builds a canonical raw query string and re-parses it through `parseExportQuery` instead of constructing `IExportQuery` directly. The extra parse is microseconds and guarantees the BFF and `sm export` can never drift on what counts as a valid filter token. When the grammar grows (e.g. `has=findings` post-Step 11), only `parseExportQuery` changes.
+  - `/api/scan?fresh=1` rejection on `--no-built-ins` / `--no-plugins` matches Decision §14.1's intent: the BFF surface should not silently produce empty results that look indistinguishable from "your project has no nodes". The `bad-query` envelope tells the operator they're holding a knife by the blade.
+  - Tests use `noPlugins: true` by default to keep them deterministic against `process.cwd()` — `loadPluginRuntime` walks the live cwd's plugins dir, which would surface ambient plugins from the test runner's host (none in CI today, but a developer running tests locally with their own plugins installed would see flake).
+  - The route registration order in `app.ts` is documented in the file's header comment. `/api/nodes/:pathB64` MUST register before `/api/nodes` (Hono matches in declaration order; the literal prefix wins otherwise).
+
+- d5488bf: Step 14.4.a — BFF WS broadcaster + chokidar wiring + scan event emission
+
+  First half of Step 14.4 lands. The BFF's `/ws` endpoint flips from
+  "upgrade-only stub" to a real broadcaster fed by a chokidar
+  filesystem watcher: every debounced batch runs the same
+  `runScanWithRenames` + persistence pipeline `sm watch` uses, and the
+  kernel's `ProgressEmitterPort` is bridged directly to the broadcaster
+  so `scan.*` / `extractor.completed` / `rule.completed` / `extension.error`
+  events reach every connected client verbatim — no envelope
+  construction in the BFF for the routine cases. Tests 832 → 854 (+22).
+
+  The UI-side consumer (`WsEventStreamService`) ships separately as
+  14.4.b.
+
+  **Files added (server)**
+
+  - `src/server/broadcaster.ts` — `WsBroadcaster` class. Owns the
+    connected-clients Set, fans `JSON.stringify(envelope)` once across
+    every open socket, evicts on backpressure (`bufferedAmount > 4 MiB`
+    → close 1009 + unregister), drains every client with code 1001 +
+    reason `'server shutdown'` on `shutdown()`. `IBroadcasterClient`
+    interface is structural so unit tests inject fakes without a real
+    `WebSocket`.
+  - `src/server/watcher.ts` — `createWatcherService(deps)` factory.
+    Wraps `createChokidarWatcher` with `scan.watch.debounceMs` from
+    config (override via `--watcher-debounce-ms`), runs the kernel scan
+    pipeline per debounced batch, persists via `withSqlite(...).scans.persist(...)`.
+    The per-batch `ProgressEmitterPort` bridges every event the kernel
+    orchestrator emits during the scan to `broadcaster.broadcast(envelope)`.
+    Per-batch failures log + continue (transient FS errors must not
+    kill the broadcaster); chokidar instance errors broadcast a
+    `watcher.error` advisory.
+  - `src/server/events.ts` — envelope helpers (`IWsEventEnvelope` shape,
+    `buildWatcherStartedEvent`, `buildWatcherErrorEvent`). The
+    `watcher.*` events are BFF-internal advisories — non-normative,
+    prefixed with `watcher.` to flag their non-spec status. Spec-mandated
+    shapes (`scan.*`, `extractor.completed`, `rule.completed`) are
+    forwarded verbatim from the kernel emitter, so this file does not
+    build them.
+
+  **Files added (tests)**
+
+  - `src/test/server-ws-broadcaster.test.ts` (15 tests) — broadcaster
+    unit tests against fake `IBroadcasterClient` instances. Coverage:
+    register/unregister/clientCount accounting, broadcast fan-out + JSON
+    stringify, readyState filter (skip closing/closed), per-client
+    `send()` failure isolation, backpressure eviction at the documented
+    threshold (`WS_BACKPRESSURE_BYTES = 4 MiB`), shutdown idempotency
+    - close-code/reason assertions, post-shutdown register immediate
+      close, post-shutdown broadcast no-op, circular-envelope serialization
+      failure handling.
+  - `src/test/server-ws-integration.test.ts` (7 tests) — end-to-end
+    against a real server. Boots `createServer({...})` with
+    `noWatcher: false`, watches a `mkdtempSync` cwd via the
+    `runtimeContext` override (production callers' cwd would point at the
+    test runner's repo root). Exercises: initial-batch `scan.completed`
+    observed by a connected client; multi-client fan-out (one batch fires
+    to two open clients); `clientCount` decrement on disconnect;
+    `handle.close()` shuts the watcher cleanly under 2s;
+    `validateServerOptions` rejects `--no-built-ins + watcher on`;
+    `--no-watcher` confirms no `scan.*` events fire.
+
+  **Files edited (server)**
+
+  - `src/server/ws.ts` — `noopWebSocketRoute(app)` deleted, replaced
+    with `attachBroadcasterRoute(app, broadcaster)`. Pulls the underlying
+    `ws` library `WebSocket` off `WSContext.raw` and registers it on
+    `onOpen`; unregisters on `onClose` / `onError`. Server-push only —
+    `onMessage` intentionally not registered at v14.4.a.
+  - `src/server/index.ts` — `createServer` composition root grows the
+    broadcaster + watcher lifecycle: instantiate `WsBroadcaster` →
+    build app (broadcaster threaded into `IAppDeps`) → bind listener →
+    start watcher (unless `--no-watcher`); `handle.close()` shuts in
+    order: `watcherService.stop()` → `broadcaster.shutdown()` → http
+    close → `wss.close()`. `ServerHandle` exposes the `broadcaster`
+    field for tests asserting `clientCount`.
+  - `src/server/app.ts` — `IAppDeps.attachWs: TWsRegistrar` removed;
+    replaced with `IAppDeps.broadcaster: WsBroadcaster`. The BFF wires
+    `attachBroadcasterRoute` directly inside `createApp` now (route
+    registrar pattern was the v14.1 scaffolding to allow swap-in at
+    v14.4 — that work is done, no need for the indirection).
+  - `src/server/options.ts` — adds `noWatcher: boolean` (default `false`
+    per Decision #121: a server with stale DB is a footgun) and
+    `watcherDebounceMs?: number` (override the config value).
+    Validator gains `watcher-requires-pipeline` (rejects
+    `--no-built-ins + watcher on` — would persist empty scans on every
+    batch) and `watcher-debounce-invalid` (non-integer / negative).
+  - `src/server/i18n/server.texts.ts` — eight new keys for watcher /
+    broadcaster lifecycle log lines.
+
+  **Files edited (CLI)**
+
+  - `src/cli/commands/serve.ts` — plumbs `--no-watcher` (documented) +
+    hidden `--watcher-debounce-ms` flag through to `IServerOptionsInput`.
+  - `src/cli/i18n/serve.texts.ts` — two new keys
+    (`watcherRequiresPipeline`, `watcherDebounceInvalid`).
+
+  **Files edited (tests)**
+
+  - `src/test/server-boot.test.ts` — the no-broadcaster-yet
+    close-1000-on-`onOpen` assertion is replaced with a "connection
+    stays open + registers" assertion. Default options grow
+    `noWatcher: true` (the watcher is exercised in the dedicated
+    integration file).
+  - `src/test/server-{db-missing,endpoints,errors,pagination}.test.ts`
+    — default options grow `noWatcher: true` so chokidar doesn't
+    subscribe to the test runner's cwd. No behavior change for these
+    tests; they exercise the REST surface, not the watcher.
+
+  **Spec**
+
+  - `spec/cli-contract.md` `### Server` — new **WebSocket protocol**
+    subsection. Documents the wire envelope (delegated to
+    `job-events.md` §Common envelope), the v14.4.a event catalog
+    (`scan.started` / `scan.progress` / `scan.completed` plus the
+    side-effect events `extractor.completed` / `rule.completed` /
+    `extension.error`, plus the BFF-internal advisories
+    `watcher.started` / `watcher.error`), the connection lifecycle
+    (no state push on connect; client polls `/api/scan` to seed; close
+    codes 1000 / 1001 / 1009), the backpressure rule, and the
+    loopback-only assumption (no per-connection auth through v0.6.0
+    per Decision #119). The endpoint table flips `GET /ws` from
+    `upgrade-only` to `implemented (v14.4.a)`. The `sm serve` flag
+    table grows `--no-watcher`. The verb-catalog row for `sm serve`
+    mirrors the new flag.
+  - `spec/CHANGELOG.md` `[Unreleased]` `### Minor` entry.
+  - `spec/index.json` — regenerated (41 files hashed; no schema added).
+
+  **ROADMAP.md** — bumped `Last updated`, marked Step 14.4.a landed
+  (14.4 carries an explicit (a/b) split now), 14.4.b still owes the
+  UI-side consumer. Earlier 14.3 prose pushed to "Earlier prose".
+
+  **Decisions taken inline (flag for orchestrator)**
+
+  - `issue.added` / `issue.resolved` (per `spec/job-events.md` §Issue
+    events line 446) **deferred to a follow-up**. The diff requires
+    comparing the new `ScanResult.issues` set against the prior
+    persisted snapshot; the watcher already loads the prior for the
+    rename heuristic, so the data is at hand, but the diff plumbing
+    (key derivation, set comparison, two emit calls per delta) is
+    enough material that it deserves its own brief. The 14.4.a surface
+    fans out exactly what the kernel emitter already produces.
+  - `scan.failed` **deferred to a follow-up**. The shape is not yet
+    locked in `spec/job-events.md` and would need a normative
+    addition. For 14.4.a, per-batch failures log via the kernel logger
+    and the watcher loop continues — same behavior as `sm watch`'s
+    `WATCH_TEXTS.batchFailed`.
+  - `scan.progress` **emitted, not throttled**. The kernel
+    orchestrator emits one event per node walked; on a small workspace
+    this is a handful of events per batch, on a large workspace it's
+    hundreds. The brief flagged throttling as optional at 14.4.a; the
+    bridge forwards verbatim today. The integration test observed 13
+    `scan.progress` events for a 4-file fixture, which is fine. A
+    throttle (250ms aggregation) is the obvious 14.6 polish if the
+    bundle / perf pass shows the fan-out swamping the channel.
+  - `watcher.started` / `watcher.error` BFF-internal advisories
+    **emitted** rather than silent. They give the SPA event-log a
+    clear "armed" signal and a surface for chokidar errors that don't
+    fit the spec's `scan.*` shape. Prefix marks them as non-normative;
+    consumers that follow the spec's "ignore unknown event types"
+    rule will not break.
+  - `IHealthResponse.watcher: 'on' | 'off'` **NOT added**. Keeping
+    the v14.2 health response shape stable was preferable to adding
+    one field for what tests / `--no-watcher` already cover. The
+    broadcaster's `clientCount` is exposed on `ServerHandle.broadcaster`
+    for test introspection without polluting the public health surface.
+  - The validator rejects `--no-built-ins + watcher on` because the
+    watcher would persist empty scans on every batch, silently wiping
+    the DB. `--no-plugins + watcher on` is OK (the built-in pipeline
+    is still complete on its own).
+  - `attachBroadcasterRoute` does NOT register `onMessage`. v14.4.a
+    is server-push only. A future client-initiated heartbeat / filter
+    request lands at 14.4.b or later.
+  - `WsBroadcaster` is a class (not a factory) per AGENTS.md
+    §Adapter wiring rule 5: factories scope to "adapters consumed via
+    ports", and the broadcaster is a plain BFF helper with no kernel
+    port to satisfy. The class is grandfathered no-`I*`-prefix per
+    §Type naming convention category 4.
+
+  **Smoke (live BFF, one-shot per AGENTS.md)**
+
+  The integration tests cover the live boot + WS upgrade + chokidar
+  batch + broadcast end-to-end against a `mkdtempSync` scope. The
+  diagnostic line `ws events received: scan.started, scan.progress
+× 13, extractor.completed × 4, rule.completed × 5, scan.completed`
+  confirms the full event sequence reaches a connected client during
+  a real scan against a 4-file fixture.
+
+- 4ff3f38: Step 14.5.d — Provider-driven kind presentation + envelope kindRegistry
+
+  Pre-1.0 minor breaking per `versioning.md` § Pre-1.0.
+
+  The Provider extension surface gains the required `kinds[*].ui` field
+  so each kind a Provider declares carries the presentation metadata the
+  UI needs to render it (label, base color, optional dark-theme color,
+  optional emoji, optional icon). The icon is a discriminated union —
+  `{ kind: 'pi'; id: 'pi-…' }` for PrimeIcons or `{ kind: 'svg'; path:
+'…' }` for raw SVG path data. The UI derives `bg` / `fg` tints from
+  `color` per theme via a deterministic helper, so the Provider declares
+  one base color per theme rather than four hex values.
+
+  The REST envelope shape (`spec/schemas/api/rest-envelope.schema.json`)
+  gains a new required `kindRegistry` field on every payload-bearing
+  variant (`nodes` / `links` / `issues` / `plugins` / `node` / `config`);
+  sentinel envelopes (`health` / `scan` / `graph`) stay exempt. The
+  registry is keyed by kind name and carries `{ providerId, label,
+color, colorDark?, emoji?, icon? }` — the BFF assembles it once at
+  boot from every enabled Provider and attaches it to every applicable
+  response so the UI can render Provider-declared kinds (built-in and
+  user-plugin alike) without hardcoding a closed kind enum. The change
+  keeps `schemaVersion` at `'1'` (greenfield — no released consumers
+  depend on the prior shape).
+
+  **Files edited (spec)**
+
+  - `spec/schemas/extensions/provider.schema.json` — adds `ui` to the
+    required field set on each `kinds[*]` entry, with discriminated
+    `oneOf` for `icon`.
+  - `spec/schemas/api/rest-envelope.schema.json` — new `kindRegistry`
+    definition; required on every payload-bearing variant; sentinel
+    variants explicitly forbid the field via `not.anyOf`. Version stays
+    at `'1'` (greenfield).
+  - `spec/CHANGELOG.md` — `[Unreleased]` `### Minor` entry.
+
+  **Files edited (kernel + built-in)**
+
+  - `src/kernel/extensions/provider.ts` — adds `IProviderKindUi` and
+    `IProviderKindIcon`; `ui` becomes required on `IProviderKind`.
+  - `src/built-in-plugins/providers/claude/index.ts` — every kind
+    (skill / agent / command / hook / note) declares its `ui` block
+    reusing the colors / labels / icons previously hardcoded in
+    `ui/src/styles.css`, `ui/src/i18n/kinds.texts.ts`, and
+    `ui/src/app/components/kind-icon/kind-icon.html`.
+  - `src/built-in-plugins/providers/claude/claude.test.ts` — new test
+    asserts every kind declares a well-formed `ui` block.
+  - `src/test/external-provider-kind.test.ts` — three mock providers
+    updated to declare `ui` on their `cursorRule` kinds.
+  - `src/test/plugins-cli.test.ts` — `dropMockProvider` helper template
+    declares `ui` on the inline mock `note` kind.
+
+  **Files added (conformance)**
+
+  - `spec/conformance/fixtures/plugin-missing-ui/` — drop-in Provider
+    fixture whose `kinds[*]` omits `ui` (plus a trivial `notes/example.md`
+    for the built-in Claude scan to grab).
+  - `spec/conformance/cases/plugin-missing-ui-rejected.json` — locks the
+    loader contract: `sm scan --json` exits 0, stderr matches
+    `plugin bad-provider:.*invalid.*must have required property 'ui'`,
+    the envelope still contains the built-in Claude provider, and the
+    one fixture node still gets scanned (one bad plugin does not take
+    down the scan).
+
+  **Decisions taken inline (flag for orchestrator)**
+
+  - `ui` is required, not optional — making it optional reintroduces the
+    pre-14.5.d trap of silently collapsing unknown kinds to `'note'`.
+    The cost (one object per kind in the manifest) is small.
+  - Icon is a discriminated union (`oneOf` with `kind` discriminator)
+    rather than two optional fields. Keeps the UI dispatch exhaustive
+    and AJV validates each variant cleanly.
+  - `schemaVersion` stays at `'1'` despite the required-field add.
+    Greenfield — no released consumers; a versioned migration buys
+    nothing today. Bumps the day a third-party consumer ships against
+    the wire.
+  - Severity (PrimeNG `<p-tag>` `severity` enum) is NOT declared by the
+    Provider. The UI tints kind tags with the registry's `color`
+    directly, avoiding a Provider-side dependency on a UI-framework
+    enum.
+  - BFF + UI sub-steps land in follow-up commits (14.5.d.iii / .iv /
+    .v) — the spec + kernel + built-in surface ship first so the
+    contract is visible before consumers wire up.
+
+- de20bc2: Step 14.5 (a + b) — Inspector polish: markdown body opt-in + linked-nodes panel + dead-link verify hybrid
+
+  Two sub-steps land together as a single feature unit. The Inspector
+  view (UI workspace) gains a real markdown body card, a dedicated
+  linked-nodes panel fed by the BFF's `/api/links` endpoint, and a
+  hybrid dead-link checker that combines the in-memory heuristic with
+  on-demand BFF verification. The spec + server side ships the minimal
+  contract the new UI surface depends on: an opt-in `?include=body`
+  parameter on `GET /api/nodes/:pathB64`, plus a corrected single-node
+  response shape. Tests 854 → 868 (+14 server) and UI 113 → 138 (+25
+  inspector / linked-nodes specs).
+
+  **Why on-demand body reads instead of persisting bodies in the DB**:
+  the kernel persists `body_hash` only (per `db-schema.md` §scan_nodes)
+  — the body itself is human content, not machine state, and
+  duplicating it in SQLite would inflate the DB without serving any
+  read-side query the kernel cares about. Inspector cards that DO want
+  to render the body (markdown preview at Step 14.5) opt into the
+  filesystem re-read; the list / graph / kind-palette views never need
+  it.
+
+  **Files added (server)**
+
+  - `src/server/node-body.ts` — on-demand body reader. Exports
+    `readNodeBody(cwd, relPath)` (returns `string | null`; `null` on
+    ENOENT / EACCES / EISDIR / ENOTDIR) and `stripFrontmatter(body)`
+    (drops the leading `---\n…\n---\n` block when present, leaves
+    fences in mid-document untouched). Path-traversal hardened: refuses
+    absolute paths and any relative path that resolves outside `cwd`.
+  - `src/test/server-node-body.test.ts` (11 unit cases) — covers
+    `stripFrontmatter` edge cases (empty, no frontmatter, missing
+    closing fence, fence in mid-document) and `readNodeBody` traversal
+    rejection + the four `null`-returning errno branches.
+
+  **Files edited (server)**
+
+  - `src/server/routes/nodes.ts` — `GET /api/nodes/:pathB64` extends
+    with `?include=body` opt-in (CSV-tolerant via the new
+    `parseIncludes` helper, so `?include=body,future-extension` reads
+    cleanly the day a second include lands). Same handler also FIXES a
+    long-standing shape bug: was emitting `{ item: { node, linksOut,
+linksIn, issues } }` (raw `INodeBundle` pass-through), now emits
+    the documented `{ item: Node, links: { incoming, outgoing },
+issues }` that the UI's `INodeDetailApi` and `StaticDataSource`
+    already expected. No prod consumer ran against the legacy shape
+    (the UI was internally branching on the legacy shape before the
+    REST adapter landed at 14.3.a), so the corrected shape ships as a
+    minor.
+  - `src/test/server-endpoints.test.ts` — assertions corrected to the
+    documented shape; 2 new cases for `?include=body` (returns body
+    on present file, returns `null` when the file is missing).
+
+  **Files added (UI)**
+
+  - `ui/src/app/components/linked-nodes-panel/{ts,html,css,spec.ts}`
+    — standalone Angular component. Inputs: `path`. Outputs:
+    `openPath`. Internally fires `dataSource.listLinks({from})` +
+    `listLinks({to})` in parallel; state machine
+    `idle/loading/ready/error`. Subscribes to `events()` filtered on
+    `scan.completed` for reactive refresh, plus a manual refresh
+    button in the card header. Token guard handles rapid path
+    changes. Renders rows with kind tag + clickable path +
+    confidence chip + sources. 10 spec cases.
+  - `ui/src/i18n/linked-nodes-panel.texts.ts` — i18n catalog.
+  - `ui/src/app/views/inspector-view/inspector-view.spec.ts` (15
+    cases) — first inspector-view spec. Covers empty / loading /
+    body-card states, stale-fetch token guard, kind-card smoke,
+    dead-link verify icon flow (heuristic-dead renders icon,
+    click → 404 confirms, click → 200 flips to live).
+
+  **Files edited (UI)**
+
+  - `ui/src/models/api.ts` — `INodeApi.body?: string | null` added.
+  - `ui/src/services/data-source/data-source.port.ts` —
+    `IDataSourcePort.getNode(path, opts?: {includeBody?: boolean})`.
+  - `ui/src/services/data-source/rest-data-source.ts` — propagates
+    `includeBody` to `?include=body`.
+  - `ui/src/services/data-source/static-data-source.ts` — ignores
+    the flag (demo bundle ships bodies inline; see
+    `scripts/build-demo-dataset.js` below).
+  - `ui/src/services/collection-loader.ts` — minor signature touch
+    for the `getNode` opts pass-through.
+  - `ui/src/models/node.ts` — `INodeView` loses three fields:
+    `body`, `raw`, `mockSummary`. The "Summary" mock card is
+    retired (description already lives in `inspector__desc`).
+  - `ui/src/app/views/inspector-view/inspector-view.ts` — body card
+    switches from `<pre>{{ n.body }}</pre>` to a `@switch` over a
+    `bodyState` signal (idle / loading / empty / unavailable /
+    error / ready) with token-guarded fetch via `effect()` keyed on
+    `path()`; markdown rendered via `MarkdownRenderer` and
+    `[innerHTML]`. Mounts `<sm-linked-nodes-panel>` as a separate
+    card between Relations and Body. Dead-link verify hybrid: the
+    Relations card chips (`supersededBy` / `supersedes` / `requires`
+    / `related`) keep the in-memory heuristic but now carry a verify
+    icon (`pi-question-circle`) that fires `getNode(path)` against
+    the BFF; three visual states `live` / `dead-confirmed` (404 → red
+    dashed border + `pi-times-circle`) / `dead-heuristic` (not in
+    scope, not yet verified). Per-node signals
+    `verifiedAlive` / `verifiedDead` / `verifyInFlight` reset on
+    `path()` change. Template refactor consolidates 4 inline
+    duplicated chip blocks into a single `<ng-template #pathChip>`
+    shared via `*ngTemplateOutlet`.
+  - `ui/src/app/views/inspector-view/inspector-view.{html,css}` —
+    templates + styles for the new body / verify states.
+  - `ui/src/i18n/inspector-view.texts.ts` — drops `summary*`, adds
+    `body.*` (loading / empty / unavailable / renderError),
+    `relations.verifyHint`, `relations.deadConfirmed`. `body: 'Body'`
+    (was `'Body (raw markdown)'`).
+
+  **Files edited (build pipeline)**
+
+  - `scripts/build-demo-dataset.js` — new `embedBodies(scan,
+fixtureDir)` post-processor reads each fixture's body from disk,
+    strips frontmatter, attaches to the demo `data.json` so the
+    demo experience matches the live BFF (~40 KB extra for 21
+    fixtures; bodies-on-bundle is the explicit demo-mode tradeoff).
+
+  **Spec**
+
+  - `spec/cli-contract.md` `### Server` — `/api/nodes/:pathB64` row
+    flips its shape column from the legacy bundle to the documented
+    `{ item, links: { incoming, outgoing }, issues }` and gains the
+    `?include=body` filter column.
+  - `spec/CHANGELOG.md` `[Unreleased]` `### Minor` — entry covering
+    the `?include=body` opt-in, the corrected response shape, and
+    the path-traversal defense.
+  - `spec/index.json` — regenerated (41 files hashed; no schema
+    added).
+
+  **ROADMAP** — `Last updated` bumped, "YOU ARE HERE" updated,
+  completeness marker now lists 14.5.a + 14.5.b as complete; "Next"
+  points at 14.5.c.
+
+  **Decisions taken inline (flag for orchestrator)**
+
+  - The corrected single-node shape ships as a minor (additive on
+    the contract surface) rather than a major. Rationale: no public
+    consumer ran against the legacy shape; the UI was decoding the
+    legacy shape internally before the REST adapter at 14.3.a
+    introduced the documented shape; and the spec table already
+    documented the new shape (the bug was in the implementation,
+    not the spec). Keeping the bump minor avoids burning a major
+    on a never-shipped wire format.
+  - `parseIncludes` is CSV-tolerant from day one (`?include=body`
+    and `?include=body,foo` both parse) so the second include can
+    land without a parser refactor. Unknown include values are
+    silently ignored — the BFF surface mirrors the spec's
+    "ignore unknown event types" rule for forward compatibility.
+  - Bodies are fetched per-node on inspector open, not pre-fetched
+    in the list endpoint. Keeps the list `/api/nodes` response
+    small (the list view never renders bodies) and matches the
+    read-side hot path: most nodes are listed but few are inspected.
+  - The dead-link verify is opt-in per chip click, not auto-fired
+    on inspector open. Heuristic-dead nodes are common in scoped
+    scans (a workspace that scans `docs/` but references `src/`);
+    auto-firing would burn one BFF round-trip per such reference.
+  - Per-node verification signals reset on `path()` change to avoid
+    stale state bleeding between inspector navigations. The signals
+    are scoped to the component instance; no global cache (the
+    cost is one BFF call per re-verify on revisit, which the user
+    triggers intentionally by clicking the icon).
+
 ## 0.12.0
 
 ### Minor Changes
@@ -244,7 +735,7 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
   (`health` / `scan` / `graph`) stay exempt because they don't carry a
   payload at the wire level either. The registry is keyed by kind
   name and carries `{ providerId, label, color, colorDark?, emoji?,
-  icon? }` — the BFF assembles it once at boot from every enabled
+icon? }` — the BFF assembles it once at boot from every enabled
   Provider and attaches it to every applicable response so the UI can
   render Provider-declared kinds (built-in and user-plugin alike)
   without hardcoding a closed kind enum.
@@ -281,13 +772,13 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
 - **BFF `/api/nodes/:pathB64` body opt-in** — Step 14.5.a extends the
   single-node detail endpoint with the optional `?include=body` query
   parameter. When set, the response's `item` carries `body: string |
-  null` (the post-frontmatter file content read from disk on demand);
+null` (the post-frontmatter file content read from disk on demand);
   `null` indicates the source file was missing or unreadable when the
   request landed. Without the flag, `item.body` stays `undefined` and
   the handler does not touch the filesystem. The single-node response
   shape is also corrected to the documented `{ schemaVersion, kind:
-  'node', item: Node, links: { incoming: Link[], outgoing: Link[] },
-  issues: Issue[] }` (the `### Server` table previously declared the
+'node', item: Node, links: { incoming: Link[], outgoing: Link[] },
+issues: Issue[] }` (the `### Server` table previously declared the
   shape as the legacy `{ node, linksOut, linksIn, issues }` bundle —
   see prose for the bug-fix rationale). No prod consumer ran against
   the legacy shape, so the corrected shape ships as a minor.
@@ -348,7 +839,7 @@ list`, `sm plugins doctor`, `sm db prune` plugin filter, runtime
   `GET /api/config`, `GET /api/plugins`. New
   [`schemas/api/rest-envelope.schema.json`](schemas/api/rest-envelope.schema.json)
   formalises the list-envelope shape (`{ schemaVersion, kind, items \|
-  item \| value, filters, counts }`). The error envelope subsection
+item \| value, filters, counts }`). The error envelope subsection
   enumerates the v14.2 sources for each `code` value (`not-found` /
   `bad-query` / `internal` / reserved `db-missing`). Stability stays
   `experimental — locks at v0.6.0` (no change). Additive minor per
@@ -1359,9 +1850,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                         `--json` output is byte-identical to before — raw rows, no merge.
-                                         Storage is byte-identical to before. The grouping is purely a
-                                         read-time presentation choice for human eyes.
+                                               `--json` output is byte-identical to before — raw rows, no merge.
+                                               Storage is byte-identical to before. The grouping is purely a
+                                               read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
