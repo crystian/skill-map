@@ -1,6 +1,6 @@
 # skill-map
 
-Map, inspect, and manage collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, Obsidian vaults, docs sites).
+Map, inspect, and manage collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, docs sites).
 
 **Status**: pre-1.0, active development. Steps 0a–9 are complete (spec, kernel, plugin loader, full CLI surface, plugin author UX). Step 14 (Full Web UI) is in progress with sub-steps 14.1–14.4 closed (Hono BFF + REST + WebSocket broadcaster + reactive UI); 14.5–14.7 (polish + bundle budgets + responsive scope) still pending. The full deterministic scan, check, history, orphans, plugin authoring, and `sm serve` are live; the optional LLM layer (Phase B / `v0.8.0`) lands after Step 14 closes. See [`ROADMAP.md`](../ROADMAP.md) for the canonical completeness marker and full execution plan. Releases follow the standard changeset flow.
 

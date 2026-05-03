@@ -11,15 +11,22 @@
  *   5  not-found          — `ExitCode.NotFound` (DB / row / dump)
  */
 
+import { existsSync } from 'node:fs';
+
 import { Builtins, Cli } from 'clipanion';
 
 import { configureLogger } from '../kernel/util/logger.js';
+import { tx } from '../kernel/util/tx.js';
+import { ENTRY_TEXTS } from './i18n/entry.texts.js';
 import {
   Logger,
   extractLogLevelFlag,
   resolveLogLevel,
   LOGGER_ENV_VAR,
 } from './util/logger.js';
+import { defaultProjectDbPath } from './util/db-path.js';
+import { ExitCode } from './util/exit-codes.js';
+import { defaultRuntimeContext } from './util/runtime-context.js';
 import { CheckCommand } from './commands/check.js';
 import { CONFIG_COMMANDS } from './commands/config.js';
 import { CONFORMANCE_COMMANDS } from './commands/conformance.js';
@@ -84,10 +91,30 @@ const logLevel = resolveLogLevel({
 });
 configureLogger(new Logger({ level: logLevel, stream: process.stderr }));
 
-const routedArgs = routeHelpArgs(args, cli);
+// Bare invocation: `sm` with no arguments. Per spec/cli-contract.md
+// §Binary, this routes to `sm serve` when a project DB exists in the
+// cwd; otherwise it prints a hint and exits with code 2 (operational —
+// no project to serve). `--help` / `-h` flags fall through to
+// RootHelpCommand and are NOT intercepted here.
+const bareArgs = args.length === 0 ? resolveBareDefault() : null;
+const routedArgs = routeHelpArgs(bareArgs ?? args, cli);
 const exitCode = await cli.run(routedArgs, {
   stdin: process.stdin,
   stdout: process.stdout,
   stderr: process.stderr,
 });
 process.exit(exitCode);
+
+/**
+ * Decide what bare `sm` should do. Returns `['serve']` if a project DB
+ * is present in the cwd; prints the no-project hint and exits 2
+ * otherwise. Never returns when no project is found.
+ */
+function resolveBareDefault(): string[] {
+  const ctx = defaultRuntimeContext();
+  if (existsSync(defaultProjectDbPath(ctx))) {
+    return ['serve'];
+  }
+  process.stderr.write(tx(ENTRY_TEXTS.bareNoProject, { cwd: ctx.cwd }));
+  process.exit(ExitCode.Error);
+}

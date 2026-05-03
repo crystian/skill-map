@@ -91,6 +91,18 @@ describe('CLI binary', () => {
     assert.match(r.stdout, /sm scan/);
   });
 
+  it('bare `sm` in a dir without `.skill-map/` prints a hint to stderr and exits 2', () => {
+    // Spec contract §Binary: bare invocation MUST point the user at
+    // `sm init` and `sm --help` when no project exists in cwd, instead
+    // of starting the server (which would have nothing to serve).
+    const r = sm([], EMPTY_DIR);
+    assert.equal(r.status, 2);
+    assert.equal(r.stdout, '');
+    assert.match(r.stderr, /No skill-map project found/);
+    assert.match(r.stderr, /sm init/);
+    assert.match(r.stderr, /sm --help/);
+  });
+
   it('scan --json emits a well-formed empty ScanResult', () => {
     const r = sm(['scan', '--json'], EMPTY_DIR);
     assert.equal(r.status, 0);

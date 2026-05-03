@@ -8,7 +8,8 @@ Normative description of the `sm` CLI surface: verbs, flags, exit codes, machine
 
 - Primary: `sm`.
 - Long alias: `skill-map`. MUST resolve to the same binary. A symlink, shim, or alias in `bin` field of `package.json` is acceptable.
-- Help invocation: `sm`, `sm --help`, `sm -h` MUST all print top-level help and exit with code 0.
+- Help invocation: `sm --help` and `sm -h` MUST print top-level help and exit with code 0.
+- Bare invocation: `sm` with no arguments starts the Web UI server (equivalent to `sm serve`) when a `.skill-map/` project is initialized in the current working directory. When no project is found in the cwd, it MUST print a one-line hint to stderr pointing the user to `sm init` and `sm --help`, then exit with code `2`.
 
 ---
 

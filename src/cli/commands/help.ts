@@ -535,9 +535,15 @@ export function renderCompactOverview(verbs: IHelpVerb[]): string {
  * `sm -h` render the compact overview instead of the default ANSI
  * banner. Per-verb `sm <verb> --help` is still served by Clipanion's
  * built-in tokenizer and untouched.
+ *
+ * Bare `sm` (no arguments) is NOT routed here — it is intercepted in
+ * `entry.ts` per spec/cli-contract.md §Binary: it starts the Web UI
+ * server when a project is initialized, or prints a hint and exits
+ * non-zero when no project is found. Help is reserved for explicit
+ * `--help` / `-h`.
  */
 export class RootHelpCommand extends Command {
-  static override paths = [['-h'], ['--help'], Command.Default];
+  static override paths = [['-h'], ['--help']];
 
   async execute(): Promise<number> {
     const rawDefs = this.cli.definitions() as ICliDefinition[];

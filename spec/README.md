@@ -1,6 +1,6 @@
 # skill-map spec
 
-The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, Obsidian vaults, docs sites, and any future platform).
+The **skill-map specification** defines a vendor-neutral standard for mapping, inspecting, and managing collections of interrelated Markdown files — skills, agents, commands, hooks, and notes that compose AI-agent ecosystems (Claude Code, Codex, Gemini, docs sites, and any future platform).
 
 This document is the **source of truth**. The reference implementation under `../src/` conforms to this spec. Third parties can build alternative implementations (any language, any UI, any CLI) using only `spec/`, without reading the reference source.
 
@@ -31,7 +31,7 @@ These are implementation decisions. The reference impl picks them (see [`../AGEN
 - **Machine-readable**: all domain shapes are JSON Schemas. Validate from any language that has a JSON Schema validator.
 - **Human-readable**: prose documents for each subsystem, with examples.
 - **Independently versioned**: spec `v1.0.0` can be implemented by CLI `v0.3.2`. See [`versioning.md`](./versioning.md).
-- **Platform-neutral**: no platform (Claude Code, Obsidian, …) is privileged. Each is expressed as an adapter extension.
+- **Platform-neutral**: no platform is privileged. Each is expressed as an adapter extension.
 - **Conformance-tested**: every conforming implementation passes the suite under [`conformance/`](./conformance/README.md). Pass/fail is binary.
 
 ## Naming conventions
