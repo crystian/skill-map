@@ -137,8 +137,8 @@ describe('built-in extensions — qualified ids (spec § A.6)', () => {
         `Registry row ${row.kind}:${row.id} must carry pluginId; got ${JSON.stringify(row.pluginId)}`,
       );
     }
-    // Smoke check the count: 1 provider + 4 extractors + 5 rules + 1 formatter = 11.
-    assert.equal(rows.length, 11);
+    // Smoke check the count: 1 provider + 5 extractors + 5 rules + 1 formatter = 12.
+    assert.equal(rows.length, 12);
   });
 
   it('claude provider declares qualified action ids in kinds[<kind>].defaultRefreshAction', () => {

@@ -4,6 +4,7 @@ import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 import { frontmatterExtractor } from './frontmatter/index.js';
 import { slashExtractor } from './slash/index.js';
 import { atDirectiveExtractor } from './at-directive/index.js';
+import { markdownLinkExtractor } from './markdown-link/index.js';
 import type { IExtractorContext, IExtractor } from '../../kernel/extensions/index.js';
 import type { Link, Node } from '../../kernel/types.js';
 
@@ -200,3 +201,100 @@ describe('at-directive extractor', () => {
   });
 });
 
+describe('markdown-link extractor', () => {
+  it('resolves [text](./sibling.md) against the source dir', async () => {
+    const { ctx: context, links } = ctx('docs/overview.md', 'See [api](./api.md) for details.');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'docs/api.md');
+    strictEqual(links[0]?.kind, 'references');
+    strictEqual(links[0]?.confidence, 'high');
+    strictEqual(links[0]?.trigger?.originalTrigger, './api.md');
+  });
+
+  it('resolves [text](../parent.md) one directory up', async () => {
+    const { ctx: context, links } = ctx('docs/api/v1.md', '[parent](../README.md)');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'docs/README.md');
+  });
+
+  it('resolves bare paths without leading ./', async () => {
+    const { ctx: context, links } = ctx('docs/overview.md', '[bare](api.md)');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'docs/api.md');
+  });
+
+  it('strips #anchor and ?query from the target before resolving', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      '[a](./api.md#install) and [b](./api.md?v=1)',
+    );
+    await extract(markdownLinkExtractor, context);
+    // Both resolve to the same target; dedup keeps one.
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'docs/api.md');
+  });
+
+  it('skips image syntax ![alt](path)', async () => {
+    const { ctx: context, links } = ctx('a.md', 'Below: ![diagram](./diagram.png)');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('skips URL schemes (http, mailto, tel) — those are not file paths', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      '[home](https://example.com) [mail](mailto:a@b.c) [phone](tel:+1) [data](data:text/plain,foo)',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('skips fragment-only links (#section)', async () => {
+    const { ctx: context, links } = ctx('a.md', 'Jump to [section](#install) below.');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('skips absolute paths starting with /', async () => {
+    const { ctx: context, links } = ctx('a.md', '[absolute](/etc/foo.md)');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 0);
+  });
+
+  it('dedupes repeated links to the same resolved target', async () => {
+    const { ctx: context, links } = ctx(
+      'docs/overview.md',
+      '[a](./api.md) and again [b](./api.md) and once more [c](api.md)',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+  });
+
+  it('honours the optional CommonMark "title" syntax: [text](path "title")', async () => {
+    const { ctx: context, links } = ctx('a.md', '[doc](./api.md "API reference")');
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.target, 'api.md');
+  });
+
+  it('captures the line number in the location field', async () => {
+    const { ctx: context, links } = ctx(
+      'a.md',
+      'first line\nsecond line\n[link](./foo.md)\nfourth',
+    );
+    await extract(markdownLinkExtractor, context);
+    strictEqual(links.length, 1);
+    strictEqual(links[0]?.location?.line, 3);
+  });
+
+  it('emits the right manifest shape', () => {
+    strictEqual(markdownLinkExtractor.id, 'markdown-link');
+    strictEqual(markdownLinkExtractor.pluginId, 'core');
+    ok(markdownLinkExtractor.emitsLinkKinds.includes('references'));
+    strictEqual(markdownLinkExtractor.defaultConfidence, 'high');
+    strictEqual(markdownLinkExtractor.scope, 'body');
+  });
+});

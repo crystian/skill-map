@@ -54,6 +54,7 @@ import { frontmatterExtractor } from './extractors/frontmatter/index.js';
 import { slashExtractor } from './extractors/slash/index.js';
 import { atDirectiveExtractor } from './extractors/at-directive/index.js';
 import { externalUrlCounterExtractor } from './extractors/external-url-counter/index.js';
+import { markdownLinkExtractor } from './extractors/markdown-link/index.js';
 import { triggerCollisionRule } from './rules/trigger-collision/index.js';
 import { brokenRefRule } from './rules/broken-ref/index.js';
 import { supersededRule } from './rules/superseded/index.js';
@@ -131,6 +132,7 @@ export const builtInBundles: IBuiltInBundle[] = [
     granularity: 'extension',
     extensions: [
       externalUrlCounterExtractor,
+      markdownLinkExtractor,
       triggerCollisionRule,
       brokenRefRule,
       supersededRule,

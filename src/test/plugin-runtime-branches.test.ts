@@ -199,14 +199,14 @@ describe('plugin-runtime — branch coverage', () => {
       // empties the provider bucket entirely.
       assert.equal(composed.providers.length, 0, 'no provider survives — claude is the only built-in provider');
       // claude extractors (frontmatter, slash, at-directive) gone; the
-      // core external-url-counter extractor remains.
+      // core extractors (external-url-counter, markdown-link) remain.
       const extractorIds = composed.extractors.map((d) => d.id).sort();
-      assert.deepEqual(extractorIds, ['external-url-counter']);
+      assert.deepEqual(extractorIds, ['external-url-counter', 'markdown-link']);
       // core/* rules unaffected.
       assert.ok(composed.rules.length >= 5, 'every core rule should survive');
     });
 
-    it('(b) disable core/superseded → only that rule skips; other 6 core extensions stay', () => {
+    it('(b) disable core/superseded → only that rule skips; other 7 core extensions stay', () => {
       const bundle = emptyPluginRuntime();
       bundle.resolveEnabled = (id: string) => id !== 'core/superseded';
       const composed = composeScanExtensions({ noBuiltIns: false, pluginRuntime: bundle });
@@ -216,9 +216,9 @@ describe('plugin-runtime — branch coverage', () => {
       // superseded, link-conflict, validate-all. Disabling
       // `core/superseded` drops only one.
       assert.deepEqual(ruleIds, ['broken-ref', 'link-conflict', 'trigger-collision', 'validate-all']);
-      // claude bundle untouched.
+      // claude bundle untouched; core extractors unaffected.
       assert.equal(composed.providers.length, 1);
-      assert.equal(composed.extractors.length, 4, 'all 4 extractors stay');
+      assert.equal(composed.extractors.length, 5, 'all 5 extractors stay');
       // Formatter composer also respects the filter.
       const formatters = composeFormatters({ pluginRuntime: bundle });
       assert.equal(formatters.length, 1, 'ascii formatter still on; superseded toggle is unrelated');
@@ -231,7 +231,7 @@ describe('plugin-runtime — branch coverage', () => {
       });
       assert.ok(composed);
       assert.equal(composed.providers.length, 1, 'claude provider loaded');
-      assert.equal(composed.extractors.length, 4, 'all 4 extractors loaded');
+      assert.equal(composed.extractors.length, 5, 'all 5 extractors loaded');
       assert.equal(composed.rules.length, 5, 'all 5 rules loaded');
       const formatters = composeFormatters({ pluginRuntime: emptyPluginRuntime() });
       assert.equal(formatters.length, 1, 'ascii formatter loaded');
@@ -305,7 +305,7 @@ describe('plugin-runtime — branch coverage', () => {
       );
       assert.ok(composed);
       assert.equal(composed.providers.length, 0);
-      assert.equal(composed.extractors.length, 4, 'extractors untouched');
+      assert.equal(composed.extractors.length, 5, 'extractors untouched');
       assert.equal(composed.rules.length, 5, 'rules untouched');
     });
 
@@ -325,7 +325,7 @@ describe('plugin-runtime — branch coverage', () => {
       );
       assert.ok(composed);
       assert.equal(composed.providers.length, 1);
-      assert.equal(composed.extractors.length, 4);
+      assert.equal(composed.extractors.length, 5);
       assert.equal(composed.rules.length, 0);
     });
 
@@ -353,7 +353,7 @@ describe('plugin-runtime — branch coverage', () => {
         );
         assert.ok(composed, `stray value ${JSON.stringify(stray)} must not trigger any switch`);
         assert.equal(composed.providers.length, 1);
-        assert.equal(composed.extractors.length, 4);
+        assert.equal(composed.extractors.length, 5);
         assert.equal(composed.rules.length, 5);
       }
     });
