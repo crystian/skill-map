@@ -25,7 +25,14 @@ import {
   EFZoomDirection,
   type FCanvasChangeEvent,
 } from '@foblex/flow';
-import { graphlib, layout as dagreLayout } from '@dagrejs/dagre';
+import {
+  forceCenter,
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+  type SimulationNodeDatum,
+} from 'd3-force';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
@@ -186,13 +193,14 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly visibleNodes = computed(() => this.filters.apply(this.loader.nodes()));
 
   /**
-   * Layout cache — dagre runs ONCE over the full collection, not over the
-   * filtered subset. Filters then project this cache to the visible nodes
-   * without recomputing positions, so unmoved nodes stay put when the user
-   * toggles a filter. Recomputed only when `loader.nodes()` itself changes
-   * (initial load + the rare collection refresh). Manual drag positions
-   * (`nodePositions`) are NOT a dagre input — they override per-node at
-   * projection time, so dragging a node never invalidates the cache.
+   * Layout cache — the d3-force simulation runs ONCE over the full
+   * collection, not over the filtered subset. Filters then project this
+   * cache to the visible nodes without recomputing positions, so unmoved
+   * nodes stay put when the user toggles a filter. Recomputed only when
+   * `loader.nodes()` itself changes (initial load + the rare collection
+   * refresh). Manual drag positions (`nodePositions`) are NOT a layout
+   * input — they override per-node at projection time, so dragging a
+   * node never invalidates the cache.
    */
   private readonly fullLayout = computed<IFullLayout>(() =>
     computeFullLayout(this.loader.nodes(), this.loader.scan()),
@@ -523,25 +531,57 @@ function computeFullLayout(
   }
   const uniqueEdges = [...byId.values()];
 
-  // Dagre layout over the full graph.
-  const g = new graphlib.Graph();
-  g.setGraph({ rankdir: 'TB', nodesep: 50, ranksep: 80, marginx: 20, marginy: 20 });
-  g.setDefaultEdgeLabel(() => ({}));
+  // Mode D: force-directed layout via d3-force.
+  //
+  // No ranks, no kinds — every edge is a spring pulling its endpoints
+  // together, every node repels every other (charge), and a centring
+  // force keeps the cloud anchored at the origin. A collision force
+  // prevents overlap.
+  //
+  // Per d3-force docs, the simulation is normally event-driven (one
+  // tick per animation frame). For a static precomputed layout we
+  // call `simulation.stop()` immediately and then drive `tick()`
+  // manually for a fixed iteration count. Result is deterministic
+  // given the same input order — d3-force seeds initial positions
+  // via phyllotaxis (no Math.random).
+  //
+  // Tuning notes:
+  //   - `linkDistance: 90` ≈ NODE_WIDTH so connected nodes sit
+  //     roughly one node-width apart.
+  //   - `chargeStrength: -350` is moderate repulsion; -200 collapses
+  //     the graph too tight, -600 explodes it past the viewport.
+  //   - `collideRadius: NODE_WIDTH/2 + 12` adds a 12 px gutter
+  //     around each node so labels don't kiss.
+  //   - 400 ticks is past d3-force's default cooling threshold
+  //     (300) — the cloud is fully settled.
+  interface ISimNode extends SimulationNodeDatum {
+    id: string;
+  }
+  interface ISimLink {
+    source: string;
+    target: string;
+  }
+  const simNodes: ISimNode[] = allNodes.map((n) => ({ id: n.path }));
+  const simLinks: ISimLink[] = uniqueEdges.map((e) => ({ source: e.from, target: e.to }));
 
-  for (const n of allNodes) {
-    g.setNode(n.path, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  }
-  for (const e of uniqueEdges) {
-    g.setEdge(e.from, e.to);
-  }
-  dagreLayout(g);
+  const sim = forceSimulation<ISimNode>(simNodes)
+    .force(
+      'link',
+      forceLink<ISimNode, ISimLink>(simLinks).id((d) => d.id).distance(90).strength(1),
+    )
+    .force('charge', forceManyBody<ISimNode>().strength(-350))
+    .force('center', forceCenter(0, 0))
+    .force('collide', forceCollide<ISimNode>(NODE_WIDTH / 2 + 12))
+    .stop();
+
+  const TICKS = 400;
+  for (let i = 0; i < TICKS; i++) sim.tick();
 
   const positions = new Map<string, IPoint>();
-  for (const n of allNodes) {
-    const pos = g.node(n.path);
-    positions.set(n.path, {
-      x: (pos?.x ?? 0) - NODE_WIDTH / 2,
-      y: (pos?.y ?? 0) - NODE_HEIGHT / 2,
+  for (const sn of simNodes) {
+    positions.set(sn.id, {
+      x: (sn.x ?? 0) - NODE_WIDTH / 2,
+      y: (sn.y ?? 0) - NODE_HEIGHT / 2,
     });
   }
 
@@ -561,10 +601,11 @@ function computeFullLayout(
 }
 
 /**
- * Project the cached layout to the visible subset. Pure projection — no
- * dagre, no relayout. Manual drag positions (`stored`) override the
- * cached dagre position per node. Edge link counts are computed against
- * visible-only edges so the in/out badges reflect what the user can see.
+ * Project the cached layout to the visible subset. Pure projection —
+ * no simulation, no relayout. Manual drag positions (`stored`) override
+ * the cached force-layout position per node. Edge link counts are
+ * computed against visible-only edges so the in/out badges reflect
+ * what the user can see.
  */
 function projectVisible(
   layout: IFullLayout,
