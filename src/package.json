@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@hono/node-server": "2.0.1",
-    "@skill-map/spec": "*",
+    "@skill-map/spec": "0.14.0",
     "ajv": "8.18.0",
     "ajv-formats": "3.0.1",
     "chokidar": "5.0.0",

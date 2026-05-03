@@ -23,6 +23,8 @@
     "spec:coverage": "node scripts/check-coverage.js",
     "cli:reference": "node scripts/build-cli-reference.js",
     "cli:check": "node scripts/build-cli-reference.js --check",
+    "spec:pin": "node scripts/sync-spec-pin.js",
+    "spec:pin:check": "node scripts/sync-spec-pin.js --check",
     "site:build": "npm run demo:build && node scripts/build-site.js",
     "ui:bundle-analyze": "npm run build --workspace=ui -- --configuration=analyze && source-map-explorer ui/dist/ui/browser/*.js --no-border-checks",
     "smoke:demo": "npm run demo:build && npm run test:smoke --workspace=skill-map-e2e",
@@ -39,12 +41,12 @@
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",
     "validate": "npm run lint --workspaces --if-present",
-    "validate:all": "npm run typecheck && npm run lint --workspaces --if-present && npm run spec:check && npm run cli:check && npm run test --workspace=@skill-map/cli && npm run test --workspace=@skill-map/testkit && npm run test:ci --workspace=ui && npm run build --workspace=@skill-map/cli && npm run build --workspace=ui",
+    "validate:all": "npm run typecheck && npm run lint --workspaces --if-present && npm run spec:check && npm run spec:pin:check && npm run cli:check && npm run test --workspace=@skill-map/cli && npm run test --workspace=@skill-map/testkit && npm run test:ci --workspace=ui && npm run build --workspace=@skill-map/cli && npm run build --workspace=ui",
     "test": "npm run test --workspace=@skill-map/cli",
     "test:all": "npm run test --workspace=@skill-map/cli && npm run test --workspace=@skill-map/testkit && npm run test:ci --workspace=ui",
     "test:coverage": "npm run test:coverage --workspace=@skill-map/cli && npm run test:coverage --workspace=@skill-map/testkit",
     "changeset": "changeset",
-    "changeset:version": "changeset version && npm run spec:index && npm run cli:reference",
+    "changeset:version": "changeset version && npm run spec:pin && npm run spec:index && npm run cli:reference",
     "changeset:publish": "changeset publish"
   },
   "devDependencies": {
