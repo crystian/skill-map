@@ -170,7 +170,7 @@
   "integrity": {
     "algorithm": "sha256",
     "files": {
-      "CHANGELOG.md": "cbb8e9df2bc333958c206123372d271a3b0a83374ead78c590216786c5315e7f",
+      "CHANGELOG.md": "811f64e24a8efd530061f1b16411570d193a9ab8d633db4d7c38fc43991ae165",
       "README.md": "bd30780525e75379eaeb5f8a903bdc601daf3862f3ec69dffc96c437e8d476fc",
       "architecture.md": "16abca1515f12da0f3aa0865361423d6b5b32fa068ff6f699962939f71fc90ab",
       "cli-contract.md": "1aa9349ef1a8db94236a8057ed77dd2802b561eec382451be9a2afdbbbdc6f91",
