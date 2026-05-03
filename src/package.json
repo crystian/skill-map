@@ -1,6 +1,6 @@
 {
   "name": "@skill-map/cli",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "description": "skill-map reference implementation — kernel + CLI + adapters.",
   "license": "MIT",
   "type": "module",
@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@hono/node-server": "2.0.1",
-    "@skill-map/spec": "0.14.0",
+    "@skill-map/spec": "0.14.1",
     "ajv": "8.18.0",
     "ajv-formats": "3.0.1",
     "chokidar": "5.0.0",

@@ -1,5 +1,69 @@
 # skill-map
 
+## 0.14.0
+
+### Minor Changes
+
+- 17a908c: Add a new built-in `markdown-link` extractor that catches `[text](path)` markdown links and emits one `references` link per resolved file path. Closes the gap surfaced by the slash-regex fix: even after that bug stopped generating false positives, sm had no extractor that mapped relative markdown links to real edges in the graph — the dominant cross-reference shape in real knowledge bases was invisible. The new extractor:
+
+  - resolves POSIX paths against the source node's directory (`docs/overview.md` + `./api.md` → `docs/api.md`)
+  - strips `#anchor` and `?query` before resolving
+  - skips image syntax `![alt](path)`, URL schemes (`http`, `mailto`, `tel`, `data`, …), fragment-only links, and absolute paths starting with `/`
+  - emits `kind: 'references'` at `confidence: 'high'` (the syntax is unambiguous authorial intent, not a heuristic)
+  - registers under the `core` bundle as `core/markdown-link` — opt-out via `sm plugins disable core/markdown-link`
+
+- c486f74: Add a new `sm guide` verb that materializes the interactive tester guide as `sm-guide.md` in the current working directory. Companion to the `sm-guide` Claude Code skill: a tester drops into an empty directory, runs `sm guide` to seed the canonical SKILL.md content, then opens Claude Code there and triggers the skill ("guíame") to start the interactive walkthrough. The verb:
+
+  - Writes top-level only (`<cwd>/sm-guide.md`, no subdirectory).
+  - Does NOT require an initialized `.skill-map/` project — runs in any directory, including empty ones.
+  - Refuses to clobber an existing `sm-guide.md` unless `--force` is passed (exit 2 otherwise).
+  - Embeds the SKILL.md source-of-truth (`.claude/skills/sm-guide/SKILL.md` at the repo root) at build time via tsup, copying it to `dist/cli/guide/sm-guide.md` for the published tarball; the runtime resolver walks both layouts so dev iteration and the shipped binary read the same content.
+
+### Patch Changes
+
+- b4fceb7: Two UX improvements to the CLI error surface, addressing tester friction:
+
+  - `sm export --format md` (and any verb with required positionals) now reports `missing required positional argument(s) <query>` with the positional name extracted from Clipanion's USAGE hint, instead of the bare "Not enough positional arguments" that left users guessing what was missing. The redundant Clipanion usage line is stripped — `sm help <verb>` is the single point of truth.
+
+  - `sm config get scan.tokenizr` now suggests the closest valid key (`Did you mean 'scan.tokenize'?`) for typos within 3 edits. Powered by a bounded Levenshtein walk over every leaf in the merged config tree, so suggestions stay aligned with what `sm config list` would print. Cap is intentionally tight to avoid noise; far-off keys (e.g. `scan.includes` when the real path is `roots`) get the bare unknown-key error and no suggestion.
+
+  Both diagnostics share a new `src/cli/util/edit-distance.ts` helper extracted from the existing `parse-error.ts` Levenshtein implementation.
+
+- c99b972: Two small CLI improvements driven by tour findings:
+
+  - `sm export` no longer requires the `<query>` positional. Calling it with just `--format md` (or any format flag, or no flags at all) exports the whole graph — equivalent to the existing `sm export "" --format md`. The empty query already meant match-all in the parser; this just stops Clipanion from rejecting the bare invocation. Examples in `sm help export` updated to lead with the no-query shape.
+  - `parseJsonArray` in the SQLite scan loader now tolerates `null` and `undefined` columns, returning `[]` instead of crashing `JSON.parse("undefined")`. Triggered when reading from a stale-schema DB where a column added by a later migration is absent — the verb now degrades to "empty array for that field" rather than the cryptic SyntaxError that drowned the actionable message.
+
+- 0ecf2af: `sm db dump` no longer requires the external `sqlite3` binary. Reimplemented on top of `node:sqlite` (already a dep via the storage adapter), so the verb works on any host that can run sm without an extra install step. The output format mirrors sqlite3's `.dump` closely enough to round-trip into a fresh DB via either `node:sqlite` or the system `sqlite3` if present (`PRAGMA foreign_keys=OFF;` + `BEGIN TRANSACTION;` + schema objects in `rootpage` order + per-table `INSERT INTO …` + `COMMIT;`).
+
+  Fixes a tester-reported `SQLITE_CANTOPEN (14)` from the spawned sqlite3 binary in environments where the binary's read-only mode could not co-exist with the kernel's WAL setup. The `sm db shell` verb still requires the external `sqlite3` binary because it spawns an interactive REPL — that escape hatch stays unchanged.
+
+- 34d57db: Doc-only fix to remove a misleading reading of "built-in kinds" in the Node schema and one test, plus a small batch of internal CLI refactors and tightened null checks. No external surface change.
+
+  Spec / docs:
+
+  - `spec/schemas/node.schema.json` — the top-level `description` previously read "built-in kinds today are skill, agent, command, hook, note", which suggested those kinds were a kernel-level concept. They are not — the kernel treats `kind` as an open string, and the five names are emitted by the **built-in Claude Provider**. Re-worded to attribute the catalog to the Claude Provider, matching the wording already used on the `kind` field, in `spec/README.md`, in `src/kernel/types.ts`, and in `src/kernel/adapters/sqlite/schema.ts`.
+  - `src/test/extractor-applicable-kinds.test.ts` — three comments tightened from "built-in kind" to "built-in Claude Provider kind" for consistency.
+
+  Internal CLI refactors (no behaviour change):
+
+  - `src/cli/commands/config.ts` — extracted an `isPlainObject` predicate (replaces the duplicated `!!v && typeof v === 'object' && !Array.isArray(v)` check inside `enumerateConfigPaths`) and a `safeGetAtPath` helper that wraps `getAtPath` + `ForbiddenSegmentError` handling so each read verb's `run()` no longer repeats the try/catch + instanceof shape.
+  - `src/cli/commands/db.ts` — pulled the SQL number serialiser into `formatSqlNumber` (NaN / ±Infinity collapse to NULL) so `formatSqlValue` reads as a flat dispatcher.
+  - `src/cli/util/parse-error.ts` — moved the verb-scoped error formatting (incl. the missing-positionals special case) into a `formatVerbScopedError` helper so the top-level dispatcher in `formatParseError` stays flat. Removed the now-stale "dispatcher pattern" eslint-disable comment.
+  - `src/kernel/adapters/sqlite/scan-load.ts` — tightened `parseJsonObject` / `parseJsonArray` null checks from `s == null` to `s === null || s === undefined` to remove the implicit-coercion pattern flagged by lint.
+
+  No contract change (no field/type/required edits). `spec/index.json` regenerated.
+
+- 17a908c: Fix the slash extractor's regex so markdown relative links `[label](./foo.md)` no longer trigger false-positive `broken-ref` issues. URLs (`https://...`), Windows drive letters (`c:/...`), and dotted paths (`domain.com/api`) were also affected — same root cause in the previous-char guard. Switched from a character-class guard to a negative lookbehind that explicitly excludes `.`, `:`, `?`, `#` in addition to the original word / `/` exclusions.
+- 53d39d8: Pin `@skill-map/spec` to an exact version instead of the wildcard `"*"`. The wildcard let `npm install -g @skill-map/cli@X.Y` resolve the spec dep to whatever was newest in the registry at install time — not necessarily the version the CLI was tested against. End users could end up running an `X.Y` CLI binary against a spec it had never seen, producing the "code is one version, spec is OTA" symptom (renamed config keys rejected, documented flags missing, conformance suite drifting).
+
+  The pin is now exact and is automatically retagged to the current spec version on every `chore: version packages` PR via a new `scripts/sync-spec-pin.js` step wired into `changeset:version`. CI runs `--check` mode in `validate:all` so a drifted pin fails the pipeline.
+
+  Local dev is unaffected — npm prefers workspace symlinks to registry resolutions when a workspace match exists, so `npm install` in the monorepo continues to link `node_modules/@skill-map/spec` to `spec/` regardless of the exact version string.
+
+- Updated dependencies [34d57db]
+  - @skill-map/spec@0.14.1
+
 ## 0.13.0
 
 ### Minor Changes
@@ -3071,9 +3135,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                 `--json` output is byte-identical to before — raw rows, no merge.
-                                                                 Storage is byte-identical to before. The grouping is purely a
-                                                                 read-time presentation choice for human eyes.
+                                                                       `--json` output is byte-identical to before — raw rows, no merge.
+                                                                       Storage is byte-identical to before. The grouping is purely a
+                                                                       read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
