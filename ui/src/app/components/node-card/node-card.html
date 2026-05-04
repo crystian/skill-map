@@ -217,63 +217,6 @@
         </div>
       }
     }
-    @if (fmSkill(); as fs) {
-      @if (fs.inputs?.length || fs.outputs?.length) {
-        <div class="sm-gnode__meta">
-          @if (fs.inputs?.length) {
-            <div class="sm-gnode__meta-row">
-              <span class="sm-gnode__meta-label">{{ texts.meta.inputs }}</span>
-              <div class="sm-gnode__chips">
-                @for (p of fs.inputs; track p.name) {
-                  <span
-                    class="sm-gnode__chip sm-gnode__chip--mono"
-                    [pTooltip]="p.description ?? p.name"
-                  >{{ p.name }}@if (p.required) {<span class="sm-gnode__chip-required">*</span>}</span>
-                }
-              </div>
-            </div>
-          }
-          @if (fs.outputs?.length) {
-            <div class="sm-gnode__meta-row">
-              <span class="sm-gnode__meta-label">{{ texts.meta.outputs }}</span>
-              <div class="sm-gnode__chips">
-                @for (p of fs.outputs; track p.name) {
-                  <span
-                    class="sm-gnode__chip sm-gnode__chip--mono"
-                    [pTooltip]="p.description ?? p.name"
-                  >{{ p.name }}</span>
-                }
-              </div>
-            </div>
-          }
-        </div>
-      }
-    }
-    @if (fmCommand(); as fc) {
-      @if (fc.args?.length || fc.shortcut) {
-        <div class="sm-gnode__meta">
-          @if (fc.args?.length) {
-            <div class="sm-gnode__meta-row">
-              <span class="sm-gnode__meta-label">{{ texts.meta.args }}</span>
-              <div class="sm-gnode__chips">
-                @for (a of fc.args; track a.name) {
-                  <span
-                    class="sm-gnode__chip sm-gnode__chip--mono"
-                    [pTooltip]="a.description ?? a.name"
-                  >{{ a.name }}@if (a.required) {<span class="sm-gnode__chip-required">*</span>}</span>
-                }
-              </div>
-            </div>
-          }
-          @if (fc.shortcut) {
-            <div class="sm-gnode__meta-row">
-              <span class="sm-gnode__meta-label">{{ texts.meta.shortcut }}</span>
-              <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fc.shortcut }}</span>
-            </div>
-          }
-        </div>
-      }
-    }
     @if (visibleIssues().length) {
       <div class="sm-gnode__issues-block">
         @for (iss of visibleIssues(); track iss.ruleId + iss.message) {

@@ -17,8 +17,6 @@ export const INSPECTOR_VIEW_TEXTS = {
   backToList: '← back to list',
   cards: {
     agent: 'Agent',
-    command: 'Command',
-    skill: 'Skill',
     relations: 'Relations',
     metadata: 'Metadata',
     tools: 'Tools',
@@ -27,10 +25,6 @@ export const INSPECTOR_VIEW_TEXTS = {
   },
   fields: {
     model: 'Model',
-    shortcut: 'Shortcut',
-    arguments: 'Arguments',
-    inputs: 'Inputs',
-    outputs: 'Outputs',
     supersededBy: 'Superseded by',
     supersedes: 'Supersedes',
     requires: 'Requires',
@@ -56,7 +50,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     category: 'Category',
     specCompat: 'Spec compat',
   },
-  required: 'required',
   body: {
     loading: 'Loading body…',
     empty: 'This file has no body content (only frontmatter).',
@@ -70,8 +63,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     deadConfirmed: 'Verified: this path does not resolve to a known node.',
   },
   authorsSeparator: ', ',
-  argTypePrefix: ': ',
-  argDescSeparator: ' — ',
   missing: '—',
   /** Placeholder cards for v0.8.0 features (enrichment, summary, findings). */
   placeholders: {

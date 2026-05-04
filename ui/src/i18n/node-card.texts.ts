@@ -30,10 +30,6 @@ export const NODE_CARD_TEXTS = {
   },
   meta: {
     model: 'model',
-    inputs: 'inputs',
-    outputs: 'outputs',
-    args: 'args',
-    shortcut: 'shortcut',
     allowed: 'allowed',
     tools: 'tools',
     tags: 'tags',

@@ -4,8 +4,6 @@ import { TooltipModule } from 'primeng/tooltip';
 import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import type {
   IFrontmatterAgent,
-  IFrontmatterCommand,
-  IFrontmatterSkill,
   IIssue,
   INodeStats,
   INodeView,
@@ -87,23 +85,12 @@ export class NodeCard {
   readonly expanded = model<boolean>(false);
 
   /**
-   * Fast accessors for kind-specific frontmatter blocks. Each computed
-   * narrows the union to the matching shape so the template can read
-   * fields without casts.
+   * Fast accessor for the agent frontmatter block. Narrows the union to
+   * the matching shape so the template can read fields without casts.
    */
   protected readonly fmAgent = computed<IFrontmatterAgent | null>(() => {
     const n = this.node();
     return n.kind === 'agent' ? (n.frontmatter as IFrontmatterAgent) : null;
-  });
-
-  protected readonly fmSkill = computed<IFrontmatterSkill | null>(() => {
-    const n = this.node();
-    return n.kind === 'skill' ? (n.frontmatter as IFrontmatterSkill) : null;
-  });
-
-  protected readonly fmCommand = computed<IFrontmatterCommand | null>(() => {
-    const n = this.node();
-    return n.kind === 'command' ? (n.frontmatter as IFrontmatterCommand) : null;
   });
 
   /** Kind-specific summary narrowing. */

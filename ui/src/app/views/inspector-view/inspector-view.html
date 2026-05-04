@@ -71,60 +71,6 @@
         </p-card>
       }
 
-      @if (asCommand(); as cmd) {
-        <p-card [header]="texts.cards.command" styleClass="inspector__card" data-testid="inspector-card-command">
-          <dl class="kv">
-            @if (cmd.shortcut) {
-              <dt>{{ texts.fields.shortcut }}</dt>
-              <dd><code>{{ cmd.shortcut }}</code></dd>
-            }
-          </dl>
-          @if (cmd.args?.length) {
-            <h4>{{ texts.fields.arguments }}</h4>
-            <ul class="args">
-              @for (arg of cmd.args!; track arg.name) {
-                <li>
-                  <code>{{ arg.name }}</code>
-                  @if (arg.type) { <span class="args__type">{{ texts.argTypePrefix }}{{ arg.type }}</span> }
-                  @if (arg.required) { <span class="args__req">{{ texts.required }}</span> }
-                  @if (arg.description) { {{ texts.argDescSeparator }}{{ arg.description }} }
-                </li>
-              }
-            </ul>
-          }
-        </p-card>
-      }
-
-      @if (asSkill(); as skill) {
-        <p-card [header]="texts.cards.skill" styleClass="inspector__card" data-testid="inspector-card-skill">
-          @if (skill.inputs?.length) {
-            <h4>{{ texts.fields.inputs }}</h4>
-            <ul class="args">
-              @for (input of skill.inputs!; track input.name) {
-                <li>
-                  <code>{{ input.name }}</code>
-                  @if (input.type) { <span class="args__type">{{ texts.argTypePrefix }}{{ input.type }}</span> }
-                  @if (input.required) { <span class="args__req">{{ texts.required }}</span> }
-                  @if (input.description) { {{ texts.argDescSeparator }}{{ input.description }} }
-                </li>
-              }
-            </ul>
-          }
-          @if (skill.outputs?.length) {
-            <h4>{{ texts.fields.outputs }}</h4>
-            <ul class="args">
-              @for (output of skill.outputs!; track output.name) {
-                <li>
-                  <code>{{ output.name }}</code>
-                  @if (output.type) { <span class="args__type">{{ texts.argTypePrefix }}{{ output.type }}</span> }
-                  @if (output.description) { {{ texts.argDescSeparator }}{{ output.description }} }
-                </li>
-              }
-            </ul>
-          }
-        </p-card>
-      }
-
       <!-- Sub-template for relation chips that can dead-end. The Angular
            way to share a chunk of template across siblings without
            duplicating the chip + verify-icon pair four times. -->

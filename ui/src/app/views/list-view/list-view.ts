@@ -16,8 +16,6 @@ import type {
   INodeView,
   TStability,
   IFrontmatterAgent,
-  IFrontmatterCommand,
-  IFrontmatterSkill,
 } from '../../../models/node';
 
 interface IListRow {
@@ -123,14 +121,6 @@ function nodeDetail(n: INodeView): string | null {
   switch (n.kind) {
     case 'agent':
       return (n.frontmatter as IFrontmatterAgent).model ?? null;
-    case 'command':
-      return (n.frontmatter as IFrontmatterCommand).shortcut ?? null;
-    case 'skill': {
-      const fm = n.frontmatter as IFrontmatterSkill;
-      const ins = fm.inputs?.length ?? 0;
-      const outs = fm.outputs?.length ?? 0;
-      return ins || outs ? LIST_VIEW_TEXTS.detail.skillIO(ins, outs) : null;
-    }
     default:
       return null;
   }

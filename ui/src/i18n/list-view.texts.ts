@@ -18,8 +18,4 @@ export const LIST_VIEW_TEXTS = {
   resetFilters: 'Reset filters',
   /** Placeholder for missing scalar values (version, stability, priority). */
   missing: '—',
-  detail: {
-    /** Skill rows show input/output port counts. */
-    skillIO: (ins: number, outs: number) => `${ins} in · ${outs} out`,
-  },
 } as const;

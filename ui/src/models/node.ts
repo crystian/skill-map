@@ -74,31 +74,9 @@ export interface IFrontmatterAgent extends IFrontmatterBase {
   model?: string;
 }
 
-export interface ICommandArg {
-  name: string;
-  type?: string;
-  required?: boolean;
-  description?: string;
-  default?: unknown;
-}
+export interface IFrontmatterCommand extends IFrontmatterBase {}
 
-export interface IFrontmatterCommand extends IFrontmatterBase {
-  args?: ICommandArg[];
-  shortcut?: string;
-}
-
-export interface ISkillParameter {
-  name: string;
-  type?: string;
-  description?: string;
-  required?: boolean;
-  default?: unknown;
-}
-
-export interface IFrontmatterSkill extends IFrontmatterBase {
-  inputs?: ISkillParameter[];
-  outputs?: ISkillParameter[];
-}
+export interface IFrontmatterSkill extends IFrontmatterBase {}
 
 export type TFrontmatterNote = IFrontmatterBase;
 

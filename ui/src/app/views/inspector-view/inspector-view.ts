@@ -29,8 +29,6 @@ import { EmptyState } from '../../components/empty-state/empty-state';
 import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nodes-panel';
 import type {
   IFrontmatterAgent,
-  IFrontmatterCommand,
-  IFrontmatterSkill,
   TNodeKind,
   INodeView,
   TStability,
@@ -89,12 +87,6 @@ export class InspectorView implements OnInit {
 
   readonly asAgent = computed<IFrontmatterAgent | null>(() =>
     this.node()?.kind === 'agent' ? (this.node()!.frontmatter as IFrontmatterAgent) : null,
-  );
-  readonly asCommand = computed<IFrontmatterCommand | null>(() =>
-    this.node()?.kind === 'command' ? (this.node()!.frontmatter as IFrontmatterCommand) : null,
-  );
-  readonly asSkill = computed<IFrontmatterSkill | null>(() =>
-    this.node()?.kind === 'skill' ? (this.node()!.frontmatter as IFrontmatterSkill) : null,
   );
 
   /**
