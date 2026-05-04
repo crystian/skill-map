@@ -1,5 +1,21 @@
 # skill-map
 
+## 0.14.1
+
+### Patch Changes
+
+- b1f6018: `sm serve` shows a figlet-style ASCII-art startup banner; non-TTY output is unchanged.
+
+  When stderr is a TTY, `sm serve` now emits a hardcoded figlet "Skill Map" block split into a violet upper half and a green lower half, followed by a dim version line right-aligned under the logo and the existing data block (server URL, scope, cwd-relative DB path, browser hint). The URL value is rendered green-underlined to tie back to the lower-logo palette. ANSI styling (256-color violet `\x1b[38;5;141m`, 256-color green `\x1b[38;5;42m`, dim, underline) is gated behind the standard `NO_COLOR` / `--no-color` / `FORCE_COLOR` toggles.
+
+  When stderr is a pipe / redirect (e.g. `sm serve | tee log.txt`, CI capture), the banner is suppressed entirely and the verb falls back to the two-line legacy format (`sm serve: listening on …` plus the browser hint) byte-for-byte — existing tooling that scrapes those lines keeps working.
+
+  Spec change in `spec/cli-contract.md` § Server documents the boot output, the TTY / non-TTY split, and the color env-var precedence.
+
+- e02eab9: `sm guide` UX polish: clearer trigger phrase + richer bundled walkthrough.
+
+  The verb message and docstring now tell the tester to type `ejecutá @sm-guide.md` (the natural way to load a loose `SKILL.md` in the cwd as a Claude Code skill) instead of the previous "guíame". The bundled `.claude/skills/sm-guide/SKILL.md` got eight pedagogical fixes that ship together: the empty-directory whitelist is now an internal step (the agent reports "Listo, el directorio está limpio" without enumerating ignored items); the invented "4. Event log" UI view is removed (only Grafo / Lista / Inspector exist); a "si no lo ves, hacé zoom" hint was added at the live-edit step; "arista" is replaced by "conector" throughout; the fixture is diversified into a skill (`.claude/skills/demo-skill/SKILL.md`), an agent (`.claude/agents/demo-agent.md`), a hook (`.claude/hooks/demo-hook.md`) and a note (`notes/todo.md`), each with realistic frontmatter so the graph shows the four kinds; a `.skill-map-ignore` is dropped so the scanner ignores the guide's own scratch files; the closing flow offers to write a `sm-guide-report.md` for the tester to send to Pusher (renamed from Crystian); and the live-edit step is rewritten against the new fixture.
+
 ## 0.14.0
 
 ### Minor Changes
@@ -3135,9 +3151,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                       `--json` output is byte-identical to before — raw rows, no merge.
-                                                                       Storage is byte-identical to before. The grouping is purely a
-                                                                       read-time presentation choice for human eyes.
+                                                                             `--json` output is byte-identical to before — raw rows, no merge.
+                                                                             Storage is byte-identical to before. The grouping is purely a
+                                                                             read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
