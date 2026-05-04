@@ -3,7 +3,7 @@ name: sm-tutorial
 description: |
   Interactive tutorial for testing the skill-map CLI and UI. Aimed at
   testers who are downloading the tool for the first time. The flow
-  starts with a quick demo (~7 min) that showcases the live UI — the
+  starts with a quick demo (~10 min) that showcases the live UI — the
   tester runs `sm`, opens the browser, and watches the UI update as
   the agent edits `.md` files — and at the end offers an optional
   deep-dive (~30-40 min) covering the rest of the CLI with flags and
@@ -23,7 +23,7 @@ validated in pre-flight), narrate what you did, show the commands to
 type, and wait for the tester to run them and confirm.
 
 **Internal structure (do NOT mention this to the tester)**: the tutorial
-has a short first phase (~7 min) that demonstrates the live UI, and an
+has a short first phase (~10 min) that demonstrates the live UI, and an
 optional second phase (~30-40 min) covering the rest of the CLI.
 
 > ⚠️ For the tester this is **a single continuous flow**. Never use
@@ -142,7 +142,7 @@ optional second phase (~30-40 min) covering the rest of the CLI.
        calls for a change to `.skillmapignore`,
        `.skill-map/settings.json`,
        `.skill-map/settings.local.json`, or `.gitignore` AS PART
-       OF A REVEAL OR LESSON (e.g. Reveal 5 in Step 2 hides a
+       OF A LESSON (e.g. Step 2.5 hides a
        private node by appending a pattern), you describe the
        edit in a blockquote and the tester applies it in their
        own editor. The pedagogical point is that those files
@@ -151,28 +151,26 @@ optional second phase (~30-40 min) covering the rest of the CLI.
        teach moment defeats the lesson.
 2. **After every command block, stop and wait.** The tester pastes
    the output or replies "OK" / "done". Only then do you advance.
-3. **Persist progress after every step / stage.** Update
+3. **Persist progress after every step.** Update
    `tutorial-state.yml` with `done` / `failed` / `skipped` and a
    timestamp.
 4. **If the tester reports anything weird**, offer to record it in
    `findings.md` (in the cwd). Those are the bugs the team will read.
-5. **One stage at a time.** Finish, ask if they want to continue, do
+5. **One step at a time.** Finish, ask if they want to continue, do
    the next one.
 6. **If `tutorial-state.yml` already exists in the cwd** when invoked,
    do not overwrite anything. Read it, show progress, offer to
    *continue* or *start over* (the latter requires explicit
    confirmation and wipes the tutorial content).
-7. **Mirror the tester's language**: if the first message they wrote
-   was in Spanish, run the conversation in Argentine Spanish (per
-   Tone); if in English, run it in plain English. Internal
-   instructions in this SKILL.md stay in English so any maintainer
-   can read them, and fixture content stays in English (it's
-   technical Markdown, more realistic that way). Blockquote literals
-   in this document are the messages you actually say to the tester
-   — translate them on the fly to the tester's language and render
-   them as blockquote in the chat. Code blocks below them stay as
-   bare ` ```bash ` fences (no `> ` prefix) so the tester can copy
-   cleanly.
+7. **Mirror the tester's language**: see §Tone for the language rules
+   (neutral Spanish — `tú` form, NOT rioplatense — when the tester
+   writes in Spanish; plain English otherwise). Fixture human prose
+   also follows the tester's language, per the Tone bullet on fixture
+   content. Internal instructions in this SKILL.md stay in English
+   so any maintainer can read them. Blockquote literals in this
+   document are the messages you actually say to the tester —
+   translate them on the fly. Code blocks below them stay as bare
+   ` ```bash ` fences (no `> ` prefix) so the tester can copy cleanly.
 
 ## Pre-flight
 
@@ -206,13 +204,17 @@ parentheticals or explanations of which items you ignored:
 
 (or, in Spanish: "Listo, el dir está limpio. Sigamos.")
 
-Rules (after filtering the ignored items):
+**Order of checks** (apply in this order — do not skip steps):
 
-- Empty listing → directory is empty. **Proceed.**
-- Listing contains `tutorial-state.yml` (before filtering) → resume
-  mode. **Proceed** down that branch.
-- Anything else (files, dotfiles, other dirs) → **stop and tell**
-  the tester:
+1. Look at the **raw** `ls -A` output, before filtering. If
+   `tutorial-state.yml` is present → **resume mode**. Skip the
+   rest of this section and follow the resume branch (see
+   §Resume / restart).
+2. Otherwise, apply the ignored-items filter from the whitelist
+   above and inspect what remains:
+   - Empty after filtering → fresh dir. **Proceed.**
+   - Anything else (files, dotfiles, other dirs) → **stop and
+     tell** the tester:
 
 > I detected files in here:
 >
@@ -290,7 +292,7 @@ permissions issue. Suggest `node --version` and walk them through it.
 
 ### 3. Create the initial fixture (one node only)
 
-The tutorial builds the graph **progressively** in five reveals during
+The tutorial builds the graph **progressively** in five sub-steps during
 Step 2 (Live UI). Right now, in pre-flight, you only create **one
 file** — a single agent — so the tester's first look at the UI
 shows exactly one node. The other four kinds (skill, command, hook,
@@ -338,7 +340,7 @@ Rules:
 If you spot anything weird during the tutorial, log it here.
 
 Per finding:
-- **Stage**: <id>
+- **Step**: <id>
 - **Command**: `sm ...`
 - **Expected**: ...
 - **Got**: ...
@@ -374,24 +376,24 @@ short_steps:
   - id: "3-handoff"
     title: "Wrap-up of the demo and offer to keep going"
     status: "pending"
-long_stages:
-  - id: "L1-tester-edits"
+long_steps:
+  - id: "4-tester-edits"
     title: "Tester edits live (extends the UI demo)"
     status: "pending"
-  - id: "L2-cli-browse"
+  - id: "5-cli-browse"
     title: "Browse CLI: list / show / check"
     status: "pending"
     verbs: ["sm list", "sm show", "sm check"]
-  - id: "L3-ascii"
+  - id: "6-ascii"
     title: "ASCII: graph + export"
     status: "pending"
     verbs: ["sm graph", "sm export"]
-  - id: "L4-orphans"
-    title: "Issues and orphans"
+  - id: "7-issues"
+    title: "Issues: broken refs"
     status: "pending"
-    verbs: ["sm orphans", "sm orphans reconcile",
-            "sm orphans undo-rename"]
-  - id: "L5-plugins"
+    verbs: ["sm check", "sm check --rules broken-ref",
+            "sm check --json"]
+  - id: "8-plugins"
     title: "Plugins"
     status: "pending"
     verbs: ["sm plugins list", "sm plugins show",
@@ -400,9 +402,9 @@ long_stages:
 findings_file: "./findings.md"
 ```
 
-## Per-step / per-stage cycle
+## Per-step cycle
 
-For every step in the demo and every stage in the deep-dive:
+For every step in the tutorial:
 
 1. **Announcement**: "Step N: `<title>`. ~M minutes." One sentence
    of context.
@@ -421,7 +423,7 @@ to resume (re-invoke the skill from the same dir).
 
 ---
 
-## DEMO (~7 min)
+## DEMO (~10 min)
 
 Always runs. The pedagogical hook is the live UI.
 
@@ -451,7 +453,7 @@ sm-tutorial.md
 findings.md
 tutorial-state.yml
 sm-tutorial-report.md
-# tutorial outputs that may land at the root if a stage forgets to clean up
+# tutorial outputs that may land at the root if a step forgets to clean up
 export.*
 dump.sql
 ```
@@ -465,24 +467,24 @@ starts the UI server with the watcher built in. One process, one
 terminal: it boots the server, scans the `.md` files, detects
 changes, and pushes events over WebSocket to the live UI.
 
-This step has **five reveals**, each one driven by you editing
-files while the server stays up — except Reveal 3, where the
-tester takes the keyboard for the first time.
+This step has **five sub-steps** (2.1 through 2.5), each one driven
+by you editing files while the server stays up — except Step 2.3,
+where the tester takes the keyboard for the first time.
 
-1. **Reveal 1 (boot)** — one node alone (the agent).
-2. **Reveal 2 (kinds)** — the four other kinds appear as new nodes,
+1. **Step 2.1 (boot)** — one node alone (the agent).
+2. **Step 2.2 (kinds)** — the four other kinds appear as new nodes,
    still unconnected.
-3. **Reveal 3 (your first edit)** — the **tester** edits the
+3. **Step 2.3 (your first edit)** — the **tester** edits the
    `description` of the agent's `.md` and watches the card
    refresh in the graph.
-4. **Reveal 4 (connectors)** — the connectors light up between all
+4. **Step 2.4 (connectors)** — the connectors light up between all
    five nodes.
-5. **Reveal 5 (ignore)** — a private file appears, then disappears
+5. **Step 2.5 (ignore)** — a private file appears, then disappears
    the moment a pattern is added to `.skillmapignore`.
 
 The pedagogical arc: a single dot → a constellation of dots →
 your own edit lands → graph → a graph that respects the user's
-ignore list. Each reveal stops at a confirm prompt before you do
+ignore list. Each sub-step stops at a confirm prompt before you do
 the next.
 
 **Command** (one terminal):
@@ -491,26 +493,18 @@ the next.
 sm
 ```
 
-Before Reveal 1, ask the tester to set up a **side-by-side view** so
-they can watch the magic happen without alt-tabbing every reveal.
+Before Step 2.1, ask the tester to set up a **side-by-side view** so
+they can watch the magic happen without alt-tabbing every sub-step.
 Tell the tester:
 
-> Arrange your screen so two windows are visible at the same time:
->
-> 1. **The browser** — where the graph will update in real time.
->    Leave it ready to navigate to a URL; we'll get the link in a
->    moment.
-> 2. **This terminal** — the one where you're talking to me. You'll
->    see me announce each reveal here, then confirm what you see
->    in the browser.
->
-> The third window — the terminal running `sm` — you can leave
-> minimized or off to the side; it will just print scan progress
+> Now arrange your screen so the **browser** (where the graph will
+> update in real time) and **this chat** are both visible at once
+> — typical layout is browser on the left half, chat on the right
+> (or any split that lets you see both). The terminal running
+> `sm` can stay off to the side; it just prints scan progress
 > lines and you don't need to read them.
 >
-> A typical layout: browser on the left half, this chat on the
-> right half. Or any split that lets you see both at once. Tell
-> me when you're set up and we start.
+> Tell me when you're set up and we start.
 
 Wait for confirmation before moving on. Once they're ready, prompt
 them to launch the server and open the link it prints — without
@@ -524,7 +518,7 @@ truth (it logs the bound `http://host:port` after listen):
 
 Wait for confirmation that the page loaded.
 
-#### Reveal 1 — the lone agent
+#### Step 2.1 — the lone agent
 
 Tell the tester:
 
@@ -542,7 +536,7 @@ Tell the tester:
 
 Wait for confirmation.
 
-#### Reveal 2 — the other four kinds appear (the magic)
+#### Step 2.2 — the other four kinds appear (the magic)
 
 Leave the browser open and the terminal with `sm` running. You
 create the four missing kinds **without any cross-fixture links**
@@ -654,13 +648,13 @@ Tell the tester:
 
 Wait for confirmation.
 
-#### Reveal 3 — your first edit
+#### Step 2.3 — your first edit
 
 Up to here you've been watching the agent write files. Now hand
 the keyboard over: the lesson is that the watcher reacts to
 **any** `.md` edit under the cwd, not just to files the agent
 authors. After this beat, the tester has the muscle memory for
-"save → graph updates", which Reveal 5 (`.skillmapignore`) reuses
+"save → graph updates", which Step 2.5 (`.skillmapignore`) reuses
 verbatim.
 
 Tell the tester:
@@ -672,11 +666,10 @@ Tell the tester:
 > change will be obvious.
 >
 > Now open `.claude/agents/demo-agent.md` in your editor of
-> choice. In the **frontmatter** (the YAML block at the top of
-> the file, between the two `---` lines), change the
-> `description:` field to any text you want — the actual content
-> does not matter, just make it different from what's there now.
-> Save the file.
+> choice. In the **frontmatter** at the top of the file, change
+> the `description:` field to any text you want — the actual
+> content does not matter, just make it different from what's
+> there now. Save the file.
 >
 > Watch the browser. The `demo-agent` card should refresh its
 > description in real time, no reload, no Ctrl+C — same watcher
@@ -689,7 +682,7 @@ Wait for confirmation. You MAY use `Read` on the file afterwards
 to verify the change landed (read-only, allowed under Inviolable
 rule #1) before moving on.
 
-#### Reveal 4 — the connectors light up
+#### Step 2.4 — the connectors light up
 
 Now you edit the existing files to add the cross-fixture links —
 each one becomes a connector in the graph. Apply with `Edit` (do
@@ -743,22 +736,22 @@ Tell the tester:
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
 
-Wait for confirmation. **Do NOT move on to Reveal 5** until the
-connectors are confirmed visible — Reveal 5 reuses the same live UI
+Wait for confirmation. **Do NOT move on to Step 2.5** until the
+connectors are confirmed visible — Step 2.5 reuses the same live UI
 session.
 
-#### Reveal 5 — silence a private file via `.skillmapignore`
+#### Step 2.5 — silence a private file via `.skillmapignore`
 
-The first four reveals showed the watcher picking up new files and
-edits (yours and theirs). Reveal 5 flips the direction: a file the
+The first four sub-steps showed the watcher picking up new files and
+edits (yours and theirs). Step 2.5 flips the direction: a file the
 tester DOES NOT want
 in the graph (a draft, a scratch file, a secret) gets hidden by a
 single line in `.skillmapignore`. Same live mechanism — no restart.
 
 `sm init` already wrote a starter `.skillmapignore` at the scope
-root. The flow has three beats:
+root. The flow has three sub-steps:
 
-**Beat A — you create one new fixture file (the agent does this).**
+**Step 2.5.1 — you create one new fixture file (the agent does this).**
 
 `Write` `notes/private-credentials.md` — kind `note`, simulates a
 file the tester would never want surfacing publicly:
@@ -783,7 +776,7 @@ Confirm the file appears in the graph as a sixth node
 (`notes/private-credentials`). The watcher sees it like any
 other `.md` — that's the point of the demo.
 
-**Beat B — you show the project structure (the agent does this).**
+**Step 2.5.2 — you show the project structure (the agent does this).**
 
 Before asking the tester to touch `.skillmapignore`, give them a
 mental map of the folder so they know where the file lives and
@@ -791,8 +784,7 @@ what's around it. Use `Bash` (`ls -la` and `ls -la notes/` if a
 deeper view helps) and present the listing inside a blockquote so
 the tester sees what their cwd holds:
 
-> Antes del último paso, esto es lo que tenés en el directorio
-> ahora mismo:
+> One last step. Here's what your directory looks like right now:
 >
 > ```
 > .                            ← your cwd
@@ -817,7 +809,7 @@ Adjust the actual tree shown to whatever `ls -la` returns — the
 goal is "tester recognises their own filesystem", not a copy of
 the snippet above.
 
-**Beat C — the tester edits `.skillmapignore` (NOT the agent).**
+**Step 2.5.3 — the tester edits `.skillmapignore` (NOT the agent).**
 
 Per Inviolable rule #1, you DO NOT touch `.skillmapignore` with
 your `Edit` tool. Tell the tester to do it from their editor:
@@ -854,7 +846,7 @@ Mark `2-ui-live: done`.
 ### Step 3 — Wrap-up of the demo and offer to keep going (30 s)
 
 > All set! That's the heart of skill-map: you edit a `.md` and the
-> UI sees it instantly. In **~7 minutes** you've already seen the
+> UI sees it instantly. In **~10 minutes** you've already seen the
 > full flow.
 >
 > If you want, **we can keep going deeper**: I'll walk you through
@@ -880,7 +872,7 @@ If they say **1**:
 
 ## DEEP-DIVE (~30-40 min) — opt-in
 
-Strictly new stages. Does not re-expand demo steps.
+Strictly new steps. Does not re-expand demo steps.
 
 ### Level question (one time only, on entry)
 
@@ -900,12 +892,12 @@ Save into `tester.level` and modulate:
 - **Level 3**: dense blocks, flags included, no explanations of
   basic concepts.
 
-### Stage L1 — Tester edits live (~3 min)
+### Step 4 — Tester edits live (~3 min)
 
 **Context**: in the demo you edited. Now it's their turn to confirm
 they can do it from their editor.
 
-This stage needs the server running. **Check first** before asking
+This step needs the server running. **Check first** before asking
 them to launch it: many testers leave it running from Step 2 and
 the demo wraps without an explicit Ctrl+C. Word the prompt as a
 conditional, e.g. "If the server from Step 2 is still up, leave it
@@ -917,16 +909,14 @@ process trying to bind the same port and confusing the tester.
 > editor of choice and remove the line that links to `demo-agent.md`.
 > Save. Watch the UI.
 >
-> Expected: the `demo-skill → demo-agent` connector disappears. If
-> `demo-agent.md` ends up with no one linking to it, it shows up as
-> an orphan (we'll create a similar dangling situation in stage L4
-> to see how `sm check` flags it).
+> Expected: the `demo-skill → demo-agent` connector disappears in
+> real time. The two nodes stay in the graph; only the edge goes.
 
 You verify by reading `.claude/skills/demo-skill/SKILL.md` to confirm
 the change was applied. Once they confirm, ask them to **Ctrl+C**
 the server.
 
-### Stage L2 — Browse CLI: list / show / check (~3 min)
+### Step 5 — Browse CLI: list / show / check (~3 min)
 
 ```bash
 sm list
@@ -938,10 +928,10 @@ sm check
 
 Expected: you see the 5 fixture nodes listed with their kind;
 `check` runs the deterministic rules and reports a clean fixture
-(no issues at this point — we will plant one in stage L4 and watch
+(no issues at this point — we will plant one in step 7 and watch
 the rule catch it).
 
-### Stage L3 — ASCII: graph + export (~3 min)
+### Step 6 — ASCII: graph + export (~3 min)
 
 ```bash
 sm graph
@@ -954,7 +944,7 @@ ls -la export.*
 `graph` draws an ASCII tree. `export` filters and serialises to md
 or json.
 
-### Stage L4 — Issues: broken refs (~3 min)
+### Step 7 — Issues: broken refs (~3 min)
 
 `broken-ref` is one of the deterministic rules `sm check` runs.
 We'll plant one and watch it surface — that's the easiest way to
@@ -992,7 +982,7 @@ rest of the deep-dive doesn't depend on it.
 >   orphans of that kind, so `sm orphans` will print "No orphan /
 >   auto-rename issues" — that's expected, not a bug.
 
-### Stage L5 — Plugins (~3 min)
+### Step 8 — Plugins (~3 min)
 
 ```bash
 sm plugins list
@@ -1049,8 +1039,8 @@ template:
 - **Depth reached**: <basic | full>
 - **Tester**: level <N> (if applicable)
 - **Tutorial directory**: <cwd>
-- **Steps completed**: 4 / 4 + X / 5 deep-dive stages (if applicable)
-- **Stages skipped**: Y (if applicable)
+- **Steps completed**: N / 3 demo + X / 5 deep-dive (if applicable)
+- **Steps skipped**: Y (if applicable)
 - **Total time**: ~<computed from timestamps>
 
 ## Environment
@@ -1088,27 +1078,71 @@ the cwd, start like this (do NOT repeat pre-flight from scratch):
 
 > I see you already started the tutorial.
 >
-> You're at step <N> of 4 (or "you've already completed the first 4
-> steps and you're on stage <M> of 5 of the deep-dive", depending on
-> the yaml state).
+> You're at step <N> of 3 (or "you've already completed the demo
+> (steps 1-3) and you're on step <M> of 5 of the deep-dive (steps
+> 4-8)", depending on the yaml state).
 >
 > 1. **Continue** from where you left off
 > 2. **Start over** — wipes all the tutorial content in this dir
 >    (asks for confirmation)
 > 3. **Exit** without touching anything
 
-If they pick "start over", confirm explicitly. Only after
-confirmation, delete the tutorial files in the cwd
-(`tutorial-state.yml`, `findings.md`, `.skillmapignore`, `.claude/`,
-`notes/`, `.skill-map/`, and any `export.*`, `dump.sql`, or
-`sm-tutorial-report.md` that may have been left behind) and start
-everything from pre-flight.
+If they pick "start over", do these checks **before deleting
+anything**:
+
+1. Read `tutorial.cwd` from `tutorial-state.yml` and compare with
+   the current `pwd`. If they don't match, **refuse**:
+
+   > This `tutorial-state.yml` was generated for a different
+   > directory (`<saved cwd>`). The current dir is `<pwd>`. I'm
+   > refusing to wipe — your `.claude/`, `notes/`, etc. here are
+   > probably yours, not the tutorial's. Move to `<saved cwd>` and
+   > re-invoke me from there, or delete `tutorial-state.yml` by
+   > hand if you really want to start fresh here.
+
+2. If the cwd matches, show the tester the exact list of paths
+   you'll delete and ask for an explicit typed confirmation:
+
+   > Start over will delete these paths from `<cwd>`:
+   >
+   > ```
+   > tutorial-state.yml
+   > findings.md
+   > .skillmapignore
+   > .skill-map/
+   > .claude/agents/demo-agent.md
+   > .claude/commands/demo-command.md
+   > .claude/hooks/demo-hook.md
+   > .claude/skills/demo-skill/
+   > notes/todo.md
+   > notes/private-credentials.md
+   > sm-tutorial-report.md   (if present)
+   > export.*                (if present)
+   > dump.sql                (if present)
+   > ```
+   >
+   > Type **`yes, wipe`** (exact text) to confirm. Anything else
+   > cancels.
+
+3. Only on the literal `yes, wipe` reply, delete those exact paths.
+   Do NOT recursively `rm -rf` `.claude/` or `notes/` as
+   directories — only the specific tutorial-owned files inside, in
+   case the tester has unrelated files there. After deletion, also
+   `rmdir` `.claude/agents`, `.claude/commands`, `.claude/hooks`,
+   `.claude/skills`, `notes/`, and `.claude/` if and only if they
+   are empty (silent failure if not). Then start everything from
+   pre-flight.
 
 ## Edge cases
 
 - **Tester doesn't have Node 20+** → guide them to `nvm` or
   nodejs.org. Don't try to install Node for them.
-- **Port 4242 in use** → suggest `sm serve --port 4243`.
+- **Port 4242 in use** → bare `sm` doesn't accept flags (it's a
+  shorthand for `sm serve` with defaults). Tell the tester to
+  switch verbs: stop the failed `sm`, then run
+  `sm serve --port 4243`. The browser link printed by the server
+  changes accordingly — they should open the new URL, not the
+  default 4242.
 - **`sm` doesn't pick up changes on WSL** → known on WSL2 with
   files under `/mnt/c/`. Suggest exiting, running `mkdir
   ~/sm-tutorial && cd ~/sm-tutorial` (Linux-native filesystem), and
@@ -1123,7 +1157,7 @@ everything from pre-flight.
 
 - Run `sm` verbs for the tester (except `sm version` ONCE in
   pre-flight).
-- Advance to the next step / stage without confirmation.
+- Advance to the next step without confirmation.
 - Modify files outside the tutorial cwd.
 - Ask them to `cd` outside the tutorial cwd.
 - Skip the level question when entering the deep-dive.

@@ -76,7 +76,7 @@ Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corrie
 
 ## Tutorial interactivo (recomendado)
 
-Si usás [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **7 minutos** para la demo, con un opcional de 30 min más para profundizar.
+Si usás [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **10 minutos** para la demo, con un opcional de 30 min más para profundizar.
 
 ```bash
 mkdir prueba-skill-map && cd prueba-skill-map
