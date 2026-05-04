@@ -256,6 +256,98 @@ function computeForceLayoutPositions(
 }
 
 /**
+ * Run d3-force with a subset of nodes pinned to known coordinates and only
+ * `freeIds` allowed to move. Used by the graph view's reconcile effect to
+ * place a newly-added node (or a small batch of them) AROUND the existing
+ * layout instead of re-laying out everything from scratch.
+ *
+ * Why this exists:
+ *
+ *   The full `computeForceLayoutPositions` is a fresh phyllotaxis seed
+ *   plus 400 ticks — every call produces a self-consistent layout but
+ *   ignores any prior positions. When a single node enters the topology
+ *   (e.g. a WS scan refresh adds one more file), running the full sim
+ *   again would relocate every existing node too, undoing the user's
+ *   stored coordinates. Reading just the new node's row out of that
+ *   fresh sim and pinning it next to the OLD positions of the others
+ *   is worse: the new sim doesn't know where the OLD nodes "really" are
+ *   on screen, so the new node lands on top of them.
+ *
+ *   Pinning (`fx` / `fy`) tells d3-force "treat these positions as
+ *   immovable constraints". The free nodes get phyllotaxis-seeded near
+ *   the origin, then the link / charge / collide forces push them out
+ *   to a non-overlapping spot that respects the actual layout the user
+ *   sees. 200 ticks is enough because only a handful of nodes are free
+ *   — the bulk of the system is already at equilibrium.
+ *
+ * Coordinate convention: `pinned` is in TOP-LEFT space (matches the
+ * shape persisted to `nodePositions`). d3-force operates on CENTER
+ * coordinates, so we offset by `NODE_WIDTH/2` / `NODE_HEIGHT/2` on the
+ * way in and back out.
+ */
+export function computeIncrementalPositions(
+  allNodes: INodeView[],
+  edges: IGraphEdge[],
+  pinned: TNodePositions,
+  freeIds: readonly string[],
+): Map<string, IPoint> {
+  interface ISimNode extends SimulationNodeDatum {
+    id: string;
+    fx?: number | null;
+    fy?: number | null;
+  }
+  interface ISimLink {
+    source: string;
+    target: string;
+  }
+
+  const freeSet = new Set(freeIds);
+  const simNodes: ISimNode[] = allNodes.map((n) => {
+    const node: ISimNode = { id: n.path };
+    if (freeSet.has(n.path)) return node;
+    const tl = pinned[n.path];
+    if (!tl) return node;
+    // Pinned: convert top-left → center, fix the position.
+    const cx = tl.x + NODE_WIDTH / 2;
+    const cy = tl.y + NODE_HEIGHT / 2;
+    node.x = cx;
+    node.y = cy;
+    node.fx = cx;
+    node.fy = cy;
+    return node;
+  });
+  const simLinks: ISimLink[] = edges.map((e) => ({ source: e.from, target: e.to }));
+
+  const sim = forceSimulation<ISimNode>(simNodes)
+    .force(
+      'link',
+      forceLink<ISimNode, ISimLink>(simLinks).id((d) => d.id).distance(90).strength(1),
+    )
+    .force('charge', forceManyBody<ISimNode>().strength(-200))
+    // No `forceCenter` here — translating the whole cloud would
+    // contradict the pinned positions. The pull-to-origin from
+    // `forceX` / `forceY` keeps a free disconnected node from
+    // drifting forever.
+    .force('x', forceX<ISimNode>(0).strength(0.06))
+    .force('y', forceY<ISimNode>(0).strength(0.06))
+    .force('collide', forceCollide<ISimNode>(NODE_WIDTH / 2 + 12))
+    .stop();
+
+  const TICKS = 200;
+  for (let i = 0; i < TICKS; i++) sim.tick();
+
+  const out = new Map<string, IPoint>();
+  for (const sn of simNodes) {
+    if (!freeSet.has(sn.id)) continue;
+    out.set(sn.id, {
+      x: (sn.x ?? 0) - NODE_WIDTH / 2,
+      y: (sn.y ?? 0) - NODE_HEIGHT / 2,
+    });
+  }
+  return out;
+}
+
+/**
  * Project the cached layout to the visible subset. Pure projection —
  * no simulation, no relayout. Manual drag positions (`stored`) override
  * the cached force-layout position per node. Edge link counts are

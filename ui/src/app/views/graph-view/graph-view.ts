@@ -36,6 +36,7 @@ import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
 import {
+  computeIncrementalPositions,
   createLayoutComputer,
   projectVisible,
   type IFullLayout,
@@ -296,52 +297,76 @@ export class GraphView implements OnInit, OnDestroy {
       }
     });
 
-    // Reconcile `nodePositions` against the loaded set so storage holds the
-    // position of every visible node, not just the ones the user manually
-    // dragged. Two responsibilities, one effect:
+    // Reconcile `nodePositions` against the loaded set so storage holds
+    // the position of every visible node, not just the ones the user
+    // manually dragged. Three responsibilities, one effect:
     //
-    //   1. New node detected (in `loader.nodes()`, missing from
-    //      `nodePositions`): take the auto-layout's computed position and
-    //      pin it. From this moment on, the node has a stored coordinate
-    //      that survives reloads — no more "auto-layout shuffles every
-    //      time the topology hash changes".
-    //   2. Node disappeared (in `nodePositions`, missing from
-    //      `loader.nodes()`): drop the stored coordinate. Without this,
-    //      stale entries pile up forever (mirrors the `expandedNodeIds`
-    //      GC above).
+    //   1. Cold start (no stored positions): take the auto-layout's
+    //      cached full simulation as-is. That's the same single batch
+    //      `projectVisible` was already going to render with — reusing
+    //      it avoids running the d3-force solver twice.
+    //   2. Incremental (some nodes already pinned, one or more new):
+    //      run `computeIncrementalPositions` with the existing entries
+    //      held fixed via `fx` / `fy` and the missing nodes free to
+    //      settle. The new nodes drop into a non-overlapping spot
+    //      defined by the algorithm, but the existing ones stay
+    //      exactly where the user (or storage) left them. Without
+    //      this branch the new node would inherit a position from a
+    //      fresh full simulation that doesn't know where the existing
+    //      cards actually sit on screen — they'd land on top of each
+    //      other.
+    //   3. Removed nodes: drop their entries — mirrors the
+    //      `expandedNodeIds` GC above. Stale ids would pile up forever
+    //      otherwise.
     //
-    // The effect runs after `resetLayout()` clears the map: the next tick
-    // reseeds every position from the current auto-layout and persists
-    // the whole batch. That's how RESET ends up "re-arranged AND saved"
-    // without an explicit re-save call inside `resetLayout` itself.
+    // After `resetLayout()` clears the map this effect runs on the next
+    // tick and the cold-start branch reseeds the whole graph from the
+    // auto-layout, then persists. That's how RESET ends up "deleted →
+    // re-arranged → saved" without an explicit save call in
+    // `resetLayout` itself.
     //
     // Single localStorage write per cycle, gated by `dirty` to avoid an
-    // infinite loop (we read `nodePositions` and conditionally write to
-    // it). Empty-loader case is skipped so we don't wipe storage during
-    // the boot loading phase.
+    // infinite loop (we read `nodePositions` and conditionally write
+    // to it). Empty-loader case is skipped so we don't wipe storage
+    // during the boot loading phase.
     effect(() => {
       const nodes = this.loader.nodes();
       if (nodes.length === 0) return;
-      const layoutPositions = this.fullLayout().positions;
       const current = this.nodePositions();
       const allPaths = new Set(nodes.map((n) => n.path));
 
       let dirty = false;
       const next: TNodePositions = { ...current };
 
-      // (1) Seed positions for newly loaded nodes from the auto-layout.
-      for (const path of allPaths) {
-        if (path in next) continue;
-        const pos = layoutPositions.get(path);
-        if (!pos) continue;
-        next[path] = { x: pos.x, y: pos.y };
-        dirty = true;
-      }
-
-      // (2) Drop positions for nodes that no longer exist.
+      // (3) Drop positions for nodes that no longer exist.
       for (const id of Object.keys(next)) {
         if (allPaths.has(id)) continue;
         delete next[id];
+        dirty = true;
+      }
+
+      // (1 / 2) Identify newly-loaded nodes and place them.
+      const missing: string[] = [];
+      for (const path of allPaths) {
+        if (!(path in next)) missing.push(path);
+      }
+
+      if (missing.length > 0) {
+        const layout = this.fullLayout();
+        if (Object.keys(next).length === 0) {
+          // Cold start — nothing pinned. Reuse the cached full sim.
+          for (const path of missing) {
+            const pos = layout.positions.get(path);
+            if (pos) next[path] = { x: pos.x, y: pos.y };
+          }
+        } else {
+          // Incremental — pin existing, settle the new ones around them.
+          const placed = computeIncrementalPositions(nodes, layout.edges, next, missing);
+          for (const path of missing) {
+            const pos = placed.get(path);
+            if (pos) next[path] = pos;
+          }
+        }
         dirty = true;
       }
 
