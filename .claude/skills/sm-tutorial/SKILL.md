@@ -77,10 +77,19 @@ optional second phase (~30-40 min) covering the rest of the CLI.
 1. **You DO NOT run `sm` verbs for the tester** except `sm version`
    ONCE during pre-flight to verify the install. Your responsibilities:
    - Write fixture files and `tutorial-state.yml` directly in the cwd.
-   - Edit `.md` files when a step calls for it (the live-UI demo
-     needs this so the watcher has something to react to).
+   - Edit `.md` fixture files when a step calls for it (the live-UI
+     demo needs this so the watcher has something to react to).
    - Read files to verify what the tester modified.
    - Everything else is run by the tester.
+   - **Configuration files are off-limits to your editing tools**:
+     `.skillmapignore`, `.skill-map/settings.json`,
+     `.skill-map/settings.local.json`, and `.gitignore` are
+     ALWAYS edited by the tester, never by you. When a step calls
+     for a change to one of those, you describe the edit in a
+     blockquote and the tester applies it in their own editor.
+     The pedagogical point is that those files belong to the user
+     — they need to internalise where they live and how to change
+     them. Doing it for them defeats the lesson.
 2. **After every command block, stop and wait.** The tester pastes
    the output or replies "OK" / "done". Only then do you advance.
 3. **Persist progress after every step / stage.** Update
@@ -643,64 +652,101 @@ in the graph (a draft, a scratch file, a secret) gets hidden by a
 single line in `.skillmapignore`. Same live mechanism — no restart.
 
 `sm init` already wrote a starter `.skillmapignore` at the scope
-root. The tester edits that file plus creates one new fixture node:
+root. The flow has three beats:
 
-1. Create (`Write`) `notes/private-credentials.md` — kind `note`,
-   simulates a file the tester would never want surfacing publicly:
-   ```markdown
-   ---
-   name: private-credentials
-   description: |
-     Personal API tokens — exists in the repo but should not show
-     up in the skill-map graph. Demonstrates the .skillmapignore
-     flow.
-   metadata:
-     version: "0.0.1"
-   ---
+**Beat A — you create one new fixture file (the agent does this).**
 
-   # Private
+`Write` `notes/private-credentials.md` — kind `note`, simulates a
+file the tester would never want surfacing publicly:
 
-   API_TOKEN: example-not-real
-   ```
+```markdown
+---
+name: private-credentials
+description: |
+  Personal API tokens — exists in the repo but should not show
+  up in the skill-map graph. Demonstrates the .skillmapignore
+  flow.
+metadata:
+  version: "0.0.1"
+---
 
-2. Confirm the file appears in the graph as a sixth node
-   (`notes/private-credentials`). The watcher sees it like any
-   other `.md` — that's the point of the demo.
+# Private
 
-3. Edit (`Edit`) `.skillmapignore` and append a single new line at
-   the end:
-   ```
-   notes/private-*.md
-   ```
-   (Pattern syntax mirrors `.gitignore` — kaelzhang's `ignore`
-   under the hood. A literal path like `notes/private-credentials.md`
-   would also work; the glob teaches the broader habit.)
+API_TOKEN: example-not-real
+```
 
-4. Confirm the node disappears from the graph in the browser, no
-   refresh needed. Six nodes back to five.
+Confirm the file appears in the graph as a sixth node
+(`notes/private-credentials`). The watcher sees it like any
+other `.md` — that's the point of the demo.
 
-Tell the tester:
+**Beat B — you show the project structure (the agent does this).**
 
-> One last trick: skill-map stops tracking a file the moment it
-> matches a pattern in `.skillmapignore`. No restart needed — same
-> watcher, opposite direction.
+Before asking the tester to touch `.skillmapignore`, give them a
+mental map of the folder so they know where the file lives and
+what's around it. Use `Bash` (`ls -la` and `ls -la notes/` if a
+deeper view helps) and present the listing inside a blockquote so
+the tester sees what their cwd holds:
+
+> Antes del último paso, esto es lo que tenés en el directorio
+> ahora mismo:
 >
-> Two steps:
+> ```
+> .                            ← your cwd
+> ├── .claude/
+> │   ├── agents/demo-agent.md
+> │   ├── commands/demo-command.md
+> │   ├── hooks/demo-hook.md
+> │   └── skills/demo-skill/SKILL.md
+> ├── .skill-map/              ← project DB + settings (managed)
+> │   ├── settings.json
+> │   ├── settings.local.json
+> │   └── skill-map.db
+> ├── .skillmapignore          ← the file we're about to edit
+> ├── notes/
+> │   ├── todo.md
+> │   └── private-credentials.md   ← what we want to hide
+> └── sm-tutorial.md           ← the tutorial file you loaded
+> ```
 >
-> 1. Create `notes/private-credentials.md` with the content I'll
->    paste → a new node appears on the graph (watcher magic again,
->    expected).
-> 2. Open `.skillmapignore` and append `notes/private-*.md` on a
->    new line → the node disappears from the graph.
+> The `.skillmapignore` at the root is the file we'll touch
+> next. Same syntax as `.gitignore`. Anything matching a pattern
+> there is invisible to skill-map's scan.
+
+Adjust the actual tree shown to whatever `ls -la` returns — the
+goal is "tester recognises their own filesystem", not a copy of
+the snippet above.
+
+**Beat C — the tester edits `.skillmapignore` (NOT the agent).**
+
+Per Inviolable rule #1, you DO NOT touch `.skillmapignore` with
+your `Edit` tool. Tell the tester to do it from their editor:
+
+> Last step. Open `.skillmapignore` (it's at the cwd root) in
+> your editor of choice. At the end of the file, on a new line,
+> append:
 >
-> Use this whenever you have drafts, scratch files, or anything
-> you don't want surfacing in the map. Syntax is the same as
-> `.gitignore`: globs, `!pattern` to re-include, `#` for comments.
+> ```
+> notes/private-*.md
+> ```
+>
+> Save the file. The pattern uses a glob (same as `.gitignore`):
+> `notes/private-*.md` matches `private-credentials.md` and any
+> future sibling `private-*.md`. A literal path
+> (`notes/private-credentials.md`) would also work — the glob
+> teaches the broader habit.
+>
+> Watch the browser when you save. The
+> `notes/private-credentials` node should disappear from the
+> graph in real time, without restarting anything. Six nodes
+> back to five.
 >
 > Did the node vanish?
 
-Wait for confirmation. Once they confirm, ask them to stop the
-server with **Ctrl+C** in the terminal before continuing.
+After they confirm, you MAY use `Read` on `.skillmapignore` to
+verify the appended pattern landed correctly (in case
+`sm check` later reports something odd) — that is read-only and
+allowed. Once confirmed, ask them to stop the server with
+**Ctrl+C** in the terminal before continuing.
 
 Mark `3-ui-live: done`.
 
