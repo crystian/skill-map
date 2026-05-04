@@ -31,7 +31,7 @@ const JOBS_DIRNAME = 'jobs';
 const PLUGINS_DIRNAME = 'plugins';
 const SETTINGS_FILENAME = 'settings.json';
 const LOCAL_SETTINGS_FILENAME = 'settings.local.json';
-const IGNORE_FILENAME = '.skill-mapignore';
+const IGNORE_FILENAME = '.skillmapignore';
 
 /**
  * Single source of truth for the relative DB path inside a scope
@@ -142,8 +142,8 @@ export function defaultLocalSettingsPath(scopeRoot: string): string {
 }
 
 /**
- * Default `.skill-mapignore` file path
- * (`<scopeRoot>/.skill-mapignore`). Sits at the scope root, NOT inside
+ * Default `.skillmapignore` file path
+ * (`<scopeRoot>/.skillmapignore`). Sits at the scope root, NOT inside
  * `.skill-map/` — `sm scan` reads it from the same level as `package.json`
  * etc. so authors can keep ignore rules visible in the project tree.
  */

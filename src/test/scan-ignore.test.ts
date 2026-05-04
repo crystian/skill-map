@@ -1,8 +1,8 @@
 /**
- * Step 6.4 — `.skill-mapignore` parser + scan integration. Two layers:
+ * Step 6.4 — `.skillmapignore` parser + scan integration. Two layers:
  *
  *   1. Unit tests for `buildIgnoreFilter` — defaults, config.ignore,
- *      .skill-mapignore text, negation, layering.
+ *      .skillmapignore text, negation, layering.
  *   2. End-to-end via `runScan` — assert the walker actually skips
  *      directories the filter excludes (and includes the ones it
  *      doesn't).
@@ -96,8 +96,8 @@ describe('buildIgnoreFilter — configIgnore layer', () => {
 });
 
 describe('buildIgnoreFilter — ignoreFileText layer', () => {
-  it('parses a real .skill-mapignore body with comments + blank lines', () => {
-    // Real `.skill-mapignore` files have no leading indent; gitignore
+  it('parses a real .skillmapignore body with comments + blank lines', () => {
+    // Real `.skillmapignore` files have no leading indent; gitignore
     // syntax treats whitespace as part of the pattern.
     const text = '# comment line — ignored\n*.bak\n\nlegacy/\n';
     const filter = buildIgnoreFilter({ ignoreFileText: text });
@@ -136,7 +136,7 @@ describe('buildIgnoreFilter — layering', () => {
 describe('readIgnoreFileText', () => {
   it('returns the file contents when present', () => {
     const dir = freshScope('readignore-present');
-    writeFileSync(join(dir, '.skill-mapignore'), '*.draft.md\n');
+    writeFileSync(join(dir, '.skillmapignore'), '*.draft.md\n');
     const text = readIgnoreFileText(dir);
     assert.equal(text, '*.draft.md\n');
   });
@@ -152,11 +152,11 @@ describe('readIgnoreFileText', () => {
 // -----------------------------------------------------------------------------
 
 describe('scan integration — filter applied at the walker', () => {
-  it('respects .skill-mapignore patterns: drafts are excluded from the result', async () => {
+  it('respects .skillmapignore patterns: drafts are excluded from the result', async () => {
     const dir = freshScope('e2e-skipignore');
     writeMd(dir, '.claude/agents/keep.md', 'agent');
     writeMd(dir, '.claude/agents/wip.draft.md', 'agent');
-    writeFileSync(join(dir, '.skill-mapignore'), '*.draft.md\n');
+    writeFileSync(join(dir, '.skillmapignore'), '*.draft.md\n');
 
     const filter = buildIgnoreFilter({
       ignoreFileText: readIgnoreFileText(dir),
@@ -172,7 +172,7 @@ describe('scan integration — filter applied at the walker', () => {
     assert.deepEqual(paths, ['.claude/agents/keep.md']);
   });
 
-  it('respects config.ignore patterns even without a .skill-mapignore file', async () => {
+  it('respects config.ignore patterns even without a .skillmapignore file', async () => {
     const dir = freshScope('e2e-config-ignore');
     writeMd(dir, '.claude/agents/included.md', 'agent');
     writeMd(dir, 'private/excluded.md', 'agent');
@@ -214,7 +214,7 @@ describe('scan integration — filter applied at the walker', () => {
     const dir = freshScope('e2e-negation');
     writeMd(dir, 'private/keep.md', 'agent');
     writeMd(dir, 'private/skip.md', 'agent');
-    writeFileSync(join(dir, '.skill-mapignore'), '!private/keep.md\n');
+    writeFileSync(join(dir, '.skillmapignore'), '!private/keep.md\n');
 
     const filter = buildIgnoreFilter({
       configIgnore: ['private/*'],

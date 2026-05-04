@@ -204,7 +204,7 @@ export interface RunScanOptions {
   /**
    * Filter that decides which paths the Providers skip. Composed by the
    * caller (typically the CLI) from bundled defaults + `config.ignore`
-   * + `.skill-mapignore`. Providers that omit this option fall back to
+   * + `.skillmapignore`. Providers that omit this option fall back to
    * their own defensive defaults (just enough to keep `.git` /
    * `node_modules` out).
    */

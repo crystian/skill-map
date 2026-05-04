@@ -31,7 +31,7 @@
     },
     "ignore": {
       "type": "array",
-      "description": "Glob patterns to exclude, in addition to `.skill-mapignore`.",
+      "description": "Glob patterns to exclude, in addition to `.skillmapignore`.",
       "items": { "type": "string" }
     },
     "scan": {
@@ -49,7 +49,7 @@
         "watch": {
           "type": "object",
           "additionalProperties": false,
-          "description": "File-watcher knobs for `sm watch` and `sm scan --watch`. The watcher subscribes to the same roots `sm scan` walks, applies the `.skill-mapignore` filter, and triggers an incremental scan after each batch.",
+          "description": "File-watcher knobs for `sm watch` and `sm scan --watch`. The watcher subscribes to the same roots `sm scan` walks, applies the `.skillmapignore` filter, and triggers an incremental scan after each batch.",
           "properties": {
             "debounceMs": {
               "type": "integer",

@@ -131,7 +131,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     };
 
     // Both `cfg` and `ignoreFilter` are mutable so the meta-file watcher
-    // can swap them after a `.skill-mapignore` or `.skill-map/settings.json`
+    // can swap them after a `.skillmapignore` or `.skill-map/settings.json`
     // edit. Three downstream readers pick up the new values automatically:
     //   1. The primary chokidar `ignored` predicate (via the getter passed
     //      to the kernel watcher) — re-evaluated per chokidar event, so
@@ -191,7 +191,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       cwd: opts.runtimeContext.cwd,
       debounceMs,
       // Pass a getter, NOT the filter directly: the meta-file watcher
-      // below mutates `ignoreFilter` after a `.skill-mapignore` /
+      // below mutates `ignoreFilter` after a `.skillmapignore` /
       // `.skill-map/settings.json` edit, and chokidar's `ignored`
       // predicate must read the current value on every event. See
       // `kernel/scan/watcher.ts` for the supported shapes.
@@ -242,7 +242,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     // sees an updated `scan.completed` envelope without a server restart.
     metaHandle = createChokidarWatcher({
       roots: [
-        resolve(cwd, '.skill-mapignore'),
+        resolve(cwd, '.skillmapignore'),
         resolve(cwd, '.skill-map', 'settings.json'),
       ],
       cwd,

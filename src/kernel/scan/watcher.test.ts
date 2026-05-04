@@ -150,7 +150,7 @@ describe('createChokidarWatcher', () => {
   it('respects a getter ignoreFilter — swapping the filter at runtime updates ignored paths', async () => {
     // Pin for the BFF live-rebuild flow: the meta-file watcher in
     // `src/server/watcher.ts` swaps the ignore filter when the user
-    // edits `.skill-mapignore`, and chokidar's `ignored` predicate must
+    // edits `.skillmapignore`, and chokidar's `ignored` predicate must
     // pick up the new filter on the very next event without tearing the
     // watcher down. Static `IIgnoreFilter` captures by reference at
     // construction; the getter form re-evaluates per call.

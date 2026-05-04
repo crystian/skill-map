@@ -225,7 +225,7 @@ Mirrors the interactive timeline on `skill-map.dev` (driven by `web/app.js` `PHA
 ●  3    UI design refinement         node cards, connection styling, inspector layout, dark mode parity
 ●  4    Scan end-to-end              sm scan persists · per-node tokens · external-url-counter · --changed · sm list/show/check
 ●  5    History + orphans            scan_meta · sm history + stats · auto-rename heuristic · sm orphans · canonical-YAML hash
-●  6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skill-mapignore · sm init · scan strict
+●  6    Config + onboarding          settings(.local).json · 6-layer loader · sm config * · .skillmapignore · sm init · scan strict
 ●  7    Robustness                   sm watch + chokidar · link-conflict rule · sm job prune · trigger normalization
 ●  8    Diff + export                sm graph · sm scan compare-with · sm export with mini query language
 ●  9    Plugin author UX             plugin runtime · plugin migrations · @skill-map/testkit on npm · author guide + reference plugin
@@ -1117,7 +1117,7 @@ All declared in `spec/schemas/project-config.schema.json`. Defaults shown.
 - `tokenizer: "cl100k_base"` — offline token estimator. Stored alongside counts so consumers know which encoder produced them.
 - `adapters: []` — adapter ids to enable, in priority order when multiple match a path. Empty/absent = all registered adapters active.
 - `roots: []` — directories (relative to the config file) to scan. Defaults to the scope root.
-- `ignore: [...]` — top-level glob patterns excluded from scan, in addition to `.skill-mapignore`.
+- `ignore: [...]` — top-level glob patterns excluded from scan, in addition to `.skillmapignore`.
 - `plugins: { <id>: { enabled, config } }` — per-plugin enable/disable overrides and plugin-specific config passed to extensions at load time. Keys are plugin ids; absent means the plugin's installed default (enabled) applies.
 - `scan.tokenize: true`, `scan.strict: false`, `scan.followSymlinks: false`.
 - `scan.maxFileSizeBytes: 1048576` — 1 MiB floor; oversized files are skipped with an `info` log.
@@ -1131,7 +1131,7 @@ All declared in `spec/schemas/project-config.schema.json`. Defaults shown.
 - `jobs.retention.failed: null` — never auto-prune; failed jobs kept for post-mortem.
 - `i18n.locale: "en"` — experimental.
 
-The default contents of a fresh `.skill-mapignore` file (used by `sm init`) live in the reference impl under `src/config/defaults/` and are **not** a user-visible config key — editing the generated file is the supported override.
+The default contents of a fresh `.skillmapignore` file (used by `sm init`) live in the reference impl under `src/config/defaults/` and are **not** a user-visible config key — editing the generated file is the supported override.
 
 ### UI-side keys
 
@@ -1450,7 +1450,7 @@ Closed Steps — green checkmark below means "ships green tests, lives in the re
 - ✅ **3** — UI design refinement (PrimeNG, layout, theming).
 - ✅ **4** — Scan end-to-end (`sm scan` writes `scan_*` tables; tokens; incremental; self-scan; bug bundles).
 - ✅ **5** — History + orphan reconciliation (`state_executions`, rename heuristic, history verbs).
-- ✅ **6** — Config + onboarding (layered config, `.skill-mapignore`, `sm init`, plugin enable/disable).
+- ✅ **6** — Config + onboarding (layered config, `.skillmapignore`, `sm init`, plugin enable/disable).
 - ✅ **7** — Robustness (chokidar watcher, `link-conflict` Rule, `sm job prune`).
 - ✅ **8** — Diff + export (`sm graph`, `sm scan compare-with`, `sm export`).
 - ✅ **9** — Plugin author UX (runtime wiring, plugin migrations, `@skill-map/testkit`, plugin author guide, reference plugin).
@@ -1642,7 +1642,7 @@ Iterate the Flavor A prototype's visual design against mock data before committi
 
 ### Step 6 — Config + onboarding
 
-- `.skill-map/settings.json` + `.skill-map/settings.local.json` + `.skill-mapignore`. `sm init` scaffolds the folder and adds the `.local.json` to the project's gitignore.
+- `.skill-map/settings.json` + `.skill-map/settings.local.json` + `.skillmapignore`. `sm init` scaffolds the folder and adds the `.local.json` to the project's gitignore.
 - Loader walks the hierarchy from §Configuration (defaults → `~/.skill-map/settings(.local).json` → `<scope>/.skill-map/settings(.local).json` → env / flags). UI-side keys are read by the same loader but only delivered over HTTP at Step 15.
 - `sm init` scaffolding.
 - `sm plugins list / enable / disable / show / doctor`.

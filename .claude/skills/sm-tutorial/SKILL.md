@@ -349,7 +349,7 @@ Mark `1-version: done`.
 
 **Context**: `sm init` creates a hidden `.skill-map/` folder in the
 cwd holding the database where skill-map stores what it learns about
-the project. It also drops a `.skill-mapignore` in the cwd with
+the project. It also drops a `.skillmapignore` in the cwd with
 default exclusions. Mandatory first step.
 
 ```bash
@@ -358,10 +358,10 @@ ls -la .skill-map/
 ```
 
 Expected: `.skill-map/skill-map.db` appears (plus config files), and
-a `.skill-mapignore` shows up at the root.
+a `.skillmapignore` shows up at the root.
 
 **After init**, you append the tutorial's entries to the
-`.skill-mapignore` that `sm init` just created (do not create a new
+`.skillmapignore` that `sm init` just created (do not create a new
 file — append to the existing one with `Edit`). This prevents
 `sm scan` from picking up the tutorial's internal files as graph nodes:
 
@@ -845,7 +845,7 @@ the cwd, start like this (do NOT repeat pre-flight from scratch):
 
 If they pick "start over", confirm explicitly. Only after
 confirmation, delete the tutorial files in the cwd
-(`tutorial-state.yml`, `findings.md`, `.skill-mapignore`, `.claude/`,
+(`tutorial-state.yml`, `findings.md`, `.skillmapignore`, `.claude/`,
 `notes/`, `.skill-map/`, and any `export.*`, `dump.sql`, or
 `sm-tutorial-report.md` that may have been left behind) and start
 everything from pre-flight.

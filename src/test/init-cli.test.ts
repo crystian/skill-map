@@ -67,7 +67,7 @@ describe('sm init — project scope', () => {
     assert.ok(existsSync(join(scope.cwd, '.skill-map', 'settings.json')));
     assert.ok(existsSync(join(scope.cwd, '.skill-map', 'settings.local.json')));
     assert.ok(existsSync(join(scope.cwd, '.skill-map', 'skill-map.db')));
-    assert.ok(existsSync(join(scope.cwd, '.skill-mapignore')));
+    assert.ok(existsSync(join(scope.cwd, '.skillmapignore')));
 
     const settings = JSON.parse(
       readFileSync(join(scope.cwd, '.skill-map', 'settings.json'), 'utf8'),
@@ -77,7 +77,7 @@ describe('sm init — project scope', () => {
       readFileSync(join(scope.cwd, '.skill-map', 'settings.local.json'), 'utf8'),
     );
     assert.deepEqual(local, {});
-    const ignoreText = readFileSync(join(scope.cwd, '.skill-mapignore'), 'utf8');
+    const ignoreText = readFileSync(join(scope.cwd, '.skillmapignore'), 'utf8');
     assert.match(ignoreText, /node_modules\//);
     assert.match(ignoreText, /\.git\//);
   });
@@ -154,7 +154,7 @@ describe('sm init — global scope (-g)', () => {
     assert.equal(r.status, 0);
     assert.ok(existsSync(join(scope.home, '.skill-map', 'settings.json')));
     assert.ok(existsSync(join(scope.home, '.skill-map', 'skill-map.db')));
-    assert.ok(existsSync(join(scope.home, '.skill-mapignore')));
+    assert.ok(existsSync(join(scope.home, '.skillmapignore')));
     // No .gitignore in HOME — never write there.
     assert.equal(existsSync(join(scope.home, '.gitignore')), false);
     // And nothing leaks into cwd.
@@ -172,14 +172,14 @@ describe('sm init --dry-run (H3 — spec §Dry-run)', () => {
     assert.match(r.stdout, /would create.+\.skill-map/);
     assert.match(r.stdout, /would write.+settings\.json/);
     assert.match(r.stdout, /would write.+settings\.local\.json/);
-    assert.match(r.stdout, /would write.+\.skill-mapignore/);
+    assert.match(r.stdout, /would write.+\.skillmapignore/);
     assert.match(r.stdout, /would update.+\.gitignore.+\(add 2 entries/);
     assert.match(r.stdout, /would provision DB/);
     assert.match(r.stdout, /would run first scan/);
 
     // Spec §Dry-run: NO observable side effects.
     assert.equal(existsSync(join(scope.cwd, '.skill-map')), false);
-    assert.equal(existsSync(join(scope.cwd, '.skill-mapignore')), false);
+    assert.equal(existsSync(join(scope.cwd, '.skillmapignore')), false);
     assert.equal(existsSync(join(scope.cwd, '.gitignore')), false);
   });
 

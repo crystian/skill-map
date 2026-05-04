@@ -203,7 +203,7 @@ Keys are dot-paths (`jobs.minimumTtlSeconds`, `scan.tokenize`). Unknown keys →
 
 `--json` output conforms to `schemas/scan-result.schema.json`. `sm watch` (and `sm scan --watch`) emit one ScanResult per batch — under `--json` this is an `ndjson` stream of ScanResult documents.
 
-The watcher subscribes to the same roots that `sm scan` walks and respects `.skill-mapignore` plus `config.ignore` exactly as the one-shot scan does. Filesystem events are grouped using `scan.watch.debounceMs` (default 300ms) before the watcher re-runs the incremental scan and persists. `SIGINT` / `SIGTERM` close the watcher cleanly. Exit code on clean shutdown is 0.
+The watcher subscribes to the same roots that `sm scan` walks and respects `.skillmapignore` plus `config.ignore` exactly as the one-shot scan does. Filesystem events are grouped using `scan.watch.debounceMs` (default 300ms) before the watcher re-runs the incremental scan and persists. `SIGINT` / `SIGTERM` close the watcher cleanly. Exit code on clean shutdown is 0.
 
 Exit: 0 on clean (or clean watcher shutdown), 1 if error-severity issues exist (one-shot scan only — the watcher does not flip exit code based on per-batch issues), 2 on operational error.
 

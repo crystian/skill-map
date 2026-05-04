@@ -1028,7 +1028,7 @@ compare-with .skill-map/baseline.json Any drift trips the build.
 Watch roots and run an incremental scan after each debounced batch of filesystem events.
 
 Long-running version of 'sm scan --changed'. Subscribes to the given roots via 
-chokidar, applies the same ignore chain (.skill-mapignore + config.ignore + 
+chokidar, applies the same ignore chain (.skillmapignore + config.ignore + 
 bundled defaults), and triggers an incremental scan after each debounced batch.
 
 Default debounce is 300ms; configure via 'scan.watch.debounceMs' in 
@@ -1078,7 +1078,7 @@ Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status,
 Bootstrap the current scope: scaffold .skill-map/, provision DB, run first scan.
 
 Project scope (default): creates ./.skill-map/ with settings.json, 
-settings.local.json, and skill-map.db. Drops a starter .skill-mapignore at the 
+settings.local.json, and skill-map.db. Drops a starter .skillmapignore at the 
 scope root and appends the DB + local settings to .gitignore.
 
 Global scope (-g): same scaffolding under ~/.skill-map/. No .gitignore is 
@@ -1098,7 +1098,7 @@ where the operator wants to provision before populating roots.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
 - `--no-scan` `boolean` — Skip the first scan after scaffolding.
-- `--force` `boolean` — Overwrite an existing settings.json / settings.local.json / .skill-mapignore.
+- `--force` `boolean` — Overwrite an existing settings.json / settings.local.json / .skillmapignore.
 - `--strict` `boolean` — Strict mode: fail on any layered-loader warning AND promote frontmatter warnings to errors during the first scan. Same flag as sm scan / sm config.
 - `--dry-run`, `-n` `boolean` — Preview the scope provisioning without touching the filesystem or the DB. Honours --force for the would-overwrite preview. Skips the first scan unconditionally — dry-run never persists.
 

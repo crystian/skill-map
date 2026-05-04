@@ -13,7 +13,7 @@
  * The watcher does NOT call into the orchestrator itself. That decision
  * is deliberate: the CLI owns the scan-and-persist pipeline (`runScan`,
  * `persistScanResult`, optional rebuild of the ignore filter when
- * `.skill-mapignore` itself changes). Pulling that into the watcher
+ * `.skillmapignore` itself changes). Pulling that into the watcher
  * would couple the kernel module to `SqliteStorageAdapter`, which the
  * Server wouldn't want. Keep this module side-effect free
  * apart from filesystem subscription.
@@ -78,7 +78,7 @@ export interface ICreateFsWatcherOptions {
    *   - **`() => IIgnoreFilter | undefined`** (a getter) — re-evaluated
    *     on EVERY chokidar `ignored` predicate call. Use this when the
    *     filter can change at runtime — e.g. the BFF rebuilds it after
-   *     a `.skill-mapignore` or `.skill-map/settings.json` edit and
+   *     a `.skillmapignore` or `.skill-map/settings.json` edit and
    *     wants chokidar to immediately respect the new patterns without
    *     tearing down and rebuilding the watcher. A getter that returns
    *     `undefined` disables ignore filtering for that call.

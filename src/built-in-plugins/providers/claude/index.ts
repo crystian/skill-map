@@ -139,7 +139,7 @@ export const claudeProvider: IProvider = {
 
   async *walk(roots, options = {}): AsyncIterable<IRawNode> {
     // The orchestrator is the canonical source of the filter (it composes
-    // bundled defaults + config.ignore + .skill-mapignore). When the
+    // bundled defaults + config.ignore + .skillmapignore). When the
     // Provider is invoked directly (tests, kernel-empty-boot), fall back
     // to bundled defaults only — that's still enough to keep `.git`,
     // `node_modules`, and friends out of the result.

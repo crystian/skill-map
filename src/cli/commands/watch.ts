@@ -107,7 +107,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   };
 
   // Both `cfg`, `ignoreFilter` and `strict` are mutable so the meta-file
-  // watcher (added below) can swap them after a `.skill-mapignore` /
+  // watcher (added below) can swap them after a `.skillmapignore` /
   // `.skill-map/settings.json` edit. Three downstream readers pick up
   // the new values automatically:
   //   1. The primary chokidar `ignored` predicate (via the getter passed
@@ -280,7 +280,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     cwd,
     debounceMs,
     // Pass a getter, NOT the filter directly: the meta-file watcher
-    // below mutates `ignoreFilter` after a `.skill-mapignore` /
+    // below mutates `ignoreFilter` after a `.skillmapignore` /
     // `.skill-map/settings.json` edit, and chokidar's `ignored`
     // predicate must read the current value on every event.
     ignoreFilter: (): IIgnoreFilter => ignoreFilter,
@@ -304,7 +304,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   // restart. Failures here are soft — the primary watcher stays up.
   const metaWatcher = createChokidarWatcher({
     roots: [
-      resolve(cwd, '.skill-mapignore'),
+      resolve(cwd, '.skillmapignore'),
       resolve(cwd, '.skill-map', 'settings.json'),
     ],
     cwd,
@@ -364,7 +364,7 @@ export class WatchCommand extends SmCommand {
     details: `
       Long-running version of 'sm scan --changed'. Subscribes to the
       given roots via chokidar, applies the same ignore chain
-      (.skill-mapignore + config.ignore + bundled defaults), and
+      (.skillmapignore + config.ignore + bundled defaults), and
       triggers an incremental scan after each debounced batch.
 
       Default debounce is 300ms; configure via 'scan.watch.debounceMs'

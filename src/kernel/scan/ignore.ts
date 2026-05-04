@@ -1,11 +1,11 @@
 /**
- * `.skill-mapignore` parser + filter facade. Wraps `ignore` (kaelzhang)
+ * `.skillmapignore` parser + filter facade. Wraps `ignore` (kaelzhang)
  * with the project-local layering: bundled defaults → `config.ignore`
- * (from `.skill-map/settings.json`) → `.skill-mapignore` file content.
+ * (from `.skill-map/settings.json`) → `.skillmapignore` file content.
  *
  * Why a wrapper instead of exposing `ignore` directly:
  *
- * 1. Single-source defaults — `src/config/defaults/skill-mapignore` is
+ * 1. Single-source defaults — `src/config/defaults/skillmapignore` is
  *    the canonical default list, loaded once at module init (or at
  *    explicit build time, depending on bundling). The runtime never
  *    re-reads it per scan.
@@ -37,7 +37,7 @@ export interface IBuildIgnoreFilterOptions {
   /** Patterns from `config.ignore` in `.skill-map/settings.json`. */
   configIgnore?: string[] | undefined;
   /**
-   * Raw text of the project's `.skill-mapignore` file. Comments and
+   * Raw text of the project's `.skillmapignore` file. Comments and
    * blank lines are tolerated by `ignore` itself; the caller does not
    * need to pre-process. Accepts `undefined` so callers can forward
    * `readIgnoreFileText()` directly without a guard.
@@ -54,7 +54,7 @@ export interface IBuildIgnoreFilterOptions {
 /**
  * Build a filter from any combination of layers. Layer order is fixed:
  *
- *   1. bundled defaults (`src/config/defaults/skill-mapignore`)
+ *   1. bundled defaults (`src/config/defaults/skillmapignore`)
  *   2. `configIgnore`
  *   3. `ignoreFileText`
  *
@@ -97,12 +97,12 @@ export function loadBundledIgnoreText(): string {
 }
 
 /**
- * Read `.skill-mapignore` from `<root>/.skill-mapignore` if it exists,
+ * Read `.skillmapignore` from `<root>/.skillmapignore` if it exists,
  * else return `undefined`. Caller passes the result as `ignoreFileText`
  * to `buildIgnoreFilter`.
  */
 export function readIgnoreFileText(scopeRoot: string): string | undefined {
-  const path = resolve(scopeRoot, '.skill-mapignore');
+  const path = resolve(scopeRoot, '.skillmapignore');
   if (!existsSync(path)) return undefined;
   try {
     return readFileSync(path, 'utf8');
@@ -129,7 +129,7 @@ export function _resetDefaultsCacheForTests(): void {
 }
 
 /**
- * Resolve `src/config/defaults/skill-mapignore` from disk. Walks a small
+ * Resolve `src/config/defaults/skillmapignore` from disk. Walks a small
  * list of candidate locations relative to this module so the lookup
  * works in both the dev layout (`src/kernel/scan/ignore.ts` →
  * `src/config/defaults/`) and the bundled layout (single-file
@@ -138,9 +138,9 @@ export function _resetDefaultsCacheForTests(): void {
 function readDefaultsFromDisk(): string {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    resolve(here, '../../config/defaults/skill-mapignore'), // src/kernel/scan/ → src/config/defaults/
-    resolve(here, '../config/defaults/skill-mapignore'), // dist/cli.js → dist/config/defaults/ (siblings)
-    resolve(here, 'config/defaults/skill-mapignore'),
+    resolve(here, '../../config/defaults/skillmapignore'), // src/kernel/scan/ → src/config/defaults/
+    resolve(here, '../config/defaults/skillmapignore'), // dist/cli.js → dist/config/defaults/ (siblings)
+    resolve(here, 'config/defaults/skillmapignore'),
   ];
   for (const candidate of candidates) {
     if (existsSync(candidate)) {
@@ -152,6 +152,6 @@ function readDefaultsFromDisk(): string {
     }
   }
   // Fail soft: the scan still works without bundled defaults. The user's
-  // own `.skill-mapignore` + config.ignore still apply.
+  // own `.skillmapignore` + config.ignore still apply.
   return '';
 }

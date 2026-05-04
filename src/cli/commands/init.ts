@@ -4,7 +4,7 @@
  *   - Creates `<root>/.skill-map/` (project = cwd, global = ~).
  *   - Writes `settings.json` (`{ "schemaVersion": 1 }`) and
  *     `settings.local.json` (`{}`).
- *   - Copies the bundled `.skill-mapignore` template into the scope root.
+ *   - Copies the bundled `.skillmapignore` template into the scope root.
  *   - Provisions `<root>/.skill-map/skill-map.db` (kernel migrations
  *     run automatically via `SqliteStorageAdapter.init()`).
  *   - Project scope only: appends `.skill-map/settings.local.json` and
@@ -56,7 +56,7 @@ export class InitCommand extends SmCommand {
     details: `
       Project scope (default): creates ./.skill-map/ with settings.json,
       settings.local.json, and skill-map.db. Drops a starter
-      .skill-mapignore at the scope root and appends the DB + local
+      .skillmapignore at the scope root and appends the DB + local
       settings to .gitignore.
 
       Global scope (-g): same scaffolding under ~/.skill-map/. No
@@ -79,7 +79,7 @@ export class InitCommand extends SmCommand {
     description: 'Skip the first scan after scaffolding.',
   });
   force = Option.Boolean('--force', false, {
-    description: 'Overwrite an existing settings.json / settings.local.json / .skill-mapignore.',
+    description: 'Overwrite an existing settings.json / settings.local.json / .skillmapignore.',
   });
   strict = Option.Boolean('--strict', false, {
     description: 'Strict mode: fail on any layered-loader warning AND promote frontmatter warnings to errors during the first scan. Same flag as sm scan / sm config.',

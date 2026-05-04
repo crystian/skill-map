@@ -43,7 +43,7 @@ Si quieres probarlo sin instalar nada, hay un **demo gratuito en `skill-map.dev/
 - Mapea **referencias externas** — URLs, paquetes npm citados, dependencias afuera del repo.
 - Detecta **superseded** — un skill nuevo que reemplaza a uno viejo que sigue activo, con heurística de auto-rename y propagación.
 - Persiste todo en **SQLite**, con tablas separadas para historia (`state_*`) y snapshots regenerables (`scan_*`).
-- Configurable por **capas** (defaults → global → proyecto → local → variables de entorno), con `.skill-mapignore` para excluir y `sm init` para arrancar un proyecto desde cero.
+- Configurable por **capas** (defaults → global → proyecto → local → variables de entorno), con `.skillmapignore` para excluir y `sm init` para arrancar un proyecto desde cero.
 - **Web UI integrada** (`sm serve`) con BFF Hono single-port, SPA Angular, dark-mode tri-state (auto / light / dark según preferencia del sistema), bundle inicial bajo 500 KB.
 - **Watch mode**: `sm watch` o `sm serve` siguen los cambios en disco con chokidar y emiten eventos.
 - **Mini-lenguaje de export** para `sm export` — filtros por tipo, por path, por estabilidad.

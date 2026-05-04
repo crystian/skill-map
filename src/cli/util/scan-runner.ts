@@ -136,7 +136,7 @@ function registerExtensions(
   return extensions;
 }
 
-/** Compose the scan-time ignore filter from config + `.skill-mapignore`. */
+/** Compose the scan-time ignore filter from config + `.skillmapignore`. */
 function buildScanIgnoreFilter(
   cfg: ReturnType<typeof loadConfig>['effective'],
   cwd: string,
