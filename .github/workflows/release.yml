@@ -3,6 +3,10 @@ name: release
 on:
   push:
     branches: [main]
+    paths:
+      - '.changeset/*.md'
+      - '*/package.json'
+      - 'package.json'
 
 concurrency:
   group: release-${{ github.ref }}

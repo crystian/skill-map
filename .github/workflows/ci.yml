@@ -3,7 +3,27 @@ name: ci
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '.changeset/*.md'
+      - '.claude/**'
+      - '.githooks/**'
+      - 'context/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'ROADMAP.md'
   pull_request:
+    paths-ignore:
+      - '.changeset/*.md'
+      - '.claude/**'
+      - '.githooks/**'
+      - 'context/**'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
+      - 'ROADMAP.md'
 
 concurrency:
   group: ci-${{ github.ref }}
