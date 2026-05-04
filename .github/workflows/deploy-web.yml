@@ -73,7 +73,7 @@ jobs:
           node-version: 24
 
       - name: Install Railway CLI
-        run: npm install -g @railway/cli@4.6.0
+        run: npm install -g @railway/cli
 
       - name: Show version
         run: echo "Deploying @skill-map/web ${{ needs.read-version.outputs.version }} to service ${{ vars.RAILWAY_SERVICE }}"
