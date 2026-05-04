@@ -1,5 +1,34 @@
 # skill-map
 
+## 0.16.0
+
+### Minor Changes
+
+- c981430: Rename the project ignore file from `.skill-mapignore` to `.skillmapignore` (no dash).
+
+  Rationale: drop the dash for consistency with `.gitignore` / `.npmignore` / `.dockerignore` and friends — those tools use a contiguous lowercase token, and adopting the same shape removes the visual stutter when listing dotfiles. The rename also avoids confusion between the public artifact and the package id `@skill-map/*` which uses a dash by convention.
+
+  Breaking change pre-1.0:
+
+  - `sm init` now scaffolds `.skillmapignore` instead of `.skill-mapignore`. Existing projects must `mv .skill-mapignore .skillmapignore` manually — no compat reader (greenfield rule, see `feedback_greenfield_no_versioning.md`).
+  - The bundled defaults asset moved from `src/config/defaults/skill-mapignore` to `src/config/defaults/skillmapignore`.
+  - `sm serve` and `sm watch` now watch `.skillmapignore` (not `.skill-mapignore`) for live filter rebuilds.
+  - Spec and JSON Schema (`spec/cli-contract.md` § `sm init`, `spec/schemas/project-config.schema.json` § `ignore`) updated; `spec/index.json` regenerated.
+  - All in-repo fixtures, docs (ROADMAP, context/\*, AGENTS.md, web/app.js), tests, and skills (sm-tutorial, foblex-flow indirectly) updated in the same commit.
+
+  Historical CHANGELOG entries that reference `.skill-mapignore` are intentionally left untouched — they document past behaviour.
+
+- 15f2b4e: `sm serve` and `sm watch` now react in-flight to edits of `.skillmapignore` and `.skill-map/settings.json`. Previously, both verbs loaded the ignore filter once at startup and required a restart for new patterns to take effect — invisible to the user except via stale results. After this change, a secondary chokidar watcher monitors both meta-files; on change, the watcher rebuilds the filter from disk, re-reads `config.ignore` / `scan.tokenize` / `scan.strict` from settings, and dispatches a fresh scan so the DB and `/ws scan.completed` reflect the new state.
+
+  Kernel API is additively extended: `createChokidarWatcher`'s `ignoreFilter` option now accepts either an `IIgnoreFilter` (captured by reference at construction, the historical shape) or a `() => IIgnoreFilter | undefined` getter that is re-evaluated per chokidar event. The getter form is what enables the BFF / CLI watch to swap the filter at runtime without tearing chokidar down. Static callers continue to pass an `IIgnoreFilter` literal and behave exactly as before.
+
+  Note: `scan.watch.debounceMs` itself is captured at boot — changing the debounce window in settings.json still requires restarting the watcher.
+
+### Patch Changes
+
+- Updated dependencies [c981430]
+  - @skill-map/spec@0.16.0
+
 ## 0.15.0
 
 ### Minor Changes
@@ -3186,9 +3215,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                   `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                   Storage is byte-identical to before. The grouping is purely a
-                                                                                   read-time presentation choice for human eyes.
+                                                                                         `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                         Storage is byte-identical to before. The grouping is purely a
+                                                                                         read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
