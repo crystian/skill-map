@@ -1,5 +1,40 @@
 # skill-map
 
+## 0.15.0
+
+### Minor Changes
+
+- d7e8dd9: Rename the tester onboarding verb and its companion Claude Code skill from `sm-guide` to `sm-tutorial` across spec, CLI, bundled materialised payload, runtime state file, and report file. Breaking change to the public CLI surface (`sm guide` is gone — no compat shim); pre-1.0 so it ships as a minor bump per the project's pre-1.0 policy (no major while a workspace stays in `0.Y.Z`).
+
+  Spec: `spec/cli-contract.md` — the `sm guide` verb section is renamed to `sm tutorial`. Same shape, same exit codes, same `--force` semantics — only the identifier flips. Materialised file becomes `<cwd>/sm-tutorial.md`; integrity block in `spec/index.json` regenerated.
+
+  CLI (`@skill-map/cli`): `sm guide` → `sm tutorial`; `src/cli/commands/guide.ts` → `tutorial.ts` (`GuideCommand` → `TutorialCommand`, `SM_GUIDE_FILENAME` → `SM_TUTORIAL_FILENAME`); `src/cli/i18n/guide.texts.ts` → `tutorial.texts.ts` (`GUIDE_TEXTS` → `TUTORIAL_TEXTS`, all string templates updated to mention `sm-tutorial.md` and `@sm-tutorial.md`); `src/tsup.config.ts` build step `copyGuideSkill()` → `copyTutorialSkill()` writing the bundled payload to `dist/cli/tutorial/sm-tutorial.md` instead of `dist/cli/guide/sm-guide.md`. Test file `src/test/guide-cli.test.ts` → `tutorial-cli.test.ts` with updated regex assertions and SKILL.md byte-match anchor pointing at `.claude/skills/sm-tutorial/SKILL.md`.
+
+  Skill: `.claude/skills/sm-guide/` → `.claude/skills/sm-tutorial/`. Frontmatter `name: sm-guide` → `sm-tutorial`. Triggers list updated (`"tutorial", "sm-tutorial", "tutorial me", "start the tutorial"`). Internal whitelist updated (`sm-tutorial.md`, `tutorial-state.yml`, `sm-tutorial-report.md`). Runtime state file renamed `guide-state.yml` → `tutorial-state.yml` (top-level YAML key `guide:` → `tutorial:`). Report file renamed `sm-guide-report.md` → `sm-tutorial-report.md`. Colloquial Spanish "guía" inside tester-facing prose stays where it reads naturally — only identifiers (path names, command names, frontmatter, technical references) flip to `tutorial`.
+
+  ROADMAP: setup-and-state verb table updated to `sm tutorial [--force]`.
+
+  No backwards-compat alias is shipped: the tester base for this verb is tiny and a clean break is safer than maintaining two names.
+
+### Patch Changes
+
+- 89a3e59: `sm-guide` tester-feedback iteration plus a handful of CLI/UI polish fixes that ride along.
+
+  The bundled `.claude/skills/sm-guide/SKILL.md` is the bulk of the change. Behavioural fixes driven by the first round of tester feedback: every fixture file now passes the live frontmatter schemas (`metadata.version` added across the five demo files; `demo-agent.md` switched from CSV `tools: Read, Bash` to YAML array `tools: [Read, Bash]`; `notes/todo.md` switched `title:` to `name:`) so the demo no longer self-reports as broken at scan time. Stage L4 was rewritten end-to-end: it pivoted away from `sm orphans --kind broken-link` (a flag combination that doesn't exist — `--kind` accepts auto-rename confidence levels, not issue kinds) onto `sm check` / `sm check --rules broken-ref`, with a sidebar explaining the `sm check` vs `sm orphans` scope split. Stage L5 (Plugins) now demos against `core/external-url-counter` (smallest blast radius, reversible), with a paragraph clarifying that the `kind:` prefix and `@version` shown in `plugins list` must be stripped when toggling, and that bundle-granularity bundles (`claude`) only accept the bundle id. Pedagogical structure: Step 3 (Live UI) reorganised into three reveals (1 lone agent → 5 unconnected nodes → connectors light up); pre-flight only seeds the agent. Five fixture kinds now (skill / agent / command / hook / note), with `command` added as a fifth. Server-up handling at Stage L1: the agent checks first instead of blindly telling the tester to "start it again". Stages eliminated as low-value or risky: Conformance, Database operations, Destructive, Delta + history; remaining stages renumbered to L1–L5. The "destructive stages need backup" footnote is gone with them. Conventions: blockquote rule clarified (prose addressed to the tester goes in blockquotes; code blocks stay outside); the agent now mirrors the tester's language (Spanish argentino if the tester arrived in Spanish, English otherwise) instead of being Spanish-only. `.skill-mapignore` template extended with `export.*` and `dump.sql` so guide-generated artefacts don't pollute the live graph.
+
+  `sm guide` verb strings (`cli/i18n/guide.texts.ts`) flipped from Spanish to English to match the new mirror-the-tester convention; the test suite was updated to match.
+
+  `sm serve` initial scan-on-boot (`src/server/watcher.ts`): on boot, the watcher now fires one eager batch right after chokidar's `ready` resolves, so the UI reflects the current filesystem from the very first connection instead of serving whatever the previous run persisted. The eager-batch logic was extracted into a top-level `runInitialBatch` helper to keep `start()` under the project's complexity budget; the swallow-and-log shape mirrors `onBatch` so a transient FS error here can't kill the broadcaster.
+
+  `sm plugins list` formatting (`cli/commands/plugins.ts` + `i18n/plugins.texts.ts`): bundle-granularity rows (e.g. `claude`) now render one extension per line at the same indent column as extension-granularity rows (e.g. `core`), instead of a single comma-separated `kinds:` blob. Visual symmetry between the two granularity modes; bundle rows still omit the per-extension `ok` because individual extensions in a bundle aren't toggle-able.
+
+  `sm serve` startup banner (`cli/util/serve-banner.ts`): the figlet logo is now a single violet block instead of split violet-top / green-bottom; the green is reserved for the underlined URL so the visual focal point is the address the tester needs to click. Banner test updated.
+
+  UI theme toggle (`ui/src/app/app.{html,ts}` + `i18n/theme.texts.ts`): the theme button now carries a PrimeNG tooltip naming the CURRENT theme (auto / light / dark), in addition to the existing aria-label that names the NEXT state. Sighted users get explicit feedback on what's active — important for `auto`, whose desktop/monitor icon is not self-evident.
+
+- Updated dependencies [d7e8dd9]
+  - @skill-map/spec@0.15.0
+
 ## 0.14.1
 
 ### Patch Changes
@@ -3151,9 +3186,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                             `--json` output is byte-identical to before — raw rows, no merge.
-                                                                             Storage is byte-identical to before. The grouping is purely a
-                                                                             read-time presentation choice for human eyes.
+                                                                                   `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                   Storage is byte-identical to before. The grouping is purely a
+                                                                                   read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
