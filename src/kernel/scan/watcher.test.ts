@@ -147,6 +147,86 @@ describe('createChokidarWatcher', () => {
     }
   });
 
+  it('respects a getter ignoreFilter — swapping the filter at runtime updates ignored paths', async () => {
+    // Pin for the BFF live-rebuild flow: the meta-file watcher in
+    // `src/server/watcher.ts` swaps the ignore filter when the user
+    // edits `.skill-mapignore`, and chokidar's `ignored` predicate must
+    // pick up the new filter on the very next event without tearing the
+    // watcher down. Static `IIgnoreFilter` captures by reference at
+    // construction; the getter form re-evaluates per call.
+    const dir = freshScope('ignore-getter');
+    let activeFilter = buildIgnoreFilter({
+      includeDefaults: false,
+      configIgnore: [],
+    });
+    const { collector, onBatch } = makeCollector();
+    const watcher = createChokidarWatcher({
+      cwd: root,
+      roots: [dir],
+      debounceMs: 60,
+      ignoreFilter: (): ReturnType<typeof buildIgnoreFilter> => activeFilter,
+      onBatch,
+    });
+    try {
+      await watcher.ready;
+
+      // 1. Initial filter excludes nothing → a.md fires a batch.
+      writeFileSync(join(dir, 'a.md'), 'x');
+      const first = await collector.next();
+      assert.deepEqual(
+        first.paths.map((p) => p.split('/').pop()).sort(),
+        ['a.md'],
+      );
+
+      // 2. Swap the active filter to exclude *.tmp at runtime.
+      activeFilter = buildIgnoreFilter({
+        includeDefaults: false,
+        configIgnore: ['*.tmp'],
+      });
+
+      // 3. After the swap, *.tmp must not fire while *.md still does.
+      writeFileSync(join(dir, 'noise.tmp'), 'x');
+      writeFileSync(join(dir, 'b.md'), 'x');
+      const second = await collector.next();
+      assert.deepEqual(
+        second.paths.map((p) => p.split('/').pop()).sort(),
+        ['b.md'],
+      );
+      await delay(120);
+      assert.equal(
+        collector.batches.length,
+        0,
+        'noise.tmp filtered by the swapped getter result',
+      );
+    } finally {
+      await watcher.close();
+    }
+  });
+
+  it('treats a getter that returns undefined as no filter (everything fires)', async () => {
+    const dir = freshScope('ignore-getter-undefined');
+    const { collector, onBatch } = makeCollector();
+    const watcher = createChokidarWatcher({
+      cwd: root,
+      roots: [dir],
+      debounceMs: 60,
+      ignoreFilter: () => undefined,
+      onBatch,
+    });
+    try {
+      await watcher.ready;
+      writeFileSync(join(dir, 'a.tmp'), 'x');
+      writeFileSync(join(dir, 'b.md'), 'x');
+      const batch = await collector.next();
+      assert.deepEqual(
+        batch.paths.map((p) => p.split('/').pop()).sort(),
+        ['a.tmp', 'b.md'],
+      );
+    } finally {
+      await watcher.close();
+    }
+  });
+
   it('deduplicates repeated events on the same path within one batch', async () => {
     const dir = freshScope('dedupe');
     const { collector, onBatch } = makeCollector();

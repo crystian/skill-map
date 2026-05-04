@@ -36,6 +36,8 @@
  * open per `IFsWatcher`'s contract.
  */
 
+import { resolve } from 'node:path';
+
 import {
   createChokidarWatcher,
   createKernel,
@@ -44,7 +46,7 @@ import {
 import type { ScanResult } from '../kernel/index.js';
 import { listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { loadConfig } from '../kernel/config/loader.js';
-import { buildIgnoreFilter, readIgnoreFileText } from '../kernel/scan/ignore.js';
+import { buildIgnoreFilter, readIgnoreFileText, type IIgnoreFilter } from '../kernel/scan/ignore.js';
 import type { ProgressEmitterPort } from '../kernel/ports/progress-emitter.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
@@ -107,20 +109,41 @@ const WATCH_ROOT = '.';
  */
 export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherServiceHandle {
   let chokidarHandle: { close: () => Promise<void> } | null = null;
+  let metaHandle: { close: () => Promise<void> } | null = null;
   let stopped = false;
 
   const start = async (): Promise<void> => {
-    const cfg = loadConfig({
-      scope: opts.options.scope,
-      cwd: opts.runtimeContext.cwd,
-      homedir: opts.runtimeContext.homedir,
-    }).effective;
+    const cwd = opts.runtimeContext.cwd;
 
-    const ignoreFileText = readIgnoreFileText(opts.runtimeContext.cwd);
-    const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
-    if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
-    if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
-    const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
+    const loadEffectiveConfig = (): ReturnType<typeof loadConfig>['effective'] =>
+      loadConfig({
+        scope: opts.options.scope,
+        cwd,
+        homedir: opts.runtimeContext.homedir,
+      }).effective;
+
+    const buildCurrentIgnoreFilter = (cfgIn: ReturnType<typeof loadEffectiveConfig>): IIgnoreFilter => {
+      const ignoreFileText = readIgnoreFileText(cwd);
+      const filterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
+      if (cfgIn.ignore.length > 0) filterOpts.configIgnore = cfgIn.ignore;
+      if (ignoreFileText !== undefined) filterOpts.ignoreFileText = ignoreFileText;
+      return buildIgnoreFilter(filterOpts);
+    };
+
+    // Both `cfg` and `ignoreFilter` are mutable so the meta-file watcher
+    // can swap them after a `.skill-mapignore` or `.skill-map/settings.json`
+    // edit. Three downstream readers pick up the new values automatically:
+    //   1. The primary chokidar `ignored` predicate (via the getter passed
+    //      to the kernel watcher) — re-evaluated per chokidar event, so
+    //      new patterns take effect on the very next FS event.
+    //   2. `runOneBatch` reads `ignoreFilter` and `cfg` from this scope on
+    //      every batch — so the next scan after a meta-file edit picks up
+    //      the new tokenize/strict/ignore settings.
+    //   3. The meta-file watcher itself triggers a fresh batch right after
+    //      a rebuild, so the DB and the SPA reflect the change without
+    //      waiting for an unrelated FS event to nudge the watcher.
+    let cfg = loadEffectiveConfig();
+    let ignoreFilter = buildCurrentIgnoreFilter(cfg);
 
     const debounceMs = opts.debounceMsOverride ?? cfg.scan.watch.debounceMs;
 
@@ -167,7 +190,12 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       roots: [WATCH_ROOT],
       cwd: opts.runtimeContext.cwd,
       debounceMs,
-      ignoreFilter,
+      // Pass a getter, NOT the filter directly: the meta-file watcher
+      // below mutates `ignoreFilter` after a `.skill-mapignore` /
+      // `.skill-map/settings.json` edit, and chokidar's `ignored`
+      // predicate must read the current value on every event. See
+      // `kernel/scan/watcher.ts` for the supported shapes.
+      ignoreFilter: (): IIgnoreFilter => ignoreFilter,
       onBatch: async () => {
         if (stopped) return;
         try {
@@ -206,6 +234,54 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       await chokidarHandle.ready;
     }
 
+    // Secondary watcher for the project's ignore meta-files. These are
+    // outside the primary watcher's filter (the default `.skill-map/**`
+    // ignore would otherwise hide settings.json), so they get their own
+    // chokidar instance with no filter at all. On change, rebuild the
+    // primary filter + re-read config + run a fresh batch so the SPA
+    // sees an updated `scan.completed` envelope without a server restart.
+    metaHandle = createChokidarWatcher({
+      roots: [
+        resolve(cwd, '.skill-mapignore'),
+        resolve(cwd, '.skill-map', 'settings.json'),
+      ],
+      cwd,
+      debounceMs,
+      // No `ignoreFilter` — these specific paths must always be observed,
+      // regardless of any user pattern.
+      onBatch: async () => {
+        if (stopped) return;
+        try {
+          cfg = loadEffectiveConfig();
+          ignoreFilter = buildCurrentIgnoreFilter(cfg);
+          // Trigger a batch with the freshly built filter. `runOneBatch`
+          // reads `ignoreFilter` + `cfg` from this scope dynamically, so
+          // the new patterns drive the scan.
+          await runOneBatch();
+        } catch (err) {
+          const message = formatErrorMessage(err);
+          log.warn(
+            tx(SERVER_TEXTS.watcherBatchFailed, {
+              message: sanitizeForTerminal(message),
+            }),
+          );
+        }
+      },
+      onError: (err) => {
+        // Soft-fail: the primary watcher stays up. Editing a meta-file
+        // simply won't trigger a rebuild until the situation recovers.
+        const message = err.message;
+        log.warn(
+          tx(SERVER_TEXTS.watcherError, {
+            message: sanitizeForTerminal(message),
+          }),
+        );
+      },
+    });
+    if ('ready' in metaHandle && metaHandle.ready instanceof Promise) {
+      await metaHandle.ready;
+    }
+
     // Initial scan-and-persist on boot. Without this, the server would
     // serve whatever was in the DB from the previous run (potentially
     // stale — files renamed / deleted while the server was down would
@@ -228,19 +304,26 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
   const stop = async (): Promise<void> => {
     if (stopped) return;
     stopped = true;
-    if (chokidarHandle) {
+    const closeQuietly = async (
+      handle: { close: () => Promise<void> } | null,
+      label: string,
+    ): Promise<void> => {
+      if (!handle) return;
       try {
-        await chokidarHandle.close();
+        await handle.close();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.warn(
           tx(SERVER_TEXTS.watcherCloseFailed, {
-            message: sanitizeForTerminal(message),
+            message: sanitizeForTerminal(`${label}: ${message}`),
           }),
         );
       }
-      chokidarHandle = null;
-    }
+    };
+    await closeQuietly(metaHandle, 'meta-watcher');
+    metaHandle = null;
+    await closeQuietly(chokidarHandle, 'primary');
+    chokidarHandle = null;
   };
 
   return { start, stop };

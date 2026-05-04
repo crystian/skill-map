@@ -66,8 +66,24 @@ export interface ICreateFsWatcherOptions {
   cwd: string;
   /** Debounce window in milliseconds. `0` triggers `onBatch` synchronously per event. */
   debounceMs: number;
-  /** Optional ignore filter — same instance the scan walker uses. */
-  ignoreFilter?: IIgnoreFilter | undefined;
+  /**
+   * Optional ignore filter — same instance the scan walker uses.
+   *
+   * Two shapes are accepted:
+   *
+   *   - **`IIgnoreFilter`** (the static one) — captured by reference at
+   *     construction. Use this when the filter never changes for the
+   *     lifetime of the watcher (the typical CLI `sm watch` flow).
+   *
+   *   - **`() => IIgnoreFilter | undefined`** (a getter) — re-evaluated
+   *     on EVERY chokidar `ignored` predicate call. Use this when the
+   *     filter can change at runtime — e.g. the BFF rebuilds it after
+   *     a `.skill-mapignore` or `.skill-map/settings.json` edit and
+   *     wants chokidar to immediately respect the new patterns without
+   *     tearing down and rebuilding the watcher. A getter that returns
+   *     `undefined` disables ignore filtering for that call.
+   */
+  ignoreFilter?: IIgnoreFilter | (() => IIgnoreFilter | undefined) | undefined;
   /** Called once per debounced batch. Awaited; concurrent batches are serialised. */
   onBatch: (batch: IWatchBatch) => void | Promise<void>;
   /**
@@ -93,13 +109,25 @@ export interface ICreateFsWatcherOptions {
  */
 export function createChokidarWatcher(opts: ICreateFsWatcherOptions): IFsWatcher {
   const absRoots = opts.roots.map((r) => resolve(opts.cwd, r));
-  const ignoreFilter = opts.ignoreFilter;
+  const ignoreFilterOpt = opts.ignoreFilter;
 
-  const ignored = ignoreFilter
+  // Normalise the union: the static filter shape becomes a constant getter.
+  // Resolving the getter on every call is what enables the BFF to swap
+  // filters at runtime without tearing the watcher down.
+  const getFilter: (() => IIgnoreFilter | undefined) | undefined =
+    ignoreFilterOpt === undefined
+      ? undefined
+      : typeof ignoreFilterOpt === 'function'
+        ? ignoreFilterOpt
+        : (): IIgnoreFilter => ignoreFilterOpt;
+
+  const ignored = getFilter
     ? (path: string): boolean => {
+        const filter = getFilter();
+        if (!filter) return false;
         const rel = relativePathFromRoots(path, absRoots);
         if (rel === null) return false;
-        return ignoreFilter.ignores(rel);
+        return filter.ignores(rel);
       }
     : undefined;
 

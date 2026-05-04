@@ -22,6 +22,8 @@
  * regardless of per-batch issue severities.
  */
 
+import { resolve } from 'node:path';
+
 import { Command, Option } from 'clipanion';
 
 import {
@@ -38,7 +40,7 @@ import type {
 import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { buildIgnoreFilter, readIgnoreFileText } from '../../kernel/scan/ignore.js';
+import { buildIgnoreFilter, readIgnoreFileText, type IIgnoreFilter } from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
@@ -93,22 +95,43 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const runtimeCtx = defaultRuntimeContext();
   const { cwd } = runtimeCtx;
 
-  let cfg;
+  const loadEffectiveConfig = (): ReturnType<typeof loadConfig>['effective'] =>
+    loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
+
+  const buildCurrentIgnoreFilter = (cfgIn: ReturnType<typeof loadEffectiveConfig>): IIgnoreFilter => {
+    const text = readIgnoreFileText(cwd);
+    const filterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
+    if (cfgIn.ignore.length > 0) filterOpts.configIgnore = cfgIn.ignore;
+    if (text !== undefined) filterOpts.ignoreFileText = text;
+    return buildIgnoreFilter(filterOpts);
+  };
+
+  // Both `cfg`, `ignoreFilter` and `strict` are mutable so the meta-file
+  // watcher (added below) can swap them after a `.skill-mapignore` /
+  // `.skill-map/settings.json` edit. Three downstream readers pick up
+  // the new values automatically:
+  //   1. The primary chokidar `ignored` predicate (via the getter passed
+  //      to `createChokidarWatcher`) — re-evaluated per FS event, so new
+  //      patterns take effect on the very next event.
+  //   2. `runOnePass` reads `ignoreFilter` and `strict` from this scope
+  //      on every batch — so the next scan after a meta-file edit picks
+  //      up the new ignore patterns and strict-mode change.
+  //   3. The meta-file watcher itself triggers a fresh batch right after
+  //      a rebuild, so the DB reflects the change without waiting for an
+  //      unrelated FS event to nudge the watcher.
+  // `debounceMs` is captured by value at boot — changing
+  // `scan.watch.debounceMs` requires restarting the watcher.
+  let cfg: ReturnType<typeof loadEffectiveConfig>;
   try {
-    cfg = loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
+    cfg = loadEffectiveConfig();
   } catch (err) {
     const message = formatErrorMessage(err);
     context.stderr.write(tx(WATCH_TEXTS.configLoadFailure, { message }));
     return ExitCode.Error;
   }
 
-  const ignoreFileText = readIgnoreFileText(cwd);
-  const ignoreFilterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
-  if (cfg.ignore.length > 0) ignoreFilterOpts.configIgnore = cfg.ignore;
-  if (ignoreFileText !== undefined) ignoreFilterOpts.ignoreFileText = ignoreFileText;
-  const ignoreFilter = buildIgnoreFilter(ignoreFilterOpts);
-
-  const strict = opts.strict || cfg.scan.strict === true;
+  let ignoreFilter = buildCurrentIgnoreFilter(cfg);
+  let strict = opts.strict || cfg.scan.strict === true;
   const debounceMs = cfg.scan.watch.debounceMs;
   const dbPath = defaultProjectDbPath(runtimeCtx);
 
@@ -256,12 +279,46 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     roots: opts.roots,
     cwd,
     debounceMs,
-    ignoreFilter,
+    // Pass a getter, NOT the filter directly: the meta-file watcher
+    // below mutates `ignoreFilter` after a `.skill-mapignore` /
+    // `.skill-map/settings.json` edit, and chokidar's `ignored`
+    // predicate must read the current value on every event.
+    ignoreFilter: (): IIgnoreFilter => ignoreFilter,
     onBatch: async () => {
       const next = await handleBatch();
       if (next === 'stop') {
         stopRequested = true;
         stopResolve?.();
+      }
+    },
+    onError: (err) => {
+      context.stderr.write(tx(WATCH_TEXTS.watcherError, { message: err.message }));
+    },
+  });
+
+  // Secondary watcher for the project's ignore meta-files. These sit
+  // outside the primary watcher's filter (default `.skill-map/**` would
+  // hide settings.json), so they get their own chokidar instance with
+  // no filter. On change, rebuild the primary filter + re-read config
+  // and dispatch a batch so the DB reflects the new patterns without a
+  // restart. Failures here are soft — the primary watcher stays up.
+  const metaWatcher = createChokidarWatcher({
+    roots: [
+      resolve(cwd, '.skill-mapignore'),
+      resolve(cwd, '.skill-map', 'settings.json'),
+    ],
+    cwd,
+    debounceMs,
+    onBatch: async () => {
+      if (stopRequested) return;
+      try {
+        cfg = loadEffectiveConfig();
+        ignoreFilter = buildCurrentIgnoreFilter(cfg);
+        strict = opts.strict || cfg.scan.strict === true;
+        await handleBatch();
+      } catch (err) {
+        const message = formatErrorMessage(err);
+        context.stderr.write(tx(WATCH_TEXTS.batchFailed, { message }));
       }
     },
     onError: (err) => {
@@ -281,6 +338,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   process.once('SIGTERM', onSignal);
 
   await watcher.ready;
+  await metaWatcher.ready;
   if (!opts.json) {
     context.stderr.write(WATCH_TEXTS.ready);
   }
@@ -288,6 +346,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   await stopped;
   process.removeListener('SIGINT', onSignal);
   process.removeListener('SIGTERM', onSignal);
+  await metaWatcher.close();
   await watcher.close();
 
   if (!opts.json) {
