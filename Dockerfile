@@ -11,9 +11,11 @@
 # its own static fixtures.
 #
 # This is an npm workspace setup: the lockfile lives at the repo root
-# and rules every workspace (spec / src / ui). The Dockerfile copies
-# the root manifest + each workspace's package.json first so `npm ci`
-# can resolve the full graph, then layers the actual ui/ source on top
+# and the root `workspaces` array enumerates every package. `npm ci`
+# refuses to proceed unless every declared workspace's `package.json`
+# is present, so the Dockerfile copies the full set of manifests
+# (even for workspaces this stage never builds — testkit, e2e,
+# examples/hello-world) before installing. Source for ui/ lands later
 # so a code-only change doesn't bust the dependency cache.
 FROM node:24-alpine AS ui-build
 WORKDIR /app
@@ -21,6 +23,10 @@ COPY package.json package-lock.json ./
 COPY spec/package.json ./spec/
 COPY src/package.json ./src/
 COPY ui/package.json ./ui/
+COPY testkit/package.json ./testkit/
+COPY e2e/package.json ./e2e/
+COPY web/package.json ./web/
+COPY examples/hello-world/package.json ./examples/hello-world/
 RUN npm ci
 COPY ui/ ./ui/
 RUN npm run build -w ui -- --base-href=/demo/
@@ -38,9 +44,10 @@ RUN node web/scripts/patch-demo-mode.js ui/dist/ui/browser/index.html
 # JSON.parse on `<!DOCTYPE...`. The dataset script spawns `sm scan`
 # over `fixtures/demo-scope/`; with no built CLI in this stage it
 # falls back to its tsx-driven source-entry path, so we need spec/ +
-# src/ + web/scripts/ in scope.
+# src/ + the fixture + web/scripts/ in scope.
 COPY spec/ ./spec/
 COPY src/ ./src/
+COPY fixtures/demo-scope/ ./fixtures/demo-scope/
 COPY web/scripts/build-demo-dataset.js ./web/scripts/build-demo-dataset.js
 RUN node web/scripts/build-demo-dataset.js
 

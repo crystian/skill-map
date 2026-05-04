@@ -20,6 +20,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..');
 const SCHEMA_SRC = resolve(REPO_ROOT, 'spec/schemas');
 const SPEC_PKG_PATH = resolve(REPO_ROOT, 'spec/package.json');
+const WEB_PKG_PATH = resolve(REPO_ROOT, 'web/package.json');
 const WEB_SRC = resolve(REPO_ROOT, 'web');
 const SITE_DST = resolve(REPO_ROOT, '.tmp/site');
 const SCHEMA_DST = resolve(REPO_ROOT, '.tmp/site/spec/v0');
@@ -86,10 +87,11 @@ function escapeAttr(s) {
  *   - <html lang="…">           → current lang
  *   - <a … data-lang="…">       → adds aria-current="page" if matches
  *   - {{SPEC_VERSION}}          → spec package.json version
+ *   - {{WEB_VERSION}}           → web package.json version
  * Injects in <head>:
  *   - <link rel="alternate" hreflang> for every language + x-default
  */
-function renderLanding(html, { lang, defaultLang, langs, version, dict }) {
+function renderLanding(html, { lang, defaultLang, langs, versions, dict }) {
   const lookup = (key) => {
     const e = dict[key];
     if (!e) return key;
@@ -143,6 +145,7 @@ function renderLanding(html, { lang, defaultLang, langs, version, dict }) {
 
   // 5. Substitute build-time placeholders.
   //    - {{SPEC_VERSION}}    → spec package.json version
+  //    - {{WEB_VERSION}}     → web package.json version
   //    - {{CANONICAL_URL}}   → per-language URL (used by <link canonical>,
   //                            <meta og:url>, etc.)
   //    - {{LD_DESCRIPTION}}  → meta.description in the current lang, JSON
@@ -152,7 +155,8 @@ function renderLanding(html, { lang, defaultLang, langs, version, dict }) {
   //                            placeholder itself is already wrapped in "…").
   const canonical = `${DOMAIN}${lang === defaultLang ? '/' : `/${lang}/`}`;
   const ldDescription = JSON.stringify(lookup('meta.description')).slice(1, -1);
-  out = out.replaceAll('{{SPEC_VERSION}}', version);
+  out = out.replaceAll('{{SPEC_VERSION}}', versions.spec);
+  out = out.replaceAll('{{WEB_VERSION}}', versions.web);
   out = out.replaceAll('{{CANONICAL_URL}}', canonical);
   out = out.replaceAll('{{LD_DESCRIPTION}}', ldDescription);
 
@@ -345,10 +349,12 @@ async function main() {
     filter: (src) => !src.endsWith('/i18n.json') && !src.endsWith('\\i18n.json'),
   });
 
-  // 2. Read the spec version + i18n dictionary, then render one HTML per language.
-  const pkg = JSON.parse(await readFile(SPEC_PKG_PATH, 'utf8'));
-  const version = pkg.version;
-  if (!version) throw new Error(`${SPEC_PKG_PATH} has no "version" field`);
+  // 2. Read versions + i18n dictionary, then render one HTML per language.
+  const specPkg = JSON.parse(await readFile(SPEC_PKG_PATH, 'utf8'));
+  if (!specPkg.version) throw new Error(`${SPEC_PKG_PATH} has no "version" field`);
+  const webPkg = JSON.parse(await readFile(WEB_PKG_PATH, 'utf8'));
+  if (!webPkg.version) throw new Error(`${WEB_PKG_PATH} has no "version" field`);
+  const versions = { spec: specPkg.version, web: webPkg.version };
 
   const i18n = JSON.parse(await readFile(I18N_SRC, 'utf8'));
   const meta = i18n._meta ?? { default: 'en', langs: ['en'] };
@@ -359,7 +365,7 @@ async function main() {
     const sourceHtml = await readFile(LANDING_PATH, 'utf8');
 
     for (const lang of langs) {
-      const rendered = renderLanding(sourceHtml, { lang, defaultLang, langs, version, dict: i18n });
+      const rendered = renderLanding(sourceHtml, { lang, defaultLang, langs, versions, dict: i18n });
       const outPath = lang === defaultLang
         ? LANDING_PATH
         : join(SITE_DST, lang, 'index.html');
@@ -410,7 +416,7 @@ async function main() {
   }
 
   // 4. Generate the schema browse index.
-  await writeFile(join(SCHEMA_DST, 'index.html'), renderSchemaIndex(validated, version));
+  await writeFile(join(SCHEMA_DST, 'index.html'), renderSchemaIndex(validated, versions.spec));
 
   // 5. SEO surface — robots.txt + sitemap.xml at the site root. Both files
   //    are universal (not per-language); the sitemap encodes the language
@@ -419,7 +425,7 @@ async function main() {
   await writeFile(join(SITE_DST, 'sitemap.xml'), renderSitemapXml({ langs, defaultLang }));
 
   console.log(`✓ Validated ${validated.length} schemas.`);
-  console.log(`✓ Site built at ${SITE_DST}/ (spec v${version}).`);
+  console.log(`✓ Site built at ${SITE_DST}/ (spec v${versions.spec}, web v${versions.web}).`);
   console.log(`  Landing: ${LANDING_PATH}  (from ${WEB_SRC}/)`);
   console.log(`  Schemas: ${SCHEMA_DST}/`);
   console.log(`  SEO:     ${join(SITE_DST, 'robots.txt')}, ${join(SITE_DST, 'sitemap.xml')}`);

@@ -73,6 +73,62 @@ Un `.js` en `scripts/` raíz se justifica solo si **es genuinamente cross-worksp
 
 `check-coverage.js` además depende del cwd (usa `resolve('spec/...')` sin anchor) — al migrarlo se arregla.
 
+## Deploy de Railway con filter de paths
+
+El sitio público (`skill-map.dev`) corre en Railway via Docker. La integración GitHub ↔ Railway estándar deploya en cada push a `main`, lo cual genera deploys innecesarios cuando el commit no toca lo que el sitio expone (cambios en `src/`, `testkit/`, `e2e/`, etc. no alteran el output deployado).
+
+La política: **deploy solo cuando cambia algo que el sitio efectivamente publica**. Implementado en `.github/workflows/deploy-web.yml` con un `paths:` filter de GitHub Actions. Si ningún archivo del filter cambia, el workflow no se dispara y Railway no recibe nada.
+
+### Paths que disparan deploy
+
+| Path | Razón |
+|---|---|
+| `web/**` | fuente de la landing |
+| `ui/**` | Angular bundle servido bajo `/demo/` |
+| `spec/**` | schemas servidos bajo `/spec/v0/` (URL canónica) |
+| `fixtures/demo-scope/**` | input al build del demo dataset |
+| `Dockerfile`, `Caddyfile` | config del deploy y del server |
+| `package.json`, `package-lock.json` (raíz) | deps que el Docker build instala |
+
+Cambios fuera de esa lista (`src/`, `testkit/`, `e2e/`, `examples/`, `context/`, `.claude/`, root docs, etc.) **no** disparan deploy.
+
+### Casos edge aceptados
+
+- Cambios in-flight a `spec/` que no son release igual disparan deploy. Es deliberado: el sitio es la URL canónica de los schemas y debe reflejar el branch `main`.
+- Cambios al CLI (`src/`) que pueden afectar lo que `build-demo-dataset.js` emite no disparan deploy. Aceptamos que el `data.json` del demo se regenere en el siguiente deploy legítimo.
+
+### Setup manual (una vez)
+
+1. Generar un token de Railway: dashboard → Project → Settings → Tokens → New Token.
+2. Guardar como secret en GitHub: repo Settings → Secrets and variables → Actions → New repository secret → `RAILWAY_TOKEN`.
+3. **Desconectar la integración GitHub ↔ Railway** en el dashboard (sino, queda doble path: el auto-deploy de Railway + el workflow). El workflow es la única vía oficial.
+4. Confirmar que el `--service` del workflow coincide con el nombre real del servicio en Railway (hoy: `skill-map`, ajustar si difiere).
+
+### Cómo modificar el filter
+
+Cuando el deploy gana o pierde dependencia de un path nuevo, actualizar el bloque `paths:` en `.github/workflows/deploy-web.yml` y la tabla de arriba. Mantenerlos sincronizados.
+
+### Versionado del sitio
+
+`@skill-map/web` (private workspace) se versiona aparte del spec y del CLI. La versión es la etiqueta del deploy:
+
+- **GitHub Actions** muestra el nombre del job dinámico (`v0.1.0`) leído de `web/package.json` runtime.
+- **Changeset rule**: cualquier PR que toque `web/` debe declarar un changeset que bumpee `@skill-map/web` (igual que spec/cli/ui).
+
+### Versiones en el footer de la landing
+
+Tres tags en el footer, con dos políticas distintas según lo que cada versión representa:
+
+| Tag | Fuente | Política | Razón |
+|---|---|---|---|
+| `spec v…` | `spec/package.json` | **build-time** (placeholder `{{SPEC_VERSION}}`) | El sitio sirve los schemas él mismo en `/spec/v0/`. La versión que muestra el footer DEBE coincidir con lo que el sitio entrega — sino sería engañoso. |
+| `web v…` | `web/package.json` | **build-time** (placeholder `{{WEB_VERSION}}`) | Es la versión del propio sitio. Build-time es trivialmente correcto. |
+| `cli v…` | `https://registry.npmjs.org/@skill-map/cli/latest` | **runtime fetch** (`web/app.js`) | El sitio NO sirve el CLI (se instala via `npm i -g @skill-map/cli`). El footer informa "lo último publicado en npm", no algo que el sitio entrega. Build-time quedaría desactualizado entre deploys. Si el fetch falla (offline, npm down), el placeholder `cli v—` queda en su lugar. |
+
+**Para sumar una nueva versión build-time** (ej. `testkit`): agregar a `versions = {…}` en `web/scripts/build-site.js`, sumar el `replaceAll('{{X_VERSION}}', versions.x)`, y poner el span en el footer del HTML.
+
+**Para sumar una nueva versión runtime** (ej. otro paquete de npm): copiar el snippet de `app.js` con otro selector `data-x-version`.
+
 ## Git hooks
 
 `.githooks/pre-commit` corre el `validate` del workspace `@skill-map/spec` cuando el commit toca `spec/` (silencioso en otros casos). Atrapa el caso en que se modifica un archivo bajo `spec/` y se olvida regenerar `spec/index.json` — la integridad sha256 quedaría desfasada y CI fallaría en otra branch.

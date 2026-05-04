@@ -1648,6 +1648,26 @@
     },
   };
 
+  // CLI version is fetched at runtime from npm because the site doesn't
+  // ship the CLI binary — the footer tag reflects "currently published on
+  // npm", not anything baked at build time (which is the right tradeoff
+  // for spec/web, but inverted for cli). Best-effort: if the registry is
+  // unreachable, the placeholder text stays.
+  (async () => {
+    const tag = document.querySelector('[data-cli-version]');
+    if (!tag) return;
+    try {
+      const res = await fetch('https://registry.npmjs.org/@skill-map/cli/latest', {
+        headers: { Accept: 'application/json' },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (typeof data?.version === 'string') tag.textContent = `cli v${data.version}`;
+    } catch {
+      // network / parse failure; keep the placeholder
+    }
+  })();
+
   function loadAnalytics() {
     // Standard gtag.js loader. The async script registers gtag globally;
     // the inline initializer queues the page_view event for the current

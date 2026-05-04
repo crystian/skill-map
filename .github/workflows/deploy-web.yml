@@ -1,0 +1,78 @@
+name: deploy-web
+
+# Deploy the public site (skill-map.dev) to Railway only when the change
+# touches something the deployed output actually exposes:
+#
+#   - web/**                  the landing source
+#   - ui/**                   the Angular bundle served under /demo/
+#   - spec/**                 the schemas served under /spec/v0/
+#   - fixtures/demo-scope/**  the input that build-demo-dataset.js scans
+#   - Dockerfile, Caddyfile   the deploy + server config
+#   - package.json + package-lock.json   root deps that the Docker build installs
+#
+# Changes confined to src/, testkit/, e2e/, examples/, .github/ci.yml,
+# context/, .claude/, root docs, etc. do NOT trigger a deploy. The
+# canonical schema URLs at skill-map.dev/spec/v0/** track the released
+# version of @skill-map/spec — work-in-progress edits to spec/ ride along
+# the next release that bumps the public surface.
+#
+# Setup (one-time):
+#   1. Generate a Railway project token (Railway dashboard → Project →
+#      Settings → Tokens → New Token) and store it as the GitHub repo
+#      secret RAILWAY_TOKEN.
+#   2. Disconnect the GitHub ↔ Railway auto-deploy integration in the
+#      Railway dashboard so the only deploy path is this workflow.
+#   3. Confirm the `--service` argument below matches the service name
+#      configured in Railway.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'ui/**'
+      - 'spec/**'
+      - 'fixtures/demo-scope/**'
+      - 'Dockerfile'
+      - 'Caddyfile'
+      - 'package.json'
+      - 'package-lock.json'
+
+concurrency:
+  group: deploy-web-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  read-version:
+    name: read web version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Read web/package.json version
+        id: read
+        run: echo "version=v$(node -p "require('./web/package.json').version")" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: ${{ needs.read-version.outputs.version }}
+    needs: read-version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli@4.6.0
+
+      - name: Deploy
+        run: railway up --service skill-map --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

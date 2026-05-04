@@ -85,4 +85,45 @@ describe('Dockerfile — demo deploy assets', () => {
       'build-demo-dataset.js needs tsx installed (no built CLI in this stage); it must run AFTER `npm ci`',
     );
   });
+
+  it('copies every workspace manifest declared in root before `npm ci`', () => {
+    // npm ci refuses to proceed if the root `workspaces` array points at a
+    // path whose package.json is missing. The Dockerfile must mirror the
+    // workspace tree so the install resolves cleanly.
+    const text = loadDockerfile();
+    const npmCi = text.indexOf('RUN npm ci');
+    assert.ok(npmCi >= 0, 'expected `RUN npm ci` somewhere in the Dockerfile');
+    const head = text.slice(0, npmCi);
+    const required = [
+      'COPY spec/package.json',
+      'COPY src/package.json',
+      'COPY ui/package.json',
+      'COPY testkit/package.json',
+      'COPY e2e/package.json',
+      'COPY web/package.json',
+      'COPY examples/hello-world/package.json',
+    ];
+    for (const line of required) {
+      assert.ok(
+        head.includes(line),
+        `Dockerfile must \`${line}\` before \`RUN npm ci\` (workspace manifest missing → npm ci ENOENT)`,
+      );
+    }
+  });
+
+  it('copies fixtures/demo-scope/ before invoking build-demo-dataset.js', () => {
+    // build-demo-dataset.js spawns `sm scan` over fixtures/demo-scope/ and
+    // throws `demo fixture missing` if the directory is absent. Prior to
+    // the fixtures relocation this was implicit (the fixture lived under
+    // ui/ which was copied wholesale); now it needs an explicit COPY.
+    const text = loadDockerfile();
+    const dataset = text.indexOf('RUN node web/scripts/build-demo-dataset.js');
+    assert.ok(dataset >= 0, 'expected `RUN node web/scripts/build-demo-dataset.js` in the Dockerfile');
+    const head = text.slice(0, dataset);
+    assert.match(
+      head,
+      /COPY\s+fixtures\/demo-scope\/?\s+\.\/fixtures\/demo-scope\/?/,
+      'Dockerfile must `COPY fixtures/demo-scope/ ./fixtures/demo-scope/` before running build-demo-dataset.js',
+    );
+  });
 });

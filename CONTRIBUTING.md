@@ -23,7 +23,7 @@ Thanks for your interest in `skill-map`. The project is in active pre-1.0 develo
 
 ## Versioning — changesets + integrity hashes
 
-Every PR that touches a published workspace (`spec/`, `src/`, `testkit/`, and `ui/` once it flips public) **must** include a changeset. CI blocks the merge otherwise.
+Every PR that touches a versioned workspace (`spec/`, `src/`, `testkit/`, `ui/`, `web/`) **must** include a changeset. CI blocks the merge otherwise. Private workspaces (`ui/`, `web/`, `e2e/`, `examples/hello-world/`) participate in the version flow even though they don't publish to npm — bumping their versions is how we tag the deployed site (web), the bundled UI (ui), and keep CHANGELOGs aligned.
 
 ### Creating a changeset
 
