@@ -45,10 +45,10 @@
     "index.json"
   ],
   "scripts": {
-    "spec": "node ../scripts/build-spec-index.js",
-    "spec:check": "node ../scripts/build-spec-index.js --check && node ../scripts/check-coverage.js",
-    "pin": "node ../scripts/sync-spec-pin.js",
-    "pin:check": "node ../scripts/sync-spec-pin.js --check",
+    "spec": "node scripts/build-index.js",
+    "spec:check": "node scripts/build-index.js --check && node scripts/check-coverage.js",
+    "pin": "node scripts/sync-pin.js",
+    "pin:check": "node scripts/sync-pin.js --check",
     "validate": "npm run spec:check && npm run pin:check"
   },
   "publishConfig": {

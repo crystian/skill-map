@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `scripts/patch-demo-mode.js [<target-html>]` — flip the runtime-mode
+ * `web/scripts/patch-demo-mode.js [<target-html>]` — flip the runtime-mode
  * meta-tag and the `<base href>` on a built SPA `index.html` so it
  * boots in demo mode under the `/demo/` sub-path.
  *
@@ -30,7 +30,7 @@ import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
+const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const DEFAULT_TARGET = join(REPO_ROOT, 'web', 'demo', 'index.html');
 const TARGET = resolveTarget(process.argv.slice(2));
 

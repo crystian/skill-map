@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Pre-commit guard for the skill-map monorepo.
+#
+# Today this hook only runs the spec workspace's `validate` (spec:check +
+# pin:check) when the staged change touches `spec/`. The motivation: a
+# previous commit modified `spec/conformance/coverage.md` without
+# regenerating `spec/index.json`, and the desync slipped past review until
+# the next CI run on a different branch. Catching the drift here keeps the
+# integrity block honest at commit time.
+#
+# Skips silently when no `spec/**` file is staged so the hook stays out of
+# the way for everyday changes elsewhere in the monorepo. Add more checks
+# here as the same class of "publishable artefact must stay in sync"
+# constraints surfaces for other workspaces.
+
+set -e
+
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^spec/'; then
+  echo "[pre-commit] spec/ touched — running validate -w @skill-map/spec"
+  npm run validate --workspace=@skill-map/spec
+fi

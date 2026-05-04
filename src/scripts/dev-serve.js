@@ -14,11 +14,14 @@
  * with a clear message — better than nuking the Architect's Postgres
  * because it happened to bind 4242.
  *
- * Usage (from repo root):
- *   npm run dev:serve                                 # default port 4242, cwd=src/
- *   npm run dev:serve -- --port 4243                  # override port
- *   npm run dev:serve -- --cwd fixtures/foo           # serve a fixture scope
- *   npm run dev:serve -- --strict                     # any extra flags pass through
+ * Usage (workspace-scoped — paths are resolved relative to the repo root):
+ *   npm run dev:serve --workspace=@skill-map/cli                                  # default port 4242, cwd=src/
+ *   npm run dev:serve --workspace=@skill-map/cli -- --port 4243                   # override port
+ *   npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/foo            # serve a fixture scope
+ *   npm run dev:serve --workspace=@skill-map/cli -- --strict                      # any extra flags pass through
+ *
+ * From the repo root, the `bff:dev` shortcut wires the local-scope fixture
+ * preset: `npm run bff:dev` ≡ the second invocation above with the fixture path.
  *
  * `--cwd <path>` is the modal switch: without it, the watcher serves
  * `src/.skill-map/` (handy for kernel iteration); with it, the watcher
@@ -39,8 +42,9 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const SRC = resolve(REPO_ROOT, 'src');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const SRC = resolve(HERE, '..');
+const REPO_ROOT = resolve(SRC, '..');
 const ENTRY = resolve(SRC, 'cli', 'entry.ts');
 
 const PORT_FLAG = '--port';

@@ -3,10 +3,10 @@
  *
  * Bug history: the Dockerfile that ships skill-map.dev was missing two
  * required steps for demo mode:
- *   1. `node scripts/patch-demo-mode.js` — flips `<meta name="skill-map-mode">`
+ *   1. `node web/scripts/patch-demo-mode.js` — flips `<meta name="skill-map-mode">`
  *      from `live` to `demo`. Without it the SPA boots in live mode and
  *      404s on `/api/scan`.
- *   2. `node scripts/build-demo-dataset.js` + the corresponding
+ *   2. `node web/scripts/build-demo-dataset.js` + the corresponding
  *      `COPY --from=ui-build` lines for `data.json` / `data.meta.json`.
  *      Without them the SPA's StaticDataSource fetches `data.json`,
  *      hits Caddy's SPA fallback, gets `<!DOCTYPE html>`, and trips
@@ -38,20 +38,20 @@ function loadDockerfile(): string {
 }
 
 describe('Dockerfile — demo deploy assets', () => {
-  it('runs scripts/patch-demo-mode.js against the built UI index.html', () => {
+  it('runs web/scripts/patch-demo-mode.js against the built UI index.html', () => {
     const text = loadDockerfile();
     assert.match(
       text,
-      /RUN\s+node\s+scripts\/patch-demo-mode\.js\s+ui\/dist\/ui\/browser\/index\.html/,
+      /RUN\s+node\s+web\/scripts\/patch-demo-mode\.js\s+ui\/dist\/ui\/browser\/index\.html/,
       'Dockerfile must invoke patch-demo-mode.js so <meta skill-map-mode> flips to "demo"',
     );
   });
 
-  it('runs scripts/build-demo-dataset.js so data.json + data.meta.json are produced', () => {
+  it('runs web/scripts/build-demo-dataset.js so data.json + data.meta.json are produced', () => {
     const text = loadDockerfile();
     assert.match(
       text,
-      /RUN\s+node\s+scripts\/build-demo-dataset\.js/,
+      /RUN\s+node\s+web\/scripts\/build-demo-dataset\.js/,
       'Dockerfile must invoke build-demo-dataset.js to produce the StaticDataSource payload',
     );
   });

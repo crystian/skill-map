@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `scripts/build-demo-dataset.js` — derive the demo bundle's data assets.
+ * `web/scripts/build-demo-dataset.js` — derive the demo bundle's data assets.
  *
  * Pipeline:
  *
@@ -32,7 +32,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
+const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const FIXTURE_DIR = join(REPO_ROOT, 'fixtures', 'demo-scope');
 const OUT_DIR = join(REPO_ROOT, 'web', 'demo');
 const DATA_PATH = join(OUT_DIR, 'data.json');

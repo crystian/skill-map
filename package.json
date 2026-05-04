@@ -20,14 +20,14 @@
   ],
   "scripts": {
     "start": "npm start --workspace=ui",
-    "demo:build": "npm run build --workspace=ui && node scripts/build-demo-dataset.js && cp -R ui/dist/ui/browser/. web/demo/ && node scripts/patch-demo-mode.js",
+    "demo:build": "npm run demo:build --workspace=@skill-map/web",
     "demo:dev": "npm run dev:demo --workspace=ui",
     "web:build": "npm run build --workspace=@skill-map/web",
     "web:dev": "npm run dev --workspace=@skill-map/web",
     "sqlite": "node scripts/open-sqlite-browser.js",
     "cli:build": "npm run build --workspace=@skill-map/cli",
     "ui:build": "npm run build --workspace=ui",
-    "bff:dev": "node scripts/dev-serve.js --cwd fixtures/local-scope --port 4242",
+    "bff:dev": "npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/local-scope --port 4242",
     "ui:dev": "npm run dev --workspace=ui",
     "e2e:dev": "npm run test:ui --workspace=skill-map-e2e",
     "lint": "npm run lint --workspaces --if-present",
@@ -35,7 +35,8 @@
     "validate": "npm run validate --workspaces --if-present",
     "release:changeset": "changeset",
     "release:version": "changeset version && npm run pin --workspace=@skill-map/spec && npm run spec --workspace=@skill-map/spec && npm run reference --workspace=@skill-map/cli",
-    "release:publish": "changeset publish"
+    "release:publish": "changeset publish",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.0"

@@ -29,8 +29,8 @@ RUN npm run build -w ui -- --base-href=/demo/
 # live mode at skill-map.dev/demo/, hits /api/scan against the static
 # host, and 404s. The script is shared with `npm run demo:build` so the
 # Docker deploy and the local snapshot stay in lockstep.
-COPY scripts/patch-demo-mode.js ./scripts/patch-demo-mode.js
-RUN node scripts/patch-demo-mode.js ui/dist/ui/browser/index.html
+COPY web/scripts/patch-demo-mode.js ./web/scripts/patch-demo-mode.js
+RUN node web/scripts/patch-demo-mode.js ui/dist/ui/browser/index.html
 
 # Generate the demo snapshot the StaticDataSource fetches at runtime
 # (`<base>/data.json` + `<base>/data.meta.json`). Without these the SPA
@@ -38,22 +38,21 @@ RUN node scripts/patch-demo-mode.js ui/dist/ui/browser/index.html
 # JSON.parse on `<!DOCTYPE...`. The dataset script spawns `sm scan`
 # over `fixtures/demo-scope/`; with no built CLI in this stage it
 # falls back to its tsx-driven source-entry path, so we need spec/ +
-# src/ + scripts/ in scope.
+# src/ + web/scripts/ in scope.
 COPY spec/ ./spec/
 COPY src/ ./src/
-COPY scripts/build-demo-dataset.js ./scripts/build-demo-dataset.js
-RUN node scripts/build-demo-dataset.js
+COPY web/scripts/build-demo-dataset.js ./web/scripts/build-demo-dataset.js
+RUN node web/scripts/build-demo-dataset.js
 
 # ------------ landing build stage ------------
 FROM node:24-alpine AS build
 WORKDIR /app
 
 # Only what the build script needs. Keeps the build cache tight.
-COPY scripts/ ./scripts/
 COPY spec/ ./spec/
 COPY web/ ./web/
 
-RUN node scripts/build-site.js
+RUN node web/scripts/build-site.js
 
 # ------------ serve stage ------------
 FROM caddy:2-alpine

@@ -2,7 +2,7 @@
   "_meta": {
     "default": "en",
     "langs": ["en", "es"],
-    "_note": "Build-time only — consumed by scripts/build-site.js to render /index.html (en) and /es/index.html (es). Excluded from the build output (never served)."
+    "_note": "Build-time only — consumed by web/scripts/build-site.js to render /index.html (en) and /es/index.html (es). Excluded from the build output (never served)."
   },
 
   "meta.title":          { "en": "skill-map · Graph explorer for AI agent skill ecosystems",

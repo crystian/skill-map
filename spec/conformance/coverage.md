@@ -61,7 +61,7 @@ These have their own conformance cases even though they are not JSON Schemas.
 
 - **spec v0.x**: partial coverage acceptable. Every case added as the reference impl lands the verb that makes it runnable.
 - **spec v1.0.0 release**: all rows above MUST be 🟢 covered or explicitly 🟠 deferred to v1.1 with a linked issue.
-- **CI check**: [`scripts/check-coverage.js`](../../scripts/check-coverage.js) compares `spec/schemas/**/*.schema.json` against the matrix above on every PR. A schema without a row here, or a row pointing at a missing schema, fails CI (exit 1 with a `::error::` annotation). Wired into the spec workspace's `spec:check` script (which is invoked by `npm run validate` from the repo root, picked up by CI).
+- **CI check**: [`spec/scripts/check-coverage.js`](../scripts/check-coverage.js) compares `spec/schemas/**/*.schema.json` against the matrix above on every PR. A schema without a row here, or a row pointing at a missing schema, fails CI (exit 1 with a `::error::` annotation). Wired into the spec workspace's `spec:check` script (which is invoked by `npm run validate` from the repo root, picked up by CI).
 
 ## Stability
 

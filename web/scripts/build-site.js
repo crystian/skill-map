@@ -13,14 +13,17 @@
 
 import { readdir, readFile, writeFile, mkdir, cp, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join, dirname, relative } from 'node:path';
+import { join, dirname, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const SCHEMA_SRC = 'spec/schemas';
-const SPEC_PKG_PATH = 'spec/package.json';
-const WEB_SRC = 'web';
-const SITE_DST = '.tmp/site';
-const SCHEMA_DST = '.tmp/site/spec/v0';
-const I18N_SRC = 'web/i18n.json';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, '..', '..');
+const SCHEMA_SRC = resolve(REPO_ROOT, 'spec/schemas');
+const SPEC_PKG_PATH = resolve(REPO_ROOT, 'spec/package.json');
+const WEB_SRC = resolve(REPO_ROOT, 'web');
+const SITE_DST = resolve(REPO_ROOT, '.tmp/site');
+const SCHEMA_DST = resolve(REPO_ROOT, '.tmp/site/spec/v0');
+const I18N_SRC = resolve(REPO_ROOT, 'web/i18n.json');
 const LANDING_PATH = join(SITE_DST, 'index.html');
 
 const DOMAIN = 'https://skill-map.dev';

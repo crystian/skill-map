@@ -4,7 +4,7 @@ End-to-end / smoke tests for skill-map. Private workspace — never published to
 
 ## What lives here
 
-- `playwright.config.ts` — single Chromium-only project (`smoke`). Spins up `../scripts/serve-demo.js` automatically via `webServer` (the static server lives at the repo root and can also be invoked manually via `node scripts/serve-demo.js`).
+- `playwright.config.ts` — single Chromium-only project (`smoke`). Spins up `../web/scripts/serve-demo.js` automatically via `webServer` (the static server lives in the web workspace and can also be invoked manually via `npm run demo:serve --workspace=@skill-map/web`).
 - `smoke/` — Playwright specs.
 
 ## First-time setup

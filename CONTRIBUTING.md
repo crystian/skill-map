@@ -58,7 +58,7 @@ npm run spec --workspace=@skill-map/spec          # regenerate
 npm run spec:check --workspace=@skill-map/spec    # verify (used by CI via root validate)
 ```
 
-The orchestrator (`npm run validate`) runs `spec:check` for every PR through the spec workspace's `validate`. Drift → red build.
+The orchestrator (`npm run validate`) runs `spec:check` for every PR through the spec workspace's `validate`. Drift → red build. A pre-commit hook (`.githooks/pre-commit`, wired automatically by `npm install` via the root `prepare` script that sets `core.hooksPath`) also runs the spec workspace's `validate` whenever a commit touches `spec/`, so an out-of-sync `index.json` fails locally before reaching CI.
 
 Same discipline applies to the auto-generated CLI reference at `context/cli-reference.md`:
 

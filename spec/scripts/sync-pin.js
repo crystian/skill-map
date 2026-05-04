@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * `scripts/sync-spec-pin.js [--check]` — keep `@skill-map/cli`'s pin
+ * `spec/scripts/sync-pin.js [--check]` — keep `@skill-map/cli`'s pin
  * on `@skill-map/spec` in lockstep with the spec's actual published
  * version. Wired into `release:version` so every release bump that
  * moves the spec also retags the CLI's dep pin to the new spec
@@ -19,10 +19,11 @@
  */
 
 import { readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '..');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, '..', '..');
 const SPEC_PKG = resolve(REPO_ROOT, 'spec', 'package.json');
 const CLI_PKG = resolve(REPO_ROOT, 'src', 'package.json');
 const DEP_KEY = '@skill-map/spec';
@@ -43,14 +44,14 @@ async function main() {
   }
 
   if (currentPin === specVersion) {
-    process.stdout.write(`[sync-spec-pin] in sync at ${specVersion}\n`);
+    process.stdout.write(`[sync-pin] in sync at ${specVersion}\n`);
     return;
   }
 
   if (CHECK) {
     fail(
-      `[sync-spec-pin] DRIFT: ${DEP_KEY} pinned to "${currentPin}" in src/package.json ` +
-        `but spec/package.json is at "${specVersion}". Run: node scripts/sync-spec-pin.js`,
+      `[sync-pin] DRIFT: ${DEP_KEY} pinned to "${currentPin}" in src/package.json ` +
+        `but spec/package.json is at "${specVersion}". Run: npm run pin --workspace=@skill-map/spec`,
     );
   }
 
@@ -65,7 +66,7 @@ async function main() {
     fail(`failed to locate the ${DEP_KEY} dependency line for replacement in ${CLI_PKG}`);
   }
   await writeFile(CLI_PKG, updated, 'utf8');
-  process.stdout.write(`[sync-spec-pin] retagged ${DEP_KEY}: "${currentPin}" -> "${specVersion}"\n`);
+  process.stdout.write(`[sync-pin] retagged ${DEP_KEY}: "${currentPin}" -> "${specVersion}"\n`);
 }
 
 function escape(s) {
@@ -78,6 +79,6 @@ function fail(msg) {
 }
 
 main().catch((err) => {
-  process.stderr.write(`[sync-spec-pin] FAILED: ${err.message}\n`);
+  process.stderr.write(`[sync-pin] FAILED: ${err.message}\n`);
   process.exit(1);
 });

@@ -73,6 +73,14 @@ Un `.js` en `scripts/` raíz se justifica solo si **es genuinamente cross-worksp
 
 `check-coverage.js` además depende del cwd (usa `resolve('spec/...')` sin anchor) — al migrarlo se arregla.
 
+## Git hooks
+
+`.githooks/pre-commit` corre el `validate` del workspace `@skill-map/spec` cuando el commit toca `spec/` (silencioso en otros casos). Atrapa el caso en que se modifica un archivo bajo `spec/` y se olvida regenerar `spec/index.json` — la integridad sha256 quedaría desfasada y CI fallaría en otra branch.
+
+El hook se conecta automáticamente: el script `prepare` del root `package.json` corre `git config core.hooksPath .githooks` cada vez que alguien hace `npm install`. No hay que setearlo a mano por contributor.
+
+Para sumar otros checks al hook (ej. cli-reference cuando se toca el CLI), agregar la rama correspondiente en `.githooks/pre-commit` siguiendo el patrón existente.
+
 ## Cuándo agregar / mover / eliminar
 
 - **Agregar un script en raíz**: solo si es atajo diario `componente:acción` por un componente que ya tiene workspace, o si es un orquestador cross-workspace genuino. Si dudás, va al workspace.

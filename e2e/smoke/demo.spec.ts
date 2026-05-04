@@ -12,7 +12,7 @@ import { expect, test } from '@playwright/test';
  * DataSource refactor accidentally activating `RestDataSource` under
  * `MODE === 'demo'`) is caught here, not in production.
  *
- * Server: deps-free Node static server (`scripts/serve-demo.js`)
+ * Server: deps-free Node static server (`web/scripts/serve-demo.js`)
  * managed by Playwright's `webServer` config. Mount: `/demo/`.
  */
 

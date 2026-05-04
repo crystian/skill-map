@@ -7,8 +7,8 @@
  * raw bytes, and writes a deterministic listing (lexicographically sorted).
  *
  * Modes:
- *   node scripts/build-spec-index.js            → write spec/index.json
- *   node scripts/build-spec-index.js --check    → exit 1 on drift
+ *   npm run spec --workspace=@skill-map/spec          → write spec/index.json
+ *   npm run spec:check --workspace=@skill-map/spec    → exit 1 on drift
  */
 
 import { createHash } from 'node:crypto';
@@ -17,8 +17,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO = resolve(HERE, '..');
-const SPEC = resolve(REPO, 'spec');
+const SPEC = resolve(HERE, '..');
 const INDEX_PATH = join(SPEC, 'index.json');
 const PKG_PATH = join(SPEC, 'package.json');
 const CHECK = process.argv.includes('--check');
@@ -116,7 +115,7 @@ async function main() {
     const onDisk = await readFile(INDEX_PATH, 'utf8');
     if (onDisk !== serialized) {
       console.error('spec/index.json is out of date.');
-      console.error('Run: node scripts/build-spec-index.js');
+      console.error('Run: npm run spec --workspace=@skill-map/spec');
       if (existing) {
         const existingKeys = Object.keys(existing.files ?? {});
         const freshKeys = Object.keys(fresh.files);

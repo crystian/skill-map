@@ -2,8 +2,8 @@
 /**
  * Local dev server for the public landing.
  *
- * - Initial build via scripts/build-site.js.
- * - Watches web/, spec/ and scripts/ recursively.
+ * - Initial build via web/scripts/build-site.js.
+ * - Watches web/ and spec/ recursively.
  * - On change: debounced rebuild, then push a reload event over SSE.
  * - Injects a tiny EventSource client into served HTML so the browser
  *   refreshes on its own. Works only when an HTML page is open.
@@ -14,14 +14,18 @@
 import { createServer } from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import { watch } from 'node:fs';
-import { join, extname, normalize, sep } from 'node:path';
+import { dirname, join, extname, normalize, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
 
-const ROOT = '.tmp/site';
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, '..', '..');
+const ROOT = resolve(REPO_ROOT, '.tmp/site');
+const BUILD_SITE = resolve(HERE, 'build-site.js');
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || 'localhost';
-const WATCH_DIRS = ['web', 'spec', 'scripts'];
-const BUILD_CMD = ['node', 'scripts/build-site.js'];
+const WATCH_DIRS = [resolve(REPO_ROOT, 'web'), resolve(REPO_ROOT, 'spec')];
+const BUILD_CMD = ['node', BUILD_SITE];
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -189,7 +193,7 @@ await build({ silent: true });
 server.listen(PORT, () => {
   const url = `http://${HOST}:${PORT}`;
   console.log(`\n▸ ${url}`);
-  console.log(`  watching: ${WATCH_DIRS.map((d) => `${d}/`).join(', ')}`);
+  console.log(`  watching: ${WATCH_DIRS.map((d) => `${d.replace(REPO_ROOT + sep, '') + '/'}`).join(', ')}`);
   console.log(`  ctrl+c to stop\n`);
 });
 

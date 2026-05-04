@@ -9,6 +9,6 @@ metadata:
 
 # acme-toolkit (demo fixture)
 
-Fictional scope used as the build-time input for the SPA's static demo bundle (Step 14.3.b). The pipeline at `scripts/build-demo-dataset.js` runs `sm scan --json` over this directory and emits `web/demo/data.json` + `web/demo/data.meta.json`, which the `StaticDataSource` (demo-mode adapter) serves from the deployed bundle. The kernel itself is **not** swapped — `sm scan` runs as it would against any other scope.
+Fictional scope used as the build-time input for the SPA's static demo bundle (Step 14.3.b). The pipeline at `web/scripts/build-demo-dataset.js` runs `sm scan --json` over this directory and emits `web/demo/data.json` + `web/demo/data.meta.json`, which the `StaticDataSource` (demo-mode adapter) serves from the deployed bundle. The kernel itself is **not** swapped — `sm scan` runs as it would against any other scope.
 
 Every file has frontmatter conforming to `spec/schemas/frontmatter/*.schema.json`. Cross-references use `@agent-name`, `#skill-id`, and `/command` tokens in bodies so the demo exercises link detection without manual editing.

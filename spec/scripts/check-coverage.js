@@ -8,7 +8,7 @@
  * without a row slips past review silently; a row that outlives its schema
  * wastes reviewer attention. Both are caught here at CI time.
  *
- * Usage: node scripts/check-coverage.js
+ * Usage: npm run spec:check --workspace=@skill-map/spec
  * Exit:  0 in sync · 1 drift · 2 operational error.
  */
 
@@ -17,9 +17,9 @@ import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = resolve(HERE, '..');
-const SCHEMAS_ROOT = resolve(REPO_ROOT, 'spec/schemas');
-const COVERAGE_FILE = resolve(REPO_ROOT, 'spec/conformance/coverage.md');
+const SPEC_ROOT = resolve(HERE, '..');
+const SCHEMAS_ROOT = resolve(SPEC_ROOT, 'schemas');
+const COVERAGE_FILE = resolve(SPEC_ROOT, 'conformance/coverage.md');
 
 function die(msg) {
   process.stderr.write(`check-coverage: ${msg}\n`);
