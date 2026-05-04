@@ -119,10 +119,9 @@ skill-map/                     raíz de npm workspaces (privada)
 └── ROADMAP.md                 narrativa de diseño (decisiones, fases, diferidos)
 ```
 
-El workspace `ui/` shipea el SPA Angular con [Foblex Flow](https://flow.foblex.com) para la vista de grafo y componentes PrimeNG. `@skill-map/testkit` se sumó como tercer peer publicado, junto a `spec` y `src`.
-
 ## Enlaces
 
+- Sitio web: [skill-map.dev/es/](https://skill-map.dev/es/)
 - Diseño completo y roadmap: [ROADMAP.md](./ROADMAP.md)
 - Glosario completo: [ROADMAP §Glossary](./ROADMAP.md#glossary)
 - Guía de contribución: [CONTRIBUTING.md](./CONTRIBUTING.md)
@@ -134,10 +133,16 @@ El workspace `ui/` shipea el SPA Angular con [Foblex Flow](https://flow.foblex.c
 - Versión en inglés de este README: [README.md](./README.md)
 - Licencia: [MIT](./LICENSE)
 
+## Agradecimientos
+
+La vista de grafo que le da identidad a skill-map está construida sobre [**Foblex Flow**](https://flow.foblex.com) — una excelente librería Angular que se encarga de nodos, conectores, pan y zoom. Gracias enormes al equipo de Foblex.
+
+También sobre los hombros de [Angular](https://angular.dev), [PrimeNG](https://primeng.org), [Hono](https://hono.dev) y [Kysely](https://kysely.dev).
+
 ## Historial de stars
 
 [![Star History Chart](https://api.star-history.com/chart?repos=crystian/skill-map&type=timeline&legend=top-left)](https://www.star-history.com/?repos=crystian%2Fskill-map&type=timeline&legend=top-left)
 
-## Licencia
+---
 
-MIT © Crystian
+Hecho con ❤️&nbsp; por [Crystian](https://github.com/crystian/) · [LinkedIn](https://www.linkedin.com/in/crystian/)
