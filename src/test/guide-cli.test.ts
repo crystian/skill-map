@@ -73,7 +73,7 @@ after(() => {
 });
 
 describe('sm guide — happy path', () => {
-  it('writes sm-guide.md in cwd with exit 0 and a Spanish success line', () => {
+  it('writes sm-guide.md in cwd with exit 0 and the success line', () => {
     const scope = freshScope('basic');
     const r = sm(['guide'], scope);
 
@@ -82,8 +82,8 @@ describe('sm guide — happy path', () => {
     assert.ok(existsSync(target), 'sm-guide.md must be written');
 
     // Spec-mandated success message contents.
-    assert.match(r.stdout, /sm-guide\.md creado en/);
-    assert.match(r.stdout, /Abrí Claude Code/);
+    assert.match(r.stdout, /sm-guide\.md created at/);
+    assert.match(r.stdout, /Open Claude Code/);
     assert.match(r.stdout, /@sm-guide\.md/);
   });
 
@@ -135,7 +135,7 @@ describe('sm guide — clobber protection', () => {
     const r = sm(['guide'], scope);
 
     assert.equal(r.status, 2, `stderr: ${r.stderr}`);
-    assert.match(r.stderr, /ya existe/);
+    assert.match(r.stderr, /already exists/);
     assert.match(r.stderr, /--force/);
 
     // File untouched.

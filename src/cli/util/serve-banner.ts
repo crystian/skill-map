@@ -174,10 +174,9 @@ interface IFigletInput {
 }
 
 /**
- * Figlet-style banner. Top half of the logo is violet, bottom half is
- * green; the version sits dim under the right edge of the logo. The
- * URL value reuses the same green as the lower logo half so the visual
- * weight ties together.
+ * Figlet-style banner. The whole logo is violet; the version sits dim
+ * under the right edge of the logo. The URL value is green + underlined
+ * to stand out from the violet block above.
  */
 function renderFiglet(input: IFigletInput): string {
   const {
@@ -187,16 +186,9 @@ function renderFiglet(input: IFigletInput): string {
     greenUnderlineClose,
     violetOpen,
     violetClose,
-    greenOpen,
-    greenClose,
   } = resolveAnsi(input.colorEnabled);
 
-  // Logo split: first 3 lines violet, last 3 lines green.
-  const logoLines = LOGO_LINES.map((line, i) => {
-    const open = i < 3 ? violetOpen : greenOpen;
-    const close = i < 3 ? violetClose : greenClose;
-    return `${open}${line}${close}`;
-  });
+  const logoLines = LOGO_LINES.map((line) => `${violetOpen}${line}${violetClose}`);
 
   // Version line right-aligned under the logo width.
   const versionText = `v${input.version}`;
@@ -226,8 +218,6 @@ interface IAnsiSet {
   greenUnderlineClose: string;
   violetOpen: string;
   violetClose: string;
-  greenOpen: string;
-  greenClose: string;
 }
 
 const EMPTY_ANSI: IAnsiSet = {
@@ -237,8 +227,6 @@ const EMPTY_ANSI: IAnsiSet = {
   greenUnderlineClose: '',
   violetOpen: '',
   violetClose: '',
-  greenOpen: '',
-  greenClose: '',
 };
 
 const ENABLED_ANSI: IAnsiSet = {
@@ -248,8 +236,6 @@ const ENABLED_ANSI: IAnsiSet = {
   greenUnderlineClose: ESC.reset,
   violetOpen: ESC.violet,
   violetClose: ESC.reset,
-  greenOpen: ESC.green,
-  greenClose: ESC.reset,
 };
 
 function resolveAnsi(colorEnabled: boolean): IAnsiSet {

@@ -3,7 +3,7 @@
  *
  * Three behaviour modes are validated:
  *   1. TTY + color enabled → ASCII-art figlet block AND ANSI escape sequences
- *      (violet upper half, green lower half, dim labels, green-underlined URL).
+ *      (violet logo, dim labels, green-underlined URL).
  *   2. TTY + color disabled → ASCII-art figlet block AND zero ANSI escapes.
  *   3. Non-TTY (pipes / redirects) → legacy two-line format, byte-equivalent
  *      to what `sm serve` emitted before the banner landed. This is the
@@ -44,11 +44,11 @@ describe('serve banner — TTY + color enabled', () => {
     assert.ok(out.includes('\x1b['), 'expected at least one ANSI CSI introducer');
     assert.ok(
       out.includes('\x1b[38;5;141m'),
-      'expected violet 256-color (\\x1b[38;5;141m) for the upper half of the logo',
+      'expected violet 256-color (\\x1b[38;5;141m) for the entire logo',
     );
     assert.ok(
       out.includes('\x1b[38;5;42m'),
-      'expected green 256-color (\\x1b[38;5;42m) for the lower half of the logo and the URL',
+      'expected green 256-color (\\x1b[38;5;42m) for the URL',
     );
     assert.ok(out.includes('\x1b[2m'), 'expected dim (\\x1b[2m) for labels and version');
     assert.ok(out.includes('\x1b[4m'), 'expected underline (\\x1b[4m) for the URL');

@@ -227,15 +227,21 @@ function renderBuiltInBundleRow(bundle: IBuiltInBundleRow): string {
     }),
   );
   if (bundle.granularity === 'bundle') {
-    const kinds = bundle.extensions
-      .map((e) => `${e.kind}:${qualifiedExtensionId(bundle.id, e.id)}`)
-      .join(', ');
-    lines.push(tx(PLUGINS_TEXTS.builtInBundleKindsLine, { kinds }));
+    // One extension per line so the output aligns with the
+    // granularity=extension branch below. Bundle extensions don't
+    // have an individual enabled flag (the bundle id is the only
+    // toggle), hence no `ok` / `off` column — the kind:id@version
+    // sits at the same indent as the kind column of the extension
+    // rows for visual symmetry.
+    for (const ext of bundle.extensions) {
+      const line = `${ext.kind}:${qualifiedExtensionId(bundle.id, ext.id)}@${ext.version}`;
+      lines.push(tx(PLUGINS_TEXTS.builtInBundleKindsLine, { kinds: line }));
+    }
   } else {
     for (const ext of bundle.extensions) {
       lines.push(
         tx(PLUGINS_TEXTS.builtInExtensionRow, {
-          stat: ext.enabled ? PLUGINS_TEXTS.rowStatusOkPad : PLUGINS_TEXTS.rowStatusOffPad,
+          stat: ext.enabled ? PLUGINS_TEXTS.rowStatusOk : PLUGINS_TEXTS.rowStatusOff,
           kind: ext.kind,
           qualifiedId: qualifiedExtensionId(bundle.id, ext.id),
           version: ext.version,

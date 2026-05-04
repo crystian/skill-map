@@ -206,6 +206,14 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
       await chokidarHandle.ready;
     }
 
+    // Initial scan-and-persist on boot. Without this, the server would
+    // serve whatever was in the DB from the previous run (potentially
+    // stale — files renamed / deleted while the server was down would
+    // still appear as nodes), and the watcher would only react to new
+    // changes. Running one batch eagerly guarantees the UI reflects
+    // the current filesystem from the very first connection.
+    await runInitialBatch({ isStopped: () => stopped, runOneBatch });
+
     opts.broadcaster.broadcast(
       buildWatcherStartedEvent({ roots: [WATCH_ROOT], debounceMs }),
     );
@@ -341,4 +349,28 @@ async function persistOutcome(
   await withSqlite({ databasePath: dbPath }, (writer) =>
     writer.scans.persist(result, { renameOps, extractorRuns, enrichments }),
   );
+}
+
+/**
+ * One-shot batch fired right after chokidar's `ready` resolves so the
+ * UI reflects current filesystem state from the very first connection
+ * (instead of whatever stale snapshot the previous run persisted).
+ * Mirrors the swallow-and-log shape of `onBatch` so a transient FS
+ * error here cannot abort `start()` or kill the broadcaster.
+ */
+async function runInitialBatch(deps: {
+  isStopped: () => boolean;
+  runOneBatch: () => Promise<void>;
+}): Promise<void> {
+  if (deps.isStopped()) return;
+  try {
+    await deps.runOneBatch();
+  } catch (err) {
+    const message = formatErrorMessage(err);
+    log.warn(
+      tx(SERVER_TEXTS.watcherBatchFailed, {
+        message: sanitizeForTerminal(message),
+      }),
+    );
+  }
 }

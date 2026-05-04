@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
 import { THEME_TEXTS } from '../i18n/theme.texts';
@@ -11,7 +12,7 @@ import { DemoBanner } from './components/demo-banner/demo-banner';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, DemoBanner],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ButtonModule, TooltipModule, DemoBanner],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -45,6 +46,16 @@ export class App implements OnInit {
         return THEME_TEXTS.toggleToDark;
       case 'dark':
         return THEME_TEXTS.toggleToAuto;
+    }
+  });
+  readonly themeTooltip = computed(() => {
+    switch (this.themeMode()) {
+      case 'auto':
+        return THEME_TEXTS.currentAuto;
+      case 'light':
+        return THEME_TEXTS.currentLight;
+      case 'dark':
+        return THEME_TEXTS.currentDark;
     }
   });
 
