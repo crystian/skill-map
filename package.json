@@ -19,7 +19,7 @@
     "web"
   ],
   "scripts": {
-    "start": "npm start --workspace=ui",
+    "start": "bash scripts/start.sh",
     "demo:build": "npm run demo:build --workspace=@skill-map/web",
     "demo:dev": "npm run dev:demo --workspace=ui",
     "web:build": "npm run build --workspace=@skill-map/web",
