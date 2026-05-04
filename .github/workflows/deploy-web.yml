@@ -1,20 +1,21 @@
 name: deploy-web
 
-# Deploy the public site (skill-map.dev) to Railway only when the change
-# touches something the deployed output actually exposes:
+# Deploy the public site (skill-map.dev) to Railway only when a
+# versioned bump or infra change occurs:
 #
-#   - web/**                  the landing source
-#   - ui/**                   the Angular bundle served under /demo/
-#   - spec/**                 the schemas served under /spec/v0/
-#   - fixtures/demo-scope/**  the input that build-demo-dataset.js scans
-#   - Dockerfile, Caddyfile   the deploy + server config
-#   - package.json + package-lock.json   root deps that the Docker build installs
+#   - web/package.json    bump of @skill-map/web (landing/demo source)
+#   - spec/package.json   bump of @skill-map/spec (schemas served at /spec/v0/)
+#   - Dockerfile          deploy recipe
+#   - Caddyfile           server config
 #
-# Changes confined to src/, testkit/, e2e/, examples/, .github/ci.yml,
-# context/, .claude/, root docs, etc. do NOT trigger a deploy. The
-# canonical schema URLs at skill-map.dev/spec/v0/** track the released
-# version of @skill-map/spec — work-in-progress edits to spec/ ride along
-# the next release that bumps the public surface.
+# In-flight changes to web/, ui/, spec/, fixtures/demo-scope/, etc. do
+# NOT trigger a deploy on merge. They ride along the next "chore: version
+# packages" PR that consumes the changesets and bumps web/spec/package.json.
+# That keeps each deploy aligned with a released version, and avoids the
+# double-deploy that happens when both the feature merge AND the version
+# bump fire the workflow back-to-back.
+#
+# To preview an in-flight change, use `npm run web:dev` locally.
 #
 # Setup (one-time, all in GitHub repo Settings → Secrets and variables → Actions):
 #   1. Secrets tab → New repository secret `RAILWAY_API_TOKEN` with an
@@ -32,14 +33,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'web/**'
-      - 'ui/**'
-      - 'spec/**'
-      - 'fixtures/demo-scope/**'
+      - 'web/package.json'
+      - 'spec/package.json'
       - 'Dockerfile'
       - 'Caddyfile'
-      - 'package.json'
-      - 'package-lock.json'
 
 concurrency:
   group: deploy-web-${{ github.ref }}

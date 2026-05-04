@@ -83,19 +83,21 @@ The policy: **deploy only when something the site actually publishes changes**. 
 
 | Path | Reason |
 |---|---|
-| `web/**` | landing page source |
-| `ui/**` | Angular bundle served under `/demo/` |
-| `spec/**` | schemas served under `/spec/v0/` (canonical URL) |
-| `fixtures/demo-scope/**` | input to the demo dataset build |
-| `Dockerfile`, `Caddyfile` | deploy and server config |
-| `package.json`, `package-lock.json` (root) | deps installed by the Docker build |
+| `web/package.json` | bump of `@skill-map/web` |
+| `spec/package.json` | bump of `@skill-map/spec` (the site serves these schemas at `/spec/v0/`) |
+| `Dockerfile` | deploy recipe |
+| `Caddyfile` | server config |
 
-Changes outside that list (`src/`, `testkit/`, `e2e/`, `examples/`, `context/`, `.claude/`, root docs, etc.) do **not** trigger a deploy.
+Changes outside that list (everything in-flight under `web/`, `ui/`, `spec/`, `fixtures/`, `src/`, `testkit/`, `e2e/`, `examples/`, `context/`, etc.) do **not** trigger a deploy on merge to `main`. They ride along the next "chore: version packages" PR that consumes pending changesets and bumps `web/package.json` / `spec/package.json` — at that point the deploy fires once with the new version baked into the footer.
+
+### Why a narrow filter
+
+A broad filter (e.g. `web/**`) caused **two deploys per change**: one on the feature merge (with the old version still in the footer) and another when the bot's "chore: version packages" PR bumped `web/package.json`. Anchoring the filter to the bump file means each deploy corresponds to a released version, and the double-fire is gone.
 
 ### Accepted edge cases
 
-- In-flight changes to `spec/` that aren't a release still trigger a deploy. Deliberate: the site is the canonical URL for the schemas and must reflect the `main` branch.
-- CLI changes (`src/`) that may affect what `build-demo-dataset.js` emits do not trigger a deploy. We accept that the demo's `data.json` regenerates on the next legitimate deploy.
+- In-flight changes to landing, UI, schemas, fixtures, etc. are not visible at `skill-map.dev` until the next release. Use `npm run web:dev` locally to preview.
+- Changes to root `package.json` / `package-lock.json` do not trigger a deploy. If a new root-level dep changes the Docker build behavior, the next bump captures it (deps adjustments to a workspace come with a changeset that bumps that workspace, which falls under the filter).
 
 ### One-time manual setup
 
