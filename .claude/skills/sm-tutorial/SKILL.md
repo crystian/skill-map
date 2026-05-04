@@ -605,8 +605,77 @@ Tell the tester:
 > Confirmá / confirm. If a connector is missing, refresh the
 > browser and tell me.
 
-Once they confirm, ask them to stop the server with **Ctrl+C** in
-the terminal before continuing.
+Wait for confirmation. **Do NOT move on to Reveal 4** until the
+connectors are confirmed visible — Reveal 4 reuses the same live UI
+session.
+
+#### Reveal 4 — silence a private file via `.skillmapignore`
+
+The first three reveals showed the watcher picking up new files and
+edits. Reveal 4 flips the direction: a file the tester DOES NOT want
+in the graph (a draft, a scratch file, a secret) gets hidden by a
+single line in `.skillmapignore`. Same live mechanism — no restart.
+
+`sm init` already wrote a starter `.skillmapignore` at the scope
+root. The tester edits that file plus creates one new fixture node:
+
+1. Create (`Write`) `notes/private-credentials.md` — kind `note`,
+   simulates a file the tester would never want surfacing publicly:
+   ```markdown
+   ---
+   name: private-credentials
+   description: |
+     Personal API tokens — exists in the repo but should not show
+     up in the skill-map graph. Demonstrates the .skillmapignore
+     flow.
+   metadata:
+     version: "0.0.1"
+   ---
+
+   # Private
+
+   API_TOKEN: example-not-real
+   ```
+
+2. Confirm the file appears in the graph as a sixth node
+   (`notes/private-credentials`). The watcher sees it like any
+   other `.md` — that's the point of the demo.
+
+3. Edit (`Edit`) `.skillmapignore` and append a single new line at
+   the end:
+   ```
+   notes/private-*.md
+   ```
+   (Pattern syntax mirrors `.gitignore` — kaelzhang's `ignore`
+   under the hood. A literal path like `notes/private-credentials.md`
+   would also work; the glob teaches the broader habit.)
+
+4. Confirm the node disappears from the graph in the browser, no
+   refresh needed. Six nodes back to five.
+
+Tell the tester:
+
+> Última magia del demo: skill-map deja de seguir un archivo en el
+> momento en que matchea un patrón en `.skillmapignore`. Sin
+> reiniciar nada.
+>
+> Hacelo / do it:
+>
+> 1. Creá `notes/private-credentials.md` con el contenido que te
+>    paso → vas a ver un nodo nuevo aparecer en el grafo (la magia
+>    del watcher otra vez).
+> 2. Editá `.skillmapignore` y agregá al final una línea con
+>    `notes/private-*.md` → el nodo desaparece del grafo.
+>
+> Mismo watcher, dirección opuesta. Use this whenever you have
+> drafts, scratch files, or anything you don't want surfacing in
+> the map. The syntax is the same as `.gitignore` (globs,
+> negations with `!`, comments with `#`).
+>
+> ¿Lo viste desaparecer / did the node vanish?
+
+Wait for confirmation. Once they confirm, ask them to stop the
+server with **Ctrl+C** in the terminal before continuing.
 
 Mark `3-ui-live: done`.
 
