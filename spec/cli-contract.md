@@ -319,6 +319,7 @@ See `db-schema.md` for the table catalog.
 | `sm db backup [--out <path>]` | WAL checkpoint + file copy. |
 | `sm db restore <path> [-n / --dry-run]` | Swap the DB. Destructive. `--dry-run` validates the source file (existence, header, schema version) and reports what would be overwritten without touching the live DB. |
 | `sm db shell` | Interactive SQL shell (implementations backed by SQLite use `sqlite3`; others use equivalent). |
+| `sm db browser [<path>] [--rw]` | Open the DB in DB Browser for SQLite (`sqlitebrowser` GUI). Read-only by default (`-R`) so a concurrent `sm scan` writer is safe; pass `--rw` to enable writes. The `sqlitebrowser` binary MUST be on `PATH`. Non-destructive — no confirmation prompt. Detaches from the terminal so the shell stays usable. |
 | `sm db dump [--tables ...]` | SQL dump. |
 | `sm db migrate [--dry-run \| --status \| --to <n> \| --kernel-only \| --plugin <id> \| --no-backup]` | Migration controls. |
 

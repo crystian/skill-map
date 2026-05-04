@@ -10,7 +10,7 @@
  *   5  not-found
  */
 
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -354,6 +354,76 @@ export class DbShellCommand extends SmCommand {
       return ExitCode.Error;
     }
     return result.status ?? 0;
+  }
+}
+
+// --- browser --------------------------------------------------------------
+
+export class DbBrowserCommand extends SmCommand {
+  static override paths = [['db', 'browser']];
+  static override usage = Command.Usage({
+    category: 'Database',
+    description: 'Open the DB in DB Browser for SQLite (sqlitebrowser GUI).',
+    details: `
+      Default: read-only (-R), so a concurrent \`sm scan\` writer is safe.
+      Pass --rw to enable writes.
+
+      Resolution order for the DB path: positional arg > --db <path> >
+      -g/--global > project default (cwd/.skill-map/skill-map.db).
+
+      Spawns sqlitebrowser detached so the terminal stays usable. If
+      sqlitebrowser is not on PATH, a clear error points at the install
+      hint (Debian/Ubuntu: sudo apt install -y sqlitebrowser).
+    `,
+    examples: [
+      ['Open the project DB read-only', 'sm db browser'],
+      ['Open the project DB read-write', 'sm db browser --rw'],
+      ['Open an arbitrary DB file', 'sm db browser path/to/other.db'],
+    ],
+  });
+
+  // GUI launch: the spawned process is detached and unref'd; we exit
+  // immediately. No `done in <…>` line — the user expects to see the
+  // GUI window, not a follow-up trailer in the terminal.
+  protected override emitElapsed = false;
+
+  rw = Option.Boolean('--rw', false, {
+    description:
+      'Open in read-write mode. Default is read-only so a concurrent `sm scan` writer is safe.',
+  });
+  positional = Option.String({ required: false });
+
+  protected async run(): Promise<number> {
+    // Positional wins over `--db` / `-g/--global`; mirrors the legacy
+    // `scripts/open-sqlite-browser.js` precedence so the cutover is a
+    // pure rewire (no behaviour change for users).
+    const path = this.positional
+      ? resolve(this.positional)
+      : resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
+
+    if (!assertDbExists(path, this.context.stderr)) {
+      this.context.stderr.write(DB_TEXTS.browserRunScanFirstHint);
+      return ExitCode.NotFound;
+    }
+
+    // Sniff the binary before spawning so missing sqlitebrowser gives a
+    // clean install hint instead of a vague ENOENT trace.
+    const which = spawnSync('which', ['sqlitebrowser'], { stdio: 'ignore' });
+    if (which.status !== 0) {
+      this.context.stderr.write(DB_TEXTS.browserNotFound);
+      return ExitCode.Error;
+    }
+
+    const readOnly = !this.rw;
+    const args = readOnly ? ['-R', path] : [path];
+
+    this.context.stdout.write(
+      tx(readOnly ? DB_TEXTS.browserOpeningReadOnly : DB_TEXTS.browserOpeningReadWrite, { path }),
+    );
+
+    const child = spawn('sqlitebrowser', args, { detached: true, stdio: 'ignore' });
+    child.unref();
+    return ExitCode.Ok;
   }
 }
 
@@ -772,6 +842,7 @@ export const DB_COMMANDS = [
   DbRestoreCommand,
   DbResetCommand,
   DbShellCommand,
+  DbBrowserCommand,
   DbDumpCommand,
   DbMigrateCommand,
 ];

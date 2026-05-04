@@ -52,6 +52,12 @@ export const DB_TEXTS = {
   // --- shell (system sqlite3 binary required for the interactive REPL) ---
   shellSqlite3NotFound:
     'sqlite3 binary not found on PATH. Install it (macOS: brew install sqlite; Debian/Ubuntu: apt install sqlite3) or use `sm db dump` for read-only inspection.\n',
+  // --- browser (system sqlitebrowser GUI required) ---------------------
+  browserRunScanFirstHint: 'Run `sm scan` first (or `sm init`) to create the project DB.\n',
+  browserNotFound:
+    'sqlitebrowser not found on PATH. Install it (Debian/Ubuntu: sudo apt install -y sqlitebrowser; macOS: brew install --cask db-browser-for-sqlite).\n',
+  browserOpeningReadOnly: 'Opening {{path}} (read-only)\n',
+  browserOpeningReadWrite: 'Opening {{path}} (read-write)\n',
   // --- dump (pure node:sqlite, no external binary) ----------------------
   dumpInvalidTable:
     '--tables: refusing non-identifier name {{table}}. Table names must match [a-zA-Z_][a-zA-Z0-9_]*\n',

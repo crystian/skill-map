@@ -429,6 +429,45 @@ afterwards refreshes scan_*.
 - `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
 - `--db` `string` — Override the database file location (escape hatch).
 
+### `sm db browser`
+
+Open the DB in DB Browser for SQLite (sqlitebrowser GUI).
+
+Default: read-only (-R), so a concurrent `sm scan` writer is safe. Pass --rw to 
+enable writes.
+
+Resolution order for the DB path: positional arg > --db <path> > -g/--global > 
+project default (cwd/.skill-map/skill-map.db).
+
+Spawns sqlitebrowser detached so the terminal stays usable. If sqlitebrowser is 
+not on PATH, a clear error points at the install hint (Debian/Ubuntu: sudo apt 
+install -y sqlitebrowser).
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+- `--rw` `boolean` — Open in read-write mode. Default is read-only so a concurrent `sm scan` writer is safe.
+
+**Examples:**
+
+- Open the project DB read-only
+  ```
+  sm db browser
+  ```
+- Open the project DB read-write
+  ```
+  sm db browser --rw
+  ```
+- Open an arbitrary DB file
+  ```
+  sm db browser path/to/other.db
+  ```
+
 ### `sm db dump`
 
 SQL dump to stdout.
