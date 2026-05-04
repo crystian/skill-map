@@ -549,25 +549,20 @@ Create these four files (with `Write`), exactly in this order:
    wired into the rest of the fixture next.
    ```
 
-4. `notes/todo.md` (kind: note — has a **deliberately broken link**
-   that we exploit later in stage L4):
+4. `notes/todo.md` (kind: note):
    ```markdown
    ---
    name: Demo TODO list
    description: |
      Live list of things to review in the demo. Will become the
      hub between skill / agent / command / hook in the next
-     reveal. Contains a broken link on purpose for the broken-ref
-     stage later on.
+     reveal.
    tags: [notes, demo]
    metadata:
      version: "1.0.0"
    ---
 
    # Pending
-
-   - [ ] Document the [flow diagram](./missing-page.md) — broken
-         link on purpose, leave it.
    ```
 
 Tell the tester:
@@ -611,11 +606,9 @@ not rewrite the files):
    See [pending items](../../notes/todo.md) for operational
    context.
    ```
-5. **Edit `notes/todo.md`** — replace the existing single bullet
-   with these three (keep the broken-link bullet intact):
+5. **Edit `notes/todo.md`** — append these two bullets after the
+   `# Pending` heading:
    ```markdown
-   - [ ] Document the [flow diagram](./missing-page.md) — broken
-         link on purpose, leave it.
    - [ ] Polish the
          [demo-skill](../.claude/skills/demo-skill/SKILL.md)
          prompt.
@@ -634,13 +627,6 @@ Tell the tester:
 > - `demo-command → demo-skill`
 > - `demo-hook → notes/todo`
 > - `notes/todo → demo-skill`, `notes/todo → demo-hook`
->
-> The intentional broken link inside `notes/todo` (pointing at the
-> non-existent `missing-page.md`) does **not** show up as a
-> connector in the graph — it surfaces as a `broken-ref` **issue**
-> on the `notes/todo` node (look for a warning marker on the node
-> or open it in the inspector). We'll explore that issue properly
-> in stage L4 if you continue with the deeper part.
 >
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
@@ -786,7 +772,8 @@ process trying to bind the same port and confusing the tester.
 >
 > Expected: the `demo-skill → demo-agent` connector disappears. If
 > `demo-agent.md` ends up with no one linking to it, it shows up as
-> an orphan (we'll exploit this in stage L4).
+> an orphan (we'll create a similar dangling situation in stage L4
+> to see how `sm check` flags it).
 
 You verify by reading `.claude/skills/demo-skill/SKILL.md` to confirm
 the change was applied. Once they confirm, ask them to **Ctrl+C**
@@ -803,8 +790,9 @@ sm check
 ```
 
 Expected: you see the 5 fixture nodes listed with their kind;
-`check` reports the broken-link issue in `notes/todo.md` pointing
-at `missing-page.md`.
+`check` runs the deterministic rules and reports a clean fixture
+(no issues at this point — we will plant one in stage L4 and watch
+the rule catch it).
 
 ### Stage L3 — ASCII: graph + export (~3 min)
 
@@ -821,10 +809,18 @@ or json.
 
 ### Stage L4 — Issues: broken refs (~3 min)
 
-The fixture has a deliberate broken link in `notes/todo.md`
-pointing at `notes/missing-page.md`. skill-map flags it as a
-**`broken-ref` issue** (not a graph connector, not an "orphan" —
-those are different concepts).
+`broken-ref` is one of the deterministic rules `sm check` runs.
+We'll plant one and watch it surface — that's the easiest way to
+internalise that it is an **issue** on a node, NOT a graph
+connector and NOT the same thing as an "orphan".
+
+Ask the tester to **append one bullet** to `notes/todo.md`:
+
+```markdown
+- [ ] Document the [flow diagram](./missing-page.md).
+```
+
+`./missing-page.md` deliberately doesn't exist. Save the file.
 
 ```bash
 sm check
@@ -835,7 +831,9 @@ sm check --json
 Expected: the warning surfaces the dangling link from
 `notes/todo.md` to the non-existent `missing-page.md`. The
 `--rules` filter lets you focus on a single issue type; `--json`
-emits the structured payload (useful for CI / scripting).
+emits the structured payload (useful for CI / scripting). When
+done, the tester can leave the bullet in place or delete it — the
+rest of the deep-dive doesn't depend on it.
 
 > **Heads up about scope** (mention only if the tester asks):
 >
