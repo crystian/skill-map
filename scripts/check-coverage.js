@@ -13,10 +13,13 @@
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { resolve, relative, sep } from 'node:path';
+import { dirname, resolve, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const SCHEMAS_ROOT = resolve('spec/schemas');
-const COVERAGE_FILE = resolve('spec/conformance/coverage.md');
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, '..');
+const SCHEMAS_ROOT = resolve(REPO_ROOT, 'spec/schemas');
+const COVERAGE_FILE = resolve(REPO_ROOT, 'spec/conformance/coverage.md');
 
 function die(msg) {
   process.stderr.write(`check-coverage: ${msg}\n`);

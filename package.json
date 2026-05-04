@@ -38,8 +38,7 @@
     "release:publish": "changeset publish"
   },
   "devDependencies": {
-    "@changesets/cli": "2.31.0",
-    "source-map-explorer": "2.5.3"
+    "@changesets/cli": "2.31.0"
   },
   "engines": {
     "node": ">=24.0"

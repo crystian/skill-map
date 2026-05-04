@@ -177,7 +177,7 @@
       "conformance/README.md": "5f94a6ac637b7c992fcd7e53d32eed1b8887eeef05eb6ca3b5ec8a0b5045cd21",
       "conformance/cases/kernel-empty-boot.json": "ad4bbe9d637537625025c8bdb61285b1433568a2544b1ce0248f304ccff8c350",
       "conformance/cases/plugin-missing-ui-rejected.json": "c6ce8f62a430d662aea33dec8ebf6493be6455037be3114e0d93d0eb57777287",
-      "conformance/coverage.md": "35bac01af3a922ce580deb1f83fc890c668d3d3cf93747f5097340a09303eb43",
+      "conformance/coverage.md": "04e6ad87e135631d1dc1684b16f79201cdc55eb5a0f30c71f17c6e13a470d87c",
       "conformance/fixtures/plugin-missing-ui/.skill-map/plugins/bad-provider/plugin.json": "4d78af6f12faa9d131e2a19f1dbb8f250baacc525978f3a8c858932b95da4ff6",
       "conformance/fixtures/plugin-missing-ui/.skill-map/plugins/bad-provider/provider.js": "da40b134d70f8bc8175cfa9c380ecb55d26b2240c8b467f22f3fcfab750c8747",
       "conformance/fixtures/plugin-missing-ui/notes/example.md": "55767f0aa1b6774546a99f28c58e7b732aa9cfa5dfce8d0326470f7f622f577e",
