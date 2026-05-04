@@ -30,7 +30,6 @@ import { LinkedNodesPanel } from '../../components/linked-nodes-panel/linked-nod
 import type {
   IFrontmatterAgent,
   IFrontmatterCommand,
-  IFrontmatterHook,
   IFrontmatterSkill,
   TNodeKind,
   INodeView,
@@ -93,9 +92,6 @@ export class InspectorView implements OnInit {
   );
   readonly asCommand = computed<IFrontmatterCommand | null>(() =>
     this.node()?.kind === 'command' ? (this.node()!.frontmatter as IFrontmatterCommand) : null,
-  );
-  readonly asHook = computed<IFrontmatterHook | null>(() =>
-    this.node()?.kind === 'hook' ? (this.node()!.frontmatter as IFrontmatterHook) : null,
   );
   readonly asSkill = computed<IFrontmatterSkill | null>(() =>
     this.node()?.kind === 'skill' ? (this.node()!.frontmatter as IFrontmatterSkill) : null,

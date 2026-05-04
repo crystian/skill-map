@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://skill-map.dev/providers/claude/v1/frontmatter/skill-base.schema.json",
+  "title": "FrontmatterSkillBase",
+  "description": "Shared frontmatter base for `skill` and `command` nodes per Anthropic's documented merger (https://code.claude.com/docs/en/skills.md — \"Custom commands have been merged into skills\"). Both kinds carry the same vendor frontmatter today; skill-map keeps them as distinct `IProviderKind`s in the registry (different UI presentation, different `defaultRefreshAction`) but extends the same base via `allOf` + `$ref` so the field catalog is single-sourced. Field naming is reproduced verbatim from Anthropic — a deliberate mix of kebab-case (`argument-hint`, `disable-model-invocation`, `user-invocable`, `allowed-tools`), snake_case (`when_to_use`), and camelCase. `additionalProperties: true` so future Anthropic additions flow through unchanged until this schema catches up.",
+  "allOf": [
+    { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
+  ],
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "when_to_use": {
+      "type": "string",
+      "description": "When the host SHOULD activate this skill / command. Appended to `description` for autocomplete; counts toward the 1,536-character description cap."
+    },
+    "argument-hint": {
+      "type": "string",
+      "description": "Autocomplete hint shown when the user types a leading `/`, e.g. `[issue-number]`."
+    },
+    "arguments": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "Named positional arguments for `$name` substitution in the skill body. String form for one argument, array for several."
+    },
+    "disable-model-invocation": {
+      "type": "boolean",
+      "description": "When true, the model cannot invoke this skill autonomously — only the user can trigger it via the `/` menu."
+    },
+    "user-invocable": {
+      "type": "boolean",
+      "description": "When false, this skill is hidden from the user's `/` menu (still invocable by the model unless `disable-model-invocation` is also set)."
+    },
+    "allowed-tools": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "Tools pre-approved for this skill (no per-use permission prompt). Argument-scoped patterns supported (`Bash(git add *)`)."
+    },
+    "model": {
+      "type": "string",
+      "description": "Model alias (`sonnet`, `opus`, `haiku`), full Claude id, or the literal `inherit` to defer to the parent session's model."
+    },
+    "effort": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "xhigh", "max"],
+      "description": "Effort budget for reasoning. Higher levels allocate more thinking time."
+    },
+    "context": {
+      "type": "string",
+      "enum": ["fork"],
+      "description": "Execution context. `fork` is the only documented value today (runs the skill in a subagent so the main session's context is preserved)."
+    },
+    "agent": {
+      "type": "string",
+      "description": "Subagent type when `context: fork`. Built-ins include `Explore`, `Plan`, `general-purpose`; custom agent types resolve against the host's agent registry."
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Lifecycle hooks declared inline on this skill / command. Shape is platform-defined; preserved as an opaque object. `once: true` is honored ONLY here (not at the agent level). Note: Anthropic's `hooks` is NOT a separate node kind — it lives here, as a sub-object of skill frontmatter, or in `settings.json` (see https://code.claude.com/docs/en/hooks.md)."
+    },
+    "paths": {
+      "oneOf": [
+        { "type": "string" },
+        { "type": "array", "items": { "type": "string" } }
+      ],
+      "description": "Glob patterns limiting auto-activation. The skill auto-activates only when the user is editing files matching one of these globs."
+    },
+    "shell": {
+      "type": "string",
+      "enum": ["bash", "powershell"],
+      "description": "Shell flavor for any embedded shell snippets. Default: `bash`."
+    }
+  }
+}

@@ -1,7 +1,7 @@
 {
   "$schema": "https://skill-map.dev/spec/v0/conformance-case.schema.json",
   "id": "basic-scan",
-  "description": "Scanning the minimal-claude fixture detects exactly five nodes, one per kind, with no issues.",
+  "description": "Scanning the minimal-claude fixture detects exactly four nodes, one per kind (agent, command, skill, note), with no issues. Step 9.5 dropped the hook kind (Anthropic does not define `.claude/hooks/*.md` as a node type — hooks live in settings.json or as sub-objects of agent / skill frontmatter, see https://code.claude.com/docs/en/hooks.md).",
   "fixture": "minimal-claude",
   "invoke": {
     "verb": "scan",
@@ -10,8 +10,8 @@
   "assertions": [
     { "type": "exit-code", "value": 0 },
     { "type": "json-path", "path": "$.schemaVersion", "equals": 1 },
-    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 5 },
+    { "type": "json-path", "path": "$.stats.nodesCount", "equals": 4 },
     { "type": "json-path", "path": "$.stats.issuesCount", "equals": 0 },
-    { "type": "json-path", "path": "$.nodes.length", "equals": 5 }
+    { "type": "json-path", "path": "$.nodes.length", "equals": 4 }
   ]
 }

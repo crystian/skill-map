@@ -2,16 +2,78 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/providers/claude/v1/frontmatter/agent.schema.json",
   "title": "FrontmatterAgent",
-  "description": "Frontmatter shape for nodes classified as `agent` by the Claude Provider. Extends the spec's universal `frontmatter/base.schema.json` via $ref-by-$id. Kind-specific field: `model`. The `tools` and `allowedTools` fields live on the spec base and apply here unchanged. Color, when needed, lives in `metadata.color` (inherited from base). Owned by the Claude Provider; relocated from `spec/schemas/frontmatter/` in spec 0.8.0 (Phase 3 of plug-in model overhaul).",
+  "description": "Frontmatter shape for nodes classified as `agent` by the Claude Provider. Mirrors Anthropic's documented agent frontmatter verbatim (https://code.claude.com/docs/en/agents.md): `name` and `description` come from the spec base; this schema adds the 14 vendor-specific fields. skill-map AGGREGATES the vendor spec, it does not curate it — keys are reproduced exactly as Anthropic publishes them (mix of camelCase and snake_case). `additionalProperties: true` so future Anthropic additions flow through unchanged until this schema catches up.",
   "allOf": [
     { "$ref": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json" }
   ],
   "type": "object",
   "additionalProperties": true,
   "properties": {
+    "tools": {
+      "type": "array",
+      "description": "Allowlist of tools this agent is permitted to invoke. Argument-scoped patterns supported (e.g. `Bash(git add *)`). Free-form strings — token vocabulary is platform-specific.",
+      "items": { "type": "string" }
+    },
+    "disallowedTools": {
+      "type": "array",
+      "description": "Denylist of tools this agent MUST NOT invoke. Free-form strings — token vocabulary is platform-specific.",
+      "items": { "type": "string" }
+    },
     "model": {
       "type": "string",
-      "description": "Model identifier for this agent (e.g. `sonnet`, `opus`, `haiku`, or a full `claude-*` id). Free-form string; Providers MAY validate against a platform-specific enum."
+      "description": "Model alias (`sonnet`, `opus`, `haiku`), full Claude id (e.g. `claude-3-7-sonnet-latest`), or the literal `inherit` to defer to the parent session's model."
+    },
+    "permissionMode": {
+      "type": "string",
+      "enum": ["default", "acceptEdits", "auto", "dontAsk", "bypassPermissions", "plan"],
+      "description": "How the agent handles permission prompts. See https://code.claude.com/docs/en/agents.md."
+    },
+    "maxTurns": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Hard cap on agentic turns this agent may take in one invocation."
+    },
+    "skills": {
+      "type": "array",
+      "description": "Skills preloaded into this agent's context. Identifiers reference skill nodes available to the host.",
+      "items": { "type": "string" }
+    },
+    "mcpServers": {
+      "type": "array",
+      "description": "MCP servers this agent connects to at startup. Shape is platform-defined; preserved as opaque objects.",
+      "items": { "type": "object" }
+    },
+    "hooks": {
+      "type": "object",
+      "description": "Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`, etc.) declared inline on the agent. Shape is platform-defined; preserved as an opaque object. Note: Anthropic's `hooks` is NOT a separate node kind — it lives here, as a sub-object of agent frontmatter, or in `settings.json` (see https://code.claude.com/docs/en/hooks.md)."
+    },
+    "memory": {
+      "type": "string",
+      "enum": ["user", "project", "local"],
+      "description": "Memory scope this agent reads from and writes to."
+    },
+    "background": {
+      "type": "boolean",
+      "description": "When true, the agent runs as a background task (no foreground UI presence)."
+    },
+    "effort": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "xhigh", "max"],
+      "description": "Effort budget for reasoning. Higher levels allocate more thinking time."
+    },
+    "isolation": {
+      "type": "string",
+      "enum": ["worktree"],
+      "description": "Isolation strategy. `worktree` is the only documented value today (runs the agent in a separate git worktree)."
+    },
+    "color": {
+      "type": "string",
+      "enum": ["red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan"],
+      "description": "Display color for this agent in the host UI."
+    },
+    "initialPrompt": {
+      "type": "string",
+      "description": "Auto-submitted first turn — Anthropic dispatches this as if the user had typed it on agent activation."
     }
   }
 }

@@ -33,7 +33,6 @@ before(() => {
     '.claude/commands/deploy.md',
     ['---', 'name: deploy', '---', '/deploy body'].join('\n'),
   );
-  write('.claude/hooks/pre-commit.md', '# no frontmatter');
   write(
     '.claude/skills/code-review/SKILL.md',
     ['---', 'name: code-review', '---', 'Skill body.'].join('\n'),
@@ -57,7 +56,6 @@ describe('claude provider', () => {
     deepStrictEqual(collected, [
       '.claude/agents/backend.md',
       '.claude/commands/deploy.md',
-      '.claude/hooks/pre-commit.md',
       '.claude/skills/code-review/SKILL.md',
       'notes/readme.md',
     ]);
@@ -77,20 +75,23 @@ describe('claude provider', () => {
   it('classifies paths by convention', () => {
     strictEqual(claudeProvider.classify('.claude/agents/x.md', {}), 'agent');
     strictEqual(claudeProvider.classify('.claude/commands/y.md', {}), 'command');
-    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'hook');
+    // `.claude/hooks/*.md` is NOT an Anthropic convention (Step 9.5); it
+    // falls through to `note` via the Provider's fallback.
+    strictEqual(claudeProvider.classify('.claude/hooks/z.md', {}), 'note');
     strictEqual(claudeProvider.classify('.claude/skills/n/SKILL.md', {}), 'skill');
     strictEqual(claudeProvider.classify('notes/readme.md', {}), 'note');
     strictEqual(claudeProvider.classify('random.md', {}), 'note');
   });
 
   it('handles files with no frontmatter', async () => {
+    // Use a node that has no frontmatter — `notes/readme.md` is plain prose.
     for await (const n of claudeProvider.walk([root])) {
-      if (n.path !== '.claude/hooks/pre-commit.md') continue;
+      if (n.path !== 'notes/readme.md') continue;
       deepStrictEqual(n.frontmatter, {});
-      strictEqual(n.body, '# no frontmatter');
+      strictEqual(n.body, 'Plain note.');
       return;
     }
-    ok(false, 'pre-commit.md not found');
+    ok(false, 'notes/readme.md not found');
   });
 
   it('declares an explorationDir', () => {
@@ -104,7 +105,7 @@ describe('claude provider', () => {
   it('every kind it classifies into resolves a per-kind schema via provider.kinds', async () => {
     const { buildProviderFrontmatterValidator } = await import('../../../kernel/adapters/schema-validators.js');
     const validator = buildProviderFrontmatterValidator([claudeProvider]);
-    const kinds = ['skill', 'agent', 'command', 'hook', 'note'] as const;
+    const kinds = ['skill', 'agent', 'command', 'note'] as const;
     for (const kind of kinds) {
       const entry = claudeProvider.kinds[kind];
       ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);
@@ -124,7 +125,7 @@ describe('claude provider', () => {
   // a contract guard, not a value assertion (specific colors / labels
   // can drift across releases).
   it('every kind declares ui presentation (label + color, optional dark + emoji + icon)', () => {
-    const kinds = ['skill', 'agent', 'command', 'hook', 'note'] as const;
+    const kinds = ['skill', 'agent', 'command', 'note'] as const;
     for (const kind of kinds) {
       const entry = claudeProvider.kinds[kind];
       ok(entry, `claude provider must declare a catalog entry for kind ${kind}`);

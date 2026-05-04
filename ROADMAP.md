@@ -891,48 +891,42 @@ All probabilistic reports (summarizers, LLM verbs) extend `report-base.schema.js
 
 ## Frontmatter standard
 
+Skill-map AGGREGATES vendor specs, it does not curate them. The base schema declares only what every node, on every Provider, MUST carry to participate in the graph. Vendor-specific fields (Anthropic Claude Code, Cursor, Continue, …) live in the Provider that emits the kind. A Provider's per-kind schema is a verbatim mirror of the vendor's documented frontmatter — skill-map does not pick a subset, does not rename fields, does not re-shape values. When the vendor evolves their schema, the Provider's mirror evolves with it; drift detection vs upstream docs is a deferred follow-up.
 
-All fields optional except `name`, `description`, `metadata`, and `metadata.version`. Spec artifact: `spec/schemas/frontmatter/base.schema.json` (universal). Per-kind shapes ship with the Provider that declares each kind — the Claude Provider declares `skill` / `agent` / `command` / `hook` / `note`, ships the corresponding `*.schema.json` files under its own `schemas/` folder, and references them via the `kinds` map in its manifest. A different Provider (Cursor, Cline, custom runner) brings its own kind catalog and its own schemas; the kernel does not opine on the kind list.
+Cross-vendor research (Cursor, Continue, Aider, Copilot, Windsurf, Cline, Roo, Anthropic Claude Code, 2026-05) confirmed `description` is the only field universal across the indexable ecosystems; `name` is universal among formats with explicit identifiers (some vendors use the filename as identity, not a frontmatter field). All other fields — `tools`, `model`, `globs`, etc. — are vendor idiosyncrasy.
+
+Spec artifact: `spec/schemas/frontmatter/base.schema.json`. Per-kind schemas ship with the Provider that declares each kind — the Claude Provider declares `skill` / `agent` / `command` / `note`, ships the corresponding `*.schema.json` files under its own `schemas/` folder, and references them via the `kinds` map in its manifest. A different Provider (Cursor, Cline, custom runner) brings its own kind catalog and its own schemas; the kernel does not opine on the kind list.
 
 ### Base (universal — lives in spec)
 
-**Identity**: `name`, `description`, `type`.
+**Two fields, both required**:
 
-**Authorship**: `author`, `authors[]`, `license` (SPDX), `metadata.github`, `metadata.homepage`, `metadata.linkedin`, `metadata.twitter`.
+- `name` — short human-readable identifier (`string`, `minLength: 1`).
+- `description` — one-to-three-sentence description (`string`, `minLength: 1`).
 
-**Versioning**: `metadata.version` (semver), `metadata.specCompat` (semver range), `metadata.stability` (`experimental` | `stable` | `deprecated`), `metadata.supersedes[]`, `metadata.supersededBy`.
+The base declares `additionalProperties: true` so vendor-specific fields and skill-map annotation fields flow through validation silently — formal validation of those happens in the per-kind extension (vendor fields) or in a future skill-map annotation schema (annotation fields, see §Skill-map annotation fields below).
 
-**Provenance**: `metadata.source` (URL to canonical origin, e.g., GitHub blob), `metadata.sourceVersion` (tag or SHA; branch name allowed but dynamically resolved).
-
-**Taxonomy**: `metadata.tags[]`, `metadata.category`, `metadata.keywords[]`.
-
-**Lifecycle**: `metadata.created`, `metadata.updated`, `metadata.released` (ISO 8601).
-
-**Integration**: `metadata.requires[]`, `metadata.conflictsWith[]`, `metadata.provides[]`, `metadata.related[]`.
-
-**Tooling** (decision #55, top-level on purpose — mirrors Claude Code's own frontmatter shape):
-- `tools[]` — **allowlist**. If present, the host MUST restrict the node to exactly these tools. Matches the Claude Code subagent `tools` frontmatter. Agents use it to lock down the spawned subagent; other kinds use it as a declarative hint.
-- `allowedTools[]` — **pre-approval**. Tools the host MAY use without per-use permission prompts while this node is active. Every other tool remains callable under normal permission rules. Matches the Claude Code skill `allowed-tools` frontmatter. Accepts argument-scoped patterns where the host supports them (`Bash(git add *)`).
-
-**Display**: `metadata.icon`, `metadata.color`, `metadata.priority`, `metadata.hidden`.
-
-**Documentation**: `metadata.docsUrl`, `metadata.readme`, `metadata.examplesUrl`.
+This is intentionally minimal. Earlier versions of the base carried a richer field set (`type`, `author`, `authors`, `license`, `tools`, `allowedTools`, `metadata.{version, stability, supersedes, …}`); Step 9.5 (2026-05) trimmed it after the cross-vendor research showed those fields were either Claude-specific (`tools`, `allowedTools`) or skill-map-invented (`metadata.*`) — neither is universal, neither belongs in the universal base. Decision #55 (which justified `tools`/`allowedTools` at base "to mirror Claude Code's frontmatter shape") is superseded by the absorb-verbatim principle.
 
 ### Kind-specific (lives in the Provider that declares the kind)
 
-The Claude Provider's catalog:
+The Claude Provider's catalog mirrors Anthropic's official docs verbatim. Per-kind schema files extend `base.schema.json` via `allOf` + `$ref`; all declare `additionalProperties: true` so future Anthropic additions do not break consumers.
 
-| Kind | Extra fields |
-|---|---|
-| `skill` | `inputs`, `outputs` (optional structured) |
-| `agent` | `model` |
-| `command` | `args[]` (name, type, required), `shortcut` |
-| `hook` | `event`, `condition`, `blocking: boolean`, `idempotent: boolean` |
-| `note` | (no extras) |
+| Kind | Schema file | Anthropic source | Fields beyond `name`+`description` |
+|---|---|---|---|
+| `agent` | `claude/schemas/agent.schema.json` | https://code.claude.com/docs/en/agents.md | 14 fields: `tools[]`, `disallowedTools[]`, `model`, `permissionMode` (enum), `maxTurns`, `skills[]`, `mcpServers[]`, `hooks` (object), `memory` (enum: `user` \| `project` \| `local`), `background`, `effort` (enum: `low` \| `medium` \| `high` \| `xhigh` \| `max`), `isolation` (enum: `worktree`), `color` (enum of 8), `initialPrompt`. |
+| `skill` | `claude/schemas/skill.schema.json` | https://code.claude.com/docs/en/skills.md | Thin `allOf` extension of `skill-base.schema.json`. No skill-only fields today. |
+| `command` | `claude/schemas/command.schema.json` | https://code.claude.com/docs/en/skills.md | Thin `allOf` extension of `skill-base.schema.json`. Per Anthropic: "custom commands have been merged into skills" — the frontmatter is identical. The schemas are split (rather than aliased) because skill-map differentiates the two kinds in `IProviderKind.ui` (color, icon, label) and may diverge them on the schema side as Anthropic evolves. No command-only fields today. |
+| (`skill-base`) | `claude/schemas/skill-base.schema.json` | https://code.claude.com/docs/en/skills.md | NOT a kind — shared base for `skill` and `command`. 13 fields: `when_to_use`, `argument-hint`, `arguments` (`string` \| `string[]`), `disable-model-invocation`, `user-invocable`, `allowed-tools` (`string` \| `string[]`), `model`, `effort`, `context` (enum: `fork`), `agent`, `hooks`, `paths` (`string` \| `string[]`), `shell` (enum: `bash` \| `powershell`). |
+| `note` | `claude/schemas/note.schema.json` | (skill-map fallback) | No extra fields. Catches any markdown that doesn't match a more specific Claude path. |
 
-`tools[]` and `allowedTools[]` live on `base` (see §Tooling above) and therefore apply to every kind. They are not repeated in the kind-specific list.
+**Hook kind dropped** in Step 9.5. `.claude/hooks/*.md` is not a Claude Code convention — Anthropic hooks live in `settings.json` or as sub-objects of agent/skill frontmatter (https://code.claude.com/docs/en/hooks.md), never as standalone markdown files. The previous `hook` kind (with skill-map-invented fields `event`, `condition`, `blocking`, `idempotent`) was a fiction; files at `.claude/hooks/*.md` now classify as `note` (the fallback).
 
 A future Cursor / Cline / custom Provider declares its own kinds and ships the matching schemas. The kernel calls `provider.kinds[<kind>].schema` during Phase 1.2 (Parse) of the scan after validating universal fields against `base`.
+
+### Provider auxiliary schemas
+
+Step 9.5 introduced an optional runtime-only field on `IProvider`: `schemas?: unknown[]`. It lets a Provider declare schemas that are not themselves a per-kind schema but are referenced via `$ref` from per-kind schemas. The Claude Provider uses it to ship `skill-base.schema.json` (referenced by both `skill.schema.json` and `command.schema.json`). The kernel pre-registers these auxiliary schemas with AJV before compiling per-kind validators so cross-file `$ref` resolves cleanly. The field is implementation-only (TypeScript-side); the public manifest schema (`provider.schema.json`) is unchanged.
 
 ### Validation — three-tier model
 
@@ -944,11 +938,15 @@ The kernel validates frontmatter on a graduated dial; tighter is opt-in.
 | **1 — Built-in `unknown-field` rule** | Deterministic Rule shipped with the kernel | Emits issue severity `warning` for every key outside the documented catalog (base + the matched kind's schema). Always active. |
 | **2 — Strict mode** | `project-config.json` with `"strict": true` (already in `project-config.schema.json`); also via `--strict` flag on `sm scan` / `sm check` | Promotes **all** frontmatter warnings to `error`. CI fails with exit code 1. |
 
-The model is documented explicitly in `spec/plugin-author-guide.md` after the relocation. No "schema-extender" plugin kind exists; users who want custom validation write a deterministic Rule, and `--strict` makes it CI-blocking automatically.
+The model is documented explicitly in `spec/plugin-author-guide.md`. No "schema-extender" plugin kind exists; users who want custom validation write a deterministic Rule, and `--strict` makes it CI-blocking automatically.
 
 ### DB denormalization
 
-High-query fields stored as columns on `scan_nodes`: `stability`, `version`, `author`. Everything else lives in `frontmatter_json`. Provider-declared kinds map to whatever columns the Provider migrates into the kernel-owned schema; today the Claude Provider's kinds are baked into the kernel's `nodes` table — when other Providers join, the column set is reviewed for either widening or moving kind-specific fields out of denormalized columns.
+High-query fields stored as columns on `scan_nodes`: `stability`, `version`, `author`. These are read from `frontmatter.metadata.{stability, version, author}` when present — note that since Step 9.5 the `metadata` block is no longer formally declared in the base schema; it rides on `additionalProperties: true`. The denormalization layer accepts this transitional shape (the data still flows through fine) until the deferred annotation-home decision lands. Everything else lives in `frontmatter_json`. Provider-declared kinds map to whatever columns the Provider migrates into the kernel-owned schema; today the Claude Provider's kinds are baked into the kernel's `nodes` table — when other Providers join, the column set is reviewed for either widening or moving kind-specific fields out of denormalized columns.
+
+### Skill-map annotation fields — pending home
+
+Today's `metadata.{version, stability, supersedes, requires, conflictsWith, provides, related, tags, category, keywords, created, updated, released, source, sourceVersion, icon, color, priority, hidden, docsUrl, readme, examplesUrl, github, homepage, linkedin, twitter}` plus `type`, `author`, `authors`, `license` are NOT vendor-defined — they are skill-map's own annotation layer (or general markdown convention). Their final formal home is a deferred decision (see ROADMAP §Step 9.5 deferred section): sidecar files under `.skill-map/annotations/<full-path>.yml` (preferred direction, pending mastication) vs an in-frontmatter `skillMap: {}` block. Until the decision lands, those fields ride on `additionalProperties: true` and the kernel reads them best-effort from `frontmatter.*` for denormalization. The auto-memory file `memory/project_spec_base_cleanup_deferred.md` carries the full orphan list as a recovery point.
 
 ---
 

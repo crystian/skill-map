@@ -243,6 +243,8 @@ export function buildProviderFrontmatterValidator(
   const baseSchema = JSON.parse(readFileSync(baseFile, 'utf8'));
   ajv.addSchema(baseSchema);
 
+  registerProviderAuxiliarySchemas(ajv, providers);
+
   const compiled = new Map<string, ValidateFunction>();
   for (const provider of providers) {
     for (const [kind, entry] of Object.entries(provider.kinds)) {
@@ -270,6 +272,25 @@ export function buildProviderFrontmatterValidator(
 function formatError(err: { instancePath: string; message?: string; keyword: string; params?: unknown }): string {
   const path = err.instancePath || '(root)';
   return `${path} ${err.message ?? err.keyword}`;
+}
+
+/**
+ * Register every Provider's auxiliary schemas (if any) on the AJV instance
+ * BEFORE compiling per-kind schemas. Use case: Anthropic's merged
+ * skill / command frontmatter — both kinds extend a shared
+ * `skill-base.schema.json` declared as an auxiliary on the Provider, and
+ * AJV resolves the cross-file `$ref` only after `addSchema` has registered
+ * the auxiliary's `$id`.
+ */
+function registerProviderAuxiliarySchemas(ajv: TAjv, providers: IProvider[]): void {
+  for (const provider of providers) {
+    if (!provider.schemas) continue;
+    for (const aux of provider.schemas) {
+      const auxJson = aux as { $id?: string };
+      if (typeof auxJson.$id === 'string' && ajv.getSchema(auxJson.$id)) continue;
+      ajv.addSchema(aux as object);
+    }
+  }
 }
 
 /**

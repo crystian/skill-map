@@ -199,30 +199,6 @@
             </div>
           }
         }
-        @if (summaryHook(); as sh) {
-          @if (showLlmWhat) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.what.tooltip">{{ texts.llm.what.label }}</span>
-              <span>{{ sh.whatItDoes }}</span>
-            </div>
-          }
-          @if (sh.triggerInferred) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.trigger.tooltip">{{ texts.llm.trigger.label }}</span>
-              <span>{{ sh.triggerInferred }}</span>
-            </div>
-          }
-          @if (sh.sideEffects?.length) {
-            <div class="sm-gnode__llm-line">
-              <span class="sm-gnode__llm-label" [pTooltip]="texts.llm.fx.tooltip">{{ texts.llm.fx.label }}</span>
-              <div class="sm-gnode__chips">
-                @for (fx of sh.sideEffects; track fx) {
-                  <span class="sm-gnode__chip sm-gnode__chip--llm">{{ fx }}</span>
-                }
-              </div>
-            </div>
-          }
-        }
       </div>
     }
 
@@ -298,36 +274,6 @@
         </div>
       }
     }
-    @if (fmHook(); as fh) {
-      <div class="sm-gnode__meta">
-        @if (fh.event) {
-          <div class="sm-gnode__meta-row">
-            <span class="sm-gnode__meta-label">{{ texts.meta.event }}</span>
-            <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fh.event }}</span>
-          </div>
-        }
-        @if (fh.condition) {
-          <div class="sm-gnode__meta-row">
-            <span class="sm-gnode__meta-label">{{ texts.meta.cond }}</span>
-            <span class="sm-gnode__meta-value sm-gnode__meta-value--mono">{{ fh.condition }}</span>
-          </div>
-        }
-        @if (fh.blocking || fh.idempotent) {
-          <div class="sm-gnode__meta-row">
-            <span class="sm-gnode__meta-label">{{ texts.meta.flags }}</span>
-            <div class="sm-gnode__chips">
-              @if (fh.blocking) {
-                <span class="sm-gnode__chip" [pTooltip]="texts.meta.blocking.tooltip">{{ texts.meta.blocking.label }}</span>
-              }
-              @if (fh.idempotent) {
-                <span class="sm-gnode__chip" [pTooltip]="texts.meta.idempotent.tooltip">{{ texts.meta.idempotent.label }}</span>
-              }
-            </div>
-          </div>
-        }
-      </div>
-    }
-
     @if (visibleIssues().length) {
       <div class="sm-gnode__issues-block">
         @for (iss of visibleIssues(); track iss.ruleId + iss.message) {

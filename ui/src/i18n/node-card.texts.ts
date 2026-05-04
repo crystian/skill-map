@@ -19,12 +19,10 @@ export const NODE_CARD_TEXTS = {
     pre: { label: 'pre', tooltip: 'Preconditions (LLM-inferred)' },
     /** Skill-only: `summary.outputs[]` (LLM-inferred, distinct from frontmatter outputs) */
     out: { label: 'out', tooltip: 'Outputs / produced artifacts (LLM-inferred)' },
-    /** Skill / command / hook: `summary.sideEffects[]` */
+    /** Skill / command: `summary.sideEffects[]` */
     fx: { label: 'fx', tooltip: 'Side effects (LLM-inferred)' },
     /** Command-only: `summary.invocationExample` */
     eg: { label: 'eg', tooltip: 'Invocation example (LLM-inferred)' },
-    /** Hook-only: `summary.triggerInferred` */
-    trigger: { label: 'trigger', tooltip: 'Inferred trigger (LLM-inferred from body)' },
     /** Note-only: `summary.topics[]` */
     topics: { label: 'topics', tooltip: 'Topics covered (LLM-inferred)' },
     /** Note-only: `summary.keyFacts[]` */
@@ -36,11 +34,6 @@ export const NODE_CARD_TEXTS = {
     outputs: 'outputs',
     args: 'args',
     shortcut: 'shortcut',
-    event: 'event',
-    cond: 'cond',
-    flags: 'flags',
-    blocking: { label: 'blocking', tooltip: 'blocking: host waits for hook to finish before proceeding' },
-    idempotent: { label: 'idempotent', tooltip: 'idempotent: safe to run multiple times with the same input' },
     allowed: 'allowed',
     tools: 'tools',
     tags: 'tags',

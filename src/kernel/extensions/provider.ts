@@ -173,6 +173,24 @@ export interface IProvider extends IExtensionBase {
   kinds: Record<string, IProviderKind>;
 
   /**
+   * Optional auxiliary JSON Schemas this Provider's per-kind schemas
+   * `$ref` by `$id`. Registered with AJV via `addSchema` BEFORE the
+   * per-kind schemas compile, so cross-file `$ref` resolution succeeds.
+   *
+   * Use case: when several kinds share a common base (e.g. Anthropic's
+   * merged skill / command frontmatter — both extend a shared
+   * `skill-base.schema.json`), the Provider declares the base here so
+   * `skill.schema.json` and `command.schema.json` can `$ref` it without
+   * duplicating fields.
+   *
+   * Runtime-only — does NOT appear in the spec's `provider.schema.json`
+   * manifest. Manifest-validated schemas remain the per-kind ones in
+   * `kinds[<kind>].schema`; auxiliary schemas are an implementation
+   * concern of how the runtime composes those.
+   */
+  schemas?: unknown[];
+
+  /**
    * Walk the given roots and yield every node the Provider recognises.
    * Non-matching files are silently skipped. Unreadable files produce
    * a diagnostic via the emitter but do not abort the walk.

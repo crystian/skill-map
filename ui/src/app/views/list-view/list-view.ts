@@ -17,7 +17,6 @@ import type {
   TStability,
   IFrontmatterAgent,
   IFrontmatterCommand,
-  IFrontmatterHook,
   IFrontmatterSkill,
 } from '../../../models/node';
 
@@ -124,8 +123,6 @@ function nodeDetail(n: INodeView): string | null {
   switch (n.kind) {
     case 'agent':
       return (n.frontmatter as IFrontmatterAgent).model ?? null;
-    case 'hook':
-      return (n.frontmatter as IFrontmatterHook).event ?? null;
     case 'command':
       return (n.frontmatter as IFrontmatterCommand).shortcut ?? null;
     case 'skill': {

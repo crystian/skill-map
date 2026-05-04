@@ -58,8 +58,8 @@
  */
 
 /**
- * The five node kinds the **built-in Claude Provider** declares — `skill`,
- * `agent`, `command`, `hook`, `note`. **NOT** the kernel-wide kind type.
+ * The four node kinds the **built-in Claude Provider** declares — `skill`,
+ * `agent`, `command`, `note`. **NOT** the kernel-wide kind type.
  *
  * `Node.kind` is `string`. An external Provider (Cursor, Obsidian, …)
  * MAY classify into its own kinds (e.g. `'cursorRule'`, `'daily'`); the
@@ -68,19 +68,25 @@
  * `node.schema.json#/properties/kind`, the contract is open-by-design
  * (matches `IProvider.kinds` "open by design" docstring).
  *
+ * Step 9.5 dropped `hook` from the catalog: `.claude/hooks/*.md` is NOT
+ * an Anthropic-defined node type — hooks live in `settings.json` or as
+ * sub-objects of agent / skill frontmatter (see
+ * https://code.claude.com/docs/en/hooks.md). Files at the old path now
+ * classify as `note` via the Provider's fallback.
+ *
  * This alias survives because:
- *   - claude-specific code legitimately wants to switch on the five
+ *   - claude-specific code legitimately wants to switch on the four
  *     hard-coded values (filter widgets, kind-aware UI cards, the
  *     `validate-all` built-in rule that maps each kind to its
  *     frontmatter schema);
  *   - sorting helpers want a stable `KIND_ORDER` for the canonical
  *     catalog;
- *   - tests expect to enumerate the five kinds when seeding fixtures.
+ *   - tests expect to enumerate the four kinds when seeding fixtures.
  *
  * For "any kind a Provider could declare", use plain `string`. Only use
  * `NodeKind` when the code is intentionally claude-catalog-specific.
  */
-export type NodeKind = 'skill' | 'agent' | 'command' | 'hook' | 'note';
+export type NodeKind = 'skill' | 'agent' | 'command' | 'note';
 
 export type LinkKind = 'invokes' | 'references' | 'mentions' | 'supersedes';
 

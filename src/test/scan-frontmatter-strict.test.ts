@@ -88,7 +88,7 @@ describe('frontmatter validation (kernel-level)', () => {
 
   it('files with a fence but missing required fields → warn issue by default', async () => {
     const scope = freshScope('warn-default');
-    // Base schema requires name + description + metadata. Provide only name.
+    // Base schema requires name + description (Step 9.5). Provide only name.
     writeNode(
       scope.cwd,
       '.claude/agents/incomplete.md',
@@ -103,7 +103,7 @@ describe('frontmatter validation (kernel-level)', () => {
     assert.equal(fmIssues.length, 1);
     assert.equal(fmIssues[0]!.severity, 'warn');
     assert.deepEqual(fmIssues[0]!.nodeIds, ['.claude/agents/incomplete.md']);
-    assert.match(fmIssues[0]!.message, /description|metadata/);
+    assert.match(fmIssues[0]!.message, /description/);
   });
 
   it('strict: true promotes warn → error', async () => {
@@ -203,15 +203,14 @@ describe('frontmatter validation (kernel-level)', () => {
     assert.match(fmIssues[0]!.message, /name|string|type/);
   });
 
-  it('validates against per-kind schemas: skill / command / hook / note all flag missing fields', async () => {
+  it('validates against per-kind schemas: skill / agent / command / note all flag missing fields', async () => {
     const scope = freshScope('multi-kind');
-    // Drop one minimal-but-incomplete file per kind. Each is missing
-    // `description` and `metadata` (base.required), so each must
-    // produce exactly one frontmatter-invalid issue tagged with its
-    // own kind in `data`.
+    // Drop one minimal-but-incomplete file per kind. Each is missing the
+    // `description` field (base.required), so each must produce exactly
+    // one frontmatter-invalid issue tagged with its own kind in `data`.
     writeNode(scope.cwd, '.claude/skills/s/SKILL.md', '---\nname: s\n---\nbody\n');
+    writeNode(scope.cwd, '.claude/agents/a.md', '---\nname: a\n---\nbody\n');
     writeNode(scope.cwd, '.claude/commands/c.md', '---\nname: c\n---\nbody\n');
-    writeNode(scope.cwd, '.claude/hooks/h.md', '---\nname: h\n---\nbody\n');
     writeNode(scope.cwd, 'notes/n.md', '---\nname: n\n---\nbody\n');
     const kernel = await createKernel();
     const result = await runScan(kernel, {
@@ -223,7 +222,7 @@ describe('frontmatter validation (kernel-level)', () => {
     const kinds = new Set(
       fmIssues.map((i) => (i.data as { kind: string } | undefined)?.kind),
     );
-    assert.deepEqual(kinds, new Set(['skill', 'command', 'hook', 'note']));
+    assert.deepEqual(kinds, new Set(['skill', 'agent', 'command', 'note']));
   });
 
   it('incremental + strict promotes the cached issue to error', async () => {

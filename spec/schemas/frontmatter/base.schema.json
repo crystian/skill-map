@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://skill-map.dev/spec/v0/frontmatter/base.schema.json",
   "title": "FrontmatterBase",
-  "description": "Base shape of the YAML frontmatter block on every node, across all kinds. Universal — common to every Provider's nodes regardless of platform. Per-kind schemas live in the Provider that emits the kind (declared via `provider.kinds[<kind>].schema`) and extend this base via `allOf` + `$ref` to its `$id`. camelCase keys throughout. `additionalProperties` is intentionally permissive; the deterministic `unknown-field` rule emits warnings for keys outside the catalog so that the JSON Schema remains shape-only and policy lives in rules.",
+  "description": "Truly universal frontmatter shape — `name` + `description` are the only fields every node, on every Provider, MUST carry. Per-vendor schemas (Anthropic Claude, Cursor, Obsidian, …) live in the Provider that emits the kind (declared via `provider.kinds[<kind>].schema`) and extend this base via `allOf` + `$ref` to its `$id`. `additionalProperties: true` is intentional: skill-map AGGREGATES vendor specs, it does not curate them. Vendor-specific fields (`tools`, `allowedTools`, `model`, `metadata`, etc.) flow through validation silently because the per-kind extension declares them. The future home for skill-map-only annotation fields (provenance, cross-vendor metadata) is a deferred decision — tracked separately, not in this schema.",
   "type": "object",
-  "required": ["name", "description", "metadata"],
+  "required": ["name", "description"],
   "additionalProperties": true,
   "properties": {
     "name": {
@@ -16,131 +16,6 @@
       "type": "string",
       "minLength": 1,
       "description": "One-to-three-sentence description. REQUIRED."
-    },
-    "type": {
-      "type": "string",
-      "description": "User-declared kind hint. Optional; the Provider may use it to tie-break classification. Free-form string so that new kinds introduced by Providers don't require a spec bump."
-    },
-    "author": {
-      "type": "string",
-      "description": "Primary author. Denormalized into `node.author` for query speed."
-    },
-    "authors": {
-      "type": "array",
-      "description": "Additional authors. MAY include the primary author; consumers dedupe on display.",
-      "items": { "type": "string" }
-    },
-    "license": {
-      "type": "string",
-      "description": "SPDX license identifier (e.g. `MIT`, `Apache-2.0`)."
-    },
-    "tools": {
-      "type": "array",
-      "description": "Tools this node requires when executed by a host. Allowlist semantics: if present, the host MUST restrict the node to exactly these tools (matching Claude Code subagent `tools` frontmatter). Free-form strings — token vocabulary is platform-specific (e.g. `Read`, `Grep`, `Bash`, `Bash(git add *)`). Kind-specific interpretation: an `agent` node's allowlist constrains the spawned subagent; a `skill` node's allowlist is a hint for the host since skills typically inherit their parent's tools. Omit to inherit the host's default. Denormalized into `node.tools_json` for query.",
-      "items": { "type": "string" }
-    },
-    "allowedTools": {
-      "type": "array",
-      "description": "Tools the host MAY use without triggering a per-use permission prompt while this node is active (matching Claude Code skill `allowed-tools` frontmatter). Pre-approval semantics, distinct from `tools` (allowlist): every tool not listed remains callable, but governed by the host's normal permission settings. Accepts argument-scoped patterns where the host supports them (`Bash(git add *)`). Free-form strings. Omit to defer to host defaults.",
-      "items": { "type": "string" }
-    },
-    "metadata": {
-      "type": "object",
-      "description": "Structured metadata. REQUIRED. `version` inside is REQUIRED; all other fields are optional.",
-      "required": ["version"],
-      "additionalProperties": true,
-      "properties": {
-        "github": { "type": "string", "description": "GitHub handle or profile URL." },
-        "homepage": { "type": "string", "format": "uri" },
-        "linkedin": { "type": "string" },
-        "twitter": { "type": "string" },
-
-        "version": {
-          "type": "string",
-          "description": "Semver of this node's content. REQUIRED. Denormalized into `node.version`."
-        },
-        "specCompat": {
-          "type": "string",
-          "description": "Semver range of spec versions this node targets."
-        },
-        "stability": {
-          "type": "string",
-          "enum": ["experimental", "stable", "deprecated"],
-          "description": "Maturity tag. Denormalized into `node.stability`."
-        },
-        "supersedes": {
-          "type": "array",
-          "description": "`node.path` values this node replaces. Feeds the `supersedes` link kind.",
-          "items": { "type": "string" }
-        },
-        "supersededBy": {
-          "type": "string",
-          "description": "`node.path` that replaces this one. Inverse of `supersedes`."
-        },
-
-        "source": {
-          "type": "string",
-          "format": "uri",
-          "description": "Canonical origin URL (e.g. GitHub blob). Consumed by enrichment plugins for hash verification."
-        },
-        "sourceVersion": {
-          "type": "string",
-          "description": "Tag, SHA, or branch at the source. Branches are resolved dynamically by enrichment."
-        },
-
-        "tags": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "category": { "type": "string" },
-        "keywords": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-
-        "created": { "$ref": "#/$defs/IsoDate", "description": "ISO 8601 date (`YYYY-MM-DD`) or date-time." },
-        "updated": { "$ref": "#/$defs/IsoDate", "description": "ISO 8601 date (`YYYY-MM-DD`) or date-time." },
-        "released": { "$ref": "#/$defs/IsoDate", "description": "ISO 8601 date (`YYYY-MM-DD`) or date-time." },
-
-        "requires": {
-          "type": "array",
-          "description": "`node.path` or plugin id values this node depends on.",
-          "items": { "type": "string" }
-        },
-        "conflictsWith": {
-          "type": "array",
-          "description": "Nodes or plugin ids that MUST NOT be co-enabled with this one.",
-          "items": { "type": "string" }
-        },
-        "provides": {
-          "type": "array",
-          "description": "Capability tokens this node advertises (free-form strings).",
-          "items": { "type": "string" }
-        },
-        "related": {
-          "type": "array",
-          "description": "`node.path` values for see-also navigation. No strict semantics.",
-          "items": { "type": "string" }
-        },
-
-        "icon": { "type": "string", "description": "Free-form icon hint (emoji, lucide name, URL)." },
-        "color": { "type": "string", "description": "CSS color or predefined palette token." },
-        "priority": { "type": "integer", "description": "Higher = surface earlier in UI listings." },
-        "hidden": { "type": "boolean", "description": "UI hint: hide from default lists." },
-
-        "docsUrl": { "type": "string", "format": "uri" },
-        "readme": { "type": "string", "description": "Relative or absolute path to an extended README for this node." },
-        "examplesUrl": { "type": "string", "format": "uri" }
-      }
-    }
-  },
-  "$defs": {
-    "IsoDate": {
-      "type": "string",
-      "anyOf": [
-        { "format": "date" },
-        { "format": "date-time" }
-      ]
     }
   }
 }

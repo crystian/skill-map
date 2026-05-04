@@ -76,9 +76,6 @@
 .kind-palette__btn--command {
   --p-togglebutton-icon-checked-color: var(--sm-kind-command);
 }
-.kind-palette__btn--hook {
-  --p-togglebutton-icon-checked-color: var(--sm-kind-hook);
-}
 .kind-palette__btn--note {
   --p-togglebutton-icon-checked-color: var(--sm-kind-note);
 }

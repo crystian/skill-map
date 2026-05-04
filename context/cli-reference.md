@@ -78,9 +78,9 @@ Reads the persisted scan, applies the query filter, and emits the selected
 subset.
 
 Query syntax (v0.5.0): whitespace-separated key=value tokens; AND across keys, 
-OR within comma-separated values. Keys: `kind` (skill / agent / command / hook / 
-note), `has` (issues), `path` (POSIX glob — `*` matches a single segment, `**` 
-matches across segments).
+OR within comma-separated values. Keys: `kind` (skill / agent / command / note), 
+`has` (issues), `path` (POSIX glob — `*` matches a single segment, `**` matches 
+across segments).
 
 Pass an empty query (`""`) — or omit the argument entirely — to export every 
 node.

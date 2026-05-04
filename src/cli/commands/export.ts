@@ -39,7 +39,7 @@ import { withSqlite } from '../util/with-sqlite.js';
 // Built-in Claude Provider catalog rendered first, in this canonical
 // order. External Providers may emit additional kinds; those are
 // rendered after, sorted alphabetically (see `renderNodesByKindSection`).
-const KIND_ORDER: readonly string[] = ['agent', 'command', 'hook', 'skill', 'note'];
+const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'note'];
 const SUPPORTED_FORMATS = ['json', 'md'] as const;
 const DEFERRED_FORMATS: Record<string, string> = {
   mermaid: EXPORT_TEXTS.formatDeferredReasonMermaid,
@@ -56,7 +56,7 @@ export class ExportCommand extends SmCommand {
 
       Query syntax (v0.5.0): whitespace-separated key=value tokens; AND
       across keys, OR within comma-separated values. Keys: \`kind\`
-      (skill / agent / command / hook / note), \`has\` (issues), \`path\`
+      (skill / agent / command / note), \`has\` (issues), \`path\`
       (POSIX glob — \`*\` matches a single segment, \`**\` matches across
       segments).
 

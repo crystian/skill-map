@@ -18,7 +18,6 @@ export const INSPECTOR_VIEW_TEXTS = {
   cards: {
     agent: 'Agent',
     command: 'Command',
-    hook: 'Hook',
     skill: 'Skill',
     relations: 'Relations',
     metadata: 'Metadata',
@@ -30,10 +29,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     model: 'Model',
     shortcut: 'Shortcut',
     arguments: 'Arguments',
-    event: 'Event',
-    condition: 'Condition',
-    blocking: 'Blocking',
-    idempotent: 'Idempotent',
     inputs: 'Inputs',
     outputs: 'Outputs',
     supersededBy: 'Superseded by',
@@ -61,8 +56,6 @@ export const INSPECTOR_VIEW_TEXTS = {
     category: 'Category',
     specCompat: 'Spec compat',
   },
-  yes: 'yes',
-  no: 'no',
   required: 'required',
   body: {
     loading: 'Loading body…',

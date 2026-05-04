@@ -14,7 +14,7 @@
  *   (d) `extract()` is NOT called for excluded kinds (zero-cost skip).
  *
  * The fixture seeds one node per built-in Claude Provider kind: skill,
- * agent, command, hook, note. The Claude provider classifies each one
+ * agent, command, note. The Claude provider classifies each one
  * based on path prefix (`.claude/skills/<name>/SKILL.md`,
  * `.claude/agents/*.md`, etc.).
  */
@@ -53,10 +53,6 @@ before(() => {
   write(
     '.claude/commands/deploy.md',
     ['---', 'name: deploy', 'description: D', '---', 'Body.'].join('\n'),
-  );
-  write(
-    '.claude/hooks/pre-commit.md',
-    ['---', 'name: pre-commit', 'description: D', '---', 'Body.'].join('\n'),
   );
   write(
     'notes/idea.md',
@@ -111,12 +107,12 @@ describe('Extractor applicableKinds — orchestrator filtering', () => {
         rules: [],
       },
     });
-    // Five built-in Claude Provider kinds in the fixture; sort to remove walk-order
+    // Four built-in Claude Provider kinds in the fixture; sort to remove walk-order
     // sensitivity (the claude provider's traversal is deterministic but
     // alphabetical-by-directory, not by kind).
     deepStrictEqual(
       [...seenKinds].sort(),
-      ['agent', 'command', 'hook', 'note', 'skill'],
+      ['agent', 'command', 'note', 'skill'],
     );
   });
 

@@ -3,7 +3,6 @@
  *
  *     <root>/.claude/agents/*.md             → kind: agent
  *     <root>/.claude/commands/*.md           → kind: command
- *     <root>/.claude/hooks/*.md              → kind: hook
  *     <root>/.claude/skills/<name>/SKILL.md  → kind: skill
  *     <root>/notes/**.md                     → kind: note
  *     <root>/**.md  (fallback)               → kind: note
@@ -13,12 +12,22 @@
  * advancing. Pure filesystem walk + parse — no DB awareness.
  *
  * **Phase 3 (spec 0.8.0).** The Provider owns the per-kind frontmatter
- * schemas (relocated from spec — `skill`, `agent`, `command`, `hook`,
- * `note`). The flat `defaultRefreshAction` map collapsed into the
- * `kinds` map; each kind entry pairs the loaded JSON Schema with its
- * qualified refresh action id. The kernel's frontmatter-validation flow
- * asks the Provider for the schema instead of reading directly from
- * spec/.
+ * schemas (relocated from spec — `skill`, `agent`, `command`, `note`).
+ * The flat `defaultRefreshAction` map collapsed into the `kinds` map;
+ * each kind entry pairs the loaded JSON Schema with its qualified
+ * refresh action id. The kernel's frontmatter-validation flow asks the
+ * Provider for the schema instead of reading directly from spec/.
+ *
+ * **Step 9.5.** The per-kind schemas absorbed Anthropic's documented
+ * frontmatter verbatim (https://code.claude.com/docs/en/agents.md and
+ * https://code.claude.com/docs/en/skills.md). `agent.schema.json` carries
+ * the 14 vendor-specific agent fields; `skill` and `command` extend a
+ * shared `skill-base.schema.json` that mirrors Anthropic's merged
+ * skill/command frontmatter (Anthropic merged the two in skills.md). The
+ * `hook` kind was DROPPED — `.claude/hooks/*.md` is NOT an Anthropic
+ * convention; hooks live in `settings.json` or as sub-objects of agent /
+ * skill frontmatter (see https://code.claude.com/docs/en/hooks.md). Files
+ * under `.claude/hooks/` now classify as `note` (the fallback).
  */
 
 import { readFile, readdir, stat } from 'node:fs/promises';
@@ -30,9 +39,9 @@ import { buildIgnoreFilter, type IIgnoreFilter } from '../../../kernel/scan/igno
 import type { IProvider, IRawNode } from '../../../kernel/extensions/index.js';
 import type { NodeKind } from '../../../kernel/types.js';
 import skillSchema from './schemas/skill.schema.json' with { type: 'json' };
+import skillBaseSchema from './schemas/skill-base.schema.json' with { type: 'json' };
 import agentSchema from './schemas/agent.schema.json' with { type: 'json' };
 import commandSchema from './schemas/command.schema.json' with { type: 'json' };
-import hookSchema from './schemas/hook.schema.json' with { type: 'json' };
 import noteSchema from './schemas/note.schema.json' with { type: 'json' };
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
@@ -42,7 +51,7 @@ export const claudeProvider: IProvider = {
   pluginId: 'claude',
   kind: 'provider',
   version: '1.0.0',
-  description: 'Walks Claude Code scope conventions (.claude/{agents,commands,hooks,skills} + notes).',
+  description: 'Walks Claude Code scope conventions (.claude/{agents,commands,skills} + notes).',
   stability: 'stable',
 
   // The Claude Provider's content lives under `~/.claude` for the global
@@ -96,20 +105,6 @@ export const claudeProvider: IProvider = {
         },
       },
     },
-    hook: {
-      schema: './schemas/hook.schema.json',
-      schemaJson: hookSchema,
-      defaultRefreshAction: 'claude/summarize-hook',
-      ui: {
-        label: 'Hooks',
-        color: '#8b5cf6',
-        colorDark: '#a78bfa',
-        icon: {
-          kind: 'svg',
-          path: 'M12 2 a3 3 0 1 0 0 6 a3 3 0 1 0 0 -6 M12 8 L12 22 M5 12 H2 a10 10 0 0 0 20 0 H19',
-        },
-      },
-    },
     skill: {
       schema: './schemas/skill.schema.json',
       schemaJson: skillSchema,
@@ -137,6 +132,13 @@ export const claudeProvider: IProvider = {
     },
   },
 
+  // Auxiliary schemas the per-kind schemas $ref by $id. AJV needs them
+  // registered via addSchema BEFORE the per-kind schemas compile, so the
+  // validator builder pre-registers them. `skill-base.schema.json` is the
+  // shared base for `skill` + `command` per Anthropic's documented merger
+  // (https://code.claude.com/docs/en/skills.md).
+  schemas: [skillBaseSchema],
+
   async *walk(roots, options = {}): AsyncIterable<IRawNode> {
     // The orchestrator is the canonical source of the filter (it composes
     // bundled defaults + config.ignore + .skillmapignore). When the
@@ -163,8 +165,12 @@ export const claudeProvider: IProvider = {
     const lower = path.toLowerCase();
     if (lower.startsWith('.claude/agents/')) return 'agent';
     if (lower.startsWith('.claude/commands/')) return 'command';
-    if (lower.startsWith('.claude/hooks/')) return 'hook';
     if (lower.startsWith('.claude/skills/')) return 'skill';
+    // Hooks are NOT Anthropic markdown nodes — they live in
+    // `settings.json` or as sub-objects of agent / skill frontmatter
+    // (https://code.claude.com/docs/en/hooks.md). Files at
+    // `.claude/hooks/*.md` are skill-map's old convention from spec 0.7.x;
+    // post-Step 9.5 they fall through to `note`.
     return 'note';
   },
 };

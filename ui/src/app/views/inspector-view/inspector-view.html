@@ -95,23 +95,6 @@
         </p-card>
       }
 
-      @if (asHook(); as hook) {
-        <p-card [header]="texts.cards.hook" styleClass="inspector__card" data-testid="inspector-card-hook">
-          <dl class="kv">
-            <dt>{{ texts.fields.event }}</dt>
-            <dd><code>{{ hook.event ?? texts.missing }}</code></dd>
-            @if (hook.condition) {
-              <dt>{{ texts.fields.condition }}</dt>
-              <dd><code class="cond">{{ hook.condition }}</code></dd>
-            }
-            <dt>{{ texts.fields.blocking }}</dt>
-            <dd>{{ hook.blocking ? texts.yes : texts.no }}</dd>
-            <dt>{{ texts.fields.idempotent }}</dt>
-            <dd>{{ hook.idempotent ? texts.yes : texts.no }}</dd>
-          </dl>
-        </p-card>
-      }
-
       @if (asSkill(); as skill) {
         <p-card [header]="texts.cards.skill" styleClass="inspector__card" data-testid="inspector-card-skill">
           @if (skill.inputs?.length) {

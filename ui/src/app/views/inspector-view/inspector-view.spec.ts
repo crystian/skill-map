@@ -19,7 +19,7 @@ import type { INodeDetailApi, INodeApi } from '../../../models/api';
  * Inspector view spec — focuses on the Step 14.5.a body card lifecycle
  * (loading → ready / empty / unavailable / error) and the basic
  * shell-level empty states. Card-level rendering of frontmatter
- * cards (Agent / Command / Hook / Skill / Relations / Metadata) is
+ * cards (Agent / Command / Skill / Relations / Metadata) is
  * left to template integration; the body-card flow is the part with
  * non-trivial state to test.
  */

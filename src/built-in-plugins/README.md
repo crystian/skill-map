@@ -11,7 +11,7 @@ The two built-in **plugin bundles** are declared in [`built-ins.ts`](./built-ins
 
 | Kind | Plugin | Id | Notes |
 |---|---|---|---|
-| Provider | `claude` | `claude` | Walks `.claude/{agents,commands,hooks,skills}/*.md` + `notes/**/*.md`; classifies into the five Claude node kinds. |
+| Provider | `claude` | `claude` | Walks `.claude/{agents,commands,skills}/*.md` + `notes/**/*.md`; classifies into the four Claude node kinds (agent, command, skill, note). |
 | Extractor | `claude` | `frontmatter` | Reads frontmatter `requires` / `related` / `supersedes` / `supersededBy`; emits the corresponding link kinds. |
 | Extractor | `claude` | `slash` | Detects `/skill-map:explore`-style invocations in node bodies. |
 | Extractor | `claude` | `at-directive` | Detects `@agent-name` mentions. |

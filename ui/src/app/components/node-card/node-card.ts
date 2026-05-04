@@ -5,14 +5,12 @@ import { NODE_CARD_TEXTS } from '../../../i18n/node-card.texts';
 import type {
   IFrontmatterAgent,
   IFrontmatterCommand,
-  IFrontmatterHook,
   IFrontmatterSkill,
   IIssue,
   INodeStats,
   INodeView,
   ISummaryAgent,
   ISummaryCommand,
-  ISummaryHook,
   ISummaryNote,
   ISummarySkill,
   TSummary,
@@ -46,7 +44,6 @@ import { KindIcon } from '../kind-icon/kind-icon';
     '[class.sm-gnode--skill]': "node().kind === 'skill'",
     '[class.sm-gnode--agent]': "node().kind === 'agent'",
     '[class.sm-gnode--command]': "node().kind === 'command'",
-    '[class.sm-gnode--hook]': "node().kind === 'hook'",
     '[class.sm-gnode--note]': "node().kind === 'note'",
     '[class.sm-gnode--danger]': 'hasInjection()',
     '[class.sm-gnode--with-color]': '!!nodeColor()',
@@ -109,11 +106,6 @@ export class NodeCard {
     return n.kind === 'command' ? (n.frontmatter as IFrontmatterCommand) : null;
   });
 
-  protected readonly fmHook = computed<IFrontmatterHook | null>(() => {
-    const n = this.node();
-    return n.kind === 'hook' ? (n.frontmatter as IFrontmatterHook) : null;
-  });
-
   /** Kind-specific summary narrowing. */
   protected readonly summaryAgent = computed<ISummaryAgent | null>(() => {
     const s = this.summary();
@@ -126,10 +118,6 @@ export class NodeCard {
   protected readonly summaryCommand = computed<ISummaryCommand | null>(() => {
     const s = this.summary();
     return s?.kind === 'command' ? s : null;
-  });
-  protected readonly summaryHook = computed<ISummaryHook | null>(() => {
-    const s = this.summary();
-    return s?.kind === 'hook' ? s : null;
   });
   protected readonly summaryNote = computed<ISummaryNote | null>(() => {
     const s = this.summary();
@@ -171,8 +159,6 @@ export class NodeCard {
         );
       case 'command':
         return Boolean(s.invocationExample) || (s.sideEffects?.length ?? 0) > 0;
-      case 'hook':
-        return Boolean(s.triggerInferred) || (s.sideEffects?.length ?? 0) > 0;
       default:
         return false;
     }

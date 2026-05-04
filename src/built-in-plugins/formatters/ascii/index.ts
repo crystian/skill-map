@@ -33,7 +33,7 @@ const ID = 'ascii';
 // order. Anything else (`'cursorRule'`, `'daily'`, … from external
 // Providers) is rendered after, sorted alphabetically — the formatter
 // no longer assumes the closed enum and the order stays deterministic.
-const KIND_ORDER: readonly string[] = ['agent', 'command', 'hook', 'skill', 'note'];
+const KIND_ORDER: readonly string[] = ['agent', 'command', 'skill', 'note'];
 
 export const asciiFormatter: IFormatter = {
   id: ID,

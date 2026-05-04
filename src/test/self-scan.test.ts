@@ -12,7 +12,7 @@
  *      `filesSkipped`). Per-element node / link / issue schemas are
  *      transitively exercised via `$ref` from the top-level schema.
  *   3. The repo has nodes (markdown is everywhere).
- *   4. All five node kinds appear (relaxed to "≥ 4 of 5" if `.claude/hooks/`
+ *   4. All four node kinds appear (relaxed to "≥ 3 of 4" if `.claude/commands/`
  *      is empty in the working tree — see comment below).
  *   5. No `error`-severity issues. Warnings are allowed (and expected on
  *      intentional broken-ref placeholders in the repo's docs).
@@ -39,7 +39,7 @@ import { loadSchemaValidators } from '../kernel/adapters/schema-validators.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(HERE, '..', '..');
 
-const ALL_KINDS: readonly NodeKind[] = ['agent', 'command', 'hook', 'skill', 'note'] as const;
+const ALL_KINDS: readonly NodeKind[] = ['agent', 'command', 'skill', 'note'] as const;
 
 describe('self-scan acceptance', () => {
   it('produces a structurally valid + operationally sane scan of the repo', async () => {
@@ -83,15 +83,14 @@ describe('self-scan acceptance', () => {
     // The repo contains agents (.claude/agents/commit.md), skills
     // (.claude/skills/foblex-flow/SKILL.md), and notes (README,
     // ROADMAP, every spec/*.md, etc.). It does NOT carry any
-    // `.claude/commands/*.md` or `.claude/hooks/*.md` today — neither
-    // directory exists in the working tree. Both are tolerated as
-    // missing here; faking a fixture for a *self*-scan defeats its
-    // purpose. The moment either directory grows a real file, the
-    // assertion auto-tightens.
+    // `.claude/commands/*.md` today — that directory does not exist in
+    // the working tree. Tolerated as missing here; faking a fixture for
+    // a *self*-scan defeats its purpose. The moment the directory grows
+    // a real file, the assertion auto-tightens.
     //
     // Tolerated-missing list is the SUBSET of ALL_KINDS that may legitimately
     // be absent today. Any other missing kind is a regression.
-    const TOLERATED_MISSING: ReadonlySet<NodeKind> = new Set<NodeKind>(['command', 'hook']);
+    const TOLERATED_MISSING: ReadonlySet<NodeKind> = new Set<NodeKind>(['command']);
     // `node.kind` is open string post-refactor; the assertion still
     // runs against the closed `NodeKind` catalog because that's the
     // built-in Claude Provider's catalog and the only thing this

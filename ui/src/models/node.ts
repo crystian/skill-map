@@ -87,13 +87,6 @@ export interface IFrontmatterCommand extends IFrontmatterBase {
   shortcut?: string;
 }
 
-export interface IFrontmatterHook extends IFrontmatterBase {
-  event?: string;
-  condition?: string;
-  blocking?: boolean;
-  idempotent?: boolean;
-}
-
 export interface ISkillParameter {
   name: string;
   type?: string;
@@ -112,7 +105,6 @@ export type TFrontmatterNote = IFrontmatterBase;
 export type TFrontmatter =
   | IFrontmatterAgent
   | IFrontmatterCommand
-  | IFrontmatterHook
   | IFrontmatterSkill
   | TFrontmatterNote;
 
@@ -185,17 +177,6 @@ export interface ISummaryCommand extends IReportBase {
   qualityNotes?: string;
 }
 
-export interface ISummaryHook extends IReportBase {
-  kind: 'hook';
-  whatItDoes: string;
-  triggerInferred?: string;
-  sideEffects?: readonly string[];
-  blockingInferred?: boolean;
-  idempotentInferred?: boolean;
-  relatedNodes?: readonly string[];
-  qualityNotes?: string;
-}
-
 export interface ISummaryNote extends IReportBase {
   kind: 'note';
   whatItCovers: string;
@@ -209,7 +190,6 @@ export type TSummary =
   | ISummaryAgent
   | ISummarySkill
   | ISummaryCommand
-  | ISummaryHook
   | ISummaryNote;
 
 /**

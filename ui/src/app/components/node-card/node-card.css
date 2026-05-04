@@ -27,7 +27,6 @@
 :host(.sm-gnode--skill) { --accent: var(--sm-kind-skill); }
 :host(.sm-gnode--agent) { --accent: var(--sm-kind-agent); }
 :host(.sm-gnode--command) { --accent: var(--sm-kind-command); }
-:host(.sm-gnode--hook) { --accent: var(--sm-kind-hook); }
 :host(.sm-gnode--note) { --accent: var(--sm-kind-note); }
 
 :host(.sm-gnode--danger) { --accent: var(--sm-severity-error); }
@@ -72,7 +71,6 @@
 :host(.sm-gnode--skill) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-skill-bg); --kind-fg: var(--sm-kind-skill-fg); }
 :host(.sm-gnode--agent) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-agent-bg); --kind-fg: var(--sm-kind-agent-fg); }
 :host(.sm-gnode--command) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-command-bg); --kind-fg: var(--sm-kind-command-fg); }
-:host(.sm-gnode--hook) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-hook-bg); --kind-fg: var(--sm-kind-hook-fg); }
 :host(.sm-gnode--note) .sm-gnode__icon-box { --kind-bg: var(--sm-kind-note-bg); --kind-fg: var(--sm-kind-note-fg); }
 
 .sm-gnode__content {
