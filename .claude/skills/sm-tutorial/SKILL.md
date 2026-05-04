@@ -655,24 +655,23 @@ root. The tester edits that file plus creates one new fixture node:
 
 Tell the tester:
 
-> Última magia del demo: skill-map deja de seguir un archivo en el
-> momento en que matchea un patrón en `.skillmapignore`. Sin
-> reiniciar nada.
+> Última magia / one last trick: skill-map stops tracking a file
+> the moment it matches a pattern in `.skillmapignore`. No restart
+> needed — same watcher, opposite direction.
 >
-> Hacelo / do it:
+> Two steps:
 >
-> 1. Creá `notes/private-credentials.md` con el contenido que te
->    paso → vas a ver un nodo nuevo aparecer en el grafo (la magia
->    del watcher otra vez).
-> 2. Editá `.skillmapignore` y agregá al final una línea con
->    `notes/private-*.md` → el nodo desaparece del grafo.
+> 1. Create `notes/private-credentials.md` with the content I'll
+>    paste → a new node appears on the graph (watcher magic again,
+>    expected).
+> 2. Open `.skillmapignore` and append `notes/private-*.md` on a
+>    new line → the node disappears from the graph.
 >
-> Mismo watcher, dirección opuesta. Use this whenever you have
-> drafts, scratch files, or anything you don't want surfacing in
-> the map. The syntax is the same as `.gitignore` (globs,
-> negations with `!`, comments with `#`).
+> Use this whenever you have drafts, scratch files, or anything
+> you don't want surfacing in the map. Syntax is the same as
+> `.gitignore`: globs, `!pattern` to re-include, `#` for comments.
 >
-> ¿Lo viste desaparecer / did the node vanish?
+> Did the node vanish?
 
 Wait for confirmation. Once they confirm, ask them to stop the
 server with **Ctrl+C** in the terminal before continuing.
