@@ -53,6 +53,24 @@ optional second phase (~30-40 min) covering the rest of the CLI.
   the Tone bullets above, voseo and all); if in English, run it in
   plain English. Internal narration in this SKILL.md stays in
   English regardless.
+- **Never emit bilingual user-facing copy**. The samples in the
+  blockquotes throughout this SKILL are written in English as the
+  base; translate the entire block to Spanish when the tester
+  speaks Spanish. Do NOT show "Spanish / English" pairs inline,
+  do NOT keep one sentence in English while another is in Spanish,
+  do NOT sprinkle isolated Spanish words inside English paragraphs
+  (or vice versa). Pick one language and commit.
+- **Fixture content also follows the tester's language**. When you
+  `Write` the demo `.md` files (frontmatter `description`, body
+  prose, link anchor text, list items), translate the human text
+  to the tester's language. **Keep these English regardless**:
+  file paths and filenames (`.claude/agents/demo-agent.md`),
+  frontmatter keys (`name`, `description`, `metadata`, `tools`,
+  `event`, etc.), node identifiers (`demo-agent`, `demo-skill`),
+  link target paths inside `[...]( ... )`, code snippets, fenced
+  blocks, and anything the kernel parses structurally. Only the
+  natural-language portions get translated — schema and identifiers
+  stay stable so the watcher and link extractors keep working.
 
 ## Inviolable rules
 
@@ -410,8 +428,7 @@ Before Reveal 1, ask the tester to set up a **side-by-side view** so
 they can watch the magic happen without alt-tabbing every reveal.
 Tell the tester:
 
-> Acomodá la pantalla / arrange your screen so two windows are
-> visible at the same time:
+> Arrange your screen so two windows are visible at the same time:
 >
 > 1. **The browser** at `http://127.0.0.1:4242` — where the graph
 >    will update in real time.
@@ -555,8 +572,8 @@ Create these four files (with `Write`), exactly in this order:
 
 Tell the tester:
 
-> Mirá el navegador / Look at the browser. Four new nodes should
-> have popped in: `demo-skill`, `demo-command`, `demo-hook`, and
+> Look at the browser. Four new nodes should have popped in:
+> `demo-skill`, `demo-command`, `demo-hook`, and
 > `notes/todo`. Five total now, **still unconnected** — they're
 > floating dots. The viewport auto-fits whenever a node is added or
 > removed, so all five should be visible without panning.
@@ -608,8 +625,8 @@ not rewrite the files):
 
 Tell the tester:
 
-> Mirá la magia de nuevo / Look at the magic again. The five
-> floating nodes should now be wired together — connectors light
+> Look at the magic again. The five floating nodes should now be
+> wired together — connectors light
 > up between them as the watcher picks up each edit:
 >
 > - `demo-skill → demo-agent`
@@ -625,8 +642,8 @@ Tell the tester:
 > or open it in the inspector). We'll explore that issue properly
 > in stage L4 if you continue with the deeper part.
 >
-> Confirmá / confirm. If a connector is missing, refresh the
-> browser and tell me.
+> Confirm. If a connector is missing, refresh the browser and tell
+> me.
 
 Wait for confirmation. **Do NOT move on to Reveal 4** until the
 connectors are confirmed visible — Reveal 4 reuses the same live UI
@@ -678,9 +695,9 @@ root. The tester edits that file plus creates one new fixture node:
 
 Tell the tester:
 
-> Última magia / one last trick: skill-map stops tracking a file
-> the moment it matches a pattern in `.skillmapignore`. No restart
-> needed — same watcher, opposite direction.
+> One last trick: skill-map stops tracking a file the moment it
+> matches a pattern in `.skillmapignore`. No restart needed — same
+> watcher, opposite direction.
 >
 > Two steps:
 >
