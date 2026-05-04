@@ -1653,18 +1653,29 @@
   // npm", not anything baked at build time (which is the right tradeoff
   // for spec/web, but inverted for cli). Best-effort: if the registry is
   // unreachable, the placeholder text stays.
+  //
+  // Hits the package metadata endpoint (not /latest, which is unreliable
+  // for scoped packages) and reads `dist-tags.latest`.
   (async () => {
     const tag = document.querySelector('[data-cli-version]');
     if (!tag) return;
     try {
-      const res = await fetch('https://registry.npmjs.org/@skill-map/cli/latest', {
+      const res = await fetch('https://registry.npmjs.org/@skill-map/cli', {
         headers: { Accept: 'application/json' },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        console.warn('[cli-version] registry returned', res.status);
+        return;
+      }
       const data = await res.json();
-      if (typeof data?.version === 'string') tag.textContent = `cli v${data.version}`;
-    } catch {
-      // network / parse failure; keep the placeholder
+      const version = data?.['dist-tags']?.latest;
+      if (typeof version === 'string') {
+        tag.textContent = `cli v${version}`;
+      } else {
+        console.warn('[cli-version] no dist-tags.latest in response', data);
+      }
+    } catch (err) {
+      console.warn('[cli-version] fetch failed', err);
     }
   })();
 
