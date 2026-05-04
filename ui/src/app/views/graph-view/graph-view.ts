@@ -265,6 +265,36 @@ export class GraphView implements OnInit, OnDestroy {
       this.lastPathsFingerprint = fp;
       queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
     });
+
+    // Garbage-collect `expandedNodeIds` against the current loaded set.
+    //
+    // Without this, an id that was expanded in a previous session and
+    // persisted to localStorage stays in the set forever — even after
+    // the file behind it is deleted. If the user later recreates a file
+    // at the same path (the typical .skillmapignore demo flow: drop a
+    // private file, hide it, then drop another with the same name on a
+    // future session), the brand-new node renders with the chevron
+    // already open, surprising the user. Filtering on every
+    // `loader.nodes()` change keeps the persisted set in sync with what
+    // exists on disk. The empty-array case (initial boot before the
+    // first scan resolves) is skipped so we don't wipe the set during
+    // the loading phase.
+    effect(() => {
+      const allPaths = new Set(this.loader.nodes().map((n) => n.path));
+      if (allPaths.size === 0) return;
+      const current = this.expandedNodeIds();
+      if (current.size === 0) return;
+      let dirty = false;
+      const filtered = new Set<string>();
+      for (const id of current) {
+        if (allPaths.has(id)) filtered.add(id);
+        else dirty = true;
+      }
+      if (dirty) {
+        this.expandedNodeIds.set(filtered);
+        writeStoredExpanded(filtered);
+      }
+    });
   }
 
   ngOnInit(): void {
