@@ -28,6 +28,20 @@ Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corrie
 
 ¿Querés probarlo sin instalar nada? Abrí la [demo en vivo](https://skill-map.dev/demo/).
 
+## Tutorial interactivo (recomendado)
+
+Si usás [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **7 minutos** para la demo, con un opcional de 30 min más para profundizar.
+
+```bash
+mkdir prueba-skill-map && cd prueba-skill-map
+sm tutorial             # deja sm-tutorial.md en el directorio vacío
+claude                  # abrí Claude Code en ese mismo directorio
+# Después, dentro de Claude:
+ejecutá @sm-tutorial.md
+```
+
+Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real — sin compromiso, totalmente reversible.
+
 ## El problema que resuelve
 
 Los desarrolladores que trabajan con agentes de IA acumulan decenas de skills, agents, commands y documentos sueltos. No hay visibilidad sobre:

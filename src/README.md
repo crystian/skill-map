@@ -25,6 +25,22 @@ npx @skill-map/cli --version
 
 Both `sm` (short, daily use) and `skill-map` (full name, scripts) are registered as binaries after install. The package name is scoped (`@skill-map/cli`) to sit alongside `@skill-map/spec` under the same npm org; the binaries keep the unprefixed names for ergonomics.
 
+## Interactive tutorial (recommended starting point)
+
+If you use [Claude Code](https://claude.ai/code), `sm tutorial` is the fastest way to learn the CLI and the live UI without committing your real project to anything:
+
+```bash
+mkdir try-skill-map && cd try-skill-map
+sm tutorial                  # writes sm-tutorial.md into the empty dir
+claude                       # open Claude Code in the same dir
+# Inside Claude:
+ejecutá @sm-tutorial.md
+```
+
+Claude loads the SKILL.md and runs the demo (~7 min): fixture, `sm init`, live UI, four "reveals" that show the watcher in action, plus the `.skillmapignore` hide-a-file flow. An optional deep-dive (~30-40 min) covers the rest of the CLI surface (`list`, `graph`, `export`, `orphans`, `plugins`, `db ops`).
+
+The verb `sm tutorial` writes a single self-contained file; the SKILL.md ships inside this package, so no extra install needed.
+
 ## Usage
 
 ```bash

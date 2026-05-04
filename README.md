@@ -28,6 +28,20 @@ That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher runn
 
 Want to try it without installing? Open the [live demo](https://skill-map.dev/demo/).
 
+## Interactive tutorial (recommended)
+
+If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial — about **7 minutes** for the demo, with an optional 30-min deep dive afterwards.
+
+```bash
+mkdir try-skill-map && cd try-skill-map
+sm tutorial             # writes sm-tutorial.md into the empty dir
+claude                  # open Claude Code in the same dir
+# Then, in the Claude prompt:
+ejecutá @sm-tutorial.md
+```
+
+Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project — no commitment, fully reversible.
+
 ## The problem it solves
 
 Developers working with AI agents accumulate dozens of skills, agents, commands, and loose documents. Nobody has visibility into:
