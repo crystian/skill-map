@@ -76,7 +76,7 @@ Want to try it without installing? Open the [live demo](https://skill-map.dev/de
 
 ## Interactive tutorial (recommended)
 
-If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial — about **10 minutes** for the demo, with an optional 30-min deep dive afterwards.
+If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial — about **10 minutes** for the demo, with an optional 20–30-min deep dive afterwards.
 
 ```bash
 mkdir try-skill-map && cd try-skill-map

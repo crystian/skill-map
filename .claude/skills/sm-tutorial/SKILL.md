@@ -6,7 +6,7 @@ description: |
   starts with a quick demo (~10 min) that showcases the live UI — the
   tester runs `sm`, opens the browser, and watches the UI update as
   the agent edits `.md` files — and at the end offers an optional
-  deep-dive (~30-40 min) covering the rest of the CLI with flags and
+  deep-dive (~20-30 min) covering the rest of the CLI with flags and
   advanced verbs. The skill is invoked from an empty directory and
   lays the fixture and tutorial files there directly (no wrapper).
   State persists in `tutorial-state.yml` for pause/resume. Triggers:
@@ -24,7 +24,7 @@ type, and wait for the tester to run them and confirm.
 
 **Internal structure (do NOT mention this to the tester)**: the tutorial
 has a short first phase (~10 min) that demonstrates the live UI, and an
-optional second phase (~30-40 min) covering the rest of the CLI.
+optional second phase (~20-30 min) covering the rest of the CLI.
 
 > ⚠️ For the tester this is **a single continuous flow**. Never use
 > "short path", "long path", "route", "phase 1" / "phase 2", or
@@ -865,7 +865,7 @@ Mark `2-ui-live: done`.
 >
 > If you want, **we can keep going deeper**: I'll walk you through
 > the CLI verbs and flags (`list`, `graph`, `export`, `orphans`,
-> `plugins`, `db ops`, etc.). About ~30-40 min more, pausable
+> `plugins`, `db ops`, etc.). About ~20-30 min more, pausable
 > whenever.
 >
 > 1. **Yes, let's continue**
@@ -884,7 +884,7 @@ If they say **1**:
 
 ---
 
-## DEEP-DIVE (~30-40 min) — opt-in
+## DEEP-DIVE (~20-30 min) — opt-in
 
 Strictly new steps. Does not re-expand demo steps.
 

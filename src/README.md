@@ -37,7 +37,7 @@ claude                       # open Claude Code in the same dir
 ejecutá @sm-tutorial.md
 ```
 
-Claude loads the SKILL.md and runs the demo (~10 min): fixture, `sm init`, live UI, five sub-steps that show the watcher in action, plus the `.skillmapignore` hide-a-file flow. An optional deep-dive (~30-40 min) covers the rest of the CLI surface (`list`, `graph`, `export`, `check`, `plugins`).
+Claude loads the SKILL.md and runs the demo (~10 min): fixture, `sm init`, live UI, five sub-steps that show the watcher in action, plus the `.skillmapignore` hide-a-file flow. An optional deep-dive (~20-30 min) covers the rest of the CLI surface (`list`, `graph`, `export`, `check`, `plugins`).
 
 The verb `sm tutorial` writes a single self-contained file; the SKILL.md ships inside this package, so no extra install needed.
 

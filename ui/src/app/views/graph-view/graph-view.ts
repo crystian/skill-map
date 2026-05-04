@@ -295,6 +295,61 @@ export class GraphView implements OnInit, OnDestroy {
         writeStoredExpanded(filtered);
       }
     });
+
+    // Reconcile `nodePositions` against the loaded set so storage holds the
+    // position of every visible node, not just the ones the user manually
+    // dragged. Two responsibilities, one effect:
+    //
+    //   1. New node detected (in `loader.nodes()`, missing from
+    //      `nodePositions`): take the auto-layout's computed position and
+    //      pin it. From this moment on, the node has a stored coordinate
+    //      that survives reloads — no more "auto-layout shuffles every
+    //      time the topology hash changes".
+    //   2. Node disappeared (in `nodePositions`, missing from
+    //      `loader.nodes()`): drop the stored coordinate. Without this,
+    //      stale entries pile up forever (mirrors the `expandedNodeIds`
+    //      GC above).
+    //
+    // The effect runs after `resetLayout()` clears the map: the next tick
+    // reseeds every position from the current auto-layout and persists
+    // the whole batch. That's how RESET ends up "re-arranged AND saved"
+    // without an explicit re-save call inside `resetLayout` itself.
+    //
+    // Single localStorage write per cycle, gated by `dirty` to avoid an
+    // infinite loop (we read `nodePositions` and conditionally write to
+    // it). Empty-loader case is skipped so we don't wipe storage during
+    // the boot loading phase.
+    effect(() => {
+      const nodes = this.loader.nodes();
+      if (nodes.length === 0) return;
+      const layoutPositions = this.fullLayout().positions;
+      const current = this.nodePositions();
+      const allPaths = new Set(nodes.map((n) => n.path));
+
+      let dirty = false;
+      const next: TNodePositions = { ...current };
+
+      // (1) Seed positions for newly loaded nodes from the auto-layout.
+      for (const path of allPaths) {
+        if (path in next) continue;
+        const pos = layoutPositions.get(path);
+        if (!pos) continue;
+        next[path] = { x: pos.x, y: pos.y };
+        dirty = true;
+      }
+
+      // (2) Drop positions for nodes that no longer exist.
+      for (const id of Object.keys(next)) {
+        if (allPaths.has(id)) continue;
+        delete next[id];
+        dirty = true;
+      }
+
+      if (dirty) {
+        this.nodePositions.set(next);
+        writeStoredNodePositions(next);
+      }
+    });
   }
 
   ngOnInit(): void {
@@ -353,12 +408,14 @@ export class GraphView implements OnInit, OnDestroy {
   }
 
   resetLayout(): void {
-    if (Object.keys(this.nodePositions()).length === 0) {
-      this.canvas()?.fitToScreen({ x: 40, y: 40 }, true);
-      return;
-    }
     const ok = window.confirm(GRAPH_VIEW_TEXTS.resetLayoutConfirm);
     if (!ok) return;
+    // Clearing `nodePositions` here is the only mechanical step needed:
+    // the reconcile effect runs on the next tick, sees an empty map plus
+    // the current auto-layout, and reseeds every visible node — then
+    // persists the freshly-computed positions to storage. That's why
+    // "reset" ends up doing the full delete → re-arrange → save loop
+    // without any explicit save call here.
     this.nodePositions.set({});
     // Reset layout also collapses every expanded card. The intent of
     // "reset" is "give me back a clean canvas" — leaving cards open
@@ -366,11 +423,6 @@ export class GraphView implements OnInit, OnDestroy {
     // for reset in the first place.
     this.expandedNodeIds.set(new Set());
     writeStoredExpanded(new Set());
-    try {
-      localStorage.removeItem(NODE_POSITIONS_STORAGE_KEY);
-    } catch {
-      // ignore
-    }
     queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
   }
 
