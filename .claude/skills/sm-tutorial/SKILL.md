@@ -412,20 +412,25 @@ starts the UI server with the watcher built in. One process, one
 terminal: it boots the server, scans the `.md` files, detects
 changes, and pushes events over WebSocket to the live UI.
 
-This step has **four reveals**, each one driven by you editing
-files while the server stays up:
+This step has **five reveals**, each one driven by you editing
+files while the server stays up — except Reveal 3, where the
+tester takes the keyboard for the first time.
 
 1. **Reveal 1 (boot)** — one node alone (the agent).
 2. **Reveal 2 (kinds)** — the four other kinds appear as new nodes,
    still unconnected.
-3. **Reveal 3 (connectors)** — the connectors light up between all
+3. **Reveal 3 (your first edit)** — the **tester** edits the
+   `description` of the agent's `.md` and watches the card
+   refresh in the graph.
+4. **Reveal 4 (connectors)** — the connectors light up between all
    five nodes.
-4. **Reveal 4 (ignore)** — a private file appears, then disappears
+5. **Reveal 5 (ignore)** — a private file appears, then disappears
    the moment a pattern is added to `.skillmapignore`.
 
-The pedagogical arc: a single dot → a constellation of dots → a
-graph → a graph that respects the user's ignore list. Each reveal
-stops at a confirm prompt before you do the next.
+The pedagogical arc: a single dot → a constellation of dots →
+your own edit lands → graph → a graph that respects the user's
+ignore list. Each reveal stops at a confirm prompt before you do
+the next.
 
 **Command** (one terminal):
 
@@ -586,7 +591,34 @@ Tell the tester:
 
 Wait for confirmation.
 
-#### Reveal 3 — the connectors light up
+#### Reveal 3 — your first edit
+
+Up to here you've been watching the agent write files. Now hand
+the keyboard over: the lesson is that the watcher reacts to
+**any** `.md` edit under the cwd, not just to files the agent
+authors. After this beat, the tester has the muscle memory for
+"save → graph updates", which Reveal 5 (`.skillmapignore`) reuses
+verbatim.
+
+Tell the tester:
+
+> Tu turno. Open `.claude/agents/demo-agent.md` in your editor of
+> choice. In the frontmatter, change the `description:` field to
+> any text you want — the actual content does not matter, just
+> make it different from what's there now. Save the file.
+>
+> Watch the browser. The `demo-agent` card should refresh its
+> description in real time, no reload, no Ctrl+C — same watcher
+> that picked up the four new nodes a moment ago, this time
+> reacting to YOUR edit.
+>
+> Confirm so we wire the five up.
+
+Wait for confirmation. You MAY use `Read` on the file afterwards
+to verify the change landed (read-only, allowed under Inviolable
+rule #1) before moving on.
+
+#### Reveal 4 — the connectors light up
 
 Now you edit the existing files to add the cross-fixture links —
 each one becomes a connector in the graph. Apply with `Edit` (do
@@ -640,14 +672,15 @@ Tell the tester:
 > Confirm. If a connector is missing, refresh the browser and tell
 > me.
 
-Wait for confirmation. **Do NOT move on to Reveal 4** until the
-connectors are confirmed visible — Reveal 4 reuses the same live UI
+Wait for confirmation. **Do NOT move on to Reveal 5** until the
+connectors are confirmed visible — Reveal 5 reuses the same live UI
 session.
 
-#### Reveal 4 — silence a private file via `.skillmapignore`
+#### Reveal 5 — silence a private file via `.skillmapignore`
 
-The first three reveals showed the watcher picking up new files and
-edits. Reveal 4 flips the direction: a file the tester DOES NOT want
+The first four reveals showed the watcher picking up new files and
+edits (yours and theirs). Reveal 5 flips the direction: a file the
+tester DOES NOT want
 in the graph (a draft, a scratch file, a secret) gets hidden by a
 single line in `.skillmapignore`. Same live mechanism — no restart.
 
