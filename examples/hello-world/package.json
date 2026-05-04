@@ -1,0 +1,19 @@
+{
+  "name": "@skill-map/example-hello-world",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reference plugin for skill-map. Smallest viable Extractor + one test using @skill-map/testkit.",
+  "scripts": {
+    "test": "node --test --test-reporter=spec 'test/**/*.test.js'",
+    "test:ci": "node --test 'test/**/*.test.js'",
+    "validate": "npm run test:ci"
+  },
+  "devDependencies": {
+    "@skill-map/cli": "*",
+    "@skill-map/testkit": "*"
+  },
+  "engines": {
+    "node": ">=24.0"
+  }
+}

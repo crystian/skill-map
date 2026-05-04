@@ -27,4 +27,4 @@ Annex of [`AGENTS.md`](../AGENTS.md). Read this file before editing anything und
 - [ ] Prose doc ends with a `## Stability` section.
 - [ ] No absolute URL in `$ref`.
 - [ ] Extends `base` / `report-base` via `allOf` where applicable; no field duplication.
-- [ ] `npm run spec:index` run; `spec/index.json` reflects the change.
+- [ ] `npm run spec --workspace=@skill-map/spec` run; `spec/index.json` reflects the change.

@@ -11,7 +11,7 @@ This folder is managed by [changesets](https://github.com/changesets/changesets)
 Run this **before pushing**:
 
 ```bash
-npm run changeset
+npm run release:changeset
 ```
 
 Interactive prompt:
@@ -97,7 +97,7 @@ npx changeset publish --dry-run
 git checkout package.json */package.json spec/CHANGELOG.md
 
 # Untracked files (new changesets you hadn't committed):
-# Those are LOST. Recreate them with `npm run changeset` or restore by memory.
+# Those are LOST. Recreate them with `npm run release:changeset` or restore by memory.
 ```
 
 ---
@@ -116,7 +116,7 @@ Don't manually create branches with that prefix.
 The changeset references a package name not declared in root `package.json` `workspaces`. Fix: add the package to workspaces, or fix the `"..."` field in the changeset `.md`.
 
 **CI's changeset job fails on my PR**
-You didn't include a `.md`. Run `npm run changeset`, commit, push.
+You didn't include a `.md`. Run `npm run release:changeset`, commit, push.
 
 **I want to skip the changeset requirement for this PR**
 If the PR genuinely touches no workspace files (e.g. root `README.md`, `.github/*`), the CI gate already skips. If you're touching a workspace file but the change is truly non-semver-relevant (e.g. comment-only), add an empty changeset:

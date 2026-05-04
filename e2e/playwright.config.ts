@@ -32,7 +32,7 @@ export default defineConfig({
     // `npm run demo:build` from the repo root before invoking the smoke
     // suite so the demo bundle exists. Playwright tears the server down
     // automatically when the test run ends.
-    command: `node scripts/serve-demo.js --port=${PORT}`,
+    command: `node ../scripts/serve-demo.js --port=${PORT}`,
     cwd: '.',
     url: `http://127.0.0.1:${PORT}/demo/`,
     reuseExistingServer: !isCI,

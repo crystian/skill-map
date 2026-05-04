@@ -2,7 +2,7 @@
 /**
  * `scripts/sync-spec-pin.js [--check]` — keep `@skill-map/cli`'s pin
  * on `@skill-map/spec` in lockstep with the spec's actual published
- * version. Wired into `changeset:version` so every release bump that
+ * version. Wired into `release:version` so every release bump that
  * moves the spec also retags the CLI's dep pin to the new spec
  * version, in the same `chore: version packages` PR.
  *

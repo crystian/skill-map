@@ -4,12 +4,14 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "dev": "ng serve --configuration=local",
     "dev:demo": "ng serve --configuration=demo",
-    "dev:local": "ng serve --configuration=local",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "test:ci": "ng test --watch=false"
+    "test:ci": "ng test --watch=false",
+    "bundle-analyze": "npm run build -- --configuration=analyze && source-map-explorer dist/ui/browser/*.js --no-border-checks",
+    "validate": "npm run test:ci && npm run build"
   },
   "private": true,
   "packageManager": "npm@11.6.2",

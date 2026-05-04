@@ -69,11 +69,9 @@ The `test/` folder contains a Node test that drives the Extractor through `runEx
 npm install --save-dev @skill-map/testkit
 node --test test/greet-extractor.test.js
 
-# Inside this monorepo (where @skill-map/testkit is a workspace):
-mkdir -p node_modules/@skill-map
-ln -sfn ../../testkit node_modules/@skill-map/testkit
-ln -sfn ../../src     node_modules/@skill-map/cli
-node --test test/greet-extractor.test.js
+# Inside this monorepo, the example is a workspace — npm install at the
+# repo root resolves @skill-map/testkit and @skill-map/cli automatically.
+npm test --workspace=@skill-map/example-hello-world
 ```
 
 For a real plugin you would normally:

@@ -87,7 +87,7 @@ if (!touchesWorkspace(files, roots)) {
 const added = newChangesets(baseRef);
 if (added.length === 0) {
   console.error('::error::This PR modifies a workspace but no changeset was added.');
-  console.error('Run `npm run changeset` and commit the generated file.');
+  console.error('Run `npm run release:changeset` and commit the generated file.');
   console.error('Workspaces watched: ' + roots.join(', '));
   process.exit(1);
 }

@@ -28,7 +28,7 @@ Every PR that touches a published workspace (`spec/`, `src/`, `testkit/`, and `u
 ### Creating a changeset
 
 ```bash
-npm run changeset
+npm run release:changeset
 ```
 
 Pick the affected package(s), the bump type, and write a one-paragraph summary. Commit the generated `.changeset/*.md` with your change.
@@ -54,17 +54,17 @@ Nothing ships to npm without an explicit merge of the Version Packages PR.
 `spec/index.json` carries a sha256 per file shipped. Regenerate after any change under `spec/`:
 
 ```bash
-npm run spec:index          # regenerate
-npm run spec:check          # verify (used by CI)
+npm run spec --workspace=@skill-map/spec          # regenerate
+npm run spec:check --workspace=@skill-map/spec    # verify (used by CI via root validate)
 ```
 
-A CI step runs `spec:check` on every PR. Drift → red build.
+The orchestrator (`npm run validate`) runs `spec:check` for every PR through the spec workspace's `validate`. Drift → red build.
 
 Same discipline applies to the auto-generated CLI reference at `context/cli-reference.md`:
 
 ```bash
-npm run cli:reference       # regenerate from `sm help --format md`
-npm run cli:check           # verify (used by CI)
+npm run reference --workspace=@skill-map/cli         # regenerate from `sm help --format md`
+npm run reference:check --workspace=@skill-map/cli   # verify (used by CI via root validate)
 ```
 
 ### Version Packages PR exception

@@ -4,8 +4,7 @@ End-to-end / smoke tests for skill-map. Private workspace — never published to
 
 ## What lives here
 
-- `playwright.config.ts` — single Chromium-only project (`smoke`). Spins up `scripts/serve-demo.js` automatically via `webServer`.
-- `scripts/serve-demo.js` — deps-free Node static server that mounts `web/demo/` under `/demo/` with SPA fallback.
+- `playwright.config.ts` — single Chromium-only project (`smoke`). Spins up `../scripts/serve-demo.js` automatically via `webServer` (the static server lives at the repo root and can also be invoked manually via `node scripts/serve-demo.js`).
 - `smoke/` — Playwright specs.
 
 ## First-time setup
@@ -21,12 +20,10 @@ That downloads ~150 MB into `~/.cache/ms-playwright/` and is a one-shot per mach
 ## Running locally
 
 ```bash
-# Build the demo bundle (must exist before the smoke runs)
-npm run demo:build              # from repo root
+# Full smoke (build + browser install + tests):
+npm run validate --workspace=skill-map-e2e
 
-# Run the smoke
-npm run smoke:demo              # from repo root — chains build + test
-# or, if web/demo/ is already built:
+# Or, if web/demo/ is already built and chromium is installed:
 npm run test:smoke --workspace=skill-map-e2e
 ```
 
@@ -36,6 +33,6 @@ npm run test:smoke --workspace=skill-map-e2e
 - The bundle never fetches `/api/...` — a regression activating the live-mode `RestDataSource` in the demo build is caught here.
 - The three views (list, graph, inspector) render and route correctly.
 
-## Not run in CI (today)
+## Run via root validate
 
-`validate:all` deliberately does not include this suite — Chromium is heavy to install in a clean CI environment and the smoke is meant for local pre-release verification. Hook it into a release workflow when the public-site publish flow lands (ROADMAP §Step 14.7).
+`npm run validate` from the repo root invokes this workspace's `validate` script, which runs `prevalidate` first (`install:browsers` + `npm --prefix .. run demo:build`) and then `playwright test`. CI picks it up automatically as part of the orchestrator.

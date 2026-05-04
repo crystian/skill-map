@@ -234,9 +234,10 @@ when the changes serve different purposes.
 
 ### 7. Spec integrity (only if `spec/**` changed)
 
-Run `npm run spec:index` to regenerate `spec/index.json`. Stage the
-regenerated file. Then `npm run spec:check` to confirm it passes — the CI
-hook runs the same.
+Run `npm run spec --workspace=@skill-map/spec` to regenerate
+`spec/index.json`. Stage the regenerated file. Then `npm run spec:check
+--workspace=@skill-map/spec` to confirm it passes — the CI hook runs the
+same via the root `validate` orchestrator.
 
 If you changed the prompt preamble text, also re-generate the conformance
 fixtures (path: `spec/conformance/fixtures/preamble-v*.txt`) per the

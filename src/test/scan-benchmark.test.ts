@@ -59,7 +59,8 @@ after(() => {
 });
 
 // Coverage instrumentation adds ~10-15% overhead, which can push the
-// WSL2 baseline past even the relaxed budget. `npm run test:coverage`
+// WSL2 baseline past even the relaxed budget. The workspace's
+// `test:coverage` script (npm run test:coverage --workspace=@skill-map/cli)
 // sets `SKILL_MAP_SKIP_BENCHMARK=1` so the timing assertion is skipped
 // while still letting the test register (so the `before` fixture runs
 // and contributes to coverage of fixture-generation code paths).

@@ -44,6 +44,13 @@
     "conformance/",
     "index.json"
   ],
+  "scripts": {
+    "spec": "cd .. && node scripts/build-spec-index.js",
+    "spec:check": "cd .. && node scripts/build-spec-index.js --check && node scripts/check-coverage.js",
+    "pin": "cd .. && node scripts/sync-spec-pin.js",
+    "pin:check": "cd .. && node scripts/sync-spec-pin.js --check",
+    "validate": "npm run spec:check && npm run pin:check"
+  },
   "publishConfig": {
     "access": "public"
   }

@@ -38,14 +38,12 @@ jobs:
           done < <(find spec/schemas -name '*.schema.json')
           exit $fail
 
-      - name: Verify spec index integrity (sha256 per file)
-        run: node scripts/build-spec-index.js --check
-
-      - name: Verify coverage matrix ↔ schemas sync
-        run: node scripts/check-coverage.js
-
-      - name: Build site + validate $id alignment
-        run: node scripts/build-site.js
+      # Spec integrity (index hashes + coverage matrix) and the public-site
+      # build (schema $id alignment) are now covered by `npm run validate`
+      # in the build-test job — the spec and web workspaces validate
+      # themselves end-to-end. Only the JSON parse-check stays here as a
+      # cheap, install-script-free guard so a malformed schema fails the
+      # validate job before the heavier orchestrator runs.
 
   build-test:
     name: build + test
@@ -64,17 +62,8 @@ jobs:
       - name: Install deps
         run: npm ci --ignore-scripts
 
-      - name: Typecheck
-        run: npm run typecheck --workspace=@skill-map/cli
-
-      - name: Validate (lint every workspace)
+      - name: Validate (typecheck + lint + build + test for every workspace)
         run: npm run validate
-
-      - name: Build (tsup)
-        run: npm run build --workspace=@skill-map/cli
-
-      - name: Test
-        run: npm run test:ci --workspace=@skill-map/cli
 
   smoke-install:
     name: smoke install (tarball)

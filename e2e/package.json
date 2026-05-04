@@ -6,8 +6,12 @@
   "description": "End-to-end / smoke tests for skill-map. Not a published workspace.",
   "scripts": {
     "test": "playwright test",
+    "test:ci": "playwright test",
+    "test:ui": "npm run test:ci",
     "test:smoke": "playwright test --project=smoke",
-    "install:browsers": "playwright install chromium"
+    "install:browsers": "playwright install chromium",
+    "prevalidate": "npm run install:browsers && npm --prefix .. run demo:build",
+    "validate": "npm run test:ci"
   },
   "devDependencies": {
     "@playwright/test": "1.59.1",

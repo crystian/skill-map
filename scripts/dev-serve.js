@@ -17,7 +17,7 @@
  * Usage (from repo root):
  *   npm run dev:serve                                 # default port 4242, cwd=src/
  *   npm run dev:serve -- --port 4243                  # override port
- *   npm run dev:serve -- --cwd ui/fixtures/foo        # serve a fixture scope
+ *   npm run dev:serve -- --cwd fixtures/foo           # serve a fixture scope
  *   npm run dev:serve -- --strict                     # any extra flags pass through
  *
  * `--cwd <path>` is the modal switch: without it, the watcher serves

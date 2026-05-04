@@ -4,7 +4,7 @@
  * Playwright's `webServer` so the smoke suite can exercise `web/demo/`
  * in its production shape (mounted under `/demo/`).
  *
- * Run from the `e2e/` workspace:
+ * Run from the repo root:
  *   node scripts/serve-demo.js [--port=4321]
  *
  * Behavior:
@@ -22,7 +22,7 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SCRIPT_DIR = fileURLToPath(new URL('.', import.meta.url));
-const REPO_ROOT = resolve(SCRIPT_DIR, '..', '..');
+const REPO_ROOT = resolve(SCRIPT_DIR, '..');
 const DEMO_ROOT = join(REPO_ROOT, 'web', 'demo');
 const MOUNT = '/demo';
 

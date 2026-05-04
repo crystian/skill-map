@@ -36,6 +36,7 @@
     "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts'",
     "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts'",
     "test:coverage": "tsc --noEmit && node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts'",
+    "validate": "npm run typecheck && npm run build && npm run test:ci",
     "clean": "rm -rf dist"
   },
   "dependencies": {

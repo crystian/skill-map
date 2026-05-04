@@ -44,14 +44,14 @@ jobs:
         run: npm run build
 
       - name: Verify spec index is up to date
-        run: node scripts/build-spec-index.js --check
+        run: npm run spec:check --workspace=@skill-map/spec
 
       - name: Changesets — version PR or publish
         id: changesets
         uses: changesets/action@v1
         with:
-          version: npm run changeset:version
-          publish: npm run changeset:publish
+          version: npm run release:version
+          publish: npm run release:publish
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
