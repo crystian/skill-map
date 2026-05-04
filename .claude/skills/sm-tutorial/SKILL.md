@@ -35,10 +35,16 @@ optional second phase (~30-40 min) covering the rest of the CLI.
 
 ## Tone
 
-- Español casual, neutro con un toque argentino. Frases cortas. Cero
-  jerga innecesaria.
-- Llamás al tester por su nombre si te lo dice; si no, "vos".
-- No sos condescendiente. Si pide algo que va a romper, lo avisás claro.
+- Spanish (when the tester's language is Spanish): casual, neutral,
+  NOT rioplatense. Short sentences. No unnecessary jargon. Use
+  `tú` form, not `vos` — `puedes`, `mira`, `prueba`, `crea`, NOT
+  `podés`, `mirá`, `probá`, `creá`. Avoid Argentine fillers
+  (`dale`, `bueno`, `che`, `re-`, `genial`).
+- Address the tester by name if they introduced themselves; if not,
+  the implicit second person from the verb is enough. No need to
+  invent a stand-in pronoun.
+- Don't be condescending. If they ask for something that will
+  break, say so directly.
 - **Messages addressed to the tester are rendered as Markdown
   blockquotes** (lines prefixed with `> `): instructions, narrative
   context, numbered choice menus, prompts, confirmations. The
@@ -49,10 +55,10 @@ optional second phase (~30-40 min) covering the rest of the CLI.
   narrative and a command, write the narrative in a blockquote
   *above* the bare code block (not inside it).
 - **Mirror the tester's language**: if the first message they wrote
-  was in Spanish, run the conversation in Argentine Spanish (per
-  the Tone bullets above, voseo and all); if in English, run it in
-  plain English. Internal narration in this SKILL.md stays in
-  English regardless.
+  was in Spanish, run the conversation in neutral Spanish (per
+  the Tone bullets above — `tú` form, no rioplatense); if in
+  English, run it in plain English. Internal narration in this
+  SKILL.md stays in English regardless.
 - **Never emit bilingual user-facing copy**. The samples in the
   blockquotes throughout this SKILL are written in English as the
   base; translate the entire block to Spanish when the tester
@@ -81,15 +87,26 @@ optional second phase (~30-40 min) covering the rest of the CLI.
      demo needs this so the watcher has something to react to).
    - Read files to verify what the tester modified.
    - Everything else is run by the tester.
-   - **Configuration files are off-limits to your editing tools**:
-     `.skillmapignore`, `.skill-map/settings.json`,
-     `.skill-map/settings.local.json`, and `.gitignore` are
-     ALWAYS edited by the tester, never by you. When a step calls
-     for a change to one of those, you describe the edit in a
-     blockquote and the tester applies it in their own editor.
-     The pedagogical point is that those files belong to the user
-     — they need to internalise where they live and how to change
-     them. Doing it for them defeats the lesson.
+   - **Configuration files have two-mode access**: backstage setup
+     vs teach moment.
+     - **Backstage setup (you DO edit)**: right after `sm init` in
+       Step 1, you append the tutorial's internal entries
+       (`sm-tutorial.md`, `findings.md`, `tutorial-state.yml`,
+       `sm-tutorial-report.md`, etc.) to the freshly created
+       `.skillmapignore` with `Edit`. That is plumbing — the
+       tester does not need to learn that the tutorial hides its
+       own scaffolding from the scan. Do it silently and move on.
+     - **Teach moment (you DO NOT edit)**: any time the SKILL
+       calls for a change to `.skillmapignore`,
+       `.skill-map/settings.json`,
+       `.skill-map/settings.local.json`, or `.gitignore` AS PART
+       OF A REVEAL OR LESSON (e.g. Reveal 5 in Step 2 hides a
+       private node by appending a pattern), you describe the
+       edit in a blockquote and the tester applies it in their
+       own editor. The pedagogical point is that those files
+       belong to the user — they need to internalise where they
+       live and how to change them. Doing it for them in a
+       teach moment defeats the lesson.
 2. **After every command block, stop and wait.** The tester pastes
    the output or replies "OK" / "done". Only then do you advance.
 3. **Persist progress after every step / stage.** Update
@@ -210,6 +227,12 @@ which sm
 sm version
 ```
 
+This check is **silent on success**. Do NOT narrate the result to
+the tester ("`sm` v X.Y.Z responded, all good"). Save the version
+internally and move on. The tester does not need a status report
+for a backstage health check; speaking up here adds noise without
+information. Only break the silence if something actually fails.
+
 If `sm` isn't installed, tell the tester:
 
 > You don't have `sm` yet. You'll need Node 20+ and then:
@@ -225,8 +248,8 @@ permissions issue. Suggest `node --version` and walk them through it.
 
 ### 3. Create the initial fixture (one node only)
 
-The tutorial builds the graph **progressively** in three reveals during
-Step 3 (Live UI). Right now, in pre-flight, you only create **one
+The tutorial builds the graph **progressively** in five reveals during
+Step 2 (Live UI). Right now, in pre-flight, you only create **one
 file** — a single agent — so the tester's first look at the UI
 shows exactly one node. The other four kinds (skill, command, hook,
 note) and the connectors between all five are added later, one
@@ -300,16 +323,13 @@ route:
     status: "not_started"   # not_started | in_progress | done | declined
     estimated_min: 35
 short_steps:
-  - id: "1-version"
-    title: "sm version"
-    status: "pending"
-  - id: "2-init"
+  - id: "1-init"
     title: "sm init"
     status: "pending"
-  - id: "3-ui-live"
+  - id: "2-ui-live"
     title: "⭐ Live UI: bare sm + live edits by the agent"
     status: "pending"
-  - id: "4-handoff"
+  - id: "3-handoff"
     title: "Wrap-up of the demo and offer to keep going"
     status: "pending"
 long_stages:
@@ -363,16 +383,7 @@ to resume (re-invoke the skill from the same dir).
 
 Always runs. The pedagogical hook is the live UI.
 
-### Step 1 — `sm version` (30 s)
-
-Already done in pre-flight. Confirm to the tester in one short
-blockquote, translated to their language:
-
-> OK, `sm` v X.Y.Z responded. Let's go.
-
-Mark `1-version: done`.
-
-### Step 2 — `sm init` (1 min)
+### Step 1 — `sm init` (1 min)
 
 **Context**: `sm init` creates a hidden `.skill-map/` folder in the
 cwd holding the database where skill-map stores what it learns about
@@ -403,9 +414,9 @@ export.*
 dump.sql
 ```
 
-Mark `2-init: done`.
+Mark `1-init: done`.
 
-### Step 3 — ⭐ Live UI (4-5 min)
+### Step 2 — ⭐ Live UI (4-5 min)
 
 **Context**: typing `sm` alone (no arguments) in an initialised dir
 starts the UI server with the watcher built in. One process, one
@@ -781,9 +792,9 @@ verify the appended pattern landed correctly (in case
 allowed. Once confirmed, ask them to stop the server with
 **Ctrl+C** in the terminal before continuing.
 
-Mark `3-ui-live: done`.
+Mark `2-ui-live: done`.
 
-### Step 4 — Wrap-up of the demo and offer to keep going (30 s)
+### Step 3 — Wrap-up of the demo and offer to keep going (30 s)
 
 > All set! That's the heart of skill-map: you edit a `.md` and the
 > UI sees it instantly. In **~7 minutes** you've already seen the
@@ -838,9 +849,9 @@ Save into `tester.level` and modulate:
 they can do it from their editor.
 
 This stage needs the server running. **Check first** before asking
-them to launch it: many testers leave it running from Step 3 and
+them to launch it: many testers leave it running from Step 2 and
 the demo wraps without an explicit Ctrl+C. Word the prompt as a
-conditional, e.g. "If the server from Step 3 is still up, leave it
+conditional, e.g. "If the server from Step 2 is still up, leave it
 — if not, run `sm` again from the tutorial cwd and reopen the
 browser." Do not just say "start it again" — that risks a second
 process trying to bind the same port and confusing the tester.
