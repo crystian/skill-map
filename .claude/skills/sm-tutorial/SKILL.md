@@ -292,22 +292,16 @@ permissions issue. Suggest `node --version` and walk them through it.
 
 ### 3. Create the initial fixture (one node only)
 
-Before you lay anything down, give the tester a one-shot heads-up
-about what's about to land in their cwd. **This is not
-interactive** — do NOT wait for a confirmation, do NOT ask
-permission per file. You announce, then immediately start writing.
-The tester just needs to know files are coming so they're not
-surprised:
+Before you lay anything down, give the tester a one-shot heads-up.
+**This is not interactive** — do NOT wait for a confirmation, do
+NOT ask permission per file, do NOT enumerate the files. The
+tester just needs to know scaffolding is starting so they're not
+surprised when files appear; details (file list, cleanup) come
+later when they're relevant. Keep it to a single short sentence:
 
 > Quick heads-up before we start: I'm about to set up the
-> tutorial scenario in this directory. That means creating a
-> handful of files — a small demo fixture under `.claude/`, a
-> `findings.md` for any bugs you spot, and a `tutorial-state.yml`
-> to track your progress. The next step (`sm init`) will also
-> drop a hidden `.skill-map/` directory and a `.skillmapignore`
-> at the root. I won't ask before each one — I'll just lay them
-> down and we keep moving. At the end I'll show you exactly what
-> to delete if you want a clean directory back.
+> tutorial scenario in this directory — that means creating a
+> handful of files. Hold on while I finish.
 
 Then proceed straight to the writes below — no pause, no "ready?"
 prompt.
