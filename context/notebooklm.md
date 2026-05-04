@@ -1,159 +1,159 @@
 # Skill-Map — Notebook LM Markdown
 
-> Documento fuente para Notebook LM: contiene la definición, el alcance funcional, el estado del proyecto y la arquitectura de extensión de **skill-map**, listo para ser convertido en un episodio de podcast.
+> Source document for Notebook LM: contains the definition, functional scope, project status, and extension architecture of **skill-map**, ready to be turned into a podcast episode.
 
 ---
 
-## ¿Qué es skill-map?
+## What is skill-map?
 
-Skill-map es un **explorador visual de grafos** para tu colección de archivos Markdown — los *skills*, *agents*, *commands*, *hooks* y notas que arman un ecosistema de agentes de IA (Claude Code, Codex, Gemini, Copilot, y otros). Es CLI-first, funciona 100% offline, y opcionalmente puede consultar a un LLM cuando quieres análisis semántico.
+Skill-map is a **visual graph explorer** for your collection of Markdown files — the *skills*, *agents*, *commands*, *hooks*, and notes that make up an AI agent ecosystem (Claude Code, Codex, Gemini, Copilot, and others). It's CLI-first, fully offline, and can optionally consult an LLM when you want semantic analysis.
 
-La idea central es simple. Cuando trabajas con agentes de IA terminas acumulando decenas — a veces cientos — de archivos Markdown que se invocan entre sí. Y, llegado un punto, **nadie tiene visibilidad sobre qué referencia a qué, qué se solapa, qué quedó huérfano, o cuántos tokens estás gastando en cada uno**. Skill-map convierte ese desorden en un grafo navegable: lo abres en el navegador, ves la red completa, y entiendes en segundos lo que antes te costaba horas de leer carpetas a ciegas.
+The core idea is simple. When you work with AI agents you end up accumulating dozens — sometimes hundreds — of Markdown files that invoke each other. At some point, **nobody has visibility into what references what, what overlaps, what got orphaned, or how many tokens you're spending on each one**. Skill-map turns that mess into a navigable graph: you open it in the browser, see the full network, and understand in seconds what used to take hours of blindly reading folders.
 
-Si tuvieras que resumirlo en una frase: *"De ecosistema caótico a agentes predecibles."*
-
----
-
-## El mapa es el corazón del producto
-
-La visualización no es un agregado — es la propuesta principal. Skill-map renderiza tu colección como un **mapa interactivo en el navegador**:
-
-- **Nodos coloreados por tipo** (skill, agent, command, hook, note) para que el cerebro los distinga sin leer.
-- **Conexiones diferenciadas por relación**: `invokes` (un skill llama a otro), `references` (cita por nombre), `mentions` (aparece en el cuerpo), `supersedes` (esto reemplaza a aquello).
-- **Layout automático** con Dagre, navegación con pan y zoom suave gracias a Foblex Flow.
-- **Cards expandibles** dentro de cada nodo: ves el frontmatter, los stats (bytes, tokens, links entrantes y salientes), una vista previa del cuerpo, y los issues abiertos sin abandonar el grafo.
-
-Skill-map te ofrece **tres vistas** sobre el mismo dataset:
-
-1. **Lista** — tabla filtrable y ordenable, ideal cuando buscas algo específico por nombre.
-2. **Grafo** — el mapa interactivo. Aquí pasas el tiempo cuando exploras relaciones.
-3. **Inspector** — vista detalle por nodo: metadata, render Markdown del cuerpo, panel de nodos enlazados, refresh por card.
-
-El grafo se actualiza **en vivo**: corres `sm watch`, editas un archivo en tu editor, y los cambios viajan por WebSocket al navegador y reflejan al instante. No hace falta refrescar.
-
-Si quieres probarlo sin instalar nada, hay un **demo gratuito en `skill-map.dev/demo/`** que corre por completo en el navegador, sobre datos sintéticos.
+If you had to sum it up in one phrase: *"From chaotic ecosystem to predictable agents."*
 
 ---
 
-## ¿Qué hace hoy?
+## The map is the heart of the product
 
-- Detecta **colisiones de triggers** — dos skills disputando el mismo input.
-- Lista **huérfanos** — archivos que nadie referencia y que probablemente puedes borrar.
-- Mide **peso por nodo** en bytes y tokens, así ves de un vistazo dónde se va tu presupuesto del LLM.
-- Mapea **referencias externas** — URLs, paquetes npm citados, dependencias afuera del repo.
-- Detecta **superseded** — un skill nuevo que reemplaza a uno viejo que sigue activo, con heurística de auto-rename y propagación.
-- Persiste todo en **SQLite**, con tablas separadas para historia (`state_*`) y snapshots regenerables (`scan_*`).
-- Configurable por **capas** (defaults → global → proyecto → local → variables de entorno), con `.skillmapignore` para excluir y `sm init` para arrancar un proyecto desde cero.
-- **Web UI integrada** (`sm serve`) con BFF Hono single-port, SPA Angular, dark-mode tri-state (auto / light / dark según preferencia del sistema), bundle inicial bajo 500 KB.
-- **Watch mode**: `sm watch` o `sm serve` siguen los cambios en disco con chokidar y emiten eventos.
-- **Mini-lenguaje de export** para `sm export` — filtros por tipo, por path, por estabilidad.
-- **Tres paquetes públicos en npm**: `@skill-map/spec`, `@skill-map/cli`, `@skill-map/testkit`.
+The visualization isn't an add-on — it's the main proposition. Skill-map renders your collection as an **interactive map in the browser**:
 
-Todo lo anterior funciona **sin LLM**. El LLM entra como capa opcional en la siguiente fase.
+- **Nodes colored by type** (skill, agent, command, hook, note) so the brain can tell them apart without reading.
+- **Connections differentiated by relationship**: `invokes` (one skill calls another), `references` (cited by name), `mentions` (appears in the body), `supersedes` (this replaces that).
+- **Automatic layout** with Dagre, smooth pan and zoom thanks to Foblex Flow.
+- **Expandable cards** inside each node: you see the frontmatter, the stats (bytes, tokens, incoming and outgoing links), a body preview, and the open issues without leaving the graph.
 
----
+Skill-map gives you **three views** over the same dataset:
 
-## Estado: beta activa
+1. **List** — filterable, sortable table, ideal when you're looking for something specific by name.
+2. **Graph** — the interactive map. This is where you spend time when exploring relationships.
+3. **Inspector** — per-node detail view: metadata, Markdown render of the body, linked-nodes panel, per-card refresh.
 
-Skill-map está en **beta** — pre-1.0, en desarrollo muy activo. La trayectoria se divide en tres fases públicas:
+The graph updates **live**: you run `sm watch`, edit a file in your editor, and the changes travel over WebSocket to the browser and reflect instantly. No refresh needed.
 
-- **Fase A (✅ cerrada)** — Núcleo determinístico + CLI + Web UI baseline. Es lo que hoy es real, instalable y útil. Cierra la versión `v0.6.0`.
-- **Fase B (próxima)** — La capa LLM como opt-in. Subsistema de jobs con *atomic claim* y *nonce*, primera extensión probabilística (un *summarizer* que convierte un skill en un brief estructurado), summarizers por tipo, y verbos semánticos como `sm what` (qué hace este skill), `sm dedupe` (encuentra duplicados semánticos), `sm cluster-triggers` (agrupa triggers que se solapan), `sm impact-of` (si toco esto, qué se mueve), `sm recommend-optimization` (ideas para reducir tokens o redundancia). La UI gana cards read-only para *summaries*, *enrichments* y *findings*. Apunta a `v0.8.0`.
-- **Fase C (objetivo 1.0)** — Formatters adicionales (Mermaid para README, DOT/Graphviz para CI), providers multi-host (Codex, Gemini, Copilot, genérico), UI más profunda con los verbos LLM convertidos en flujos interactivos, queue inspector, dashboard de costos, y distribución final como single npm package con la UI empaquetada adentro. Apunta a `v1.0.0`.
-
-Más de **117 decisiones arquitectónicas** quedaron documentadas en el roadmap antes del primer commit. La spec pública incluye 29 JSON Schemas, contratos en prosa, y una suite de conformance en el paquete `@skill-map/spec`. Pre-1.0 significa que las versiones se mueven, pero el comportamiento y la spec están comprometidos hacia una `1.0.0` deliberada y estabilizadora — no un accidente.
+If you want to try it without installing anything, there's a **free demo at `skill-map.dev/demo/`** that runs entirely in the browser, on synthetic data.
 
 ---
 
-## Diseñado para extenderse: seis tipos de plugins
+## What does it do today?
 
-El kernel de skill-map es **deliberadamente ignorante**. No sabe qué es un skill de Claude, ni cómo se invoca un command, ni qué regla validar. Todo ese conocimiento vive en **extensiones** que se cargan como plugins drop-in: dejas una carpeta bajo `.skill-map/plugins/<id>/` y el kernel la levanta.
+- Detects **trigger collisions** — two skills competing for the same input.
+- Lists **orphans** — files nothing references that you can probably delete.
+- Measures **per-node weight** in bytes and tokens, so you can see at a glance where your LLM budget is going.
+- Maps **external references** — URLs, npm packages cited, dependencies outside the repo.
+- Detects **superseded** — a new skill that replaces an older one that's still active, with auto-rename heuristics and propagation.
+- Persists everything in **SQLite**, with separate tables for history (`state_*`) and regenerable snapshots (`scan_*`).
+- Configurable in **layers** (defaults → global → project → local → environment variables), with `.skillmapignore` to exclude and `sm init` to bootstrap a project from scratch.
+- **Integrated Web UI** (`sm serve`) with single-port Hono BFF, Angular SPA, tri-state dark mode (auto / light / dark per system preference), initial bundle under 500 KB.
+- **Watch mode**: `sm watch` or `sm serve` follow disk changes with chokidar and emit events.
+- **Mini export language** for `sm export` — filters by type, by path, by stability.
+- **Three public npm packages**: `@skill-map/spec`, `@skill-map/cli`, `@skill-map/testkit`.
 
-Hay **seis tipos de extensión**, ni uno más:
+Everything above works **without an LLM**. The LLM enters as an opt-in layer in the next phase.
+
+---
+
+## Status: active beta
+
+Skill-map is in **beta** — pre-1.0, under very active development. The trajectory splits into three public phases:
+
+- **Phase A (✅ closed)** — Deterministic core + CLI + baseline Web UI. This is what's real, installable, and useful today. Closes version `v0.6.0`.
+- **Phase B (next)** — The LLM layer as opt-in. Job subsystem with *atomic claim* and *nonce*, first probabilistic extension (a *summarizer* that turns a skill into a structured brief), per-type summarizers, and semantic verbs like `sm what` (what does this skill do), `sm dedupe` (find semantic duplicates), `sm cluster-triggers` (group overlapping triggers), `sm impact-of` (if I touch this, what moves), `sm recommend-optimization` (ideas to reduce tokens or redundancy). The UI gains read-only cards for *summaries*, *enrichments*, and *findings*. Targets `v0.8.0`.
+- **Phase C (1.0 target)** — Additional formatters (Mermaid for README, DOT/Graphviz for CI), multi-host providers (Codex, Gemini, Copilot, generic), deeper UI with the LLM verbs turned into interactive flows, queue inspector, cost dashboard, and final distribution as a single npm package with the UI bundled inside. Targets `v1.0.0`.
+
+More than **117 architectural decisions** were documented in the roadmap before the first commit. The public spec includes 29 JSON Schemas, prose contracts, and a conformance suite in the `@skill-map/spec` package. Pre-1.0 means versions move, but behavior and spec are committed toward a deliberate, stabilizing `1.0.0` — not an accident.
+
+---
+
+## Designed to be extended: six plugin types
+
+The skill-map kernel is **deliberately ignorant**. It doesn't know what a Claude skill is, nor how a command is invoked, nor what rule to validate. All that knowledge lives in **extensions** loaded as drop-in plugins: drop a folder under `.skill-map/plugins/<id>/` and the kernel picks it up.
+
+There are **six extension types**, no more:
 
 ### 1. Provider
 
-Reconoce una plataforma. Sabe la *layout on-disk* de un host concreto y cómo clasificar archivos en los seis tipos de nodo.
+Recognizes a platform. Knows the *on-disk layout* of a specific host and how to classify files into the six node types.
 
-Hoy existe un Provider para **Claude Code** que entiende que los skills viven en `~/.claude/skills/`, los agents en `~/.claude/agents/`, los commands en `~/.claude/commands/`. Próximos en la fase C: **Codex**, **Gemini**, **Copilot**, y un **Provider genérico** guiado por frontmatter para casos no oficiales. Un Provider es siempre determinístico — la clasificación de archivos no admite ambigüedad.
+There's a Provider today for **Claude Code** that understands skills live in `~/.claude/skills/`, agents in `~/.claude/agents/`, commands in `~/.claude/commands/`. Coming in phase C: **Codex**, **Gemini**, **Copilot**, and a **generic Provider** driven by frontmatter for unofficial cases. A Provider is always deterministic — file classification doesn't admit ambiguity.
 
 ### 2. Extractor
 
-Lee un archivo Markdown y extrae los **links** que produce el grafo. Cada Extractor mira una superficie distinta del archivo:
+Reads a Markdown file and extracts the **links** that produce the graph. Each Extractor looks at a different surface of the file:
 
-- Un extractor de **frontmatter** lee campos como `uses`, `triggers`, `requires`.
-- Un extractor de **slash-commands** detecta menciones tipo `/skill-name` en el cuerpo.
-- Un extractor de **at-directives** detecta `@agent-name`.
-- Un extractor de **URLs externas** cuenta cuántas referencias salen del repositorio (útil para auditar dependencias).
+- A **frontmatter** extractor reads fields like `uses`, `triggers`, `requires`.
+- A **slash-commands** extractor detects `/skill-name`-style mentions in the body.
+- An **at-directives** extractor detects `@agent-name`.
+- An **external URLs** extractor counts how many references leave the repository (useful for auditing dependencies).
 
-Pueden ser determinísticos (regex y parsing) o probabilísticos (un LLM identifica menciones implícitas que un regex no captura). Cada Extractor declara su modo.
+They can be deterministic (regex and parsing) or probabilistic (an LLM identifies implicit mentions a regex can't capture). Each Extractor declares its mode.
 
 ### 3. Rule
 
-Produce **issues determinísticos** sobre el grafo. Algunas que vienen incluidas:
+Produces **deterministic issues** over the graph. Some that ship included:
 
-- `trigger-collision` — dos skills disputando el mismo input.
-- `broken-ref` — un link a un nodo que no existe.
-- `superseded` — un skill que dice reemplazar a otro y el otro sigue activo.
-- `link-conflict` — dos Extractors discrepando sobre un mismo link.
+- `trigger-collision` — two skills competing for the same input.
+- `broken-ref` — a link to a node that doesn't exist.
+- `superseded` — a skill that claims to replace another, and the other is still active.
+- `link-conflict` — two Extractors disagreeing about the same link.
 
-Las Rules corren dentro de `sm scan` y `sm check`. También pueden ser probabilísticas: por ejemplo, una Rule que evalúa la calidad de la prosa o detecta redundancia semántica entre dos skills.
+Rules run inside `sm scan` and `sm check`. They can also be probabilistic: for example, a Rule that evaluates prose quality or detects semantic redundancy between two skills.
 
 ### 4. Action
 
-Es el **único** tipo de plugin que toca disco. Una Action ejecuta una operación sobre uno o más nodos:
+This is the **only** plugin type that touches disk. An Action executes an operation over one or more nodes:
 
-- En modo **determinístico**, es código directo: renombrar un trigger, ajustar un campo del frontmatter, mover un archivo entre carpetas.
-- En modo **probabilístico**, es un prompt que un LLM ejecuta a través del *job subsystem* — con *atomic claim* (dos workers no pueden tomar el mismo job), *nonce* (cada job verifica su autoridad antes de escribir), y un *preamble* forzado por el kernel para garantizar contexto y formato.
+- In **deterministic** mode, it's direct code: rename a trigger, adjust a frontmatter field, move a file between folders.
+- In **probabilistic** mode, it's a prompt that an LLM executes through the *job subsystem* — with *atomic claim* (two workers can't pick up the same job), *nonce* (each job verifies its authority before writing), and a *preamble* enforced by the kernel to guarantee context and format.
 
-Las Actions son lo que convierte a skill-map en una herramienta de **gestión**, no sólo de observación.
+Actions are what turns skill-map into a **management** tool, not just observation.
 
 ### 5. Formatter
 
-Serializa el grafo a un formato externo. Hoy hay un Formatter **ASCII** para imprimir el grafo en la terminal. Próximos en la fase C: **Mermaid** (para incrustar diagramas en `README.md` y docs), **DOT / Graphviz** (para integrarlo en CI o herramientas externas), y exportación de **subgrafos con filtros**. Los Formatters son siempre determinísticos — la representación del grafo tiene que ser reproducible.
+Serializes the graph to an external format. Today there's an **ASCII** Formatter to print the graph in the terminal. Coming in phase C: **Mermaid** (to embed diagrams in `README.md` and docs), **DOT / Graphviz** (to integrate with CI or external tooling), and **subgraph export with filters**. Formatters are always deterministic — graph representation has to be reproducible.
 
 ### 6. Hook
 
-Reacciona a **eventos del ciclo de vida del kernel**. Hay un set curado de eventos a los que un Hook puede suscribirse: `scan.started`, `scan.completed`, `issue.added`, `issue.resolved`, `job.started`, `job.completed`.
+Reacts to **kernel lifecycle events**. There's a curated set of events a Hook can subscribe to: `scan.started`, `scan.completed`, `issue.added`, `issue.resolved`, `job.started`, `job.completed`.
 
-Un Hook puede, por ejemplo, **notificar a Slack** cuando aparece un issue de severidad alta, **escribir un audit log** después de cada scan, o **sincronizar metadata** con un sistema externo de tickets. Pueden ser determinísticos o probabilísticos (un LLM evaluando la relevancia del evento antes de decidir si notificar).
-
----
-
-## El testkit oficial
-
-Junto al CLI se publica `@skill-map/testkit`, un paquete dedicado para que **cualquier autor de plugins** escriba pruebas contra un contrato estable. Trae fixtures drop-in, helpers para construir un `ScanResult` esperado, y mock runners para tests determinísticos.
-
-La premisa es simple: **si tu plugin no pasa los tests del testkit, el kernel no lo carga**. Esto evita que un plugin roto contamine el grafo del usuario y mantiene la promesa de "drop-in" sin riesgo.
+A Hook can, for example, **notify Slack** when a high-severity issue appears, **write an audit log** after each scan, or **sync metadata** with an external ticketing system. They can be deterministic or probabilistic (an LLM evaluating event relevance before deciding to notify).
 
 ---
 
-## ¿Por qué importa?
+## The official testkit
 
-Skill-map mira un problema que crece silenciosamente. Las colecciones de archivos Markdown que controlan a los agentes de IA empiezan ordenadas, y a los seis meses son una madeja. Tres tipos de usuario sienten ese dolor primero:
+Alongside the CLI we publish `@skill-map/testkit`, a dedicated package so that **any plugin author** can write tests against a stable contract. It ships drop-in fixtures, helpers to build an expected `ScanResult`, and mock runners for deterministic tests.
 
-- **Equipos y arquitectos de plataforma** que mantienen colecciones compartidas de skills entre múltiples proyectos. Necesitan auditoría, deduplicación, y onboarding de nuevos miembros sin tener que leer 200 archivos.
-- **Autores de skills, agents y plugins** que quieren detectar duplicados, redundancias y oportunidades de optimización antes de publicar.
-- **Quienes debuggean** una invocación que salió mal — rastrear desde el trigger que dijo el usuario hasta el skill que ganó el match, en tiempo real.
-
-Y como la spec es **pública y separable** de la implementación de referencia, cualquiera puede construir una segunda implementación, una UI alternativa, o tooling complementario consumiendo solo `@skill-map/spec`. Eso le da al estándar una vida más larga que la del proyecto que lo originó.
+The premise is simple: **if your plugin doesn't pass the testkit tests, the kernel doesn't load it**. This prevents a broken plugin from contaminating the user's graph and keeps the "drop-in" promise risk-free.
 
 ---
 
-## Recursos
+## Why does it matter?
 
-- Sitio oficial: <https://skill-map.dev>
-- Demo en vivo en el navegador, sin instalar: <https://skill-map.dev/demo/>
-- Repositorio en GitHub: <https://github.com/crystian/skill-map>
-- Paquetes en npm: `@skill-map/spec`, `@skill-map/cli`, `@skill-map/testkit`
-- Licencia: MIT (con Apache aceptado en contribuciones de skills)
+Skill-map looks at a problem that grows quietly. Markdown collections that drive AI agents start out tidy and, six months later, they're a tangle. Three user types feel that pain first:
 
-Para empezar:
+- **Teams and platform architects** maintaining shared skill collections across multiple projects. They need auditing, deduplication, and onboarding new members without having to read 200 files.
+- **Authors of skills, agents, and plugins** who want to detect duplicates, redundancies, and optimization opportunities before publishing.
+- **People debugging** an invocation that went wrong — tracing from the trigger the user said to the skill that won the match, in real time.
+
+And because the spec is **public and separable** from the reference implementation, anyone can build a second implementation, an alternative UI, or complementary tooling consuming only `@skill-map/spec`. That gives the standard a longer life than the project that originated it.
+
+---
+
+## Resources
+
+- Official site: <https://skill-map.dev>
+- Live demo in the browser, no install: <https://skill-map.dev/demo/>
+- GitHub repository: <https://github.com/crystian/skill-map>
+- npm packages: `@skill-map/spec`, `@skill-map/cli`, `@skill-map/testkit`
+- License: MIT (Apache accepted on skill contributions)
+
+To get started:
 
 ```bash
 npm i -g @skill-map/cli
-cd tu/proyecto
+cd your/project
 sm
 ```
 
-Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corriendo. Editas cualquier `.md` del proyecto y el grafo se actualiza en vivo en el navegador.
+That last `sm` opens the Web UI at `http://127.0.0.1:4242` with the watcher running. Edit any `.md` in the project and the graph updates live in the browser.

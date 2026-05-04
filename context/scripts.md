@@ -1,146 +1,146 @@
-# context/scripts.md — scripts npm y workspaces
+# context/scripts.md — npm scripts and workspaces
 
-Convenciones para scripts npm en el monorepo skill-map. Mismo nivel de autoridad que `AGENTS.md`. Lectura obligada al tocar `package.json` (raíz o workspace) o cualquier `scripts/*` que se invoque desde un script npm.
+Conventions for npm scripts in the skill-map monorepo. Same authority level as `AGENTS.md`. Required reading when touching `package.json` (root or workspace) or any `scripts/*` invoked from an npm script.
 
-## Patrón de naming
+## Naming pattern
 
-`componente:acción` para todo atajo en raíz: `bff:dev`, `cli:build`, `ui:dev`, `ui:build`, `e2e:dev`, `web:dev`, `web:build`, `demo:dev`, `demo:build`, `release:changeset`, `release:version`, `release:publish`. **Sin excepciones** para scripts nuevos en raíz.
+`component:action` for every root-level shortcut: `bff:dev`, `cli:build`, `ui:dev`, `ui:build`, `e2e:dev`, `web:dev`, `web:build`, `demo:dev`, `demo:build`, `release:changeset`, `release:version`, `release:publish`. **No exceptions** for new root scripts.
 
-## Qué va en raíz, qué va en workspace
+## What lives in root, what lives in a workspace
 
-**Raíz expone únicamente**:
+**Root exposes only**:
 
-- Atajos diarios `componente:dev` y `componente:build` por componente. "Diario" = lo que un dev usa varias veces por sesión. Si es esporádico (analyze, coverage, etc.), no entra.
-- Orquestadores cross-workspace: `lint`, `lint:fix`, `validate`.
-- Tooling de release: `release:changeset`, `release:version`, `release:publish`.
-- Combos cross-workspace que ningún workspace solo cubre: `demo:build` (UI + scripts + fixtures), `demo:dev`.
+- Daily shortcuts `component:dev` and `component:build` per component. "Daily" = something a dev uses several times per session. If it's sporadic (analyze, coverage, etc.), it doesn't belong here.
+- Cross-workspace orchestrators: `lint`, `lint:fix`, `validate`.
+- Release tooling: `release:changeset`, `release:version`, `release:publish`.
+- Cross-workspace combos that no single workspace covers on its own: `demo:build` (UI + scripts + fixtures), `demo:dev`.
 
-**Todo lo demás vive en su workspace**: typecheck, test, test:ci, test:coverage, lint, build, dev modes secundarios, bundle-analyze, watch builds, clean. Se invoca con `npm run X --workspace=Y` o entrando al workspace.
+**Everything else lives in its workspace**: typecheck, test, test:ci, test:coverage, lint, build, secondary dev modes, bundle-analyze, watch builds, clean. Invoke with `npm run X --workspace=Y` or by entering the workspace.
 
-## El contrato `validate`
+## The `validate` contract
 
-Cada workspace expone su propio `validate` autocontenido — ejecuta lo que tenga sentido validar para ese componente, sin depender de pasos previos del raíz.
+Each workspace exposes its own self-contained `validate` — it runs whatever makes sense to validate for that component, without depending on prior root-level steps.
 
 | Workspace | `validate` |
 |---|---|
-| `@skill-map/spec` | `spec:check` (índice + coverage) + `pin:check` |
+| `@skill-map/spec` | `spec:check` (index + coverage) + `pin:check` |
 | `@skill-map/cli` | `typecheck` + `lint` + `build` + `test:ci` + `reference:check` |
 | `ui` | `test:ci` + `build` |
 | `@skill-map/testkit` | `typecheck` + `build` + `test:ci` |
-| `skill-map-e2e` | `test:ci` (con `prevalidate` que prepara demo + browsers) |
+| `skill-map-e2e` | `test:ci` (with `prevalidate` that prepares demo + browsers) |
 | `@skill-map/example-hello-world` | `test:ci` |
 | `@skill-map/web` | `build` |
 
-Raíz orquesta con `npm run validate --workspaces --if-present`. CI corre solo este comando — los pasos individuales del job `validate` se eliminan a medida que cada workspace adopta su `validate`.
+Root orchestrates with `npm run validate --workspaces --if-present`. CI runs only this command — the individual steps in the `validate` job are removed as each workspace adopts its own `validate`.
 
-### Workspaces consumer y `prevalidate`
+### Consumer workspaces and `prevalidate`
 
-Cuando un workspace depende de artefactos externos para validarse (ej. e2e necesita `web/demo/` construido + browsers de Playwright), usa el hook `prevalidate` de npm para autoprepararse. Ejemplo en `e2e/package.json`:
+When a workspace depends on external artifacts to validate (e.g. e2e needs `web/demo/` built + Playwright browsers), use the npm `prevalidate` hook to self-prepare. Example in `e2e/package.json`:
 
 ```json
 "prevalidate": "npm run install:browsers && npm --prefix .. run demo:build",
 "validate": "npm run test:ci"
 ```
 
-El orquestador raíz no sabe ni necesita saber del orden — cada workspace declara sus prerrequisitos vía `prevalidate`.
+The root orchestrator does not know nor need to know the order — each workspace declares its prerequisites via `prevalidate`.
 
-## Casos especiales (asimetrías intencionales)
+## Special cases (intentional asymmetries)
 
-- **BFF** no es workspace (vive embebido en `src/server/` y se publica como parte del CLI). Pero `bff:dev` existe en raíz porque iterar el BFF tiene identidad mental propia.
-- **Demo** es un artefacto cross-workspace (UI buildeada + scripts + fixtures), no un workspace. Sus atajos en raíz reflejan la realidad del artefacto.
-- **`start`** queda en raíz pero pendiente de rediseño: el target final es levantar BFF + UI en paralelo.
+- **BFF** is not a workspace (it lives embedded in `src/server/` and ships as part of the CLI). But `bff:dev` exists at root because iterating on the BFF has its own mental identity.
+- **Demo** is a cross-workspace artifact (built UI + scripts + fixtures), not a workspace. Its root shortcuts reflect the artifact's reality.
+- **`start`** stays at root but is pending redesign: the end target is to bring up BFF + UI in parallel.
 
-## Anti-patrones
+## Anti-patterns
 
-- ❌ **Scripts en raíz que delegan a un solo workspace específico**. Sesga al monorepo y rompe la simetría. Si solo aplica a un workspace, vive en el workspace. Excepción: combos cross-workspace genuinos como `demo:build`.
-- ❌ **Scripts duplicados con el orquestador**. `validate` raíz cubre lint + test + build + typecheck por workspace; un `lint` raíz redundante con `validate` es ruido. Mantener `lint`/`lint:fix` en raíz se justifica solo como atajo de iteración rápida (no orquestación).
-- ❌ **Scripts npm raíz que invocan `.js` propios de un workspace**. Si el `.js` es del workspace, el script npm que lo invoca vive en el workspace. Raíz solo invoca via `npm run X --workspace=Y` (no via `node workspace/scripts/foo.js`).
-- ❌ **Aliases que rompen `componente:acción`**. `start`, `web` (sin acción), `site:build` (componente "site" inventado), `smoke:demo` (acción primero) — todos eliminados o renombrados. No volver a introducirlos.
+- ❌ **Root scripts that delegate to a single specific workspace.** Skews the monorepo and breaks symmetry. If it only applies to one workspace, it lives in the workspace. Exception: genuine cross-workspace combos like `demo:build`.
+- ❌ **Scripts duplicated with the orchestrator.** Root `validate` covers lint + test + build + typecheck per workspace; a redundant root `lint` alongside `validate` is noise. Keeping `lint`/`lint:fix` at root is justified only as a quick-iteration shortcut (not orchestration).
+- ❌ **Root npm scripts that invoke a workspace's own `.js`.** If the `.js` belongs to the workspace, the npm script that invokes it lives in the workspace. Root only invokes via `npm run X --workspace=Y` (not via `node workspace/scripts/foo.js`).
+- ❌ **Aliases that break `component:action`.** `start`, `web` (no action), `site:build` (made-up "site" component), `smoke:demo` (action first) — all removed or renamed. Do not reintroduce them.
 
-## Política para scripts en `scripts/` raíz
+## Policy for scripts in root `scripts/`
 
-Un `.js` en `scripts/` raíz se justifica solo si **es genuinamente cross-workspace** (lo invoca CI directo, o lo usan ≥2 workspaces). Si pertenece a un workspace, mudarlo adentro y exponerlo via npm script del workspace.
+A `.js` in root `scripts/` is justified only if **it is genuinely cross-workspace** (CI invokes it directly, or ≥2 workspaces use it). If it belongs to a workspace, move it inside and expose it via that workspace's npm script.
 
-**Estado actual** (pendiente de migrar):
+**Current state** (pending migration):
 
-| Script | Hogar natural |
+| Script | Natural home |
 |---|---|
 | `build-spec-index.js`, `sync-spec-pin.js`, `check-coverage.js` | `spec/` |
 | `build-cli-reference.js`, `dev-serve.js` | `src/` (CLI) |
-| `dev-server.js`, `build-site.js`, `build-demo-dataset.js`, `patch-demo-mode.js`, `serve-demo.js` | `web/` (sitio + demo) |
-| `open-sqlite-browser.js` | desaparece cuando `sqlite` migre a sub-comando del CLI |
-| `check-changeset.js` | utility cross-cutting (CI-only); queda en raíz |
+| `dev-server.js`, `build-site.js`, `build-demo-dataset.js`, `patch-demo-mode.js`, `serve-demo.js` | `web/` (site + demo) |
+| `open-sqlite-browser.js` | disappears when `sqlite` migrates to a CLI sub-command |
+| `check-changeset.js` | cross-cutting utility (CI-only); stays at root |
 
-`check-coverage.js` además depende del cwd (usa `resolve('spec/...')` sin anchor) — al migrarlo se arregla.
+`check-coverage.js` also depends on cwd (uses `resolve('spec/...')` without an anchor) — migrating it fixes that.
 
-## Deploy de Railway con filter de paths
+## Railway deploy with paths filter
 
-El sitio público (`skill-map.dev`) corre en Railway via Docker. La integración GitHub ↔ Railway estándar deploya en cada push a `main`, lo cual genera deploys innecesarios cuando el commit no toca lo que el sitio expone (cambios en `src/`, `testkit/`, `e2e/`, etc. no alteran el output deployado).
+The public site (`skill-map.dev`) runs on Railway via Docker. The standard GitHub ↔ Railway integration deploys on every push to `main`, which generates unnecessary deploys when the commit doesn't touch what the site exposes (changes to `src/`, `testkit/`, `e2e/`, etc. don't alter the deployed output).
 
-La política: **deploy solo cuando cambia algo que el sitio efectivamente publica**. Implementado en `.github/workflows/deploy-web.yml` con un `paths:` filter de GitHub Actions. Si ningún archivo del filter cambia, el workflow no se dispara y Railway no recibe nada.
+The policy: **deploy only when something the site actually publishes changes**. Implemented in `.github/workflows/deploy-web.yml` with a GitHub Actions `paths:` filter. If no file in the filter changes, the workflow doesn't fire and Railway receives nothing.
 
-### Paths que disparan deploy
+### Paths that trigger a deploy
 
-| Path | Razón |
+| Path | Reason |
 |---|---|
-| `web/**` | fuente de la landing |
-| `ui/**` | Angular bundle servido bajo `/demo/` |
-| `spec/**` | schemas servidos bajo `/spec/v0/` (URL canónica) |
-| `fixtures/demo-scope/**` | input al build del demo dataset |
-| `Dockerfile`, `Caddyfile` | config del deploy y del server |
-| `package.json`, `package-lock.json` (raíz) | deps que el Docker build instala |
+| `web/**` | landing page source |
+| `ui/**` | Angular bundle served under `/demo/` |
+| `spec/**` | schemas served under `/spec/v0/` (canonical URL) |
+| `fixtures/demo-scope/**` | input to the demo dataset build |
+| `Dockerfile`, `Caddyfile` | deploy and server config |
+| `package.json`, `package-lock.json` (root) | deps installed by the Docker build |
 
-Cambios fuera de esa lista (`src/`, `testkit/`, `e2e/`, `examples/`, `context/`, `.claude/`, root docs, etc.) **no** disparan deploy.
+Changes outside that list (`src/`, `testkit/`, `e2e/`, `examples/`, `context/`, `.claude/`, root docs, etc.) do **not** trigger a deploy.
 
-### Casos edge aceptados
+### Accepted edge cases
 
-- Cambios in-flight a `spec/` que no son release igual disparan deploy. Es deliberado: el sitio es la URL canónica de los schemas y debe reflejar el branch `main`.
-- Cambios al CLI (`src/`) que pueden afectar lo que `build-demo-dataset.js` emite no disparan deploy. Aceptamos que el `data.json` del demo se regenere en el siguiente deploy legítimo.
+- In-flight changes to `spec/` that aren't a release still trigger a deploy. Deliberate: the site is the canonical URL for the schemas and must reflect the `main` branch.
+- CLI changes (`src/`) that may affect what `build-demo-dataset.js` emits do not trigger a deploy. We accept that the demo's `data.json` regenerates on the next legitimate deploy.
 
-### Setup manual (una vez)
+### One-time manual setup
 
-Todo en GitHub repo Settings → Secrets and variables → Actions:
+All under GitHub repo Settings → Secrets and variables → Actions:
 
-1. **Secrets** tab → New repository secret `RAILWAY_TOKEN` con un token generado en Railway dashboard (Project → Settings → Tokens).
-2. **Variables** tab → New repository variable `RAILWAY_SERVICE` con el nombre del servicio tal como aparece en Railway (lo que el `--service` espera).
-3. En el dashboard de Railway, **desconectar la integración GitHub ↔ Railway** (sino queda doble path: el auto-deploy de Railway + el workflow). El workflow es la única vía oficial de deploy.
+1. **Secrets** tab → New repository secret `RAILWAY_TOKEN` with a token generated from the Railway dashboard (Project → Settings → Tokens).
+2. **Variables** tab → New repository variable `RAILWAY_SERVICE` with the service name as it appears in Railway (what `--service` expects).
+3. In the Railway dashboard, **disconnect the GitHub ↔ Railway integration** (otherwise there's a double path: Railway's auto-deploy + the workflow). The workflow is the only official deploy path.
 
-### Cómo modificar el filter
+### How to modify the filter
 
-Cuando el deploy gana o pierde dependencia de un path nuevo, actualizar el bloque `paths:` en `.github/workflows/deploy-web.yml` y la tabla de arriba. Mantenerlos sincronizados.
+When the deploy gains or loses a dependency on a new path, update the `paths:` block in `.github/workflows/deploy-web.yml` and the table above. Keep them in sync.
 
-### Versionado del sitio
+### Site versioning
 
-`@skill-map/web` (private workspace) se versiona aparte del spec y del CLI. La versión es la etiqueta del deploy:
+`@skill-map/web` (private workspace) is versioned separately from spec and CLI. The version is the deploy tag:
 
-- **GitHub Actions** muestra el nombre del job dinámico (`v0.1.0`) leído de `web/package.json` runtime.
-- **Changeset rule**: cualquier PR que toque `web/` debe declarar un changeset que bumpee `@skill-map/web` (igual que spec/cli/ui).
+- **GitHub Actions** shows the dynamic job name (`v0.1.0`) read from `web/package.json` at runtime.
+- **Changeset rule**: any PR that touches `web/` must declare a changeset that bumps `@skill-map/web` (same as spec/cli/ui).
 
-### Versiones en el footer de la landing
+### Versions in the landing footer
 
-Tres tags en el footer, con dos políticas distintas según lo que cada versión representa:
+Three tags in the footer, with two distinct policies depending on what each version represents:
 
-| Tag | Fuente | Política | Razón |
+| Tag | Source | Policy | Reason |
 |---|---|---|---|
-| `spec v…` | `spec/package.json` | **build-time** (placeholder `{{SPEC_VERSION}}`) | El sitio sirve los schemas él mismo en `/spec/v0/`. La versión que muestra el footer DEBE coincidir con lo que el sitio entrega — sino sería engañoso. |
-| `web v…` | `web/package.json` | **build-time** (placeholder `{{WEB_VERSION}}`) | Es la versión del propio sitio. Build-time es trivialmente correcto. |
-| `cli v…` | `https://registry.npmjs.org/@skill-map/cli/latest` | **runtime fetch** (`web/app.js`) | El sitio NO sirve el CLI (se instala via `npm i -g @skill-map/cli`). El footer informa "lo último publicado en npm", no algo que el sitio entrega. Build-time quedaría desactualizado entre deploys. Si el fetch falla (offline, npm down), el placeholder `cli v—` queda en su lugar. |
+| `spec v…` | `spec/package.json` | **build-time** (`{{SPEC_VERSION}}` placeholder) | The site serves the schemas itself at `/spec/v0/`. The version shown in the footer MUST match what the site delivers — otherwise it would be misleading. |
+| `web v…` | `web/package.json` | **build-time** (`{{WEB_VERSION}}` placeholder) | This is the site's own version. Build-time is trivially correct. |
+| `cli v…` | `https://registry.npmjs.org/@skill-map/cli/latest` | **runtime fetch** (`web/app.js`) | The site does NOT serve the CLI (it's installed via `npm i -g @skill-map/cli`). The footer reports "the latest published on npm", not something the site delivers. Build-time would go stale between deploys. If the fetch fails (offline, npm down), the `cli v—` placeholder stays in place. |
 
-**Para sumar una nueva versión build-time** (ej. `testkit`): agregar a `versions = {…}` en `web/scripts/build-site.js`, sumar el `replaceAll('{{X_VERSION}}', versions.x)`, y poner el span en el footer del HTML.
+**To add a new build-time version** (e.g. `testkit`): add it to `versions = {…}` in `web/scripts/build-site.js`, add the `replaceAll('{{X_VERSION}}', versions.x)`, and put the span in the HTML footer.
 
-**Para sumar una nueva versión runtime** (ej. otro paquete de npm): copiar el snippet de `app.js` con otro selector `data-x-version`.
+**To add a new runtime version** (e.g. another npm package): copy the `app.js` snippet with another `data-x-version` selector.
 
 ## Git hooks
 
-`.githooks/pre-commit` corre el `validate` del workspace `@skill-map/spec` cuando el commit toca `spec/` (silencioso en otros casos). Atrapa el caso en que se modifica un archivo bajo `spec/` y se olvida regenerar `spec/index.json` — la integridad sha256 quedaría desfasada y CI fallaría en otra branch.
+`.githooks/pre-commit` runs the `validate` of the `@skill-map/spec` workspace when the commit touches `spec/` (silent otherwise). Catches the case where a file under `spec/` is modified and regenerating `spec/index.json` is forgotten — the sha256 integrity would be out of date and CI would fail on another branch.
 
-El hook se conecta automáticamente: el script `prepare` del root `package.json` corre `git config core.hooksPath .githooks` cada vez que alguien hace `npm install`. No hay que setearlo a mano por contributor.
+The hook hooks itself in automatically: the root `package.json` `prepare` script runs `git config core.hooksPath .githooks` every time someone runs `npm install`. No manual setup per contributor.
 
-Para sumar otros checks al hook (ej. cli-reference cuando se toca el CLI), agregar la rama correspondiente en `.githooks/pre-commit` siguiendo el patrón existente.
+To add other checks to the hook (e.g. cli-reference when the CLI changes), add the matching branch in `.githooks/pre-commit` following the existing pattern.
 
-## Cuándo agregar / mover / eliminar
+## When to add / move / remove
 
-- **Agregar un script en raíz**: solo si es atajo diario `componente:acción` por un componente que ya tiene workspace, o si es un orquestador cross-workspace genuino. Si dudás, va al workspace.
-- **Agregar un script en workspace**: libre, siguiendo convención npm (`build`, `dev`, `test`, `test:ci`, `lint`, `validate`).
-- **Mover un script de raíz a workspace**: actualizar todas las referencias (CI, docs, otros scripts), correr `npm run validate` antes de commit.
-- **Eliminar un script**: idem, y verificar que no rompe `release.yml` (los scripts de release se invocan por nombre desde la action de Changesets).
+- **Add a root script**: only if it's a daily `component:action` shortcut for a component that already has a workspace, or if it's a genuine cross-workspace orchestrator. When in doubt, it goes in the workspace.
+- **Add a workspace script**: free, following npm convention (`build`, `dev`, `test`, `test:ci`, `lint`, `validate`).
+- **Move a script from root to a workspace**: update every reference (CI, docs, other scripts), run `npm run validate` before committing.
+- **Remove a script**: same, and verify it doesn't break `release.yml` (release scripts are invoked by name from the Changesets action).

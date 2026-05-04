@@ -72,7 +72,26 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli@4.6.0
 
-      - name: Deploy
+      - name: Show version
+        run: echo "Deploying @skill-map/web ${{ needs.read-version.outputs.version }} to service ${{ vars.RAILWAY_SERVICE }}"
+
+      - name: Diagnose token + project context
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "::error::RAILWAY_TOKEN is empty"
+            exit 1
+          fi
+          echo "RAILWAY_TOKEN length: ${#RAILWAY_TOKEN}"
+          echo "--- railway whoami ---"
+          railway whoami || true
+          echo "--- railway status ---"
+          railway status || true
+          echo "--- railway environment list ---"
+          railway environment || true
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy ${{ needs.read-version.outputs.version }}
         run: railway up --service "${{ vars.RAILWAY_SERVICE }}" --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
