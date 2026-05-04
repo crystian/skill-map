@@ -10,6 +10,7 @@ export interface Kernel {
   registry: Registry;
 }
 
+
 export function createKernel(): Kernel {
   return { registry: new Registry() };
 }

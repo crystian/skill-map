@@ -36,7 +36,7 @@
     "release:changeset": "changeset",
     "release:version": "changeset version && npm run pin --workspace=@skill-map/spec && npm run spec --workspace=@skill-map/spec && npm run reference --workspace=@skill-map/cli",
     "release:publish": "changeset publish",
-    "prepare": "git config core.hooksPath .githooks"
+    "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.0"

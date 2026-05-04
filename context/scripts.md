@@ -137,7 +137,7 @@ Three tags in the footer, with two distinct policies depending on what each vers
 
 `.githooks/pre-commit` runs the `validate` of the `@skill-map/spec` workspace when the commit touches `spec/` (silent otherwise). Catches the case where a file under `spec/` is modified and regenerating `spec/index.json` is forgotten — the sha256 integrity would be out of date and CI would fail on another branch.
 
-The hook hooks itself in automatically: the root `package.json` `prepare` script runs `git config core.hooksPath .githooks` every time someone runs `npm install`. No manual setup per contributor.
+The hook hooks itself in automatically: the root `package.json` `prepare` script runs `git config core.hooksPath .githooks` every time someone runs `npm install`. No manual setup per contributor. The script is guarded with `[ -d .git ]` so `npm ci` inside Docker (where the `.git/` directory isn't copied into the build context) silently no-ops instead of failing on a missing `git` binary.
 
 To add other checks to the hook (e.g. cli-reference when the CLI changes), add the matching branch in `.githooks/pre-commit` following the existing pattern.
 

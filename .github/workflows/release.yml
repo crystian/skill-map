@@ -41,7 +41,7 @@ jobs:
         run: npm run build --workspace=ui
 
       - name: Build CLI
-        run: npm run build
+        run: npm run build --workspace=@skill-map/cli
 
       - name: Verify spec index is up to date
         run: npm run spec:check --workspace=@skill-map/spec
