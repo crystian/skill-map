@@ -1,5 +1,48 @@
 # skill-map
 
+## 0.16.4
+
+### Patch Changes
+
+- 383ce0b: Graph view: persist every node's position, not just the manually-dragged ones.
+
+  Until now `localStorage` only tracked the override map (nodes the user had dragged); auto-layout positions were re-derived on every load. That meant a freshly created node (via WS scan refresh) could land in a different spot the next time the user opened the UI, even with no drags involved.
+
+  A new reconcile effect on `GraphView` keeps `nodePositions` in lockstep with `loader.nodes()`:
+
+  - New node detected → seed its position from the auto-layout and persist immediately.
+  - Node removed (file deleted upstream) → drop its entry from storage.
+  - Reset layout → clears the map; the same effect repopulates from the current auto-layout on the next tick and writes the whole batch back, giving the "delete → re-arrange → save" loop the button label has always promised.
+
+  Single localStorage write per reconcile cycle (gated by a `dirty` check, mirrors the existing `expandedNodeIds` GC pattern). The early-return in `resetLayout()` ("if nothing's overridden, just fit") is gone — under the new model the map is never empty after the first seed, so the early return was dead code.
+
+  Also: tutorial deep-dive duration claim trimmed from `~30-40 min` to `~20-30 min` across the SKILL and the three READMEs (root EN/ES + the package's `src/README.md`).
+
+- 07cd144: `sm tutorial` success message now surfaces the bilingual trigger phrase as the most visible part of the output, and reminds the tester that the first message they write to Claude sets the tutorial language for the rest of the session.
+
+  Before:
+
+  ```
+  Done. sm-tutorial.md created at /path. Open Claude Code here and tell it "run @sm-tutorial.md" to start the interactive tutorial.
+  ```
+
+  After:
+
+  ```
+  Done. sm-tutorial.md created at /path
+
+  Open Claude Code here. Write to it in the language you want the tutorial in — the first message sets the language for the rest of the session:
+
+      English:  run @sm-tutorial.md
+      Español:  ejecutá @sm-tutorial.md
+  ```
+
+- 37bde96: `sm-tutorial` SKILL: heads-up before scaffolding the scenario.
+
+  The skill used to start writing files (`demo-agent.md`, `findings.md`, `tutorial-state.yml`, then `.skill-map/` once `sm init` runs) without telling the tester. Now it emits one short, single-sentence FYI at the start of pre-flight Step 3, just signalling that files are about to land. The announcement is non-interactive — the agent does NOT wait for a confirmation, does NOT enumerate the files (details come later when they're relevant), it just gives the heads-up and proceeds straight to the writes.
+
+  Also catches a few residual `reveal` mentions in fixture descriptions that the previous vocabulary unification pass missed (the rule of thumb stays "step / sub-step", never "reveal" or "stage" in tester-facing copy or fixture frontmatter).
+
 ## 0.16.3
 
 ### Patch Changes
@@ -3258,9 +3301,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                           `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                           Storage is byte-identical to before. The grouping is purely a
-                                                                                                           read-time presentation choice for human eyes.
+                                                                                                                 `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                 Storage is byte-identical to before. The grouping is purely a
+                                                                                                                 read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 
