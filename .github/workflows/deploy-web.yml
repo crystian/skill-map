@@ -17,12 +17,15 @@ name: deploy-web
 # the next release that bumps the public surface.
 #
 # Setup (one-time, all in GitHub repo Settings → Secrets and variables → Actions):
-#   1. Secrets tab → New repository secret `RAILWAY_TOKEN` with a token
-#      generated from the Railway dashboard (Project → Settings → Tokens).
-#   2. Variables tab → New repository variable `RAILWAY_SERVICE` with the
-#      service name as it appears in the Railway project (the value the
-#      `--service` flag expects).
-#   3. Disconnect the GitHub ↔ Railway auto-deploy integration in the
+#   1. Secrets tab → New repository secret `RAILWAY_API_TOKEN` with an
+#      account-level Account Token from Railway (Account Settings →
+#      Tokens). Account tokens auth the CLI; the project + service are
+#      selected explicitly via `railway link` below.
+#   2. Secrets tab → New repository secret `RAILWAY_PROJECT_ID` with the
+#      project UUID (Railway dashboard → Project → Settings).
+#   3. Variables tab → New repository variable `RAILWAY_SERVICE` with the
+#      service UUID of the skill-map service in that project.
+#   4. Disconnect the GitHub ↔ Railway auto-deploy integration in the
 #      Railway dashboard so the only deploy path is this workflow.
 
 on:
@@ -75,23 +78,12 @@ jobs:
       - name: Show version
         run: echo "Deploying @skill-map/web ${{ needs.read-version.outputs.version }} to service ${{ vars.RAILWAY_SERVICE }}"
 
-      - name: Diagnose token + project context
-        run: |
-          if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "::error::RAILWAY_TOKEN is empty"
-            exit 1
-          fi
-          echo "RAILWAY_TOKEN length: ${#RAILWAY_TOKEN}"
-          echo "--- railway whoami ---"
-          railway whoami || true
-          echo "--- railway status ---"
-          railway status || true
-          echo "--- railway environment list ---"
-          railway environment || true
+      - name: Link Railway project
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: railway link -p ${{ secrets.RAILWAY_PROJECT_ID }} -s ${{ vars.RAILWAY_SERVICE }} --environment production
 
       - name: Deploy ${{ needs.read-version.outputs.version }}
-        run: railway up --service "${{ vars.RAILWAY_SERVICE }}" --detach
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+        run: railway up -s ${{ vars.RAILWAY_SERVICE }} -m "${{ needs.read-version.outputs.version }}"

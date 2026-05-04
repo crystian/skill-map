@@ -101,9 +101,12 @@ Changes outside that list (`src/`, `testkit/`, `e2e/`, `examples/`, `context/`, 
 
 All under GitHub repo Settings → Secrets and variables → Actions:
 
-1. **Secrets** tab → New repository secret `RAILWAY_TOKEN` with a token generated from the Railway dashboard (Project → Settings → Tokens).
-2. **Variables** tab → New repository variable `RAILWAY_SERVICE` with the service name as it appears in Railway (what `--service` expects).
-3. In the Railway dashboard, **disconnect the GitHub ↔ Railway integration** (otherwise there's a double path: Railway's auto-deploy + the workflow). The workflow is the only official deploy path.
+1. **Secrets** tab → New repository secret `RAILWAY_API_TOKEN` with an account-level Account Token from Railway (Account Settings → Tokens).
+2. **Secrets** tab → New repository secret `RAILWAY_PROJECT_ID` with the project UUID (Railway dashboard → Project → Settings).
+3. **Variables** tab → New repository variable `RAILWAY_SERVICE` with the service UUID (the value the `-s` flag expects).
+4. In the Railway dashboard, **disconnect the GitHub ↔ Railway integration** (otherwise there's a double path: Railway's auto-deploy + the workflow). The workflow is the only official deploy path.
+
+Inside the workflow, `railway link -p <project> -s <service> --environment production` runs before `railway up -s <service> -m "v<version>"`. The `-m` flag attaches the version as the deploy message visible in the Railway dashboard.
 
 ### How to modify the filter
 
