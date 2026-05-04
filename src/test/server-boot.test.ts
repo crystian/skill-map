@@ -196,4 +196,28 @@ describe('server boot — single-port wiring', () => {
       assert.match(text, /<meta name="skill-map-mode" content="live"/);
     });
   });
+
+  it('serves the dev-mode placeholder at "/" when noUi is true', async () => {
+    // Happy path for `--no-ui`: the server boots, /api/* keeps working,
+    // and the root returns the dev-mode placeholder pointing at ui:dev
+    // — not the accidental-missing copy.
+    await bootAndUse(defaultOptions({ noUi: true }), async (handle) => {
+      const res = await fetch(`http://127.0.0.1:${handle.address.port}/`);
+      assert.equal(res.status, 200);
+      const text = await res.text();
+      assert.match(text, /dev mode — UI disabled/);
+      assert.match(text, /npm run ui:dev/);
+      assert.doesNotMatch(text, /UI bundle was not found/);
+    });
+  });
+
+  it('keeps /api/health functional when noUi is true', async () => {
+    // The flag suppresses ONLY the static SPA. REST stays online.
+    await bootAndUse(defaultOptions({ noUi: true }), async (handle) => {
+      const res = await fetch(`http://127.0.0.1:${handle.address.port}/api/health`);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as Record<string, unknown>;
+      assert.equal(body['ok'], true);
+    });
+  });
 });

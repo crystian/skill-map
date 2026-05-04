@@ -10,6 +10,10 @@
  * The handlers are exercised in isolation against a stand-alone Hono
  * instance — no listener bind, no cross-cutting boot. That keeps the
  * test snappy and focused on the placeholder dispatch.
+ *
+ * Table-driven: each case names the option bag, the request path, and
+ * the substrings that MUST and MUST NOT appear in the response body.
+ * Adding a new placeholder branch becomes a one-row append.
  */
 
 import { strict as assert } from 'node:assert';
@@ -17,6 +21,38 @@ import { describe, it } from 'node:test';
 import { Hono } from 'hono';
 
 import { createSpaFallback, createStaticHandler } from '../server/static.js';
+
+interface IPlaceholderCase {
+  name: string;
+  opts: { uiDist: string | null; noUi: boolean };
+  path: string;
+  expectMatch: RegExp[];
+  expectNoMatch: RegExp[];
+}
+
+const CASES: IPlaceholderCase[] = [
+  {
+    name: 'serves the dev-mode placeholder at "/" when uiDist is null and noUi is true',
+    opts: { uiDist: null, noUi: true },
+    path: '/',
+    expectMatch: [/dev mode — UI disabled/, /npm run ui:dev/],
+    expectNoMatch: [/UI bundle was not found/],
+  },
+  {
+    name: 'serves the dev-mode placeholder for SPA deep links when noUi is true',
+    opts: { uiDist: null, noUi: true },
+    path: '/inspector/foo.md',
+    expectMatch: [/dev mode — UI disabled/],
+    expectNoMatch: [/UI bundle was not found/],
+  },
+  {
+    name: 'serves the accidental-missing-bundle placeholder when uiDist is null and noUi is false',
+    opts: { uiDist: null, noUi: false },
+    path: '/',
+    expectMatch: [/UI bundle was not found/, /skill-map server is running/],
+    expectNoMatch: [/dev mode — UI disabled/],
+  },
+];
 
 function mountStatic(opts: { uiDist: string | null; noUi: boolean }): Hono {
   const app = new Hono();
@@ -26,34 +62,15 @@ function mountStatic(opts: { uiDist: string | null; noUi: boolean }): Hono {
 }
 
 describe('static handler — placeholder dispatch', () => {
-  it('serves the dev-mode placeholder at "/" when uiDist is null and noUi is true', async () => {
-    const app = mountStatic({ uiDist: null, noUi: true });
-    const res = await app.request('/');
-    assert.equal(res.status, 200);
-    assert.match(res.headers.get('content-type') ?? '', /text\/html/);
-    const body = await res.text();
-    assert.match(body, /dev mode — UI disabled/);
-    assert.match(body, /npm run ui:dev/);
-    // The accidental-missing-bundle copy must NOT leak into the dev-mode page.
-    assert.doesNotMatch(body, /UI bundle was not found/);
-  });
-
-  it('serves the dev-mode placeholder for SPA deep links when noUi is true', async () => {
-    const app = mountStatic({ uiDist: null, noUi: true });
-    const res = await app.request('/inspector/foo.md');
-    assert.equal(res.status, 200);
-    const body = await res.text();
-    assert.match(body, /dev mode — UI disabled/);
-  });
-
-  it('serves the accidental-missing-bundle placeholder when uiDist is null and noUi is false', async () => {
-    const app = mountStatic({ uiDist: null, noUi: false });
-    const res = await app.request('/');
-    assert.equal(res.status, 200);
-    const body = await res.text();
-    assert.match(body, /UI bundle was not found/);
-    assert.match(body, /skill-map server is running/);
-    // The dev-mode hint must NOT bleed into the accidental-missing-bundle page.
-    assert.doesNotMatch(body, /dev mode — UI disabled/);
-  });
+  for (const c of CASES) {
+    it(c.name, async () => {
+      const app = mountStatic(c.opts);
+      const res = await app.request(c.path);
+      assert.equal(res.status, 200);
+      assert.match(res.headers.get('content-type') ?? '', /text\/html/);
+      const body = await res.text();
+      for (const re of c.expectMatch) assert.match(body, re);
+      for (const re of c.expectNoMatch) assert.doesNotMatch(body, re);
+    });
+  }
 });
