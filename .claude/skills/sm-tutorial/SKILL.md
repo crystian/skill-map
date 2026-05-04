@@ -424,9 +424,8 @@ Tell the tester:
 > lines and you don't need to read them.
 >
 > A typical layout: browser on the left half, this chat on the
-> right half. Or any split that lets you see both at once. Once
-> you have them visible together, say "listo" / "ready" and we
-> start.
+> right half. Or any split that lets you see both at once. Tell
+> me when you're set up and we start.
 
 Wait for confirmation before moving on.
 
@@ -559,10 +558,8 @@ Tell the tester:
 > Mirá el navegador / Look at the browser. Four new nodes should
 > have popped in: `demo-skill`, `demo-command`, `demo-hook`, and
 > `notes/todo`. Five total now, **still unconnected** — they're
-> floating dots.
->
-> If you don't see them, zoom out with the mouse wheel or the UI
-> zoom control — new nodes sometimes land off-screen.
+> floating dots. The viewport auto-fits whenever a node is added or
+> removed, so all five should be visible without panning.
 >
 > Did the four appear? Confirm so we can wire them up.
 
