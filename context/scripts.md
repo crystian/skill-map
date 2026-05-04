@@ -99,10 +99,11 @@ Cambios fuera de esa lista (`src/`, `testkit/`, `e2e/`, `examples/`, `context/`,
 
 ### Setup manual (una vez)
 
-1. Generar un token de Railway: dashboard → Project → Settings → Tokens → New Token.
-2. Guardar como secret en GitHub: repo Settings → Secrets and variables → Actions → New repository secret → `RAILWAY_TOKEN`.
-3. **Desconectar la integración GitHub ↔ Railway** en el dashboard (sino, queda doble path: el auto-deploy de Railway + el workflow). El workflow es la única vía oficial.
-4. Confirmar que el `--service` del workflow coincide con el nombre real del servicio en Railway (hoy: `skill-map`, ajustar si difiere).
+Todo en GitHub repo Settings → Secrets and variables → Actions:
+
+1. **Secrets** tab → New repository secret `RAILWAY_TOKEN` con un token generado en Railway dashboard (Project → Settings → Tokens).
+2. **Variables** tab → New repository variable `RAILWAY_SERVICE` con el nombre del servicio tal como aparece en Railway (lo que el `--service` espera).
+3. En el dashboard de Railway, **desconectar la integración GitHub ↔ Railway** (sino queda doble path: el auto-deploy de Railway + el workflow). El workflow es la única vía oficial de deploy.
 
 ### Cómo modificar el filter
 

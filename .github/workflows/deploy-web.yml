@@ -16,14 +16,14 @@ name: deploy-web
 # version of @skill-map/spec — work-in-progress edits to spec/ ride along
 # the next release that bumps the public surface.
 #
-# Setup (one-time):
-#   1. Generate a Railway project token (Railway dashboard → Project →
-#      Settings → Tokens → New Token) and store it as the GitHub repo
-#      secret RAILWAY_TOKEN.
-#   2. Disconnect the GitHub ↔ Railway auto-deploy integration in the
+# Setup (one-time, all in GitHub repo Settings → Secrets and variables → Actions):
+#   1. Secrets tab → New repository secret `RAILWAY_TOKEN` with a token
+#      generated from the Railway dashboard (Project → Settings → Tokens).
+#   2. Variables tab → New repository variable `RAILWAY_SERVICE` with the
+#      service name as it appears in the Railway project (the value the
+#      `--service` flag expects).
+#   3. Disconnect the GitHub ↔ Railway auto-deploy integration in the
 #      Railway dashboard so the only deploy path is this workflow.
-#   3. Confirm the `--service` argument below matches the service name
-#      configured in Railway.
 
 on:
   push:
@@ -73,6 +73,6 @@ jobs:
         run: npm install -g @railway/cli@4.6.0
 
       - name: Deploy
-        run: railway up --service skill-map --detach
+        run: railway up --service "${{ vars.RAILWAY_SERVICE }}" --detach
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
