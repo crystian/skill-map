@@ -73,7 +73,7 @@ optional second phase (~30-40 min) covering the rest of the CLI.
   meta-narration of your own plumbing. Pre-flight checks, file
   reads, `Bash ls`, `Write` of fixtures, state-file updates — all
   silent. The tester only hears from you when (a) you need them to
-  do something, (b) a reveal landed and you want a confirm, or
+  do something, (b) a sub-step landed and you want a confirm, or
   (c) something failed and they need to know. Between those
   moments, work without commentary.
 - **Explain technical terms in parentheses the first time you
@@ -292,12 +292,32 @@ permissions issue. Suggest `node --version` and walk them through it.
 
 ### 3. Create the initial fixture (one node only)
 
+Before you lay anything down, give the tester a one-shot heads-up
+about what's about to land in their cwd. **This is not
+interactive** — do NOT wait for a confirmation, do NOT ask
+permission per file. You announce, then immediately start writing.
+The tester just needs to know files are coming so they're not
+surprised:
+
+> Quick heads-up before we start: I'm about to set up the
+> tutorial scenario in this directory. That means creating a
+> handful of files — a small demo fixture under `.claude/`, a
+> `findings.md` for any bugs you spot, and a `tutorial-state.yml`
+> to track your progress. The next step (`sm init`) will also
+> drop a hidden `.skill-map/` directory and a `.skillmapignore`
+> at the root. I won't ask before each one — I'll just lay them
+> down and we keep moving. At the end I'll show you exactly what
+> to delete if you want a clean directory back.
+
+Then proceed straight to the writes below — no pause, no "ready?"
+prompt.
+
 The tutorial builds the graph **progressively** in five sub-steps during
 Step 2 (Live UI). Right now, in pre-flight, you only create **one
 file** — a single agent — so the tester's first look at the UI
 shows exactly one node. The other four kinds (skill, command, hook,
 note) and the connectors between all five are added later, one
-reveal at a time.
+sub-step at a time.
 
 ```
 <cwd>/
@@ -309,7 +329,7 @@ reveal at a time.
 ```
 
 `.claude/agents/demo-agent.md` (no cross-fixture links yet — those
-arrive in the third reveal):
+arrive in Step 2.4):
 ```markdown
 ---
 name: demo-agent
@@ -568,7 +588,7 @@ Create these four files (with `Write`), exactly in this order:
    # demo-skill
 
    This skill walks a file and returns a report. Will be wired up
-   to the rest of the demo fixture in the next reveal.
+   to the rest of the demo fixture in the next sub-step.
 
    ## Steps
    1. Read the `target`.
@@ -596,7 +616,7 @@ Create these four files (with `Write`), exactly in this order:
    # demo-command
 
    Quick keyboard entry point for running the demo flow on a
-   target file. Connectors land in the next reveal.
+   target file. Connectors land in the next sub-step.
    ```
 
 3. `.claude/hooks/demo-hook.md` (kind: hook — **don't skip this
@@ -627,7 +647,7 @@ Create these four files (with `Write`), exactly in this order:
    description: |
      Live list of things to review in the demo. Will become the
      hub between skill / agent / command / hook in the next
-     reveal.
+     sub-step.
    tags: [notes, demo]
    metadata:
      version: "1.0.0"
