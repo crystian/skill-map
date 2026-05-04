@@ -83,7 +83,7 @@ mkdir prueba-skill-map && cd prueba-skill-map
 sm tutorial             # deja sm-tutorial.md en el directorio vacío
 claude                  # abrí Claude Code en ese mismo directorio
 # Después, dentro de Claude:
-ejecutá @sm-tutorial.md
+ejecuta @sm-tutorial.md
 ```
 
 Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real — sin compromiso, totalmente reversible.
