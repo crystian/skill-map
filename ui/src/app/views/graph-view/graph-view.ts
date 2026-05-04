@@ -25,16 +25,6 @@ import {
   EFZoomDirection,
   type FCanvasChangeEvent,
 } from '@foblex/flow';
-import {
-  forceCenter,
-  forceCollide,
-  forceLink,
-  forceManyBody,
-  forceSimulation,
-  forceX,
-  forceY,
-  type SimulationNodeDatum,
-} from 'd3-force';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
@@ -45,61 +35,16 @@ import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
-import type {
-  IReportSafety,
-  INodeStats,
-  INodeView,
-  ISummaryNote,
-  TNodeKind,
-  TSummary,
-} from '../../../models/node';
-import type { ILinkApi, INodeApi, IScanResultApi, TLinkKindApi } from '../../../models/api';
-
-/** Local alias for the BFF link kinds — graph code reads as `TLinkKind`. */
-type TLinkKind = TLinkKindApi;
-
-interface IGraphNode {
-  id: string;
-  path: string;
-  /** Full parsed node — passed to <sm-node-card>. */
-  view: INodeView;
-  kind: TNodeKind;
-  position: { x: number; y: number };
-  /** Footer / subtitle stats. Computed during layout projection. */
-  stats: INodeStats;
-  /**
-   * Deterministic mock summary so the LLM cluster on the card renders
-   * during the in-browser prototype phase. Replaced by kernel-emitted
-   * `TSummary` once `sm summarize` lands.
-   */
-  summary: TSummary;
-}
-
-type TEdgeKind = TLinkKind;
-
-interface IGraphEdge {
-  id: string;
-  from: string;
-  to: string;
-  kind: TEdgeKind;
-}
-
-interface IGraphData {
-  nodes: IGraphNode[];
-  edges: IGraphEdge[];
-}
-
-/**
- * Layout footprint for `<sm-node-card>` in its collapsed state. Used by
- * Dagre when computing initial positions; smaller than reality means
- * cards overlap, larger means wasted whitespace. Height is generous
- * because the card grows when the user expands the panel — keeping the
- * collapsed footprint a bit taller avoids re-layout jitter for the
- * common-case mid-expand. Update if the card's collapsed dimensions
- * change in `node-card.css` (`:host { width: ... }` and the main row).
- */
-const NODE_WIDTH = 260;
-const NODE_HEIGHT = 120;
+import {
+  createLayoutComputer,
+  projectVisible,
+  type IFullLayout,
+  type IGraphData,
+  type IGraphEdge,
+  type IGraphNode,
+  type IPoint,
+  type TNodePositions,
+} from './graph-layout';
 
 const ZOOM_MIN = 0.1;
 const ZOOM_MAX = 4;
@@ -114,13 +59,6 @@ interface IStoredViewport {
   y: number;
   scale: number;
 }
-
-interface IPoint {
-  x: number;
-  y: number;
-}
-
-type TNodePositions = Record<string, IPoint>;
 
 @Component({
   selector: 'app-graph-view',
@@ -173,14 +111,31 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly savedViewport = readStoredViewport();
   private hasCompletedInitialLayout = false;
 
-  protected readonly initialPosition = this.savedViewport
-    ? { x: this.savedViewport.x, y: this.savedViewport.y }
-    : { x: 0, y: 0 };
-  protected readonly initialScale = this.savedViewport?.scale ?? 1;
-
-  private readonly scale = signal(this.initialScale);
-  protected readonly canZoomIn = computed(() => this.scale() < ZOOM_MAX - 1e-6);
-  protected readonly canZoomOut = computed(() => this.scale() > ZOOM_MIN + 1e-6);
+  /**
+   * Viewport state — bound to `<f-canvas>` `[position]` and `[scale]`.
+   *
+   * Critical that these are SIGNALS (not field-init constants) and that
+   * `onCanvasChange` writes them. Foblex re-evaluates the input bindings
+   * on every change-detection pass; if the bound value drifts from the
+   * canvas's internal viewport (e.g. user pans → internal viewport
+   * moves; bound value stays at its boot literal), Foblex re-applies the
+   * bound value to "reconcile" and resets the viewport to the boot
+   * position. Symptom: every WS-driven re-render snaps the canvas back
+   * to wherever it was when the component mounted, undoing the user's
+   * pan / zoom. Storing the viewport in signals that track the canvas
+   * keeps the binding always in sync, so reconciliation is a no-op.
+   *
+   * Initial value comes from the persisted viewport (if any) so a reload
+   * restores the user's last pan / zoom.
+   */
+  protected readonly viewportPosition = signal<IPoint>(
+    this.savedViewport
+      ? { x: this.savedViewport.x, y: this.savedViewport.y }
+      : { x: 0, y: 0 },
+  );
+  protected readonly viewportScale = signal<number>(this.savedViewport?.scale ?? 1);
+  protected readonly canZoomIn = computed(() => this.viewportScale() < ZOOM_MAX - 1e-6);
+  protected readonly canZoomOut = computed(() => this.viewportScale() > ZOOM_MIN + 1e-6);
 
   protected readonly texts = GRAPH_VIEW_TEXTS;
 
@@ -198,14 +153,26 @@ export class GraphView implements OnInit, OnDestroy {
    * Layout cache — the d3-force simulation runs ONCE over the full
    * collection, not over the filtered subset. Filters then project this
    * cache to the visible nodes without recomputing positions, so unmoved
-   * nodes stay put when the user toggles a filter. Recomputed only when
-   * `loader.nodes()` itself changes (initial load + the rare collection
-   * refresh). Manual drag positions (`nodePositions`) are NOT a layout
-   * input — they override per-node at projection time, so dragging a
-   * node never invalidates the cache.
+   * nodes stay put when the user toggles a filter.
+   *
+   * The closure inside `createLayoutComputer()` adds a second cache layer
+   * keyed on a topology fingerprint (path set + edge set). When a WebSocket
+   * `scan.completed` event makes the loader re-fetch and replace
+   * `loader.nodes()` with a fresh array, the computed re-runs — but if the
+   * topology is unchanged (the common case: the user edited frontmatter or
+   * body of an existing node, no node added/removed/relinked), positions
+   * are reused and only the data maps (`nodesByPath`, `apiNodesByPath`)
+   * refresh with the new view content. Foblex's `@for ... track node.id`
+   * then reuses the existing DOM nodes and only re-renders their inner
+   * card, so the viewport stays put and unmoved nodes don't jump.
+   *
+   * Manual drag positions (`nodePositions`) are NOT a layout input — they
+   * override per-node at projection time, so dragging never invalidates
+   * the cache either.
    */
+  private readonly computeLayout = createLayoutComputer();
   private readonly fullLayout = computed<IFullLayout>(() =>
-    computeFullLayout(this.loader.nodes(), this.loader.scan()),
+    this.computeLayout(this.loader.nodes(), this.loader.scan()),
   );
 
   readonly graph = computed<IGraphData>(() => {
@@ -249,6 +216,19 @@ export class GraphView implements OnInit, OnDestroy {
     if (!exists) this.selectedNodeId.set(null);
   });
 
+  /**
+   * Fingerprint of the loaded path set (NOT edges). Drives the "auto-fit
+   * when a node is added or removed" effect below. Edge-only topology
+   * changes (a new link extracted from an edited body, or a link that
+   * disappeared) do NOT trip this fingerprint — the user kept the same
+   * cards, just their wiring changed; jerking the viewport for that
+   * would feel intrusive.
+   */
+  private readonly pathsFingerprint = computed(() =>
+    this.loader.nodes().map((n) => n.path).sort().join('|'),
+  );
+  private lastPathsFingerprint: string | null = null;
+
   constructor() {
     // Initial layout only — fit to screen once when the first batch of
     // nodes arrives. Filter changes do NOT trigger a re-fit: the layout
@@ -266,6 +246,25 @@ export class GraphView implements OnInit, OnDestroy {
         }
       });
     });
+
+    // Auto-fit on add / remove of nodes via WS scan refresh.
+    //
+    // Filters do NOT trip this — they touch `visibleNodes`, not
+    // `loader.nodes()`. Edge-only changes do not trip this either —
+    // `pathsFingerprint` excludes edges by design. The first run during
+    // boot only seeds `lastPathsFingerprint` (the initial fit is owned
+    // by the effect above); subsequent runs animate-fit so the user
+    // sees the new layout in full.
+    effect(() => {
+      const fp = this.pathsFingerprint();
+      if (!this.hasCompletedInitialLayout) {
+        this.lastPathsFingerprint = fp;
+        return;
+      }
+      if (this.lastPathsFingerprint === fp) return;
+      this.lastPathsFingerprint = fp;
+      queueMicrotask(() => this.canvas()?.fitToScreen({ x: 40, y: 40 }, true));
+    });
   }
 
   ngOnInit(): void {
@@ -280,7 +279,12 @@ export class GraphView implements OnInit, OnDestroy {
   }
 
   onCanvasChange(event: FCanvasChangeEvent): void {
-    this.scale.set(event.scale);
+    // Mirror the canvas's internal viewport into our bound signals so a
+    // future change-detection pass doesn't reconcile the bindings and
+    // snap the canvas back. See the doc on `viewportPosition` /
+    // `viewportScale` for the full reasoning.
+    this.viewportPosition.set({ x: event.position.x, y: event.position.y });
+    this.viewportScale.set(event.scale);
     if (!this.hasCompletedInitialLayout) return;
     const payload: IStoredViewport = {
       x: event.position.x,
@@ -326,6 +330,12 @@ export class GraphView implements OnInit, OnDestroy {
     const ok = window.confirm(GRAPH_VIEW_TEXTS.resetLayoutConfirm);
     if (!ok) return;
     this.nodePositions.set({});
+    // Reset layout also collapses every expanded card. The intent of
+    // "reset" is "give me back a clean canvas" — leaving cards open
+    // would re-introduce the size variation that made the user reach
+    // for reset in the first place.
+    this.expandedNodeIds.set(new Set());
+    writeStoredExpanded(new Set());
     try {
       localStorage.removeItem(NODE_POSITIONS_STORAGE_KEY);
     } catch {
@@ -494,198 +504,7 @@ export class GraphView implements OnInit, OnDestroy {
   }
 }
 
-interface IFullLayout {
-  /** Node views indexed by path — handy to project without re-iterating. */
-  nodesByPath: Map<string, INodeView>;
-  /** BFF-shaped node rows by path — used to read persisted byte/token counts. */
-  apiNodesByPath: Map<string, INodeApi>;
-  /** Deduped, valid edges (both endpoints present in the loaded set). */
-  edges: IGraphEdge[];
-  /** Dagre-computed top-left positions for every loaded node. */
-  positions: Map<string, IPoint>;
-  /** `performance.now()` timestamp when this layout was computed. */
-  computedAt: number;
-}
 
-/**
- * One-shot layout over the FULL loaded collection. Result is cached and
- * reused as the user filters — see `fullLayout` computed in GraphView.
- * Filters never trigger a re-layout, so unmoved nodes never jump.
- *
- * Edges come straight from the persisted `ScanResult.links` (kernel
- * extractor output). Until the BFF starts emitting links, `scan` may be
- * `null` — in that case the graph renders nodes only.
- */
-function computeFullLayout(
-  allNodes: INodeView[],
-  scan: IScanResultApi | null,
-): IFullLayout {
-  const validPaths = new Set(allNodes.map((n) => n.path));
-  const byId = new Map<string, IGraphEdge>();
-  const links: ILinkApi[] = scan?.links ?? [];
-  for (const link of links) {
-    if (!validPaths.has(link.source) || !validPaths.has(link.target)) continue;
-    if (link.source === link.target) continue;
-    const id = edgeId(link.kind, link.source, link.target);
-    if (!byId.has(id)) {
-      byId.set(id, { id, from: link.source, to: link.target, kind: link.kind });
-    }
-  }
-  const uniqueEdges = [...byId.values()];
-
-  // Mode D: force-directed layout via d3-force.
-  //
-  // No ranks, no kinds — every edge is a spring pulling its endpoints
-  // together, every node repels every other (charge), and a centring
-  // force keeps the cloud anchored at the origin. A collision force
-  // prevents overlap.
-  //
-  // Per d3-force docs, the simulation is normally event-driven (one
-  // tick per animation frame). For a static precomputed layout we
-  // call `simulation.stop()` immediately and then drive `tick()`
-  // manually for a fixed iteration count. Result is deterministic
-  // given the same input order — d3-force seeds initial positions
-  // via phyllotaxis (no Math.random).
-  //
-  // Tuning notes:
-  //   - `linkDistance: 90` ≈ NODE_WIDTH so connected nodes sit
-  //     roughly one node-width apart.
-  //   - `chargeStrength: -200` is moderate repulsion (default is -30,
-  //     way too soft for graph layouts; -350 was strong enough to
-  //     fling disconnected nodes off-screen).
-  //   - `forceCenter` only TRANSLATES (per d3-force docs — it shifts
-  //     the centroid to origin but doesn't restrain spread). Real
-  //     "gravity" comes from `forceX(0)` / `forceY(0)` which apply
-  //     velocity towards the origin every tick. Strength 0.06 gives
-  //     a gentle pull that reins in disconnected nodes without
-  //     squashing connected clusters.
-  //   - `collideRadius: NODE_WIDTH/2 + 12` adds a 12 px gutter
-  //     around each node so labels don't kiss.
-  //   - 400 ticks is past d3-force's default cooling threshold
-  //     (300) — the cloud is fully settled.
-  interface ISimNode extends SimulationNodeDatum {
-    id: string;
-  }
-  interface ISimLink {
-    source: string;
-    target: string;
-  }
-  const simNodes: ISimNode[] = allNodes.map((n) => ({ id: n.path }));
-  const simLinks: ISimLink[] = uniqueEdges.map((e) => ({ source: e.from, target: e.to }));
-
-  const sim = forceSimulation<ISimNode>(simNodes)
-    .force(
-      'link',
-      forceLink<ISimNode, ISimLink>(simLinks).id((d) => d.id).distance(90).strength(1),
-    )
-    .force('charge', forceManyBody<ISimNode>().strength(-200))
-    .force('center', forceCenter(0, 0))
-    .force('x', forceX<ISimNode>(0).strength(0.06))
-    .force('y', forceY<ISimNode>(0).strength(0.06))
-    .force('collide', forceCollide<ISimNode>(NODE_WIDTH / 2 + 12))
-    .stop();
-
-  const TICKS = 400;
-  for (let i = 0; i < TICKS; i++) sim.tick();
-
-  const positions = new Map<string, IPoint>();
-  for (const sn of simNodes) {
-    positions.set(sn.id, {
-      x: (sn.x ?? 0) - NODE_WIDTH / 2,
-      y: (sn.y ?? 0) - NODE_HEIGHT / 2,
-    });
-  }
-
-  const nodesByPath = new Map<string, INodeView>();
-  for (const n of allNodes) nodesByPath.set(n.path, n);
-
-  const apiNodesByPath = new Map<string, INodeApi>();
-  for (const n of scan?.nodes ?? []) apiNodesByPath.set(n.path, n);
-
-  return {
-    nodesByPath,
-    apiNodesByPath,
-    edges: uniqueEdges,
-    positions,
-    computedAt: performance.now(),
-  };
-}
-
-/**
- * Project the cached layout to the visible subset. Pure projection —
- * no simulation, no relayout. Manual drag positions (`stored`) override
- * the cached force-layout position per node. Edge link counts are
- * computed against visible-only edges so the in/out badges reflect
- * what the user can see.
- */
-function projectVisible(
-  layout: IFullLayout,
-  visibleIds: Set<string>,
-  stored: TNodePositions,
-): IGraphData {
-  const visibleEdges = layout.edges.filter(
-    (e) => visibleIds.has(e.from) && visibleIds.has(e.to),
-  );
-
-  const outCount = new Map<string, number>();
-  const inCount = new Map<string, number>();
-  for (const e of visibleEdges) {
-    outCount.set(e.from, (outCount.get(e.from) ?? 0) + 1);
-    inCount.set(e.to, (inCount.get(e.to) ?? 0) + 1);
-  }
-
-  const nodes: IGraphNode[] = [];
-  for (const id of visibleIds) {
-    const view = layout.nodesByPath.get(id);
-    if (!view) continue;
-    const apiNode = layout.apiNodesByPath.get(id);
-    const override = stored[id];
-    const cached = layout.positions.get(id) ?? { x: 0, y: 0 };
-    const position = override ? { x: override.x, y: override.y } : cached;
-    nodes.push({
-      id,
-      path: id,
-      view,
-      kind: view.kind,
-      position,
-      stats: {
-        linksIn: inCount.get(id) ?? 0,
-        linksOut: outCount.get(id) ?? 0,
-        // BFF-persisted counts. Older snapshots / partial scans may omit
-        // tokens; default to undefined so the card hides the pill cleanly.
-        bytesTotal: apiNode?.bytes.total,
-        tokensTotal: apiNode?.tokens?.total,
-        externalRefsCount: apiNode?.externalRefsCount,
-      },
-      summary: deriveStubSummary(view),
-    });
-  }
-
-  return { nodes, edges: visibleEdges };
-}
-
-/**
- * Lightweight stand-in for the kernel's per-kind summarizer (Step 9+).
- * `<sm-node-card>` requires a `TSummary` — once the real summarizer
- * lands, this collapses to a no-op and the kernel's payload flows
- * through verbatim.
- */
-function deriveStubSummary(view: INodeView): TSummary {
-  const safety: IReportSafety = {
-    injectionDetected: false,
-    contentQuality: 'clean',
-  };
-  const whatItDoes = (view.frontmatter.description ?? view.frontmatter.name ?? '').trim();
-  const stub: ISummaryNote = {
-    kind: 'note',
-    confidence: 0.6,
-    safety,
-    whatItCovers: whatItDoes || `${view.kind} entry`,
-    topics: [],
-    keyFacts: [],
-  };
-  return stub;
-}
 
 function readStoredViewport(): IStoredViewport | null {
   let raw: string | null = null;
@@ -787,10 +606,5 @@ function isStoredViewport(value: unknown): value is IStoredViewport {
     Number.isFinite(v['scale']) &&
     (v['scale'] as number) > 0
   );
-}
-
-function edgeId(prefix: string, from: string, to: string): string {
-  const [a, b] = [from, to].sort();
-  return `${prefix}:${a}::${b}`;
 }
 

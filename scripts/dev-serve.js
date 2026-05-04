@@ -15,9 +15,16 @@
  * because it happened to bind 4242.
  *
  * Usage (from repo root):
- *   npm run dev:serve                       # default port 4242
- *   npm run dev:serve -- --port 4243        # override port
- *   npm run dev:serve -- --strict           # any extra flags pass through
+ *   npm run dev:serve                                 # default port 4242, cwd=src/
+ *   npm run dev:serve -- --port 4243                  # override port
+ *   npm run dev:serve -- --cwd ui/fixtures/foo        # serve a fixture scope
+ *   npm run dev:serve -- --strict                     # any extra flags pass through
+ *
+ * `--cwd <path>` is the modal switch: without it, the watcher serves
+ * `src/.skill-map/` (handy for kernel iteration); with it, the watcher
+ * serves the named directory's project (handy for the `dev:local` flow
+ * where the SPA dev server proxies into a local fixture). The path is
+ * resolved relative to the repo root.
  *
  * Defaults to `--no-open` (no browser-tab spam on every restart). To
  * exercise the auto-open feature, run the entry directly:
@@ -34,12 +41,17 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = resolve(REPO_ROOT, 'src');
+const ENTRY = resolve(SRC, 'cli', 'entry.ts');
 
 const PORT_FLAG = '--port';
+const CWD_FLAG = '--cwd';
 const DEFAULT_PORT = '4242';
 
 const args = process.argv.slice(2);
 const port = parsePort(args);
+const cwdOverride = parseCwd(args);
+const passthroughArgs = stripFlag(stripFlag(args, CWD_FLAG), PORT_FLAG);
+const targetCwd = cwdOverride ?? SRC;
 
 await freePort(port);
 
@@ -52,12 +64,13 @@ const child = spawn(
     '--disable-warning=ExperimentalWarning',
     '--import', 'tsx',
     '--watch',
-    'cli/entry.ts',
+    ENTRY,
     'serve',
     '--no-open',
-    ...args,
+    PORT_FLAG, port,
+    ...passthroughArgs,
   ],
-  { stdio: 'inherit', cwd: SRC },
+  { stdio: 'inherit', cwd: targetCwd },
 );
 
 for (const sig of ['SIGINT', 'SIGTERM']) {
@@ -75,6 +88,32 @@ function parsePort(argv) {
   const raw = argv[idx + 1];
   if (!/^\d+$/.test(raw)) return DEFAULT_PORT;
   return raw;
+}
+
+/**
+ * Resolve `--cwd <path>` from argv (relative to repo root). Returns
+ * `null` when the flag is absent — callers default to `SRC`.
+ */
+function parseCwd(argv) {
+  const idx = argv.indexOf(CWD_FLAG);
+  if (idx < 0 || idx + 1 >= argv.length) return null;
+  const raw = argv[idx + 1];
+  if (!raw || raw.startsWith('--')) return null;
+  return resolve(REPO_ROOT, raw);
+}
+
+/**
+ * Drop a `--flag <value>` pair from an argv array. Used to keep flags
+ * that this wrapper consumes itself (`--port`, `--cwd`) from leaking
+ * into the spawned `sm serve` child where they would either duplicate
+ * the wrapper's own forwarded value or fail with "unknown flag".
+ */
+function stripFlag(argv, flag) {
+  const idx = argv.indexOf(flag);
+  if (idx < 0) return argv.slice();
+  const out = argv.slice();
+  out.splice(idx, idx + 1 < argv.length ? 2 : 1);
+  return out;
 }
 
 async function freePort(port) {

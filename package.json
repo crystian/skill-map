@@ -37,6 +37,8 @@
     "sqlite": "node scripts/open-sqlite-browser.js",
     "build": "npm run build --workspace=@skill-map/cli",
     "dev:serve": "npm run dev:serve --workspace=@skill-map/cli",
+    "dev:local:bff": "node scripts/dev-serve.js --cwd ui/fixtures/local-scope --port 4242",
+    "dev:local:ui": "npm run dev:local --workspace=ui",
     "typecheck": "npm run typecheck --workspace=@skill-map/cli",
     "lint": "npm run lint --workspaces --if-present",
     "lint:fix": "npm run lint:fix --workspaces --if-present",

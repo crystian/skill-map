@@ -13,12 +13,21 @@
 
   <app-filter-bar [showKinds]="false" />
 
-  @if (loading()) {
+  <!--
+    Loading + error branches are gated on `!hasData()` so a
+    WebSocket-driven refresh (which flips `loading()` to true while the
+    fetch is in flight) does NOT tear down `<f-flow>` and rebuild it on
+    every event. Tearing down the canvas re-initialises Foblex, which
+    flashes the entire canvas visibly. Once data has been seen, refreshes
+    are silent and the graph stays mounted; the spinner / error states
+    only render on the first boot or after a wipe.
+  -->
+  @if (loading() && !hasData()) {
     <div class="empty-state" data-testid="graph-loading">
       <span class="empty-state__icon pi pi-spin pi-spinner"></span>
       <p class="empty-state__title">{{ texts.loading }}</p>
     </div>
-  } @else if (error()) {
+  } @else if (error() && !hasData()) {
     <div class="empty-state" data-testid="graph-error">
       <span class="empty-state__icon pi pi-exclamation-circle" style="color: var(--sm-severity-error); opacity: 1"></span>
       <p class="empty-state__title">{{ texts.errorTitle }}</p>
@@ -45,8 +54,8 @@
         <f-line-alignment [fAlignThreshold]="20" />
         <f-canvas
           fZoom
-          [position]="initialPosition"
-          [scale]="initialScale"
+          [position]="viewportPosition()"
+          [scale]="viewportScale()"
           [fZoomStep]="0.06"
           [fZoomDblClickStep]="0.35"
           [debounceTime]="150"

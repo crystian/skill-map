@@ -270,6 +270,7 @@ If you catch yourself typing any of these, stop and re-read the rule in parenthe
 - View-specific Foblex CSS in `src/styles.css` — move to the view's component CSS (rules 5 and 7)
 - Custom class names prefixed with `f-` — that prefix is reserved by Foblex. Our nodes use `sm-gnode` for this reason. Pick a project prefix (`sm-`) for your own classes
 - Restoring a viewport with `canvas.setPosition(...)` + `canvas.setScale(...)` — use the `[position]` / `[scale]` input bindings on `<f-canvas>` instead (see "Persisted viewport" pattern)
+- Binding `[position]` / `[scale]` to a **constant** (field-init literal, `readonly` value that never reassigns) — Foblex re-evaluates the inputs on every CD pass and reconciles against its internal viewport, so any user pan / zoom gets undone the next time the host re-renders. Bind to a signal that `(fCanvasChange)` writes (see "Persisted viewport" pattern)
 - Redeclaring `--ff-color-*` inside your own `.app-dark { ... }` block — the package already ships dark defaults under `.dark` / `[data-theme='dark']`; toggle that class on the document root from your theme service instead (rule 2, "Dark mode")
 - Deleting your own `position: absolute; top/bottom: ...` rules from connector sub-elements because "Foblex's `_socket-frame` already handles it" — it sets `position: absolute` and a 16×16 size, but no offsets; you own the offsets when connectors are sub-elements (rule 8)
 - Expecting `fInputConnectableSide` / `fOutputConnectableSide` to add `.top` / `.bottom` / `.left` / `.right` classes automatically — they don't; the directive only stores the side as metadata, the orientation classes are SCSS sub-classes you place yourself (rule 8)
@@ -325,12 +326,22 @@ Restoring pan position and zoom is the ONE place where the intuitive imperative 
 
 **Use the `[position]` and `[scale]` input bindings on `<f-canvas>` instead.** This is the pattern the official `libs/f-examples/advanced/undo-redo` uses — Foblex applies the transform once, atomically, on the first render.
 
+**Critical**: bind to **signals**, NOT to field-initialized literals. Foblex re-evaluates `[position]` / `[scale]` on every change-detection pass; if the bound value drifts from the canvas's internal viewport (e.g. user pans → internal viewport moves; the bound literal stays at its boot value), Foblex re-applies the bound value to "reconcile" and snaps the canvas back to the boot position. Symptom: every re-render of the host (a WebSocket-driven `nodes` refresh, a filter toggle, anything that invalidates a parent computed) snaps the viewport back to wherever it was when the component mounted. Storing the viewport in signals that `(fCanvasChange)` writes keeps the binding always in sync with the canvas's own state, so reconciliation is a no-op.
+
+A reproducible test for the bug: start the app, pan the canvas a bit, then trigger any state change that re-runs change detection on the host (e.g. WS push, filter toggle). If the canvas snaps back, the bindings are constants instead of signals — F5 "fixes" it because the field initializer re-runs and picks up the panned position from localStorage, which masks the underlying defect.
+
 ```ts
-// Component: hydrate once in a field initializer (runs before template eval).
-protected readonly initialPosition = this.savedViewport
-  ? { x: this.savedViewport.x, y: this.savedViewport.y }
-  : { x: 0, y: 0 };
-protected readonly initialScale = this.savedViewport?.scale ?? 1;
+private readonly savedViewport = readStoredViewport(); // localStorage parse
+
+// Signals — NOT field-init constants. (fCanvasChange) writes them on
+// every pan / zoom so the binding stays in sync with the canvas's
+// internal viewport, neutralising Foblex's reconcile-on-CD behaviour.
+protected readonly viewportPosition = signal<IPoint>(
+  this.savedViewport
+    ? { x: this.savedViewport.x, y: this.savedViewport.y }
+    : { x: 0, y: 0 },
+);
+protected readonly viewportScale = signal<number>(this.savedViewport?.scale ?? 1);
 
 private hasCompletedInitialLayout = false;
 
@@ -352,6 +363,10 @@ constructor() {
 }
 
 onCanvasChange(event: FCanvasChangeEvent): void {
+  // Mirror the canvas's internal viewport into our bound signals so a
+  // future change-detection pass doesn't reconcile and snap back.
+  this.viewportPosition.set({ x: event.position.x, y: event.position.y });
+  this.viewportScale.set(event.scale);
   if (!this.hasCompletedInitialLayout) return;
   localStorage.setItem(KEY, JSON.stringify({
     x: event.position.x, y: event.position.y, scale: event.scale,
@@ -362,8 +377,8 @@ onCanvasChange(event: FCanvasChangeEvent): void {
 ```html
 <f-canvas
   fZoom
-  [position]="initialPosition"
-  [scale]="initialScale"
+  [position]="viewportPosition()"
+  [scale]="viewportScale()"
   [debounceTime]="150"
   (fCanvasChange)="onCanvasChange($event)"
 >
@@ -371,10 +386,11 @@ onCanvasChange(event: FCanvasChangeEvent): void {
 
 Notes:
 
-- Compute `initialPosition` / `initialScale` **in a field initializer**, not after `ngOnInit` — the binding is evaluated on first template pass.
+- Initialise the signals **in a field initializer** (not after `ngOnInit`) — the binding is evaluated on first template pass.
+- `(fCanvasChange)` MUST write back into the signals. That is what keeps the bound value in sync with the canvas. Skipping the write is the bug.
 - The `hasCompletedInitialLayout` guard is essential. Without it, the first auto-fired `fCanvasChange` (triggered by the initial binding) overwrites storage with `{0,0,1}` before the user has touched anything.
 - Never mix: do NOT bind `[position]` / `[scale]` AND then call `setPosition()` / `setScale()` imperatively on the same mount. The library expects one source of truth per mount.
-- `setPosition` / `setScale` are still valid for post-mount interactions (e.g. a "zoom in" button after the canvas is alive); the restore path is the specific case where they fail.
+- `setPosition` / `setScale` are still valid for post-mount interactions (e.g. a middle-mouse pan handler that drives the canvas directly outside the binding loop); the restore path is the specific case where they fail.
 
 ### Selection-driven node + edge highlighting (click → light up neighbours)
 
@@ -557,4 +573,5 @@ In order of likelihood:
 12. **Filtering changes the layout — unmoved nodes jump and the viewport re-fits** → dagre is being run over the filtered subset on every change. Run dagre once over the FULL collection (cached `computed`) and only project to `visibleIds` at render time. Do not call `fitToScreen` from a filter-change effect; restrict it to the first render only and let the user use the explicit "Fit" toolbar button afterwards.
 13. **Drag a node, release, refresh — the node is back at its previous position; pointerup-based persistence "just doesn't fire"** → `fDragHandle` consumes `pointerup` (rule 9). Switch the document listener to `mouseup`. Same fix applies to any one-off post-drag side effect (analytics, undo snapshot, etc.).
 14. **Drag feels choppy even though the perf HUD reads 120 fps** → state is being written on every `(fNodePositionChange)`. Two compounding causes: (a) signal write invalidates the `graph` computed → @for diff over all nodes/edges 60–120×/sec; (b) sync `localStorage.setItem` per move adds 1–5 ms stalls per frame. Buffer the position in a non-signal field, flush at `mouseup` (rule 9).
-15. **Anything else** → open the matching file under [`references/examples/`](references/examples/) and diff our shape against the canonical one. If our code does not match, align it before inventing a workaround.
+15. **Pan / zoom snaps back to the boot position on every WS update / filter change / any host re-render — but a full F5 "fixes" it** → `[position]` / `[scale]` are bound to constants (field-init literals). Foblex re-evaluates the inputs on every CD pass and reconciles against its internal viewport, undoing the user's pan. F5 masks it because the field initializer re-runs and reads the panned position from localStorage. Bind to signals that `(fCanvasChange)` writes (see "Persisted viewport" canonical pattern).
+16. **Anything else** → open the matching file under [`references/examples/`](references/examples/) and diff our shape against the canonical one. If our code does not match, align it before inventing a workaround.

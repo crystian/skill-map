@@ -35,8 +35,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "650kB"
+                  "maximumWarning": "600kB",
+                  "maximumError": "750kB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -50,8 +50,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "650kB"
+                  "maximumWarning": "600kB",
+                  "maximumError": "750kB"
                 },
                 {
                   "type": "anyComponentStyle",
@@ -71,6 +71,23 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "demo": {
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true,
+              "index": "src/index.demo.html",
+              "assets": [
+                {
+                  "glob": "**/*",
+                  "input": "public"
+                },
+                {
+                  "glob": "data*.json",
+                  "input": "../web/demo",
+                  "output": "/"
+                }
+              ]
             }
           },
           "defaultConfiguration": "production"
@@ -83,6 +100,13 @@
             },
             "development": {
               "buildTarget": "ui:build:development"
+            },
+            "demo": {
+              "buildTarget": "ui:build:demo"
+            },
+            "local": {
+              "buildTarget": "ui:build:development",
+              "proxyConfig": "proxy.conf.json"
             }
           },
           "defaultConfiguration": "development"

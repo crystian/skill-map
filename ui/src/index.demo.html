@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>skill-map · ui prototype (demo)</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!--
+      `dev:demo` variant of `index.html`. Identical to the live entry
+      EXCEPT the runtime-mode meta is `demo`, so the SPA boots against
+      the static bundle (`web/demo/data{,.meta}.json`) served from the
+      dev server root instead of `/api/*`. Use when iterating on the
+      SPA without `sm serve` running. The production `demo` build
+      pipeline (Step 14.3.b) rewrites `content` to `demo` itself; this
+      file is the dev-time equivalent.
+    -->
+    <meta name="skill-map-mode" content="demo" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32x32.png" />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>
