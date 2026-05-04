@@ -385,7 +385,7 @@ starts the UI server with the watcher built in. One process, one
 terminal: it boots the server, scans the `.md` files, detects
 changes, and pushes events over WebSocket to the live UI.
 
-This step has **three reveals**, each one driven by you editing
+This step has **four reveals**, each one driven by you editing
 files while the server stays up:
 
 1. **Reveal 1 (boot)** — one node alone (the agent).
@@ -393,16 +393,42 @@ files while the server stays up:
    still unconnected.
 3. **Reveal 3 (connectors)** — the connectors light up between all
    five nodes.
+4. **Reveal 4 (ignore)** — a private file appears, then disappears
+   the moment a pattern is added to `.skillmapignore`.
 
 The pedagogical arc: a single dot → a constellation of dots → a
-graph. Each reveal stops at a confirm prompt before you do the
-next.
+graph → a graph that respects the user's ignore list. Each reveal
+stops at a confirm prompt before you do the next.
 
 **Command** (one terminal):
 
 ```bash
 sm
 ```
+
+Before Reveal 1, ask the tester to set up a **side-by-side view** so
+they can watch the magic happen without alt-tabbing every reveal.
+Tell the tester:
+
+> Acomodá la pantalla / arrange your screen so two windows are
+> visible at the same time:
+>
+> 1. **The browser** at `http://127.0.0.1:4242` — where the graph
+>    will update in real time.
+> 2. **This terminal** — the one where you're talking to me. You'll
+>    see me announce each reveal here, then confirm what you see
+>    in the browser.
+>
+> The third window — the terminal running `sm` — you can leave
+> minimized or off to the side; it will just print scan progress
+> lines and you don't need to read them.
+>
+> A typical layout: browser on the left half, this chat on the
+> right half. Or any split that lets you see both at once. Once
+> you have them visible together, say "listo" / "ready" and we
+> start.
+
+Wait for confirmation before moving on.
 
 #### Reveal 1 — the lone agent
 
