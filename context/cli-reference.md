@@ -1073,38 +1073,6 @@ Under --json, every batch emits one ScanResult as ndjson on stdout. Without
 
 Diagnostic report: DB integrity, pending migrations, orphan rows, plugin status, runner availability. (planned)
 
-### `sm guide`
-
-Materialize the interactive tester guide (sm-guide.md) in the current directory.
-
-Drops the canonical SKILL.md content as ./sm-guide.md so a tester can open 
-Claude Code in the cwd and load the file as a skill by typing "ejecutá 
-@sm-guide.md". Top-level only — no subdirectory is created.
-
-Does NOT require an initialized .skill-map/ project. Refuses to overwrite an 
-existing sm-guide.md unless --force is passed.
-
-**Flags:**
-
-- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
-- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
-- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
-- `--no-color` `boolean` — Disable ANSI color codes.
-- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
-- `--db` `string` — Override the database file location (escape hatch).
-- `--force` `boolean` — Overwrite an existing sm-guide.md without prompting.
-
-**Examples:**
-
-- Materialize the guide in the cwd
-  ```
-  sm guide
-  ```
-- Overwrite an existing sm-guide.md
-  ```
-  sm guide --force
-  ```
-
 ### `sm init`
 
 Bootstrap the current scope: scaffold .skill-map/, provision DB, run first scan.
@@ -1208,5 +1176,37 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 - Point at a pre-built UI bundle
   ```
   sm serve --ui-dist ./ui/dist/browser
+  ```
+
+### `sm tutorial`
+
+Materialize the interactive tester tutorial (sm-tutorial.md) in the current directory.
+
+Drops the canonical SKILL.md content as ./sm-tutorial.md so a tester can open 
+Claude Code in the cwd and load the file as a skill by typing "ejecutá 
+@sm-tutorial.md". Top-level only — no subdirectory is created.
+
+Does NOT require an initialized .skill-map/ project. Refuses to overwrite an 
+existing sm-tutorial.md unless --force is passed.
+
+**Flags:**
+
+- `--global`, `-g` `boolean` — Operate on ~/.skill-map/ instead of ./.skill-map/.
+- `--json` `boolean` — Emit machine-readable output on stdout. Suppresses pretty printing.
+- `--quiet`, `-q` `boolean` — Suppress non-error stderr output (including "done in <…>").
+- `--no-color` `boolean` — Disable ANSI color codes.
+- `--verbose`, `-v` `boolean` — Increase log level (-v=info, -vv=debug, -vvv=trace).
+- `--db` `string` — Override the database file location (escape hatch).
+- `--force` `boolean` — Overwrite an existing sm-tutorial.md without prompting.
+
+**Examples:**
+
+- Materialize the tutorial in the cwd
+  ```
+  sm tutorial
+  ```
+- Overwrite an existing sm-tutorial.md
+  ```
+  sm tutorial --force
   ```
 
