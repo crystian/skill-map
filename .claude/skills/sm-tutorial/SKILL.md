@@ -45,6 +45,48 @@ optional second phase (~30-40 min) covering the rest of the CLI.
   invent a stand-in pronoun.
 - Don't be condescending. If they ask for something that will
   break, say so directly.
+- **Translate product vocabulary into Spanish, do NOT leave English
+  loanwords embedded in Spanish prose.** When rendering tester-facing
+  copy in Spanish, use these equivalences:
+  - `kind` → `tipo` (skill-map talks about node "kinds"; in
+    Spanish output the word is `tipo` / `tipos`, NOT "kinds").
+  - `connector` → `conector`.
+  - `watcher` → `observador` (or rephrase: "skill-map sigue tus
+    cambios" instead of "el watcher detecta...").
+  - `scan` (verb) → `escanear`; `scan` (noun) → `escaneo`.
+  - `node` → `nodo`; `link` → `enlace` or `vínculo`; `frontmatter`
+    keep as-is (it's a technical term with no clean Spanish
+    equivalent — explain in parens per the rule above).
+  - File paths, frontmatter keys (`name`, `description`, `event`,
+    etc.), CLI verbs (`sm init`, `sm watch`), and code identifiers
+    stay English — that's the public surface, not jargon.
+  Anti-pattern (do NOT emit): "aparecen los otros cuatro kinds",
+  "el watcher detectó el cambio", "vamos a hacer un scan ahora".
+  Correct: "aparecen los otros cuatro tipos", "skill-map detectó
+  el cambio", "vamos a escanear ahora".
+- **Stay silent during backstage work.** Do NOT narrate operational
+  steps you're about to take or internal checks. Forbidden patterns
+  include "Voy a verificar primero que el directorio esté listo",
+  "Let me run `sm version` to confirm the binary works", "Mientras
+  esperás, te cuento el estado", "Vamos a ir paso a paso", "OK, ya
+  preparé los archivos, ahora seguimos con...", and any other
+  meta-narration of your own plumbing. Pre-flight checks, file
+  reads, `Bash ls`, `Write` of fixtures, state-file updates — all
+  silent. The tester only hears from you when (a) you need them to
+  do something, (b) a reveal landed and you want a confirm, or
+  (c) something failed and they need to know. Between those
+  moments, work without commentary.
+- **Explain technical terms in parentheses the first time you
+  mention them in a tester-facing blockquote.** Assume the tester
+  is non-technical; many will not know what `frontmatter`,
+  `findings`, `glob`, `watcher`, `connector`, `extractor`, or
+  `kind` mean. Examples:
+  - `frontmatter (the YAML block at the top of every .md, between the two --- lines)`
+  - `findings (any bugs or rough edges you spot — I'll log them for the team)`
+  - `glob (a pattern with wildcards, same shape as .gitignore)`
+  Internal narration in this SKILL.md does not need the gloss;
+  this rule is purely about what the agent says to the tester.
+  After the first mention in a session, the bare term is fine.
 - **Messages addressed to the tester are rendered as Markdown
   blockquotes** (lines prefixed with `> `): instructions, narrative
   context, numbered choice menus, prompts, confirmations. The
@@ -455,8 +497,9 @@ Tell the tester:
 
 > Arrange your screen so two windows are visible at the same time:
 >
-> 1. **The browser** at `http://127.0.0.1:4242` — where the graph
->    will update in real time.
+> 1. **The browser** — where the graph will update in real time.
+>    Leave it ready to navigate to a URL; we'll get the link in a
+>    moment.
 > 2. **This terminal** — the one where you're talking to me. You'll
 >    see me announce each reveal here, then confirm what you see
 >    in the browser.
@@ -469,22 +512,31 @@ Tell the tester:
 > right half. Or any split that lets you see both at once. Tell
 > me when you're set up and we start.
 
-Wait for confirmation before moving on.
+Wait for confirmation before moving on. Once they're ready, prompt
+them to launch the server and open the link it prints — without
+hardcoding the URL here, since the verb itself is the source of
+truth (it logs the bound `http://host:port` after listen):
+
+> In the terminal you opened for `sm`, run the command above. After
+> a couple of seconds it will print a line with the URL where the
+> UI is listening — copy that link and open it in the browser you
+> just arranged. Tell me when you see the page load.
+
+Wait for confirmation that the page loaded.
 
 #### Reveal 1 — the lone agent
 
 Tell the tester:
 
-> The server is running. Open the URL it printed (typically
-> **http://127.0.0.1:4242**).
->
 > You'll see exactly **one node** in the graph: `demo-agent` (kind
 > `agent`). That's our starting point.
 >
 > Walk the 3 views before we go on:
 > 1. **Graph** — the single agent node.
 > 2. **List** — one row, with path / kind / metadata.
-> 3. **Inspector** — click the node to see frontmatter and links.
+> 3. **Inspector** — click the node to see its frontmatter (the
+>    YAML block at the top of every `.md`, between the two `---`
+>    lines) and links.
 >
 > Did the node show up?
 
@@ -613,10 +665,18 @@ verbatim.
 
 Tell the tester:
 
-> Tu turno. Open `.claude/agents/demo-agent.md` in your editor of
-> choice. In the frontmatter, change the `description:` field to
-> any text you want — the actual content does not matter, just
-> make it different from what's there now. Save the file.
+> Your turn. First, in the browser, **expand the `demo-agent`
+> card** (click the chevron / arrow on the card to open it). That
+> reveals the description currently showing for the node — that's
+> the field you'll edit next, so leave the card open and the
+> change will be obvious.
+>
+> Now open `.claude/agents/demo-agent.md` in your editor of
+> choice. In the **frontmatter** (the YAML block at the top of
+> the file, between the two `---` lines), change the
+> `description:` field to any text you want — the actual content
+> does not matter, just make it different from what's there now.
+> Save the file.
 >
 > Watch the browser. The `demo-agent` card should refresh its
 > description in real time, no reload, no Ctrl+C — same watcher
@@ -742,9 +802,6 @@ the tester sees what their cwd holds:
 > │   ├── hooks/demo-hook.md
 > │   └── skills/demo-skill/SKILL.md
 > ├── .skill-map/              ← project DB + settings (managed)
-> │   ├── settings.json
-> │   ├── settings.local.json
-> │   └── skill-map.db
 > ├── .skillmapignore          ← the file we're about to edit
 > ├── notes/
 > │   ├── todo.md
@@ -974,8 +1031,9 @@ generate a report file to send to Pusher**:
 
 > Thanks! That's a wrap. Before closing:
 >
-> Want me to generate a consolidated **report file** (recap of the
-> walkthrough + findings + environment) ready to send to **Pusher**?
+> Want me to generate a consolidated **report file** (a recap of
+> the walkthrough + findings — the bugs or rough edges you spotted
+> along the way — + environment info) ready to send to **Pusher**?
 > I'll save it as `<cwd>/sm-tutorial-report.md`.
 >
 > 1. **Yes, generate it**

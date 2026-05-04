@@ -1,0 +1,8 @@
+---
+'@skill-map/cli': patch
+---
+
+Watcher fix + tutorial polish:
+
+- **`.skillmapignore` first-save now applies cleanly.** Before this patch, the BFF (`sm serve`) and `sm watch` rebuilt the ignore filter as soon as chokidar fired `change`, which lands on the editor's first save motion (truncate or rename). The naive sync read could see an empty/partial file, rebuild a filter without the new pattern, and the user had to save again to get the actual effect. The meta-file `onBatch` now calls a new `readIgnoreFileTextStable(cwd)` helper (in `kernel/scan/ignore.ts`) that retries reads at 50 ms intervals until two consecutive reads agree (or a 500 ms cap). The first save dispatches the rebuild against settled content.
+- **Tutorial (`sm-tutorial` SKILL.md)**: dropped Step 1 (`sm version`) from the demo since it only narrated a backstage check the tester does not need to see; renumbered 1-init / 2-ui-live / 3-handoff. Pre-flight `sm version` is now silent on success. Inserted a new Reveal 3 ("your first edit") where the tester edits the agent's frontmatter `description` and watches the card refresh — gives them muscle memory before Reveal 5's `.skillmapignore` flow. Reveal 5 ships the folder tree without `.skill-map/` children (cleaner mental map). Tone rules tightened: neutral Spanish (tú-form, NOT rioplatense), explain technical terms (`frontmatter`, `findings`, `glob`) in parentheses on first mention, translate product vocab into Spanish (`kind` → `tipo`, `connector` → `conector`, etc.) instead of leaving English loanwords, stay silent during backstage work (no `"Voy a verificar primero que..."`-style narration), config files split into backstage-setup (agent edits) vs teach-moment (tester edits) modes.

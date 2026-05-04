@@ -111,6 +111,44 @@ export function readIgnoreFileText(scopeRoot: string): string | undefined {
   }
 }
 
+/**
+ * Async version of `readIgnoreFileText` that waits until the file's
+ * content stops changing before returning. Used by the BFF + CLI
+ * `sm watch` meta-file handlers when chokidar fires a `change` event
+ * for `.skillmapignore`.
+ *
+ * Why: editors save in two motions — truncate (or rename-over) and
+ * then write. chokidar emits the `change` event on the first motion
+ * already, so a naive read can land while the file is empty or
+ * partially flushed, rebuilding the ignore filter without the new
+ * pattern. The user then has to save again to get the real effect.
+ *
+ * Strategy: read, sleep ~50 ms, read again. If both reads agree, the
+ * file has settled — return that text. If they differ, retry up to
+ * `maxAttempts` times. After the cap (~500 ms), use whatever the last
+ * read produced; even partial content beats blocking the watcher.
+ *
+ * Default knobs (`pollMs: 50`, `maxAttempts: 10`) mirror the canonical
+ * chokidar `awaitWriteFinish` recipe and were chosen because every
+ * common editor (VS Code, vim, JetBrains, nano) settles inside that
+ * window.
+ */
+export async function readIgnoreFileTextStable(
+  scopeRoot: string,
+  opts: { pollMs?: number; maxAttempts?: number } = {},
+): Promise<string | undefined> {
+  const pollMs = opts.pollMs ?? 50;
+  const maxAttempts = opts.maxAttempts ?? 10;
+  let prev = readIgnoreFileText(scopeRoot);
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise<void>((r) => setTimeout(r, pollMs));
+    const curr = readIgnoreFileText(scopeRoot);
+    if (curr === prev) return curr;
+    prev = curr;
+  }
+  return prev;
+}
+
 // -----------------------------------------------------------------------------
 // Bundled defaults loader
 // -----------------------------------------------------------------------------

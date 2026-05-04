@@ -46,7 +46,12 @@ import {
 import type { ScanResult } from '../kernel/index.js';
 import { listBuiltIns } from '../built-in-plugins/built-ins.js';
 import { loadConfig } from '../kernel/config/loader.js';
-import { buildIgnoreFilter, readIgnoreFileText, type IIgnoreFilter } from '../kernel/scan/ignore.js';
+import {
+  buildIgnoreFilter,
+  readIgnoreFileText,
+  readIgnoreFileTextStable,
+  type IIgnoreFilter,
+} from '../kernel/scan/ignore.js';
 import type { ProgressEmitterPort } from '../kernel/ports/progress-emitter.js';
 import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
@@ -122,8 +127,10 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
         homedir: opts.runtimeContext.homedir,
       }).effective;
 
-    const buildCurrentIgnoreFilter = (cfgIn: ReturnType<typeof loadEffectiveConfig>): IIgnoreFilter => {
-      const ignoreFileText = readIgnoreFileText(cwd);
+    const composeIgnoreFilter = (
+      cfgIn: ReturnType<typeof loadEffectiveConfig>,
+      ignoreFileText: string | undefined,
+    ): IIgnoreFilter => {
       const filterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
       if (cfgIn.ignore.length > 0) filterOpts.configIgnore = cfgIn.ignore;
       if (ignoreFileText !== undefined) filterOpts.ignoreFileText = ignoreFileText;
@@ -143,7 +150,7 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
     //      a rebuild, so the DB and the SPA reflect the change without
     //      waiting for an unrelated FS event to nudge the watcher.
     let cfg = loadEffectiveConfig();
-    let ignoreFilter = buildCurrentIgnoreFilter(cfg);
+    let ignoreFilter = composeIgnoreFilter(cfg, readIgnoreFileText(cwd));
 
     const debounceMs = opts.debounceMsOverride ?? cfg.scan.watch.debounceMs;
 
@@ -253,7 +260,15 @@ export function createWatcherService(opts: ICreateWatcherServiceOpts): IWatcherS
         if (stopped) return;
         try {
           cfg = loadEffectiveConfig();
-          ignoreFilter = buildCurrentIgnoreFilter(cfg);
+          // Read with stability poll to dodge the truncate-then-write
+          // race: chokidar fires `change` on the first motion of the
+          // editor's save (file empty / partial), and a naive sync read
+          // would rebuild the filter without the new pattern. The async
+          // helper retries until two consecutive reads agree (or the
+          // 500 ms cap). See `readIgnoreFileTextStable` in
+          // `kernel/scan/ignore.ts` for the rationale.
+          const stableText = await readIgnoreFileTextStable(cwd);
+          ignoreFilter = composeIgnoreFilter(cfg, stableText);
           // Trigger a batch with the freshly built filter. `runOneBatch`
           // reads `ignoreFilter` + `cfg` from this scope dynamically, so
           // the new patterns drive the scan.

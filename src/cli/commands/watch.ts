@@ -40,7 +40,12 @@ import type {
 import { listBuiltIns } from '../../built-in-plugins/built-ins.js';
 import { loadSchemaValidators } from '../../kernel/adapters/schema-validators.js';
 import { loadConfig } from '../../kernel/config/loader.js';
-import { buildIgnoreFilter, readIgnoreFileText, type IIgnoreFilter } from '../../kernel/scan/ignore.js';
+import {
+  buildIgnoreFilter,
+  readIgnoreFileText,
+  readIgnoreFileTextStable,
+  type IIgnoreFilter,
+} from '../../kernel/scan/ignore.js';
 import { tx } from '../../kernel/util/tx.js';
 import { WATCH_TEXTS } from '../i18n/watch.texts.js';
 import { createCliProgressEmitter } from '../util/cli-progress-emitter.js';
@@ -98,11 +103,13 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
   const loadEffectiveConfig = (): ReturnType<typeof loadConfig>['effective'] =>
     loadConfig({ scope: 'project', strict: opts.strict, ...runtimeCtx }).effective;
 
-  const buildCurrentIgnoreFilter = (cfgIn: ReturnType<typeof loadEffectiveConfig>): IIgnoreFilter => {
-    const text = readIgnoreFileText(cwd);
+  const composeIgnoreFilter = (
+    cfgIn: ReturnType<typeof loadEffectiveConfig>,
+    ignoreFileText: string | undefined,
+  ): IIgnoreFilter => {
     const filterOpts: Parameters<typeof buildIgnoreFilter>[0] = {};
     if (cfgIn.ignore.length > 0) filterOpts.configIgnore = cfgIn.ignore;
-    if (text !== undefined) filterOpts.ignoreFileText = text;
+    if (ignoreFileText !== undefined) filterOpts.ignoreFileText = ignoreFileText;
     return buildIgnoreFilter(filterOpts);
   };
 
@@ -130,7 +137,7 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
     return ExitCode.Error;
   }
 
-  let ignoreFilter = buildCurrentIgnoreFilter(cfg);
+  let ignoreFilter = composeIgnoreFilter(cfg, readIgnoreFileText(cwd));
   let strict = opts.strict || cfg.scan.strict === true;
   const debounceMs = cfg.scan.watch.debounceMs;
   const dbPath = defaultProjectDbPath(runtimeCtx);
@@ -313,7 +320,13 @@ export async function runWatchLoop(opts: IRunWatchOptions): Promise<number> {
       if (stopRequested) return;
       try {
         cfg = loadEffectiveConfig();
-        ignoreFilter = buildCurrentIgnoreFilter(cfg);
+        // Stability poll on the file: chokidar fires `change` on the
+        // first motion of a save (truncate-then-write), and a naive
+        // sync read can land while the file is empty / partial. The
+        // helper retries until two reads agree (or 500 ms cap). See
+        // `readIgnoreFileTextStable` in `kernel/scan/ignore.ts`.
+        const stableText = await readIgnoreFileTextStable(cwd);
+        ignoreFilter = composeIgnoreFilter(cfg, stableText);
         strict = opts.strict || cfg.scan.strict === true;
         await handleBatch();
       } catch (err) {
