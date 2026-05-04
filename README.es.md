@@ -15,32 +15,7 @@
 
 De ecosistema caótico a agentes predecibles — un explorador de grafos para ecosistemas de agentes de IA basados en Markdown (Claude Code, Codex, Gemini, Copilot y otros). Detecta colisiones, huérfanos, duplicados semánticos y skills obesas sobre un mismo grafo, con análisis estático y semántico (LLM) opcional.
 
-## Inicio rápido
-
-```bash
-npm i -g @skill-map/cli
-cd tu/proyecto
-sm init
-sm
-```
-
-Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corriendo. Editás cualquier `.md` del proyecto y el grafo se actualiza en vivo en el navegador.
-
-¿Querés probarlo sin instalar nada? Abrí la [demo en vivo](https://skill-map.dev/demo/).
-
-## Tutorial interactivo (recomendado)
-
-Si usás [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **7 minutos** para la demo, con un opcional de 30 min más para profundizar.
-
-```bash
-mkdir prueba-skill-map && cd prueba-skill-map
-sm tutorial             # deja sm-tutorial.md en el directorio vacío
-claude                  # abrí Claude Code en ese mismo directorio
-# Después, dentro de Claude:
-ejecutá @sm-tutorial.md
-```
-
-Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real — sin compromiso, totalmente reversible.
+![Interfaz de skill-map](https://skill-map.dev/img/screenshot-1.png)
 
 ## El problema que resuelve
 
@@ -85,6 +60,33 @@ Contrato completo: [`spec/architecture.md`](./spec/architecture.md) §Execution 
 - **Agnóstico de plataforma**: el primer adapter es Claude Code, pero la arquitectura soporta cualquier ecosistema de Markdown.
 
 Detalles de arquitectura (kernel hexagonal, ports & adapters) en [`spec/architecture.md`](./spec/architecture.md).
+
+## Inicio rápido
+
+```bash
+npm i -g @skill-map/cli
+cd tu/proyecto
+sm init
+sm
+```
+
+Ese último `sm` abre la Web UI en `http://127.0.0.1:4242` con el watcher corriendo. Editás cualquier `.md` del proyecto y el grafo se actualiza en vivo en el navegador.
+
+¿Querés probarlo sin instalar nada? Abrí la [demo en vivo](https://skill-map.dev/demo/).
+
+## Tutorial interactivo (recomendado)
+
+Si usás [Claude Code](https://claude.ai/code), la forma más rápida de evaluar skill-map es el tutorial interactivo que viene incluido — aprox. **7 minutos** para la demo, con un opcional de 30 min más para profundizar.
+
+```bash
+mkdir prueba-skill-map && cd prueba-skill-map
+sm tutorial             # deja sm-tutorial.md en el directorio vacío
+claude                  # abrí Claude Code en ese mismo directorio
+# Después, dentro de Claude:
+ejecutá @sm-tutorial.md
+```
+
+Claude se hace cargo desde ahí: arma una fixture, te guía por `sm init`, abre la Web UI, edita archivos delante tuyo y te muestra al watcher reaccionando en vivo (incluso cómo `.skillmapignore` esconde archivos en tiempo real). Ves el flujo completo antes de apuntarlo a tu proyecto real — sin compromiso, totalmente reversible.
 
 ## Glosario
 

@@ -15,32 +15,7 @@
 
 From chaotic ecosystem to predictable agents — a graph explorer for Markdown-based AI-agent ecosystems (Claude Code, Codex, Gemini, Copilot, and others). Detects collisions, orphans, semantic duplicates, and bloated skills on a single graph, with static and optional semantic (LLM) analysis.
 
-## Quick start
-
-```bash
-npm i -g @skill-map/cli
-cd your/project
-sm init
-sm
-```
-
-That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher running. Edit any `.md` file in the project and the graph updates live in your browser.
-
-Want to try it without installing? Open the [live demo](https://skill-map.dev/demo/).
-
-## Interactive tutorial (recommended)
-
-If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial — about **7 minutes** for the demo, with an optional 30-min deep dive afterwards.
-
-```bash
-mkdir try-skill-map && cd try-skill-map
-sm tutorial             # writes sm-tutorial.md into the empty dir
-claude                  # open Claude Code in the same dir
-# Then, in the Claude prompt:
-run @sm-tutorial.md
-```
-
-Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project — no commitment, fully reversible.
+![skill-map UI](https://skill-map.dev/img/screenshot-1.png)
 
 ## The problem it solves
 
@@ -85,6 +60,33 @@ Full contract: [`spec/architecture.md`](./spec/architecture.md) §Execution mode
 - **Platform-agnostic** — the first adapter is Claude Code, but the architecture supports any MD ecosystem.
 
 Architecture details (hexagonal kernel, ports & adapters) live in [`spec/architecture.md`](./spec/architecture.md).
+
+## Quick start
+
+```bash
+npm i -g @skill-map/cli
+cd your/project
+sm init
+sm
+```
+
+That last `sm` opens the Web UI on `http://127.0.0.1:4242` with the watcher running. Edit any `.md` file in the project and the graph updates live in your browser.
+
+Want to try it without installing? Open the [live demo](https://skill-map.dev/demo/).
+
+## Interactive tutorial (recommended)
+
+If you use [Claude Code](https://claude.ai/code), the fastest way to evaluate skill-map is the bundled interactive tutorial — about **7 minutes** for the demo, with an optional 30-min deep dive afterwards.
+
+```bash
+mkdir try-skill-map && cd try-skill-map
+sm tutorial             # writes sm-tutorial.md into the empty dir
+claude                  # open Claude Code in the same dir
+# Then, in the Claude prompt:
+run @sm-tutorial.md
+```
+
+Claude takes over from there: drops a fixture, walks you through `sm init`, opens the Web UI, edits files in front of your eyes, and shows the watcher reacting live (including how `.skillmapignore` hides files in real time). You see the full flow before pointing it at your real project — no commitment, fully reversible.
 
 ## Glossary
 
