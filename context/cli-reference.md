@@ -1157,6 +1157,7 @@ SIGINT / SIGTERM trigger a graceful shutdown.
 - `--no-plugins` `boolean` — Skip drop-in plugin discovery.
 - `--open` `boolean` — Auto-open the SPA in the user's default browser after listen. --no-open opts out.
 - `--dev-cors` `boolean` — Enable permissive CORS for the Angular dev-server proxy workflow.
+- `--no-ui` `boolean` — Don't serve the Angular UI bundle. Use this when running the BFF alongside `ui:dev` (Angular dev server with HMR). The root `/` then renders an inline placeholder pointing the user at the dev server.
 - `--no-watcher` `boolean` — Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments.
 
 **Examples:**

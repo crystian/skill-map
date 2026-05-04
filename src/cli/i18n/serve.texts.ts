@@ -38,6 +38,14 @@ export const SERVE_TEXTS = {
   watcherDebounceInvalid:
     'sm serve: --watcher-debounce-ms must be a non-negative integer (got {{value}}).\n',
 
+  // --no-ui flag-validation failures — ExitCode.Error.
+  noUiConflictsUiDist:
+    'sm serve: --no-ui and --ui-dist {{path}} are mutually exclusive (drop one).\n',
+
+  // --no-ui + --open is harmless but worth flagging — non-fatal stderr note.
+  noUiOpenWarning:
+    'sm serve: warning: --open with --no-ui will open the placeholder, not the live UI; pass --no-open if running alongside `ui:dev`.\n',
+
   // Generic operational error — surfaced when the server itself throws
   // before the listener binds (e.g. UI bundle missing under explicit
   // --ui-dist).

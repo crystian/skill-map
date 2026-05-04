@@ -74,18 +74,63 @@ const PLACEHOLDER_HTML = `<!doctype html>
 `;
 
 /**
+ * Dev-mode placeholder served when the operator passes `--no-ui` to
+ * intentionally run the BFF without an Angular bundle (paired with
+ * `npm run ui:dev` in another terminal). Distinct copy from
+ * `PLACEHOLDER_HTML` because the absence is INTENTIONAL — pointing the
+ * user at "run `npm run build --workspace=ui`" would be wrong here.
+ */
+const DEV_PLACEHOLDER_HTML = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="skill-map-mode" content="live" />
+    <title>skill-map BFF (dev)</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 36rem; line-height: 1.5; }
+      code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 3px; }
+      h1 { font-size: 1.4rem; }
+    </style>
+  </head>
+  <body>
+    <h1>skill-map BFF in dev mode — UI disabled</h1>
+    <p>Run <code>npm run ui:dev</code> in another terminal and visit <a href="http://localhost:4200/">http://localhost:4200/</a> for the Angular SPA.</p>
+    <p>The REST API on this port is reachable at <code>/api/health</code>.</p>
+  </body>
+</html>
+`;
+
+export interface IStaticHandlerOptions {
+  /**
+   * Resolved UI bundle path, or `null` when no bundle was found / the
+   * operator intentionally opted out (`noUi: true`). `serveStatic`
+   * needs a real directory; `null` flows into the placeholder branch.
+   */
+  uiDist: string | null;
+  /**
+   * `--no-ui` was set on the CLI. Selects `DEV_PLACEHOLDER_HTML` over
+   * the accidental-missing-bundle copy. Default `false`.
+   */
+  noUi?: boolean;
+}
+
+/**
  * Build the static-serve middleware. When `uiDist === null`, only `/`
  * (and HEAD `/`) responds with the inline placeholder; every other
  * request falls through (the SPA fallback turns most of those into
- * the same placeholder).
+ * the same placeholder). The placeholder body branches on `noUi`:
+ *
+ *   - `noUi: true`  → `DEV_PLACEHOLDER_HTML` (intentional dev-mode opt-out).
+ *   - `noUi: false` → `PLACEHOLDER_HTML` (accidental missing bundle).
  *
  * Method handling: `serveStatic` only serves `GET` / `HEAD` / `OPTIONS`.
  * Other methods fall through to the catch-all (and ultimately the
  * global error handler).
  */
-export function createStaticHandler(uiDist: string | null): MiddlewareHandler {
-  if (uiDist === null) return placeholderRootMiddleware();
-  return serveStatic({ root: uiDist });
+export function createStaticHandler(opts: IStaticHandlerOptions): MiddlewareHandler {
+  if (opts.uiDist === null) return placeholderRootMiddleware(opts.noUi === true);
+  return serveStatic({ root: opts.uiDist });
 }
 
 /**
@@ -93,14 +138,17 @@ export function createStaticHandler(uiDist: string | null): MiddlewareHandler {
  * route. `/api/*` and `/ws` are registered before this in `app.ts` so
  * they short-circuit; only true SPA deep-links land here. Returns the
  * inline placeholder when the bundle is missing OR `index.html` is
- * absent inside an otherwise-present bundle dir.
+ * absent inside an otherwise-present bundle dir; when `noUi` is set,
+ * the dev-mode placeholder takes over so deep links also surface the
+ * "run `npm run ui:dev`" hint.
  */
-export function createSpaFallback(uiDist: string | null): MiddlewareHandler {
+export function createSpaFallback(opts: IStaticHandlerOptions): MiddlewareHandler {
+  const placeholder = opts.noUi === true ? DEV_PLACEHOLDER_HTML : PLACEHOLDER_HTML;
   return async (c, _next) => {
     if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return c.notFound();
-    if (uiDist === null) return htmlResponse(c, PLACEHOLDER_HTML);
-    const indexPath = join(uiDist, INDEX_HTML);
-    if (!existsSync(indexPath)) return htmlResponse(c, PLACEHOLDER_HTML);
+    if (opts.uiDist === null) return htmlResponse(c, placeholder);
+    const indexPath = join(opts.uiDist, INDEX_HTML);
+    if (!existsSync(indexPath)) return htmlResponse(c, placeholder);
     return fileResponse(c, indexPath);
   };
 }
@@ -111,11 +159,12 @@ export function createSpaFallback(uiDist: string | null): MiddlewareHandler {
  * spam stderr with `serveStatic: root path '<null>' is not found`
  * during `sm serve` runs that intentionally boot without a bundle.
  */
-function placeholderRootMiddleware(): MiddlewareHandler {
+function placeholderRootMiddleware(noUi: boolean): MiddlewareHandler {
+  const html = noUi ? DEV_PLACEHOLDER_HTML : PLACEHOLDER_HTML;
   return async (c, next) => {
     if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return next();
     if (c.req.path === '/' || c.req.path === '/index.html') {
-      return htmlResponse(c, PLACEHOLDER_HTML);
+      return htmlResponse(c, html);
     }
     return next();
   };

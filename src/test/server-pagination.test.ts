@@ -90,6 +90,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     scope: 'project',
     dbPath,
     uiDist: null,
+    noUi: false,
     noBuiltIns: false,
     noPlugins: true,
     open: false,

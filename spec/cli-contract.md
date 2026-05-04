@@ -330,7 +330,7 @@ Destructive verbs (`reset --state`, `reset --hard`, `restore`) require interacti
 
 | Command | Purpose |
 |---|---|
-| `sm serve [--port N] [--host ...] [--scope project\|global] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>] [--no-watcher]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only through v0.6.0; multi-host deferred — see §Server). The watcher is on by default (Decision #121: a server with stale DB is a footgun); pass `--no-watcher` for CI / read-only deployments. |
+| `sm serve [--port N] [--host ...] [--scope project\|global] [--db <path>] [--no-built-ins] [--no-plugins] [--open\|--no-open] [--dev-cors] [--ui-dist <path>] [--no-ui] [--no-watcher]` | Start Hono + WebSocket for the Web UI. Single-port mandate: SPA + REST + WS under one listener. Default port 4242, default host 127.0.0.1 (loopback-only through v0.6.0; multi-host deferred — see §Server). The watcher is on by default (Decision #121: a server with stale DB is a footgun); pass `--no-watcher` for CI / read-only deployments. `--no-ui` skips the SPA bundle (dev workflow alongside the Angular dev server); see §Server flags. |
 
 #### Server
 
@@ -402,7 +402,8 @@ Error code sources at v14.2:
 | `--no-plugins` | off | Skip drop-in plugin discovery. |
 | `--open` / `--no-open` | `--open` | Auto-open the SPA in the user's default browser after listen. |
 | `--dev-cors` | off | Enable permissive CORS for the Angular dev-server proxy workflow. Loopback-only when set. |
-| `--ui-dist <path>` | auto | Override the UI bundle directory. Hidden flag — used by the demo build pipeline + tests; everyday users never need it. |
+| `--ui-dist <path>` | auto | Override the UI bundle directory. Hidden flag — used by the demo build pipeline + tests; everyday users never need it. Mutually exclusive with `--no-ui` (rejected with exit 2). |
+| `--no-ui` | off | Skip serving the Angular SPA bundle. The root `/` (and any SPA fallback) responds with an inline dev-mode placeholder pointing the user at `npm run ui:dev` + `http://localhost:4200/`. Intended for local development alongside the Angular dev server with HMR; pairs with `--no-open` (default `--open` plus `--no-ui` would auto-open the placeholder, so a non-fatal stderr warning is emitted in that combination). Mutually exclusive with `--ui-dist <path>` (rejected with exit 2). The server keeps `/api/*` and `/ws` fully functional; only the static SPA is suppressed. |
 | `--no-watcher` | off | Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments — without the watcher, `/ws` stays open but no `scan.*` events ever fire. Combining with `--no-built-ins` is rejected (the watcher cannot run with an empty pipeline; would persist empty scans on every batch). |
 
 **WebSocket protocol** *(Stability: experimental — locks at v0.6.0)*:

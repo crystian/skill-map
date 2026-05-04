@@ -129,6 +129,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     scope: 'project',
     dbPath: root.primedDb,
     uiDist: null,
+    noUi: false,
     noBuiltIns: false,
     noPlugins: true, // skip plugin discovery — keeps tests deterministic against `process.cwd()`
     open: false,

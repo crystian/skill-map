@@ -111,6 +111,72 @@ describe('sm serve — flag validation', () => {
     assert.match(cap.stderr(), /does not exist/, cap.stderr());
   });
 
+  it('emits a non-fatal warning when --no-ui is combined with the default --open', async () => {
+    // Combining --no-ui with the default --open auto-opens the placeholder,
+    // which is almost certainly not what the operator intended. The verb
+    // emits a stderr hint suggesting --no-open but does NOT reject — the
+    // request is honored. To avoid binding a real listener, we pair the
+    // combo with a bailout (--host 0.0.0.0 + --dev-cors) that fails at
+    // the post-warning validation step. Both messages should appear in
+    // stderr; the warning fires BEFORE the rejection.
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(
+      ['serve', '--no-ui', '--host', '0.0.0.0', '--dev-cors'],
+      cap.context,
+    );
+    assert.equal(exit, ExitCode.Error);
+    const stderr = cap.stderr();
+    assert.match(
+      stderr,
+      /warning: --open with --no-ui will open the placeholder/,
+      stderr,
+    );
+    // The bailout that drove the exit code:
+    assert.match(stderr, /--dev-cors requires a loopback --host/, stderr);
+    // Ordering invariant: warning appears before the rejection.
+    const warnIdx = stderr.indexOf('warning: --open with --no-ui');
+    const errIdx = stderr.indexOf('--dev-cors requires');
+    assert.ok(warnIdx >= 0 && errIdx >= 0 && warnIdx < errIdx, stderr);
+  });
+
+  it('does NOT emit the --no-ui/--open warning when --no-open is set explicitly', async () => {
+    // Counterpart to the warning test: a deliberate --no-open should
+    // never trigger the hint. Use the same dev-cors bailout to avoid
+    // binding.
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(
+      ['serve', '--no-ui', '--no-open', '--host', '0.0.0.0', '--dev-cors'],
+      cap.context,
+    );
+    assert.equal(exit, ExitCode.Error);
+    assert.doesNotMatch(
+      cap.stderr(),
+      /warning: --open with --no-ui/,
+      cap.stderr(),
+    );
+  });
+
+  it('rejects --no-ui combined with --ui-dist <path> with exit 2', async () => {
+    const distDir = join(tmpRoot, 'ui-bundle-conflict');
+    mkdirSync(distDir, { recursive: true });
+    writeFileSync(join(distDir, 'index.html'), '<!doctype html><html></html>');
+
+    const cap = captureContext();
+    const cli = buildCli();
+    const exit = await cli.run(
+      ['serve', '--no-ui', '--ui-dist', distDir],
+      cap.context,
+    );
+    assert.equal(exit, ExitCode.Error);
+    assert.match(
+      cap.stderr(),
+      /--no-ui and --ui-dist .* are mutually exclusive/,
+      cap.stderr(),
+    );
+  });
+
   it('accepts --ui-dist when the directory contains index.html', async () => {
     // Build a minimal valid bundle so the validator + UI-dist resolver
     // both clear; we then immediately rely on flag-validation rejecting

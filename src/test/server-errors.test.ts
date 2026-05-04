@@ -42,6 +42,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     scope: 'project',
     dbPath: join(tmpRoot, 'never-existed.db'),
     uiDist: null,
+    noUi: false,
     noBuiltIns: false,
     noPlugins: true,
     open: false,

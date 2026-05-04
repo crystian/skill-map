@@ -81,6 +81,7 @@ describe('sm serve — DB resilience', () => {
       scope: 'project',
       dbPath: join(tmpRoot, 'absent', '.skill-map', 'skill-map.db'),
       uiDist: null,
+      noUi: false,
       noBuiltIns: false,
       noPlugins: false,
       open: false,

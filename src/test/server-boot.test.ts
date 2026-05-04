@@ -42,6 +42,7 @@ function defaultOptions(overrides: Partial<IServerOptions> = {}): IServerOptions
     scope: 'project',
     dbPath: root.dbPath,
     uiDist: null,
+    noUi: false,
     noBuiltIns: false,
     noPlugins: false,
     open: false,

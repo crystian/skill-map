@@ -27,7 +27,7 @@
     "sqlite": "node scripts/open-sqlite-browser.js",
     "cli:build": "npm run build --workspace=@skill-map/cli",
     "ui:build": "npm run build --workspace=ui",
-    "bff:dev": "npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/local-scope --port 4242",
+    "bff:dev": "npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/local-scope --port 4242 --no-ui",
     "ui:dev": "npm run dev --workspace=ui",
     "e2e:dev": "npm run test:ui --workspace=skill-map-e2e",
     "lint": "npm run lint --workspaces --if-present",

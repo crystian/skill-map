@@ -166,8 +166,8 @@ export function createApp(deps: IAppDeps): Hono {
   // 4. Static + 5. SPA fallback. Order matters: the static handler
   //    short-circuits on a real file match; everything else falls
   //    through to the SPA fallback (which serves index.html).
-  app.use('*', createStaticHandler(deps.options.uiDist));
-  app.get('*', createSpaFallback(deps.options.uiDist));
+  app.use('*', createStaticHandler({ uiDist: deps.options.uiDist, noUi: deps.options.noUi }));
+  app.get('*', createSpaFallback({ uiDist: deps.options.uiDist, noUi: deps.options.noUi }));
 
   app.notFound((c) => {
     throw new HTTPException(404, { message: `Not found: ${c.req.path}` });

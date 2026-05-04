@@ -122,6 +122,9 @@ export class ServeCommand extends SmCommand {
   // need it). Clipanion still exposes it on the parser; the Usage
   // omission is the "hidden" contract per the 14.1 brief.
   uiDist = Option.String('--ui-dist', { required: false, hidden: true });
+  noUi = Option.Boolean('--no-ui', false, {
+    description: "Don't serve the Angular UI bundle. Use this when running the BFF alongside `ui:dev` (Angular dev server with HMR). The root `/` then renders an inline placeholder pointing the user at the dev server.",
+  });
   noWatcher = Option.Boolean('--no-watcher', false, {
     description: 'Disable the chokidar-fed scan-and-broadcast loop. Use only for CI / read-only deployments.',
   });
@@ -175,14 +178,38 @@ export class ServeCommand extends SmCommand {
       return ExitCode.NotFound;
     }
 
-    // 4. UI bundle resolution. Explicit path → exit 2 if missing;
-    //    auto-resolved → null (server logs the placeholder hint).
-    const uiDistResult = resolveUiDist(runtimeCtx, this.uiDist);
-    if (!uiDistResult.ok) {
+    // 4. UI bundle resolution.
+    //    - `--no-ui` + `--ui-dist <path>` is contradictory → exit 2.
+    //    - `--no-ui` alone → skip resolution, force uiDist=null, route
+    //      the static middleware at the dev-mode placeholder.
+    //    - Explicit path → exit 2 if missing; auto-resolved → null
+    //      (server logs the placeholder hint).
+    if (this.noUi && this.uiDist !== undefined) {
       this.context.stderr.write(
-        tx(SERVE_TEXTS.startupFailed, { message: sanitizeForTerminal(uiDistResult.message) }),
+        tx(SERVE_TEXTS.noUiConflictsUiDist, { path: sanitizeForTerminal(this.uiDist) }),
       );
       return ExitCode.Error;
+    }
+    let resolvedUiDist: string | null;
+    if (this.noUi) {
+      resolvedUiDist = null;
+    } else {
+      const uiDistResult = resolveUiDist(runtimeCtx, this.uiDist);
+      if (!uiDistResult.ok) {
+        this.context.stderr.write(
+          tx(SERVE_TEXTS.startupFailed, { message: sanitizeForTerminal(uiDistResult.message) }),
+        );
+        return ExitCode.Error;
+      }
+      resolvedUiDist = uiDistResult.uiDist;
+    }
+
+    // 4a. Non-fatal info: pairing `--no-ui` with `--open` opens the
+    //     placeholder rather than the live SPA. The Architect almost
+    //     certainly meant `--no-open` if they're running `ui:dev` in
+    //     another terminal — call it out, but don't reject.
+    if (this.noUi && this.open) {
+      this.context.stderr.write(SERVE_TEXTS.noUiOpenWarning);
     }
 
     // 4b. Parse --watcher-debounce-ms up front. Empty / non-integer →
@@ -203,7 +230,8 @@ export class ServeCommand extends SmCommand {
     const input: IServerOptionsInput = {
       dbPath,
       scope,
-      uiDist: uiDistResult.uiDist,
+      uiDist: resolvedUiDist,
+      noUi: this.noUi,
       noBuiltIns: this.noBuiltIns,
       noPlugins: this.noPlugins,
       open: this.open,
@@ -342,6 +370,8 @@ function formatValidationError(err: { code: string; value: string; message: stri
       return tx(SERVE_TEXTS.watcherRequiresPipeline, { value: sanitizeForTerminal(err.value) });
     case 'watcher-debounce-invalid':
       return tx(SERVE_TEXTS.watcherDebounceInvalid, { value: sanitizeForTerminal(err.value) });
+    case 'no-ui-conflicts-ui-dist':
+      return tx(SERVE_TEXTS.noUiConflictsUiDist, { path: sanitizeForTerminal(err.value) });
     default:
       return tx(SERVE_TEXTS.startupFailed, { message: sanitizeForTerminal(err.message) });
   }

@@ -70,6 +70,7 @@ function defaultOptions(fx: IFixture, overrides: Partial<IServerOptions> = {}): 
     scope: 'project',
     dbPath: fx.dbPath,
     uiDist: null,
+    noUi: false,
     noBuiltIns: false,
     noPlugins: true,
     open: false,

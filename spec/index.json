@@ -173,7 +173,7 @@
       "CHANGELOG.md": "f2dce379783e8e786304c559f0b109226e587543c31cfb25df4ca63e65e2860f",
       "README.md": "97fd3079092182c677669c25f44e08b0f6579faaa3406d8cb5a884e37e9eef97",
       "architecture.md": "c14e69faa7ce7f657d6a2790762daaea8a5ff350375de8c254cd870b5494b896",
-      "cli-contract.md": "e94340f25e781a1131d0902cf368a3675795bf71ffb419e1af789ff8992897aa",
+      "cli-contract.md": "eaa79555f89b95cdbf69130e9ead3974bdae8c5206adea0ec9a7eea7975f8638",
       "conformance/README.md": "5f94a6ac637b7c992fcd7e53d32eed1b8887eeef05eb6ca3b5ec8a0b5045cd21",
       "conformance/cases/kernel-empty-boot.json": "ad4bbe9d637537625025c8bdb61285b1433568a2544b1ce0248f304ccff8c350",
       "conformance/cases/plugin-missing-ui-rejected.json": "c6ce8f62a430d662aea33dec8ebf6493be6455037be3114e0d93d0eb57777287",

@@ -66,6 +66,17 @@ export interface IServerOptions {
    */
   uiDist: string | null;
 
+  /**
+   * Intentionally serve the BFF without an Angular bundle. Set by
+   * `--no-ui` on the CLI. When `true`, the static middleware renders a
+   * dev-mode placeholder pointing the operator at `npm run ui:dev`
+   * (Angular dev server with HMR) instead of the
+   * "UI bundle was not found" copy that signals an accidental missing
+   * bundle. Default `false`. Combining `noUi: true` with a non-null
+   * `uiDist` is rejected by `validateServerOptions`.
+   */
+  noUi: boolean;
+
   /** Skip built-in plugin registration (parity with `sm scan --no-built-ins`). Default `false`. */
   noBuiltIns: boolean;
 
@@ -102,6 +113,7 @@ export interface IServerOptionsInput {
   scope?: string | undefined;
   dbPath: string;
   uiDist?: string | null | undefined;
+  noUi?: boolean | undefined;
   noBuiltIns?: boolean | undefined;
   noPlugins?: boolean | undefined;
   open?: boolean | undefined;
@@ -116,7 +128,8 @@ export type TServerOptionsErrorCode =
   | 'scope-invalid'
   | 'host-dev-cors-rejected'
   | 'watcher-requires-pipeline'
-  | 'watcher-debounce-invalid';
+  | 'watcher-debounce-invalid'
+  | 'no-ui-conflicts-ui-dist';
 
 export interface IServerOptionsError {
   code: TServerOptionsErrorCode;
@@ -157,12 +170,16 @@ export function validateServerOptions(input: IServerOptionsInput): TServerOption
   const debounceError = validateWatcherDebounce(input.watcherDebounceMs);
   if (debounceError !== null) return { ok: false, error: debounceError };
 
+  const noUiError = validateNoUi(filled.noUi, filled.uiDist);
+  if (noUiError !== null) return { ok: false, error: noUiError };
+
   const options: IServerOptions = {
     port: filled.port,
     host: filled.host,
     scope: filled.scope as TServerScope,
     dbPath: input.dbPath,
     uiDist: filled.uiDist,
+    noUi: filled.noUi,
     noBuiltIns: filled.noBuiltIns,
     noPlugins: filled.noPlugins,
     open: filled.open,
@@ -180,6 +197,7 @@ interface IFilledInput {
   host: string;
   scope: string;
   uiDist: string | null;
+  noUi: boolean;
   noBuiltIns: boolean;
   noPlugins: boolean;
   open: boolean;
@@ -200,6 +218,7 @@ function applyDefaults(input: IServerOptionsInput): IFilledInput {
     host: input.host ?? DEFAULT_HOST,
     scope: input.scope ?? DEFAULT_SCOPE,
     uiDist: input.uiDist ?? null,
+    noUi: input.noUi ?? false,
     noBuiltIns: input.noBuiltIns ?? false,
     noPlugins: input.noPlugins ?? false,
     open: input.open ?? true,
@@ -275,6 +294,25 @@ function validateWatcherDebounce(value: number | undefined): IServerOptionsError
       code: 'watcher-debounce-invalid',
       message: `--watcher-debounce-ms must be a non-negative integer (got ${value})`,
       value: String(value),
+    };
+  }
+  return null;
+}
+
+/**
+ * `--no-ui` opts the BFF out of serving any Angular bundle (the dev-mode
+ * placeholder takes over). Combining it with an explicit `--ui-dist
+ * <path>` is contradictory — the operator can have one OR the other,
+ * never both. The CLI catches this before construction; the validator
+ * reaffirms so any direct caller of `validateServerOptions` (tests,
+ * future programmatic boots) gets the same guarantee.
+ */
+function validateNoUi(noUi: boolean, uiDist: string | null): IServerOptionsError | null {
+  if (noUi && uiDist !== null) {
+    return {
+      code: 'no-ui-conflicts-ui-dist',
+      message: '--no-ui and --ui-dist <path> are mutually exclusive',
+      value: uiDist,
     };
   }
   return null;
