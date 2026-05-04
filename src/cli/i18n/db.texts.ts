@@ -55,7 +55,12 @@ export const DB_TEXTS = {
   // --- browser (system sqlitebrowser GUI required) ---------------------
   browserRunScanFirstHint: 'Run `sm scan` first (or `sm init`) to create the project DB.\n',
   browserNotFound:
-    'sqlitebrowser not found on PATH. Install it (Debian/Ubuntu: sudo apt install -y sqlitebrowser; macOS: brew install --cask db-browser-for-sqlite).\n',
+    'sqlitebrowser is not installed (or not on PATH).\n' +
+    '\n' +
+    'If you want a GUI to inspect the DB, install it:\n' +
+    '  Debian/Ubuntu: sudo apt install -y sqlitebrowser\n' +
+    '  macOS:         brew install --cask db-browser-for-sqlite\n' +
+    '  Windows:       https://sqlitebrowser.org/dl/\n',
   browserOpeningReadOnly: 'Opening {{path}} (read-only)\n',
   browserOpeningReadWrite: 'Opening {{path}} (read-write)\n',
   // --- dump (pure node:sqlite, no external binary) ----------------------

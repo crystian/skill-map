@@ -204,7 +204,7 @@ describe('sm db browser', () => {
 
     const r = sm(['db', 'browser'], scope);
     assert.equal(r.status, 2);
-    assert.match(r.stderr, /sqlitebrowser not found on PATH/);
+    assert.match(r.stderr, /sqlitebrowser is not installed/);
     assert.match(r.stderr, /sudo apt install -y sqlitebrowser/);
   });
 

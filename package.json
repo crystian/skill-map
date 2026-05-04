@@ -20,11 +20,11 @@
   ],
   "scripts": {
     "start": "bash scripts/start.sh",
+    "sqlite": "node src/bin/sm.js db browser",
     "demo:build": "npm run demo:build --workspace=@skill-map/web",
     "demo:dev": "npm run dev:demo --workspace=ui",
     "web:build": "npm run build --workspace=@skill-map/web",
     "web:dev": "npm run dev --workspace=@skill-map/web",
-    "sqlite": "node src/bin/sm.js db browser",
     "cli:build": "npm run build --workspace=@skill-map/cli",
     "ui:build": "npm run build --workspace=ui",
     "bff:dev": "npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/local-scope --port 4242 --no-ui",
