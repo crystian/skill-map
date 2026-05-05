@@ -1,5 +1,45 @@
 # skill-map
 
+## 0.17.0
+
+### Minor Changes
+
+- bd5e360: Absorb Anthropic Claude's documented frontmatter verbatim into the Claude Provider's per-kind schemas, drop the obsolete `hook` node kind.
+
+  - `agent.schema.json` declares all 14 vendor-specific fields from https://code.claude.com/docs/en/agents.md (`tools`, `disallowedTools`, `model`, `permissionMode`, `maxTurns`, `skills`, `mcpServers`, `hooks`, `memory`, `background`, `effort`, `isolation`, `color`, `initialPrompt`). camelCase preserved.
+  - New `skill-base.schema.json` carries the 13 shared fields from https://code.claude.com/docs/en/skills.md (Anthropic merged custom commands into skills): `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `model`, `effort`, `context`, `agent`, `hooks`, `paths`, `shell`. Naming reproduced verbatim — mix of kebab-case, snake_case, and camelCase. `skill.schema.json` and `command.schema.json` are thin `allOf` extensions of the new base; kept SPLIT (not aliased) because the registry differentiates them in `IProviderKind.ui` and the qualified `defaultRefreshAction`. No kind-only fields today; ready for divergence.
+  - `hook.schema.json` deleted. `.claude/hooks/*.md` is NOT an Anthropic convention — hooks live in `settings.json` or as sub-objects of agent / skill frontmatter (https://code.claude.com/docs/en/hooks.md). Files at the old path now classify as `note` via the Provider's fallback. `NodeKind` shrinks from `'skill' | 'agent' | 'command' | 'hook' | 'note'` to `'skill' | 'agent' | 'command' | 'note'`.
+  - New runtime field `IProvider.schemas?: unknown[]` lets a Provider declare auxiliary JSON Schemas its per-kind schemas `$ref` by `$id`. `buildProviderFrontmatterValidator` registers them via `addSchema` BEFORE compiling per-kind schemas, so cross-file `$ref` resolution succeeds. Used by the Claude Provider to register `skill-base.schema.json`. Runtime-only — does NOT appear in spec's `provider.schema.json` manifest.
+  - Conformance: `minimal-claude/hooks/` deleted; `basic-scan` now asserts 4 nodes (one per kind: agent, command, skill, note) instead of 5; `coverage.md` updated.
+
+  UI alignment ships in a follow-up PR — `ui/src/models/node.ts` carries an `ISummaryHook` shape and a `kind: 'hook'` literal that belong to a separate scope. Today's UI bundle still compiles and tests pass because the UI's `TNodeKind = string` (open) and never imported the kernel's narrowed `NodeKind`.
+
+  Breaking but greenfield-permitted per `versioning.md` § Pre-1.0: ships as a minor bump because `@skill-map/cli` is still 0.x and the only released consumers (the demo scope, the e2e fixtures) all carry `name`+`description` and no longer-required `metadata` keys (those flow through via `additionalProperties: true`). The frontmatter contract stays compatible at the consumer edge for every node that already validated. Stays minor; the first 1.0.0 is a deliberate stabilization moment, not a side-effect of this PR.
+
+- 77579b3: Add a `sm db browser` sub-command that opens the project's SQLite DB in DB Browser for SQLite (sqlitebrowser GUI). Read-only by default; pass `--rw` to enable writes. Replaces the previous `scripts/open-sqlite-browser.js` standalone script.
+
+  The root `npm run sqlite` shortcut now invokes the project-built CLI binary (`node src/bin/sm.js db browser`) instead of the standalone script. This guarantees the locally compiled CLI is used, not whichever `sm` resolves on PATH (a globally installed `@skill-map/cli` would otherwise shadow the in-development version).
+
+  Spec: `cli-contract.md` documents the new sub-command in the verb table and the §Database section.
+
+- 84c3f07: `npm run start` now opens Windows Terminal with two side-by-side panes that run `bff:dev` (the BFF watcher with the Hono API + the Angular dev-mode placeholder) and `ui:dev` (the Angular dev server with HMR). Replaces the previous `start` which was a thin alias to `ng serve` that booted the SPA without a backing BFF.
+
+  WSL2 + Windows Terminal only — the script aborts with a clear hint when `wt.exe` isn't on PATH. No cross-platform fallback by design; the workflow is meant for the local dev environment, not portable across collaborators.
+
+### Patch Changes
+
+- f706e57: Improve the `sm db browser` error message when `sqlitebrowser` is not installed: multi-line block, aligned columns, three OS variants (Debian/Ubuntu, macOS, Windows), softer framing ("if you want a GUI…" rather than imperative). The Windows hint links to the official downloads page. The shortcut at root `npm run sqlite` is moved up to sit next to `start` so the daily-use entry points are grouped at the top of the scripts block.
+- 696008a: Add a `--no-ui` flag to `sm serve`. With it, the BFF stops serving the Angular bundle (stale or otherwise) and the root `/` renders an inline dev-mode placeholder pointing the user at `npm run ui:dev` + `http://localhost:4200/`. Used by the root `bff:dev` shortcut so iterating on the BFF alongside the Angular dev server doesn't surface a stale UI by accident.
+
+  Mutually exclusive with `--ui-dist <path>` (rejected with exit 2). Combining `--no-ui` with the default `--open` emits a non-fatal stderr warning suggesting `--no-open` (the auto-opened tab would land on the placeholder rather than the live UI). `/api/*` and `/ws` remain fully functional; only the static SPA is suppressed.
+
+  Spec impact: `spec/cli-contract.md` documents the new flag in the `sm serve` signature and the §Server flags table, including the mutual-exclusion + warning rules.
+
+- Updated dependencies [77579b3]
+- Updated dependencies [696008a]
+- Updated dependencies [bd5e360]
+  - @skill-map/spec@0.17.0
+
 ## 0.16.6
 
 ### Patch Changes
@@ -3327,9 +3367,9 @@ kind, normalizedTrigger)` and prints one row per group with the
       (`Links out (12, 9 unique)`). When N > 1 detector emits the same
       logical link, the row also gets a `(×N)` suffix.
 
-                                                                                                                             `--json` output is byte-identical to before — raw rows, no merge.
-                                                                                                                             Storage is byte-identical to before. The grouping is purely a
-                                                                                                                             read-time presentation choice for human eyes.
+                                                                                                                                   `--json` output is byte-identical to before — raw rows, no merge.
+                                                                                                                                   Storage is byte-identical to before. The grouping is purely a
+                                                                                                                                   read-time presentation choice for human eyes.
 
   **Spec changes (patch)**:
 

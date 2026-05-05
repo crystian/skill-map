@@ -1,5 +1,31 @@
 # Spec changelog
 
+## 0.17.0
+
+### Minor Changes
+
+- 77579b3: Add a `sm db browser` sub-command that opens the project's SQLite DB in DB Browser for SQLite (sqlitebrowser GUI). Read-only by default; pass `--rw` to enable writes. Replaces the previous `scripts/open-sqlite-browser.js` standalone script.
+
+  The root `npm run sqlite` shortcut now invokes the project-built CLI binary (`node src/bin/sm.js db browser`) instead of the standalone script. This guarantees the locally compiled CLI is used, not whichever `sm` resolves on PATH (a globally installed `@skill-map/cli` would otherwise shadow the in-development version).
+
+  Spec: `cli-contract.md` documents the new sub-command in the verb table and the §Database section.
+
+- 696008a: Add a `--no-ui` flag to `sm serve`. With it, the BFF stops serving the Angular bundle (stale or otherwise) and the root `/` renders an inline dev-mode placeholder pointing the user at `npm run ui:dev` + `http://localhost:4200/`. Used by the root `bff:dev` shortcut so iterating on the BFF alongside the Angular dev server doesn't surface a stale UI by accident.
+
+  Mutually exclusive with `--ui-dist <path>` (rejected with exit 2). Combining `--no-ui` with the default `--open` emits a non-fatal stderr warning suggesting `--no-open` (the auto-opened tab would land on the placeholder rather than the live UI). `/api/*` and `/ws` remain fully functional; only the static SPA is suppressed.
+
+  Spec impact: `spec/cli-contract.md` documents the new flag in the `sm serve` signature and the §Server flags table, including the mutual-exclusion + warning rules.
+
+- bd5e360: Trim `frontmatter/base.schema.json` to the truly universal contract: `name` + `description` are the only required fields, every node on every Provider, and `additionalProperties: true` lets vendor-specific keys flow through silently.
+
+  The previous base inadvertently curated a Claude-flavored shape (`tools`, `allowedTools`, full `metadata` block with `version` required, etc.). skill-map AGGREGATES vendor specs, it does not curate them — so per-vendor frontmatter shapes belong in the Provider that emits the kind. The Anthropic-specific catalog now lives entirely under `src/built-in-plugins/providers/claude/schemas/` and absorbs Anthropic's documented frontmatter verbatim (see the matching `@skill-map/cli` changeset).
+
+  The future home for skill-map-only annotation fields (provenance, cross-vendor metadata, source URL, supersedes/supersededBy) is a deferred decision — sidecar file vs in-frontmatter block — tracked separately. Existing files that carry `metadata: { version, ... }` continue to validate without any change because of `additionalProperties: true`; nothing breaks at the consumer edge.
+
+  Decision #55 (full metadata block in the universal base) is superseded by this change.
+
+  Breaking but greenfield-permitted per `versioning.md` § Pre-1.0: ships as a minor bump because `@skill-map/spec` is still 0.x and Decision #55 had not reached any released consumer that mandates the prior shape. Stays minor; the first 1.0.0 is a deliberate stabilization moment, not a side-effect of this PR.
+
 ## 0.16.0
 
 ### Minor Changes
