@@ -119,7 +119,7 @@ When the deploy gains or loses a dependency on a new path, update the `paths:` b
 `@skill-map/web` (private workspace) is versioned separately from spec and CLI. The version is the deploy tag:
 
 - **GitHub Actions** shows the dynamic job name (`v0.1.0`) read from `web/package.json` at runtime.
-- **Changeset rule**: any PR that touches `web/` must declare a changeset that bumps `@skill-map/web` (same as spec/cli/ui).
+- **Changeset rule**: any PR that touches `web/` must declare a changeset that bumps `@skill-map/web` (same as spec, cli, testkit). `ui/` is exempt — it ships bundled inside the CLI, so user-visible UI changes ride along the CLI changeset.
 
 ### Versions in the landing footer
 

@@ -23,7 +23,20 @@ Thanks for your interest in `skill-map`. The project is in active pre-1.0 develo
 
 ## Versioning — changesets + integrity hashes
 
-Every PR that touches a versioned workspace (`spec/`, `src/`, `testkit/`, `ui/`, `web/`) **must** include a changeset. CI blocks the merge otherwise. Private workspaces (`ui/`, `web/`, `e2e/`, `examples/hello-world/`) participate in the version flow even though they don't publish to npm — bumping their versions is how we tag the deployed site (web), the bundled UI (ui), and keep CHANGELOGs aligned.
+Every PR that touches a versioned workspace **must** include a changeset. CI blocks the merge otherwise.
+
+Versioned workspaces — those whose version drives a publish or a public deploy:
+
+- `spec/` → publishes `@skill-map/spec` to npm.
+- `src/` → publishes `@skill-map/cli` to npm.
+- `testkit/` → publishes to npm.
+- `web/` → private, but a version bump retags the public site deploy.
+
+Workspaces declared in the root `workspaces` array but exempt from the changeset gate (private internals; their changes ride along the next versioned-workspace bump):
+
+- `ui/` — bundled inside `@skill-map/cli`; user-visible UI changes that warrant a CHANGELOG entry are described in the CLI changeset that ships them.
+- `e2e/` — Playwright suite, never published.
+- `examples/hello-world/` — illustrative example, never published.
 
 ### Creating a changeset
 
