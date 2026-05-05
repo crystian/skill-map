@@ -18,17 +18,18 @@
   <sm-demo-banner />
   <header class="shell__topbar" data-testid="shell-topbar">
     <div class="shell__brand">
-      <span class="shell__brand-mark">sm</span>
+      <img class="shell__brand-mark" [src]="markSrc()" alt="" aria-hidden="true" />
       <div>
         <h1>{{ texts.brand }}</h1>
-        <p class="shell__tag">{{ texts.tag }}</p>
+        @if (rootLabel()) {
+          <p class="shell__tag">{{ rootLabel() }}</p>
+        }
       </div>
     </div>
 
     <nav class="shell__nav" [attr.aria-label]="texts.a11y.viewSwitcher" data-testid="shell-nav">
       <a routerLink="/graph" routerLinkActive="is-active" data-testid="nav-graph">{{ texts.nav.graph }}</a>
       <a routerLink="/list" routerLinkActive="is-active" data-testid="nav-list">{{ texts.nav.list }}</a>
-      <a routerLink="/inspector" routerLinkActive="is-active" data-testid="nav-inspector">{{ texts.nav.inspector }}</a>
     </nav>
 
     <div class="shell__actions">

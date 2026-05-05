@@ -32,7 +32,9 @@
         }
         <h2>{{ fm.name }}</h2>
       </div>
-      <a routerLink="/list" class="inspector__back" data-testid="inspector-back">{{ texts.backToList }}</a>
+      @if (mode() === 'standalone') {
+        <a routerLink="/list" class="inspector__back" data-testid="inspector-back">{{ texts.backToList }}</a>
+      }
     </header>
 
     <p class="inspector__path" data-testid="inspector-path">
@@ -42,25 +44,27 @@
     <p class="inspector__desc" data-testid="inspector-description">{{ fm.description }}</p>
 
     <div class="inspector__grid">
-      <!-- v0.8.0 placeholder cards: enrichment / summary / findings. -->
-      <sm-empty-state
-        [title]="texts.placeholders.enrichmentTitle"
-        [body]="texts.placeholders.body"
-        icon="pi pi-sparkles"
-        testId="inspector-empty-enrichment"
-      />
-      <sm-empty-state
-        [title]="texts.placeholders.summaryTitle"
-        [body]="texts.placeholders.body"
-        icon="pi pi-file"
-        testId="inspector-empty-summary"
-      />
-      <sm-empty-state
-        [title]="texts.placeholders.findingsTitle"
-        [body]="texts.placeholders.body"
-        icon="pi pi-search"
-        testId="inspector-empty-findings"
-      />
+      @if (mode() === 'standalone') {
+        <!-- v0.8.0 placeholder cards: enrichment / summary / findings. -->
+        <sm-empty-state
+          [title]="texts.placeholders.enrichmentTitle"
+          [body]="texts.placeholders.body"
+          icon="pi pi-sparkles"
+          testId="inspector-empty-enrichment"
+        />
+        <sm-empty-state
+          [title]="texts.placeholders.summaryTitle"
+          [body]="texts.placeholders.body"
+          icon="pi pi-file"
+          testId="inspector-empty-summary"
+        />
+        <sm-empty-state
+          [title]="texts.placeholders.findingsTitle"
+          [body]="texts.placeholders.body"
+          icon="pi pi-search"
+          testId="inspector-empty-findings"
+        />
+      }
       <!-- Kind-specific card -->
       @if (asAgent(); as agent) {
         <p-card [header]="texts.cards.agent" styleClass="inspector__card" data-testid="inspector-card-agent">

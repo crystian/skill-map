@@ -108,8 +108,8 @@ export class ListView implements OnInit {
     return STABILITY_SEVERITY[s];
   }
 
-  openInspector(row: IListRow): void {
-    void this.router.navigate(['/inspector'], { queryParams: { path: row.path } });
+  openNode(row: IListRow): void {
+    void this.router.navigate(['/graph'], { queryParams: { path: row.path } });
   }
 
   resetFilters(): void {

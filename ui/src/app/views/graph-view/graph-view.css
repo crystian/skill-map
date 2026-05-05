@@ -10,42 +10,6 @@
   height: 100%;
 }
 
-.graph__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-}
-
-.graph__header h2 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.graph__sub {
-  margin: 0.25rem 0 0;
-  color: var(--p-text-muted-color);
-  font-size: 0.9rem;
-}
-
-.graph__sub code {
-  background: var(--sm-bg-hover);
-  padding: 0.05rem 0.3rem;
-  border-radius: 0.25rem;
-  font-size: 0.8rem;
-}
-
-.graph__hint {
-  padding: 2rem;
-  text-align: center;
-  color: var(--p-text-muted-color);
-}
-
-.graph__hint--error {
-  color: var(--sm-severity-error);
-}
-
 .graph__canvas-wrap {
   position: relative;
   flex: 1;
@@ -97,6 +61,39 @@
   height: 100%;
 }
 
+/* Embedded inspector panel — slides in from the right when a node is
+   selected. The InspectorView owns its own compact-mode styling via
+   the `mode="embedded"` input (which binds `.inspector-view--embedded`
+   on the host); this stylesheet only owns the panel container's
+   position / size / animation. */
+.graph__panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 400px;
+  background: var(--sm-bg-content);
+  border-left: 1px solid var(--sm-border);
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.18);
+  transform: translateX(100%);
+  transition: transform 220ms ease;
+  z-index: 20;
+  pointer-events: none;
+  overflow-y: auto;
+}
+
+.graph__panel.is-open {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+.graph__panel-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+}
+
 /* Floating action toolbar — bottom-center pill, mirrors the call-center
    example's flow-action-panel layout (apps/example-apps/call-center in
    Foblex/f-flow). Horizontal pill, fully rounded, sits 16px above the
@@ -124,35 +121,6 @@
   margin: 0 2px;
   background: var(--sm-border);
   flex-shrink: 0;
-}
-
-.graph__legend {
-  display: flex;
-  gap: 1.5rem;
-  font-size: 0.85rem;
-  color: var(--p-text-muted-color);
-}
-
-.graph__legend .swatch {
-  display: inline-block;
-  width: 18px;
-  height: 3px;
-  vertical-align: middle;
-  margin-right: 0.4rem;
-  border-radius: 2px;
-}
-
-.swatch--invokes {
-  background: var(--sm-edge-invokes);
-}
-.swatch--references {
-  background: var(--sm-edge-references);
-}
-.swatch--mentions {
-  background: var(--sm-edge-mentions);
-}
-.swatch--supersedes {
-  background: var(--sm-edge-supersedes);
 }
 
 /* Foblex-side host for each graph node. The visible card lives in

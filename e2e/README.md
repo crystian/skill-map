@@ -31,7 +31,7 @@ npm run test:smoke --workspace=skill-map-e2e
 
 - The demo bundle boots without console errors under `MODE === 'demo'`.
 - The bundle never fetches `/api/...` — a regression activating the live-mode `RestDataSource` in the demo build is caught here.
-- The three views (list, graph, inspector) render and route correctly.
+- The two views (graph, list) render and route correctly.
 
 ## Run via root validate
 

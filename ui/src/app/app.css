@@ -1,6 +1,34 @@
 :host {
   display: block;
   height: 100dvh;
+
+  /* Topbar palette — light theme defaults. Dark overrides below.
+     Stops come from the global `--sm-violet-*` ramp in `styles.css`
+     so the shell stays in lock-step with the public site palette. */
+  --shell-topbar-bg: #FFFFFF;
+  --shell-topbar-border: var(--sm-violet-100);
+  --shell-topbar-text: var(--sm-violet-800);
+  --shell-topbar-text-strong: var(--sm-violet-900);
+  --shell-topbar-text-muted: var(--sm-violet-600);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-violet-500) 10%, transparent);
+  --shell-topbar-active-bg: var(--sm-violet-100);
+  --shell-topbar-active-text: var(--sm-violet-800);
+  --shell-topbar-badge-bg: var(--sm-violet-100);
+}
+
+:host-context(.app-dark) {
+  /* Near-black topbar surface kept as a hex literal: it's a one-off
+     panel chrome colour outside the violet ramp (the page background
+     itself). All other stops route through the violet tokens. */
+  --shell-topbar-bg: #1A1B22;
+  --shell-topbar-border: color-mix(in srgb, var(--sm-violet-300) 8%, transparent);
+  --shell-topbar-text: var(--sm-violet-100);
+  --shell-topbar-text-strong: var(--sm-violet-100);
+  --shell-topbar-text-muted: var(--sm-violet-300);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-violet-400) 12%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-violet-500) 22%, transparent);
+  --shell-topbar-active-text: var(--sm-violet-100);
+  --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-violet-500) 14%, transparent);
 }
 
 .shell {
@@ -14,9 +42,9 @@
   align-items: center;
   gap: 2rem;
   padding: 0.75rem 1.5rem;
-  background: var(--sm-bg-content);
-  border-bottom: 1px solid var(--sm-border);
-  box-shadow: var(--sm-shadow-topbar);
+  background: var(--shell-topbar-bg);
+  border-bottom: 1px solid var(--shell-topbar-border);
+  color: var(--shell-topbar-text);
 }
 
 .shell__brand {
@@ -26,17 +54,9 @@
 }
 
 .shell__brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 2rem;
   height: 2rem;
-  border-radius: 0.5rem;
-  background: var(--p-primary-color);
-  color: var(--p-primary-contrast-color);
-  font-weight: 700;
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
+  display: block;
 }
 
 .shell__brand h1 {
@@ -44,12 +64,13 @@
   font-size: 1.05rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: var(--shell-topbar-text-strong);
 }
 
 .shell__tag {
   margin: 0;
   font-size: 0.72rem;
-  color: var(--p-text-muted-color);
+  color: var(--shell-topbar-text-muted);
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
@@ -65,18 +86,18 @@
   border-radius: 0.5rem;
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--p-text-muted-color);
+  color: var(--shell-topbar-text-muted);
   transition: background 0.15s ease, color 0.15s ease;
 }
 
 .shell__nav a:hover {
-  background: var(--sm-bg-hover);
-  color: var(--p-text-color);
+  background: var(--shell-topbar-hover-bg);
+  color: var(--shell-topbar-text-strong);
 }
 
 .shell__nav a.is-active {
-  background: var(--sm-nav-active-bg);
-  color: var(--p-primary-color);
+  background: var(--shell-topbar-active-bg);
+  color: var(--shell-topbar-active-text);
 }
 
 .shell__actions {
@@ -88,13 +109,13 @@
 .shell__badge {
   padding: 0.4rem 0.8rem;
   border-radius: 999px;
-  background: var(--sm-bg-hover);
-  color: var(--p-text-muted-color);
+  background: var(--shell-topbar-badge-bg);
+  color: var(--shell-topbar-text-muted);
   font-size: 0.85rem;
 }
 
 .shell__badge strong {
-  color: var(--p-text-color);
+  color: var(--shell-topbar-text-strong);
   margin-right: 0.25rem;
 }
 
@@ -102,10 +123,7 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 1.5rem;
-  max-width: 1400px;
   width: 100%;
-  margin: 0 auto;
 }
 
 /* Tighten the topbar at the lower end of the supported range (768–1280px).
@@ -122,9 +140,6 @@
   .shell__nav a {
     padding: 0.4rem 0.7rem;
     font-size: 0.85rem;
-  }
-  .shell__main {
-    padding: 1rem;
   }
 }
 

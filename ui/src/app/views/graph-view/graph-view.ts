@@ -2,15 +2,19 @@ import {
   ChangeDetectionStrategy,
   Component,
   ElementRef,
+  HostListener,
   OnDestroy,
   OnInit,
   computed,
   effect,
   inject,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
-import { Router } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { map } from 'rxjs/operators';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 import {
@@ -31,10 +35,10 @@ import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
-import { FilterBar } from '../../components/filter-bar/filter-bar';
 import { KindPalette } from '../../components/kind-palette/kind-palette';
 import { NodeCard } from '../../components/node-card/node-card';
 import { PerfHud } from '../../components/perf-hud/perf-hud';
+import { InspectorView } from '../inspector-view/inspector-view';
 import {
   computeIncrementalPositions,
   createLayoutComputer,
@@ -64,12 +68,12 @@ interface IStoredViewport {
 @Component({
   selector: 'app-graph-view',
   imports: [
-    FilterBar,
     FFlowModule,
     FVirtualFor,
     KindPalette,
     NodeCard,
     PerfHud,
+    InspectorView,
     ButtonModule,
     TooltipModule,
   ],
@@ -81,10 +85,17 @@ export class GraphView implements OnInit, OnDestroy {
   private readonly loader = inject(CollectionLoaderService);
   private readonly filters = inject(FilterStoreService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
 
   private readonly canvas = viewChild(FCanvasComponent);
   private readonly zoom = viewChild(FZoomDirective);
   private readonly canvasWrap = viewChild<ElementRef<HTMLElement>>('canvasWrap');
+  // PrimeNG `<p-button>` is a wrapper component; we read the host
+  // element via ElementRef and focus the inner native <button> in the
+  // selection-change effect below. The template ref lands on the
+  // `<p-button>` host, so the inner button is reachable through a
+  // descendant query.
+  private readonly panelCloseBtn = viewChild<ElementRef<HTMLElement>>('panelCloseBtn');
 
   readonly outputSide = EFConnectableSide.BOTTOM;
   readonly inputSide = EFConnectableSide.TOP;
@@ -191,6 +202,13 @@ export class GraphView implements OnInit, OnDestroy {
 
   readonly selectedNodeId = signal<string | null>(null);
 
+  protected readonly selectedPath = computed<string | undefined>(() => {
+    const id = this.selectedNodeId();
+    if (!id) return undefined;
+    const node = this.graph().nodes.find((n) => n.id === id);
+    return node?.view.path;
+  });
+
   /**
    * Adjacency map (undirected): node id → set of node ids it shares an edge with.
    * Used by `is*` helpers to drive highlight / dim classes after a click.
@@ -215,6 +233,106 @@ export class GraphView implements OnInit, OnDestroy {
     if (id === null) return;
     const exists = this.graph().nodes.some((n) => n.id === id);
     if (!exists) this.selectedNodeId.set(null);
+  });
+
+  /**
+   * Deep-link reader: the URL `?path=…` is the source of truth on first
+   * mount and on intra-route navigations (a relation chip in the
+   * embedded inspector re-navigates here, list-view rows route here).
+   * Listening on the live `queryParamMap` Observable keeps this
+   * component up to date when only query params change — `route.snapshot`
+   * would only fire once.
+   *
+   * Pairs with `urlWriterEffect` below: that effect mirrors the
+   * selection back into the URL. Without a guard the two would loop —
+   * reader sets selection, writer pushes URL, reader fires again. The
+   * loop is broken by comparing the deep-link path against the path of
+   * the currently-selected node before writing: when they already
+   * agree, the reader is a no-op.
+   */
+  private readonly deepLinkPath = toSignal(
+    this.route.queryParamMap.pipe(map((m) => m.get('path'))),
+    { initialValue: this.route.snapshot.queryParamMap.get('path') },
+  );
+  private readonly deepLinkEffect = effect(() => {
+    const path = this.deepLinkPath();
+    const nodes = this.graph().nodes;
+    if (nodes.length === 0) return;
+    if (!path) {
+      // The URL has no `path`. If a node is currently selected only
+      // because the writer effect propagated its path, the writer
+      // effect itself will keep the URL in sync — don't clear here, or
+      // a refresh on a deep-link would clear before the reader has
+      // matched the URL to a node.
+      return;
+    }
+    // Loop guard: read the current selection via `untracked` so this
+    // effect does NOT subscribe to `selectedNodeId`. Otherwise a
+    // close-panel call (which clears `selectedNodeId` BEFORE the
+    // writer effect has cleared the URL) re-fires this reader with the
+    // stale URL path and immediately re-selects the node we just
+    // closed.
+    const currentId = untracked(() => this.selectedNodeId());
+    if (currentId !== null) {
+      const currentNode = nodes.find((n) => n.id === currentId);
+      // URL already matches the selection — reader is a no-op.
+      if (currentNode?.view.path === path) return;
+    }
+    const target = nodes.find((n) => n.view.path === path);
+    if (target) this.selectedNodeId.set(target.id);
+  });
+
+  /**
+   * URL writer: mirrors `selectedNodeId` into `?path=…` so the panel's
+   * open/closed state survives a refresh and is shareable as a URL.
+   *
+   *   - Selection set to a node with a `view.path` → write `?path=<p>`.
+   *   - Selection cleared (null) → drop the query param.
+   *
+   * `replaceUrl: true` keeps the back button focused on cross-route
+   * transitions instead of stuttering through every node-selection
+   * change. `queryParamsHandling: 'merge'` preserves any other query
+   * params (filter sync etc.) that may live alongside `path`.
+   *
+   * The reader effect's loop guard above ensures this writer doesn't
+   * cycle: when reader sets selection from the URL, the URL already
+   * matches and the writer is also a no-op.
+   */
+  private readonly urlWriterEffect = effect(() => {
+    const path = this.selectedPath();
+    // Untracked: the writer must fire only when the selection changes,
+    // not when the URL changes (reader's job). Tracking `deepLinkPath`
+    // here would make the writer ping-pong with the reader on every
+    // navigation.
+    const currentInUrl = untracked(() => this.deepLinkPath());
+    if ((path ?? null) === (currentInUrl ?? null)) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { path: path ?? null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true,
+    });
+  });
+
+  /**
+   * Focus the panel's close button when the inspector opens (transition
+   * from no-selection to has-selection). Kept off the per-selection
+   * change so switching between nodes doesn't steal focus on every
+   * click. `queueMicrotask` defers the focus call until after the
+   * panel's slide-in transform begins and the button is in the
+   * accessibility tree.
+   */
+  private lastSelectionWasNonNull = false;
+  private readonly panelFocusEffect = effect(() => {
+    const id = this.selectedNodeId();
+    const opened = id !== null && !this.lastSelectionWasNonNull;
+    this.lastSelectionWasNonNull = id !== null;
+    if (!opened) return;
+    queueMicrotask(() => {
+      const host = this.panelCloseBtn()?.nativeElement;
+      const btn = host?.querySelector('button');
+      btn?.focus();
+    });
   });
 
   /**
@@ -539,10 +657,26 @@ export class GraphView implements OnInit, OnDestroy {
     this.selectedNodeId.set(node.id);
   }
 
+  /** Close the embedded inspector panel and remove the URL `?path` param. */
+  closePanel(): void {
+    this.selectedNodeId.set(null);
+  }
+
+  /**
+   * Escape closes the panel — only when something is selected, so the
+   * key still propagates normally (PrimeNG dialogs / overlays) when the
+   * panel is closed.
+   */
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    if (this.selectedNodeId() === null) return;
+    this.closePanel();
+  }
+
   openNode(node: IGraphNode): void {
-    // Single-click already filtered drag→click sequences via selectNode's
-    // guard; dblclick only fires for two close, in-place clicks. Just navigate.
-    void this.router.navigate(['/inspector'], { queryParams: { path: node.path } });
+    // Embedded inspector mode: dblclick selects (single click already does
+    // the same — kept the handler so the gesture has a clear intent).
+    this.selectedNodeId.set(node.id);
   }
 
   /**
@@ -556,6 +690,7 @@ export class GraphView implements OnInit, OnDestroy {
     if (target?.closest('.graph__toolbar')) return;
     if (target?.closest('.perf-hud')) return;
     if (target?.closest('.kind-palette')) return;
+    if (target?.closest('.graph__panel')) return;
     this.selectedNodeId.set(null);
   }
 

@@ -605,6 +605,43 @@ describe('InspectorView — dead-link verify (Step 14.5.b)', () => {
   });
 });
 
+describe('InspectorView — mode (standalone vs embedded)', () => {
+  it("mode='standalone' (default) renders the back link and v0.8.0 placeholder cards", async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-back"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-empty-enrichment"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-empty-summary"]')).not.toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-empty-findings"]')).not.toBeNull();
+  });
+
+  it("mode='embedded' hides the back link and v0.8.0 placeholder cards", async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+
+    const { fixture } = bootstrap({ loader, dataSource });
+    fixture.componentRef.setInput('path', node.path);
+    fixture.componentRef.setInput('mode', 'embedded');
+    await flush(fixture);
+
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-back"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-empty-enrichment"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-empty-summary"]')).toBeNull();
+    expect(dom.querySelector('[data-testid="inspector-empty-findings"]')).toBeNull();
+  });
+});
+
 describe('InspectorView — kind-specific cards smoke', () => {
   it('renders the agent card for an agent node', async () => {
     const node = makeNode({

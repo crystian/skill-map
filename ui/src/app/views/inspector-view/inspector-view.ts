@@ -54,12 +54,32 @@ const STABILITY_SEVERITY: Record<TStability, 'success' | 'info' | 'warn'> = {
  */
 type TBodyState = 'idle' | 'loading' | 'empty' | 'unavailable' | 'error' | 'ready';
 
+/**
+ * The inspector serves dual-purpose:
+ *
+ *   - `'standalone'` (default) — full page rendered when the user
+ *     navigates to a deep-linked path directly. Shows the back link
+ *     to the list view and the v0.8.0 placeholder cards (enrichment /
+ *     summary / findings).
+ *   - `'embedded'` — rendered inside the graph view's slide-in panel.
+ *     The chrome and placeholder cards are hidden and the card grid
+ *     compacts to a single column with a kind-specific → metadata →
+ *     relations → linked → body order.
+ *
+ * The mode is bound as a host class so the component owns its own
+ * compact-mode CSS — no `::ng-deep` is needed from the parent.
+ */
+type TInspectorMode = 'standalone' | 'embedded';
+
 @Component({
   selector: 'app-inspector-view',
   imports: [RouterLink, NgTemplateOutlet, TagModule, ChipModule, CardModule, ButtonModule, TooltipModule, EmptyState, LinkedNodesPanel],
   templateUrl: './inspector-view.html',
   styleUrl: './inspector-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class.inspector-view--embedded]': "mode() === 'embedded'",
+  },
 })
 export class InspectorView implements OnInit {
   private readonly loader = inject(CollectionLoaderService);
@@ -71,6 +91,7 @@ export class InspectorView implements OnInit {
   protected readonly texts = INSPECTOR_VIEW_TEXTS;
 
   readonly path = input<string | undefined>(undefined);
+  readonly mode = input<TInspectorMode>('standalone');
 
   readonly node = computed<INodeView | null>(() => {
     const path = this.path();
@@ -169,7 +190,7 @@ export class InspectorView implements OnInit {
   }
 
   openPath(path: string): void {
-    void this.router.navigate(['/inspector'], { queryParams: { path } });
+    void this.router.navigate(['/graph'], { queryParams: { path } });
   }
 
   pathExists(path: string): boolean {

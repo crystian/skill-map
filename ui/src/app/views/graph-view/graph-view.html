@@ -1,18 +1,4 @@
 <section class="graph" data-testid="graph-view">
-  <header class="graph__header">
-    <div>
-      <h2>{{ texts.title }}</h2>
-      <p class="graph__sub">
-        {{ texts.subtitlePrefix }}<code>{{ texts.legend.invokes }}</code>,
-        <code>{{ texts.legend.references }}</code>,
-        <code>{{ texts.legend.mentions }}</code>,
-        <code>{{ texts.legend.supersedes }}</code>{{ texts.subtitleSuffix }}
-      </p>
-    </div>
-  </header>
-
-  <app-filter-bar [showKinds]="false" />
-
   <!--
     Loading + error branches are gated on `!hasData()` so a
     WebSocket-driven refresh (which flips `loading()` to true while the
@@ -175,6 +161,29 @@
 
       <app-kind-palette />
 
+      <aside
+        class="graph__panel"
+        [class.is-open]="selectedNodeId() !== null"
+        role="complementary"
+        [attr.aria-label]="texts.a11y.panel"
+        data-testid="graph-panel"
+      >
+        <p-button
+          #panelCloseBtn
+          icon="pi pi-times"
+          [ariaLabel]="texts.panel.closeLabel"
+          [pTooltip]="texts.panel.closeLabel"
+          severity="secondary"
+          [text]="true"
+          [rounded]="true"
+          size="small"
+          styleClass="graph__panel-close"
+          (onClick)="closePanel()"
+          data-testid="graph-panel-close"
+        />
+        <app-inspector-view [path]="selectedPath()" mode="embedded" />
+      </aside>
+
       @if (perfHud) {
         <app-perf-hud
           [visible]="visibleCount()"
@@ -235,11 +244,5 @@
       </div>
     </div>
 
-    <aside class="graph__legend" [attr.aria-label]="texts.a11y.edgeLegend" data-testid="graph-legend">
-      <span [pTooltip]="texts.legendTooltip.invokes"><span class="swatch swatch--invokes"></span> {{ texts.legend.invokes }}</span>
-      <span [pTooltip]="texts.legendTooltip.references"><span class="swatch swatch--references"></span> {{ texts.legend.references }}</span>
-      <span [pTooltip]="texts.legendTooltip.mentions"><span class="swatch swatch--mentions"></span> {{ texts.legend.mentions }}</span>
-      <span [pTooltip]="texts.legendTooltip.supersedes"><span class="swatch swatch--supersedes"></span> {{ texts.legend.supersedes }}</span>
-    </aside>
   }
 </section>

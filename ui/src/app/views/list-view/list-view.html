@@ -57,7 +57,7 @@
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-row>
-        <tr class="list__row" (click)="openInspector(row)" [attr.data-testid]="'list-row-' + row.path">
+        <tr class="list__row" (click)="openNode(row)" [attr.data-testid]="'list-row-' + row.path">
           <td>
             <p-tag [value]="kindLabel(row.kind)" [style]="kindStyle(row.kind)" />
           </td>

@@ -27,7 +27,20 @@ export class App implements OnInit {
 
   protected readonly texts = APP_TEXTS;
   readonly count = this.loader.count;
+  readonly rootLabel = computed(() => {
+    const roots = this.loader.scan()?.roots ?? [];
+    if (roots.length === 0) return '';
+    const trimmed = roots[0].replace(/[\\/]+$/, '');
+    if (!trimmed || trimmed === '.') return '';
+    const segments = trimmed.split(/[\\/]/);
+    return segments[segments.length - 1] ?? '';
+  });
   readonly themeMode = this.theme.mode;
+  readonly markSrc = computed(() =>
+    this.theme.resolved() === 'dark'
+      ? 'skill-map-mark-light.svg'
+      : 'skill-map-mark-dark.svg',
+  );
   readonly themeIcon = computed(() => {
     switch (this.themeMode()) {
       case 'auto':

@@ -3,13 +3,15 @@
     <p-togglebutton
       [ngModel]="isActive(entry.kind)"
       (ngModelChange)="toggle(entry.kind)"
-      [onIcon]="entry.icon"
-      [offIcon]="entry.icon"
-      [onLabel]="entry.count.toString()"
-      [offLabel]="entry.count.toString()"
       [pTooltip]="entry.label"
+      [ariaLabel]="entry.label"
       [styleClass]="'kind-palette__btn kind-palette__btn--' + entry.kind"
       [attr.data-testid]="'kind-palette-' + entry.kind"
-    />
+    >
+      <ng-template #content>
+        <sm-kind-icon [kind]="entry.kind" [size]="16" />
+        <span>{{ entry.count }}</span>
+      </ng-template>
+    </p-togglebutton>
   }
 </div>

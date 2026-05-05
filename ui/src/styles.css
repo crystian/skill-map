@@ -19,6 +19,23 @@
      is the Provider manifest; the BFF surfaces the catalog via the
      `kindRegistry` field embedded in every payload-bearing envelope. */
 
+  /* Violet ramp — mirrors the `web/styles.css` palette so the public
+     site, the marketing pages, and the Angular shell stay in lock-step.
+     Consumed today by the topbar (app.css) and available for any other
+     surface that needs the brand violet. Light + dark are the same
+     ramp; the topbar picks different stops via `--shell-topbar-*` local
+     vars below. */
+  --sm-violet-50: #F5F3FF;
+  --sm-violet-100: #EDE9FE;
+  --sm-violet-200: #DDD6FE;
+  --sm-violet-300: #C4B5FD;
+  --sm-violet-400: #A78BFA;
+  --sm-violet-500: #8B5CF6;
+  --sm-violet-600: #7C3AED;
+  --sm-violet-700: #6D28D9;
+  --sm-violet-800: #4C1D95;
+  --sm-violet-900: #2E1065;
+
   /* Edge colors — one per spec link kind (invokes / references /
      mentions / supersedes). The four kinds describe how a node refers
      to another: execution (invokes), formal citation (references),

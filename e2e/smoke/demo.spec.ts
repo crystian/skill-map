@@ -57,8 +57,6 @@ test.describe('demo bundle', () => {
     await page.waitForLoadState('networkidle');
     await page.getByTestId('nav-graph').click();
     await page.waitForLoadState('networkidle');
-    await page.getByTestId('nav-inspector').click();
-    await page.waitForLoadState('networkidle');
 
     expect(
       apiCalls,
@@ -66,7 +64,7 @@ test.describe('demo bundle', () => {
     ).toEqual([]);
   });
 
-  test('renders the three views without errors', async ({ page }) => {
+  test('renders the two views without errors', async ({ page }) => {
     await page.goto('./');
     await page.waitForLoadState('networkidle');
 
@@ -75,8 +73,5 @@ test.describe('demo bundle', () => {
 
     await page.getByTestId('nav-graph').click();
     await expect(page).toHaveURL(/\/graph/);
-
-    await page.getByTestId('nav-inspector').click();
-    await expect(page).toHaveURL(/\/inspector/);
   });
 });

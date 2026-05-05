@@ -8,17 +8,10 @@ import { CollectionLoaderService } from '../../../services/collection-loader';
 import { FilterStoreService } from '../../../services/filter-store';
 import { KindRegistryService } from '../../../services/kind-registry';
 import type { TNodeKind } from '../../../models/node';
+import { KindIcon } from '../kind-icon/kind-icon';
 
 interface IKindEntry {
   readonly kind: TNodeKind;
-  /**
-   * PrimeIcon class string. Falls back to a generic `pi pi-tag` when the
-   * Provider declared a non-`pi` icon (SVG path) — the toggle-button
-   * icon input only accepts a class, so SVG-based kinds get a neutral
-   * icon here while the rich `<sm-kind-icon>` renders the SVG variant
-   * everywhere else (list rows, inspector, graph nodes).
-   */
-  readonly icon: string;
   readonly label: string;
   readonly count: number;
 }
@@ -41,7 +34,7 @@ interface IKindEntry {
  */
 @Component({
   selector: 'app-kind-palette',
-  imports: [FormsModule, ToggleButtonModule, TooltipModule],
+  imports: [FormsModule, ToggleButtonModule, TooltipModule, KindIcon],
   templateUrl: './kind-palette.html',
   styleUrl: './kind-palette.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -60,7 +53,6 @@ export class KindPalette {
     }
     return this.kindRegistry.kinds().map((entry) => ({
       kind: entry.name,
-      icon: entry.icon?.kind === 'pi' ? `pi ${entry.icon.id}` : 'pi pi-tag',
       label: entry.label,
       count: counts.get(entry.name) ?? 0,
     }));

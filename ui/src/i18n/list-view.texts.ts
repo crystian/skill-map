@@ -1,7 +1,7 @@
 /** UI strings for the ListView. */
 export const LIST_VIEW_TEXTS = {
   title: 'Nodes',
-  subtitleDefault: 'Flat view of the collection · click a row to open the inspector.',
+  subtitleDefault: 'Flat view of the collection · click a row to inspect it on the graph.',
   showingPrefix: 'Showing',
   showingSuffix: (total: number) => ` of ${total} nodes.`,
   loading: 'Loading collection…',

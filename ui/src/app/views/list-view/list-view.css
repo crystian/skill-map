@@ -1,5 +1,16 @@
 :host {
   display: block;
+  padding: 1.5rem;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1280px) {
+  :host {
+    padding: 1rem;
+  }
 }
 
 .list {

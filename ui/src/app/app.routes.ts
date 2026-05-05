@@ -14,11 +14,5 @@ export const routes: Routes = [
       import('./views/list-view/list-view').then((m) => m.ListView),
     data: { title: 'List' },
   },
-  {
-    path: 'inspector',
-    loadComponent: () =>
-      import('./views/inspector-view/inspector-view').then((m) => m.InspectorView),
-    data: { title: 'Inspector' },
-  },
   { path: '**', redirectTo: 'graph' },
 ];

@@ -55,27 +55,35 @@
   width: 100%;
   height: 100%;
   justify-content: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-:host ::ng-deep .kind-palette__btn .p-togglebutton-label {
+:host ::ng-deep .kind-palette__btn .p-togglebutton-content > span {
   flex: 1;
   text-align: right;
 }
 
-:host ::ng-deep .kind-palette__btn .p-togglebutton-icon {
-  font-size: 0.95rem;
+:host ::ng-deep .kind-palette__btn sm-kind-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--p-text-muted-color);
 }
 
-/* Per-kind icon accent when active. */
-.kind-palette__btn--skill {
-  --p-togglebutton-icon-checked-color: var(--sm-kind-skill);
+/* Per-kind icon tint when active — sm-kind-icon's SVGs use currentColor. */
+:host ::ng-deep .kind-palette__btn[aria-pressed='true'] sm-kind-icon {
+  color: var(--p-text-color);
 }
-.kind-palette__btn--agent {
-  --p-togglebutton-icon-checked-color: var(--sm-kind-agent);
+:host ::ng-deep .kind-palette__btn--skill[aria-pressed='true'] sm-kind-icon {
+  color: var(--sm-kind-skill);
 }
-.kind-palette__btn--command {
-  --p-togglebutton-icon-checked-color: var(--sm-kind-command);
+:host ::ng-deep .kind-palette__btn--agent[aria-pressed='true'] sm-kind-icon {
+  color: var(--sm-kind-agent);
 }
-.kind-palette__btn--note {
-  --p-togglebutton-icon-checked-color: var(--sm-kind-note);
+:host ::ng-deep .kind-palette__btn--command[aria-pressed='true'] sm-kind-icon {
+  color: var(--sm-kind-command);
+}
+:host ::ng-deep .kind-palette__btn--note[aria-pressed='true'] sm-kind-icon {
+  color: var(--sm-kind-note);
 }
