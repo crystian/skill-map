@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 
 import { runConformanceCase } from '../conformance/index.js';
 

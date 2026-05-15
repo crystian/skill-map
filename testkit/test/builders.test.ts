@@ -3,7 +3,7 @@
  * tests check that defaults are spec-shaped and that overrides win.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { deepStrictEqual, ok, strictEqual } from 'node:assert';
 
 import { issue, link, node, scanResult } from '../src/builders.js';

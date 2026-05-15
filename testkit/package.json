@@ -33,23 +33,23 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc --noEmit",
-    "test": "tsc --noEmit && node --import tsx --test --test-reporter=spec 'test/**/*.test.ts'",
-    "test:ci": "tsc --noEmit && node --import tsx --test 'test/**/*.test.ts'",
-    "test:coverage": "tsc --noEmit && node --experimental-default-config-file --import tsx --test --experimental-test-coverage 'test/**/*.test.ts'",
-    "validate": "npm run typecheck && npm run build && npm run test:ci",
+    "test": "tsc --noEmit && bun test ./test",
+    "test:ci": "tsc --noEmit && bun test ./test",
+    "test:coverage": "tsc --noEmit && bun test --coverage ./test",
+    "validate": "bun run typecheck && bun run build && bun run test:ci",
     "clean": "rm -rf dist"
   },
   "dependencies": {
     "@skill-map/cli": "*"
   },
   "devDependencies": {
+    "@types/bun": "1.3.11",
     "@types/node": "24.12.2",
     "tsup": "8.5.1",
-    "tsx": "4.21.0",
     "typescript": "5.9.3"
   },
   "engines": {
-    "node": ">=24.0"
+    "bun": ">=1.2"
   },
   "publishConfig": {
     "access": "public"

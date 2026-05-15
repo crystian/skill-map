@@ -18,7 +18,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 
 import type { ExtensionKind } from '../kernel/registry.js';
 import { bucketByKind, type IBucketByKindBag } from '../kernel/util/bucket-by-kind.js';

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Regenerate spec/index.json with an integrity block (sha256 per file).
  *

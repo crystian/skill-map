@@ -30,7 +30,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, beforeEach, describe, it } from 'bun:test';
 
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import yaml from 'js-yaml';

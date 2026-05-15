@@ -11,7 +11,7 @@
  *     conservative composite-PK collision behaviour.
  */
 
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 import {
   deepStrictEqual,
   ok,

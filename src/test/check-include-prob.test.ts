@@ -41,7 +41,7 @@
  * prob plugin (or doesn't, for the no-prob-rules case).
  */
 
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 import { strictEqual, ok, match, doesNotMatch } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

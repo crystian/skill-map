@@ -7,7 +7,7 @@
  *
  * Scope: only the `kv` mode is fakeable today. Plugins running in
  * `dedicated` storage mode own raw tables and are tested with a real
- * DatabaseSync instance — that pattern is documented in the plugin
+ * Database instance — that pattern is documented in the plugin
  * author guide (Step 9.4).
  *
  * Type erasure: the real `ctx.store` interface lives in `@skill-map/cli`

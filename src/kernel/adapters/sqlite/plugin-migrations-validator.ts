@@ -38,7 +38,7 @@
  * but defended by Layer 3 for everything the heuristics miss.
  */
 
-import type { DatabaseSync } from 'node:sqlite';
+import type { Database } from 'bun:sqlite';
 
 /**
  * Normalize a plugin id into the form used as a table-prefix segment.
@@ -486,7 +486,7 @@ export function detectCatalogIntrusion(
  * independent author. Plugins that want their own indexes must `CREATE
  * INDEX` them explicitly.
  */
-export function snapshotCatalog(db: DatabaseSync): Set<string> {
+export function snapshotCatalog(db: Database): Set<string> {
   const rows = db
     .prepare(
       `SELECT name FROM sqlite_master

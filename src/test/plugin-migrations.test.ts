@@ -23,7 +23,7 @@
  * exclusion check.
  */
 
-import { after, before, describe, it } from 'node:test';
+import { afterAll as after, beforeAll as before, describe, it } from 'bun:test';
 import { match, ok, strictEqual } from 'node:assert';
 import {
   mkdirSync,
@@ -33,7 +33,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { Database as DatabaseSync } from 'bun:sqlite';
 
 import type { BaseContext } from 'clipanion';
 

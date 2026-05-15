@@ -39,19 +39,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
+          bun-version: 1.3.11
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Parse-check every JSON schema
         run: |
           fail=0
           while IFS= read -r f; do
-            if ! node -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" 2>/dev/null; then
+            if ! bun -e "JSON.parse(require('fs').readFileSync('$f','utf8'))" 2>/dev/null; then
               echo "::error file=$f::invalid JSON"
               fail=1
             fi
@@ -59,7 +59,7 @@ jobs:
           exit $fail
 
       # Spec integrity (index hashes + coverage matrix) and the public-site
-      # build (schema $id alignment) are now covered by `npm run validate`
+      # build (schema $id alignment) are now covered by `bun run validate`
       # in the build-test job — the spec and web workspaces validate
       # themselves end-to-end. Only the JSON parse-check stays here as a
       # cheap, install-script-free guard so a malformed schema fails the
@@ -74,16 +74,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
+          bun-version: 1.3.11
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Validate (typecheck + lint + build + test for every workspace)
-        run: npm run validate
+        run: bun run validate
 
   smoke-install:
     name: smoke install (tarball)
@@ -95,57 +95,62 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
+          bun-version: 1.3.11
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build (tsup)
-        run: npm run build --workspace=@skill-map/cli
+        run: bun run --filter @skill-map/cli build
 
       - name: Pack workspaces
         run: |
           mkdir -p .tmp/packs
-          npm pack --workspace=@skill-map/spec --pack-destination=.tmp/packs
-          npm pack --workspace=@skill-map/cli --pack-destination=.tmp/packs
+          (cd spec && bun pm pack --destination ../.tmp/packs)
+          (cd src && bun pm pack --destination ../.tmp/packs)
 
       - name: Verify tarball contents
         run: |
-          npm pack --workspace=@skill-map/cli --dry-run --json | node -e '
-            const data = JSON.parse(require("fs").readFileSync(0, "utf8"));
-            const files = (data[0]?.files ?? []).map((f) => f.path);
-            const required = [
-              "bin/sm.js",
-              "dist/cli.js",
-              "dist/index.js",
-              "dist/kernel/index.js",
-              "dist/conformance/index.js",
-              "dist/migrations/001_initial.sql",
-              "package.json",
-            ];
-            const missing = required.filter((r) => !files.includes(r));
-            if (missing.length) {
-              console.error("Missing in tarball:", missing.join(", "));
-              process.exit(1);
-            }
-            console.log("Tarball contents OK (" + files.length + " files).");
+          (cd src && bun pm pack --dry-run --json) | bun -e '
+            let raw = "";
+            process.stdin.on("data", (c) => { raw += c; });
+            process.stdin.on("end", () => {
+              const data = JSON.parse(raw);
+              const files = (data.files ?? []).map((f) => f.path ?? f);
+              const required = [
+                "bin/sm.js",
+                "dist/cli.js",
+                "dist/index.js",
+                "dist/kernel/index.js",
+                "dist/conformance/index.js",
+                "dist/migrations/001_initial.sql",
+                "package.json",
+              ];
+              const missing = required.filter((r) => !files.includes(r));
+              if (missing.length) {
+                console.error("Missing in tarball:", missing.join(", "));
+                process.exit(1);
+              }
+              console.log("Tarball contents OK (" + files.length + " files).");
+            });
           '
 
       - name: Install globally from tarballs
         run: |
           spec_tgz=$(ls .tmp/packs/skill-map-spec-*.tgz | head -n 1)
           cli_tgz=$(ls .tmp/packs/skill-map-cli-*.tgz | head -n 1)
-          npm i -g "$spec_tgz" "$cli_tgz"
+          bun install -g "$spec_tgz" "$cli_tgz"
 
       - name: Verify CLI surface
         run: |
           sm --version
           skill-map --version
           sm --help > /dev/null
-          test -f "$(npm root -g)/@skill-map/cli/dist/migrations/001_initial.sql"
+          test -f "$(bun pm -g bin)/../lib/node_modules/@skill-map/cli/dist/migrations/001_initial.sql" \
+            || test -f "$HOME/.bun/install/global/node_modules/@skill-map/cli/dist/migrations/001_initial.sql"
 
       - name: Verify init + scan flow on a temp dir
         run: |
@@ -162,7 +167,7 @@ jobs:
           test -f .skill-map/skill-map.db
           sm scan --json . > scan.json
           test -s scan.json
-          node -e '
+          bun -e '
             const r = JSON.parse(require("fs").readFileSync("scan.json", "utf8"));
             if (!Array.isArray(r.nodes) || r.nodes.length === 0) {
               console.error("scan output missing nodes[]");
@@ -181,15 +186,15 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
+          bun-version: 1.3.11
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Check for changeset
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: node scripts/check-changeset.js "origin/${BASE_REF}"
+        run: bun scripts/check-changeset.js "origin/${BASE_REF}"

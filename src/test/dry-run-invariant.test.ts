@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 import type { BaseContext } from 'clipanion';
 
 import { DbMigrateCommand, DbResetCommand, DbRestoreCommand } from '../cli/commands/db.js';

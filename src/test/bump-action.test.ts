@@ -9,7 +9,7 @@
  * disk holds the expected bytes" is covered.
  */
 
-import { describe, it, before, after, beforeEach } from 'node:test';
+import { describe, it,beforeAll as before,afterAll as after, beforeEach } from 'bun:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';

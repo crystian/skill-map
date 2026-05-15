@@ -2,7 +2,7 @@
  * Step 9.3 unit tests for the per-kind context factories.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import {

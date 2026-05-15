@@ -25,7 +25,7 @@
  * layer for a contributor running the suite locally.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { strictEqual, ok } from 'node:assert';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';

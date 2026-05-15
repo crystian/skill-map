@@ -2,7 +2,7 @@
  * Step 9.3 unit tests for the in-memory KV stand-in.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { makeFakeStorage } from '../src/storage.js';

@@ -28,6 +28,12 @@ export function defaultRuntimeContext(): IRuntimeContext {
   // value the rest of core/ consumes via `IRuntimeContext`. Every
   // other core/ module gets `cwd` injected through the bag this
   // returns; only the BFF / CLI adapters call this fabricator.
+  //
+  // `$HOME` takes precedence over `homedir()` so tests (and end users
+  // overriding the env explicitly) get the resolved value. Node's
+  // `os.homedir()` already reads `$HOME` on POSIX, but bun's
+  // implementation goes straight to the passwd database and ignores
+  // the env var — reading the env first keeps both runtimes aligned.
   // eslint-disable-next-line no-restricted-syntax
-  return { cwd: process.cwd(), homedir: homedir() };
+  return { cwd: process.cwd(), homedir: process.env['HOME'] ?? homedir() };
 }

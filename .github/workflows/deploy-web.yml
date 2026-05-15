@@ -15,7 +15,7 @@ name: deploy-web
 # double-deploy that happens when both the feature merge AND the version
 # bump fire the workflow back-to-back.
 #
-# To preview an in-flight change, use `npm run web:dev` locally.
+# To preview an in-flight change, use `bun run web:dev` locally.
 #
 # Setup (one-time, all in GitHub repo Settings → Secrets and variables → Actions):
 #   1. Secrets tab → New repository secret `RAILWAY_API_TOKEN` with an
@@ -54,7 +54,7 @@ jobs:
 
       - name: Read web/package.json version
         id: read
-        run: echo "version=v$(node -p "require('./web/package.json').version")" >> $GITHUB_OUTPUT
+        run: echo "version=v$(bun -e "console.log(require('./web/package.json').version)")" >> $GITHUB_OUTPUT
 
   deploy:
     name: ${{ needs.read-version.outputs.version }}
@@ -64,13 +64,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
+          bun-version: 1.3.11
 
       - name: Install Railway CLI
-        run: npm install -g @railway/cli
+        run: bun install -g @railway/cli
 
       - name: Show version
         run: echo "Deploying @skill-map/web ${{ needs.read-version.outputs.version }} to service ${{ vars.RAILWAY_SERVICE }}"

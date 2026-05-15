@@ -7,7 +7,7 @@
  * function-call wiring with the testkit's context factories.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import type { IExtractor, IFormatter, IRule } from '@skill-map/cli';

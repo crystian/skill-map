@@ -4,7 +4,7 @@
  * (so scan.progress noise stays out of the user-facing log).
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { strictEqual, match, ok } from 'node:assert';
 
 import { createCliProgressEmitter } from '../cli/util/cli-progress-emitter.js';

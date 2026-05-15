@@ -6,34 +6,27 @@
  * `handle.address.port`) and an idempotent `close()` for graceful
  * shutdown.
  *
- * Wiring (Step 14.4.a):
+ * Wiring:
  *
  *   1. Resolve the spec version once (async — `import('@skill-map/spec')`).
  *   2. Instantiate the `WsBroadcaster` — a fresh one per server.
- *   3. Build the Hono app via `createApp(deps)` — that's the only place
- *      that knows about routes / middleware / error handlers. The
- *      broadcaster flows through `IAppDeps` so `attachBroadcasterRoute`
- *      can register `/ws` against it.
- *   4. Instantiate a `WebSocketServer({ noServer: true })` (the
- *      `noServer: true` flag is mandatory — node-server `serve()`
- *      throws if it isn't set; node-server owns the http `'upgrade'`
- *      listener and routes upgrades through Hono).
- *   5. Hand `app.fetch` + `{ websocket: { server: wss } }` to
- *      `@hono/node-server`'s `serve()` to get a Node `http.Server`
- *      bound on `host:port`.
- *   6. Unless `--no-watcher` is set, instantiate a `WatcherService`
+ *   3. Build the Hono app via `createApp(deps)` — the only place that
+ *      knows about routes / middleware / error handlers. The broadcaster
+ *      flows through `IAppDeps`.
+ *   4. Hand `app.fetch` to `Bun.serve` along with a `websocket` config.
+ *      The fetch handler upgrades `/ws` requests with `server.upgrade()`
+ *      before delegating everything else to the Hono pipeline.
+ *   5. Unless `--no-watcher` is set, instantiate a `WatcherService`
  *      (chokidar-fed scan loop) and `start()` it. The watcher
- *      broadcasts `scan.*` events through the same broadcaster the
- *      `/ws` route is registered against.
+ *      broadcasts `scan.*` events through the same broadcaster.
  *
  * `close()` shutdown order is intentional:
  *   1. `watcherService.stop()` — drains the in-flight scan batch
  *      cleanly so chokidar is not torn down mid-`runScan`.
  *   2. `broadcaster.shutdown()` — closes every connected WS client
  *      with code 1001 ('going away').
- *   3. `closeServer(server)` — closes the http listener.
- *   4. `wss.close()` — defensive belt-and-suspenders since node-server
- *      auto-wires `server.on('close', () => wss.close())`.
+ *   3. `server.stop(true)` — closes the listener and forces any
+ *      remaining active connections to drop.
  *
  * The server NEVER reads `process.env` / `process.cwd()` / `homedir()` —
  * the CLI verb (`cli/commands/serve.ts`) is the only place that does
@@ -41,10 +34,7 @@
  * boots it directly with a synthetic `IServerOptions`.
  */
 
-import { serve } from '@hono/node-server';
-import type { Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
-import { WebSocketServer } from 'ws';
+import type { Server as BunServer, ServerWebSocket } from 'bun';
 
 import {
   composeScanExtensions,
@@ -59,7 +49,7 @@ import { log } from '../kernel/util/logger.js';
 import { sanitizeForTerminal } from '../kernel/util/safe-text.js';
 import { tx } from '../kernel/util/tx.js';
 import { createApp } from './app.js';
-import { WsBroadcaster } from './broadcaster.js';
+import { WsBroadcaster, type IBroadcasterClient } from './broadcaster.js';
 import { resolveSpecVersion } from './health.js';
 import { SERVER_TEXTS } from './i18n/server.texts.js';
 import { buildKindRegistry } from './kind-registry.js';
@@ -104,6 +94,11 @@ export interface ICreateServerOpts {
   runtimeContext?: IRuntimeContext;
 }
 
+// Composition root: assemble broadcaster, app, server, watcher, and
+// the close() handle. Each subsystem is its own conditional / try
+// branch; collapsing them into fewer functions hides the boot order
+// the file header documents. Budget intentionally lifted.
+// eslint-disable-next-line complexity
 export async function createServer(
   options: IServerOptions,
   extra: ICreateServerOpts = {},
@@ -126,16 +121,17 @@ export async function createServer(
     kernel,
   });
 
-  // `noServer: true` is mandatory — node-server's `setupWebSocket` throws
-  // ("WebSocket server must be created with { noServer: true } option")
-  // otherwise. node-server owns the http `'upgrade'` listener and runs
-  // upgrades through the Hono fetch pipeline; the WSS only handles the
-  // post-handshake socket lifecycle.
-  const wss = new WebSocketServer({ noServer: true });
-  const server = await listenAsync(app.fetch, wss, options.host, options.port);
-
-  const addr = server.address();
-  const address = normalizeAddress(addr, options.host, options.port);
+  const server = await listenAsync(app.fetch, broadcaster, options.host, options.port);
+  // Bun's `Server.hostname` / `port` are typed as possibly-undefined to
+  // cover unix-socket servers; we always bind a TCP host:port, so fall
+  // back to the requested values if Bun's typings stay conservative.
+  const boundHost = server.hostname ?? options.host;
+  const boundPort = server.port ?? options.port;
+  const address: IServerAddress = {
+    host: boundHost,
+    port: boundPort,
+    family: boundHost.includes(':') ? 'IPv6' : 'IPv4',
+  };
 
   // Watcher boot — defaults on (Decision #121). On boot failure, log +
   // continue serving (the REST surface stays alive; the operator sees
@@ -185,8 +181,7 @@ export async function createServer(
       }
     }
     broadcaster.shutdown();
-    await closeServer(server);
-    wss.close();
+    server.stop(true);
   };
 
   return { address, close, broadcaster };
@@ -252,60 +247,80 @@ async function assembleBootBundle(
   return { pluginRuntime, kindRegistry, kernel };
 }
 
+/**
+ * Each upgraded WebSocket carries its own broadcaster-client adapter on
+ * `ws.data`, so `open` / `close` can register / unregister it without
+ * needing a separate lookup table. The adapter implements
+ * `IBroadcasterClient` (the structural surface the broadcaster
+ * consumes) over Bun's `ServerWebSocket` API. `bufferedAmount` lives on
+ * the Bun socket as `getBufferedAmount()`; we expose it as a getter so
+ * the broadcaster's `client.bufferedAmount > MAX_BUFFERED_BYTES` check
+ * keeps working unchanged.
+ */
+interface IWsData {
+  client: IBroadcasterClient | null;
+}
+
+function adaptBunWs(ws: ServerWebSocket<IWsData>): IBroadcasterClient {
+  return {
+    send(data) {
+      ws.send(data);
+    },
+    close(code, reason) {
+      ws.close(code, reason);
+    },
+    get bufferedAmount() {
+      return ws.getBufferedAmount();
+    },
+    get readyState() {
+      return ws.readyState;
+    },
+  };
+}
+
 function listenAsync(
   fetchCallback: (req: Request) => Response | Promise<Response>,
-  wss: WebSocketServer,
+  broadcaster: WsBroadcaster,
   host: string,
   port: number,
-): Promise<Server> {
-  return new Promise<Server>((resolveListen, rejectListen) => {
-    let settled = false;
-    const server = serve(
-      {
-        fetch: fetchCallback,
+): Promise<BunServer<IWsData>> {
+  return new Promise<BunServer<IWsData>>((resolveListen, rejectListen) => {
+    try {
+      const server = Bun.serve<IWsData, never>({
         hostname: host,
         port,
-        websocket: { server: wss },
-      },
-      () => {
-        if (settled) return;
-        settled = true;
-        // Detach the bind-time error listener — operational errors
-        // after bind reach the request pipeline through `app.onError`,
-        // not here.
-        server.removeListener('error', onBindError);
-        resolveListen(server);
-      },
-    ) as Server;
-
-    const onBindError = (err: Error): void => {
-      if (settled) return;
-      settled = true;
-      rejectListen(err);
-    };
-    server.once('error', onBindError);
+        fetch(req, srv) {
+          const url = new URL(req.url);
+          if (url.pathname === '/ws') {
+            const ok = srv.upgrade(req, { data: { client: null } satisfies IWsData });
+            if (ok) {
+              // Bun handles the 101 response internally.
+              return undefined;
+            }
+            return new Response('upgrade required', { status: 426 });
+          }
+          return fetchCallback(req);
+        },
+        websocket: {
+          open(ws) {
+            const client = adaptBunWs(ws);
+            ws.data.client = client;
+            broadcaster.register(client);
+          },
+          close(ws) {
+            if (ws.data.client) {
+              broadcaster.unregister(ws.data.client);
+              ws.data.client = null;
+            }
+          },
+          message() {
+            // Server-push only; inbound frames are ignored at this stage.
+          },
+        },
+      });
+      resolveListen(server);
+    } catch (err) {
+      rejectListen(err instanceof Error ? err : new Error(String(err)));
+    }
   });
-}
-
-function closeServer(server: Server): Promise<void> {
-  return new Promise<void>((resolveClose, rejectClose) => {
-    // `server.close()` waits for in-flight connections to settle. The
-    // `closeAllConnections` call after it forces idle keep-alives to
-    // drop so tests don't hang on the SPA's keep-alive pool.
-    server.close((err) => {
-      if (err) {
-        rejectClose(err);
-      } else {
-        resolveClose();
-      }
-    });
-    server.closeAllConnections?.();
-  });
-}
-
-function normalizeAddress(addr: AddressInfo | string | null, fallbackHost: string, fallbackPort: number): IServerAddress {
-  if (addr === null || typeof addr === 'string') {
-    return { host: fallbackHost, port: fallbackPort, family: 'IPv4' };
-  }
-  return { host: addr.address, port: addr.port, family: addr.family };
 }

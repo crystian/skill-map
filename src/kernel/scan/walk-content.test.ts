@@ -1,4 +1,4 @@
-import { describe, it, before, after } from 'node:test';
+import { describe, it,beforeAll as before,afterAll as after} from 'bun:test';
 import { deepStrictEqual, ok, rejects, strictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

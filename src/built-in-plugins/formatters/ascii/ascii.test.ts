@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { match, ok } from 'node:assert';
 
 import { asciiFormatter } from './index.js';

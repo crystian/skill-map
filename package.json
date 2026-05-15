@@ -20,28 +20,28 @@
   ],
   "scripts": {
     "start": "bash scripts/start.sh",
-    "sqlite": "node src/bin/sm.js db browser",
-    "demo:build": "npm run demo:build --workspace=@skill-map/web",
-    "demo:dev": "npm run dev:demo --workspace=ui",
-    "web:build": "npm run build --workspace=@skill-map/web",
-    "web:dev": "npm run dev --workspace=@skill-map/web",
-    "cli:build": "npm run build --workspace=@skill-map/cli",
-    "ui:build": "npm run build --workspace=ui",
-    "bff:dev": "npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/local-scope --port 4242 --no-ui",
-    "ui:dev": "npm run dev --workspace=ui",
-    "e2e:dev": "npm run test:ui --workspace=skill-map-e2e",
-    "lint": "npm run lint --workspaces --if-present",
-    "lint:fix": "npm run lint:fix --workspaces --if-present",
-    "validate": "npm run validate -w spec && npm run validate -w src && npm run validate -w testkit && npm run validate -w ui && npm run validate -w e2e && npm run validate -w examples/hello-world && npm run validate -w web",
+    "sqlite": "bun src/bin/sm.js db browser",
+    "demo:build": "bun run --filter @skill-map/web demo:build",
+    "demo:dev": "bun run --filter ui dev:demo",
+    "web:build": "bun run --filter @skill-map/web build",
+    "web:dev": "bun run --filter @skill-map/web dev",
+    "cli:build": "bun run --filter @skill-map/cli build",
+    "ui:build": "bun run --filter ui build",
+    "bff:dev": "bun run --filter @skill-map/cli dev:serve -- --cwd fixtures/local-scope --port 4242 --no-ui",
+    "ui:dev": "bun run --filter ui dev",
+    "e2e:dev": "bun run --filter skill-map-e2e test:ui",
+    "lint": "bun run --filter '*' lint",
+    "lint:fix": "bun run --filter '*' lint:fix",
+    "validate": "bun run --filter @skill-map/spec validate && bun run --filter @skill-map/cli validate && bun run --filter @skill-map/testkit validate && bun run --filter ui validate && bun run --filter skill-map-e2e validate && bun run --filter @skill-map/example-hello-world validate && bun run --filter @skill-map/web validate",
     "release:changeset": "changeset",
-    "release:version": "changeset version && npm run pin --workspace=@skill-map/spec && npm run spec --workspace=@skill-map/spec && npm run reference --workspace=@skill-map/cli",
-    "release:publish": "changeset publish",
+    "release:version": "changeset version && bun run --filter @skill-map/spec pin && bun run --filter @skill-map/spec spec && bun run --filter @skill-map/cli reference",
+    "release:publish": "bun scripts/release-publish.mjs",
     "prepare": "[ -d .git ] && git config core.hooksPath .githooks || true"
   },
   "devDependencies": {
     "@changesets/cli": "2.31.0"
   },
   "engines": {
-    "node": ">=24.0"
+    "bun": ">=1.2"
   }
 }

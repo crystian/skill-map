@@ -1,24 +1,15 @@
-#!/usr/bin/env -S node --disable-warning=ExperimentalWarning
-// Shebang note: `env -S` lets us pass `--disable-warning=ExperimentalWarning`
-// to node so end users don't see the `node:sqlite` experimental notice on
-// every invocation. The flag scopes to ExperimentalWarning only — other
-// warning classes (DeprecationWarning, etc.) still surface.
-//
-// Runtime guard — fail fast with a human message before importing anything
-// that uses Node 24 APIs (node:sqlite stable, built-in WebSocket, modern
-// ESM loader). Without this, a user on Node 20/22 gets an obscure
-// SyntaxError or "module not found" instead of guidance.
-const [major] = process.versions.node.split('.').map(Number);
-if (major < 24) {
+#!/usr/bin/env bun
+// Runtime guard — fail fast with a human message when invoked under a
+// non-Bun runtime. skill-map ships as a Bun-executed binary; it uses
+// `bun:sqlite` for storage which has no equivalent under Node, so falling
+// through to import('../dist/cli.js') would surface as an opaque
+// "Cannot find module 'bun:sqlite'" error instead of guidance.
+if (typeof Bun === 'undefined') {
   process.stderr.write(
-`skill-map requires Node.js >= 24 (found v${process.versions.node}).
+`skill-map requires Bun >= 1.2.
 
-Node 24 is the active LTS since October 2025 and brings:
-  - stable node:sqlite (used for the skill-map database)
-  - built-in WebSocket client
-  - modern ESM loader
-
-Install the latest LTS from https://nodejs.org and retry.
+The CLI uses Bun-only APIs (bun:sqlite) and ships as a Bun binary.
+Install Bun from https://bun.sh and retry with: bun ${process.argv0 ?? 'sm'} ...
 `,
   );
   process.exit(2);

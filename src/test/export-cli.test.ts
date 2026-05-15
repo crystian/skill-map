@@ -11,7 +11,7 @@
  *      and exit-code contract.
  */
 
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 import { deepStrictEqual, match, ok, strictEqual, throws } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

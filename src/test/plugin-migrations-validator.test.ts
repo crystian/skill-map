@@ -7,7 +7,7 @@
  * flag combinations live in `plugin-migrations.test.ts`.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { deepStrictEqual, ok, strictEqual, throws } from 'node:assert';
 
 import {

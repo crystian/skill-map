@@ -1,0 +1,17 @@
+[install]
+exact = true
+
+[install.lockfile]
+save = true
+
+# Test runner: scope discovery to the bun-targeted workspaces so a bare
+# `bun test` at the repo root doesn't try to run Playwright (e2e/),
+# Angular component specs (ui/), or unrelated workspace tests under
+# their native runners.
+[test]
+root = "."
+preload = []
+# `coveragePathIgnorePatterns` is the closest knob bun exposes for
+# scoping discovery globs; pair it with explicit script-level globs in
+# each workspace's `test`/`test:ci` (src, testkit, examples/hello-world).
+coveragePathIgnorePatterns = ["e2e/**", "ui/**", "web/**", "node_modules/**", "dist/**"]

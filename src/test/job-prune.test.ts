@@ -19,7 +19,7 @@ import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync, existsSync 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import {

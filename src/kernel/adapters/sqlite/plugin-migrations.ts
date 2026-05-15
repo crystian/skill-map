@@ -15,7 +15,7 @@
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { DatabaseSync } from 'node:sqlite';
+import type { Database } from 'bun:sqlite';
 
 import type { IDiscoveredPlugin } from '../../types/plugin.js';
 import { formatErrorMessage } from '../../util/format-error.js';
@@ -100,7 +100,7 @@ export function discoverPluginMigrations(plugin: IDiscoveredPlugin): IPluginMigr
  * `config_schema_versions` is missing or has no rows for this plugin
  * (fresh DB, or a plugin that has never migrated).
  */
-export function readPluginLedger(db: DatabaseSync, pluginId: string): IPluginMigrationRecord[] {
+export function readPluginLedger(db: Database, pluginId: string): IPluginMigrationRecord[] {
   const tableExists = db
     .prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='config_schema_versions'",
@@ -128,7 +128,7 @@ export function readPluginLedger(db: DatabaseSync, pluginId: string): IPluginMig
  * Plan a plugin's migrations against its ledger.
  */
 export function planPluginMigrations(
-  db: DatabaseSync,
+  db: Database,
   plugin: IDiscoveredPlugin,
   files: IPluginMigrationFile[] = discoverPluginMigrations(plugin),
 ): IPluginMigrationPlan {
@@ -166,7 +166,7 @@ export function planPluginMigrations(
 // scoping. Branching is intrinsic to the safe-apply contract.
 // eslint-disable-next-line complexity
 export function applyPluginMigrations(
-  db: DatabaseSync,
+  db: Database,
   plugin: IDiscoveredPlugin,
   options: IPluginApplyOptions = {},
   files: IPluginMigrationFile[] = discoverPluginMigrations(plugin),

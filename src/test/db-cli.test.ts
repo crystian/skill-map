@@ -34,7 +34,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = resolve(HERE, '..', 'bin', 'sm.js');
@@ -223,7 +223,7 @@ describe('sm db restore --dry-run', () => {
   });
 });
 
-describe('sm db dump — pure node:sqlite (no external sqlite3 binary)', () => {
+describe('sm db dump — pure bun:sqlite (no external sqlite3 binary)', () => {
   it('emits the .dump envelope (PRAGMA + BEGIN/COMMIT + schema) on a fresh init', () => {
     const scope = freshScope('dump-envelope');
     sm(['init', '--no-scan'], scope);
@@ -262,8 +262,8 @@ describe('sm db dump — pure node:sqlite (no external sqlite3 binary)', () => {
     const r = sm(['db', 'dump'], scope);
     assert.equal(r.status, 0, `stderr: ${r.stderr}`);
 
-    // Reload into a fresh DB via node:sqlite (no external binary).
-    const { DatabaseSync } = await import('node:sqlite');
+    // Reload into a fresh DB via bun:sqlite (no external binary).
+    const { Database: DatabaseSync } = await import('bun:sqlite');
     const reloadedPath = join(scope.cwd, 'reloaded.db');
     const reloaded = new DatabaseSync(reloadedPath);
     try {

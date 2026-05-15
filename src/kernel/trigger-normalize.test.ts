@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { strictEqual } from 'node:assert';
 
 import { normalizeTrigger } from './trigger-normalize.js';

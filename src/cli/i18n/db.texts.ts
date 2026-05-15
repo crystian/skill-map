@@ -63,7 +63,7 @@ export const DB_TEXTS = {
     '  Windows:       https://sqlitebrowser.org/dl/\n',
   browserOpeningReadOnly: 'Opening {{path}} (read-only)\n',
   browserOpeningReadWrite: 'Opening {{path}} (read-write)\n',
-  // --- dump (pure node:sqlite, no external binary) ----------------------
+  // --- dump (pure bun:sqlite, no external binary) -----------------------
   dumpInvalidTable:
     '--tables: refusing non-identifier name {{table}}. Table names must match [a-zA-Z_][a-zA-Z0-9_]*\n',
   dumpFailure: 'sm db dump: {{message}}\n',

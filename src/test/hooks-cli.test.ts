@@ -8,7 +8,7 @@
  * scratch dirs.
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it,beforeAll as before,afterAll as after} from 'bun:test';
 import { ok, strictEqual } from 'node:assert/strict';
 import {
   existsSync,

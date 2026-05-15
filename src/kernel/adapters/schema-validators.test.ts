@@ -8,7 +8,7 @@
  * `sm record`, etc. will too).
  */
 
-import { describe, it, after } from 'node:test';
+import { describe, it,afterAll as after} from 'bun:test';
 import { strictEqual, ok } from 'node:assert/strict';
 
 import {

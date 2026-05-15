@@ -28,7 +28,7 @@
  *   - --json shape: `{ comparedWith, nodes, links, issues }`.
  */
 
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 import { match, ok, strictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

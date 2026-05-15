@@ -7,7 +7,7 @@
  * writer) doesn't land until Step 9.
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it,beforeAll as before,afterAll as after} from 'bun:test';
 import {
   deepStrictEqual,
   match,

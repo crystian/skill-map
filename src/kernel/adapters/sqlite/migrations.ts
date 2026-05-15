@@ -15,7 +15,7 @@
 
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { Database } from 'bun:sqlite';
 import { fileURLToPath } from 'node:url';
 
 import { MIGRATIONS_TEXTS } from '../../i18n/migrations.texts.js';
@@ -104,7 +104,7 @@ export function discoverMigrations(dir: string = defaultMigrationsDir()): IMigra
  * Read the ledger for kernel migrations. Returns an empty list if the
  * `config_schema_versions` table doesn't yet exist (fresh DB).
  */
-export function readLedger(db: DatabaseSync): IMigrationRecord[] {
+export function readLedger(db: Database): IMigrationRecord[] {
   const tableExists = db
     .prepare(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='config_schema_versions'",
@@ -134,7 +134,7 @@ export function readLedger(db: DatabaseSync): IMigrationRecord[] {
 }
 
 export function planMigrations(
-  db: DatabaseSync,
+  db: Database,
   files: IMigrationFile[] = discoverMigrations(),
 ): IMigrationPlan {
   const applied = readLedger(db);
@@ -155,7 +155,7 @@ export function planMigrations(
 // shape of "apply N migrations safely".
 // eslint-disable-next-line complexity
 export function applyMigrations(
-  db: DatabaseSync,
+  db: Database,
   dbPath: string,
   options: IApplyOptions = {},
   files: IMigrationFile[] = discoverMigrations(),
@@ -240,7 +240,7 @@ export function writeBackup(dbPath: string, destPath: string): string | null {
   mkdirSync(dirname(absoluteDest), { recursive: true });
   // Checkpoint WAL to the main file before copy so the backup is complete
   // without needing to also copy the `-wal` / `-shm` sidecars.
-  const db = new DatabaseSync(absoluteSource);
+  const db = new Database(absoluteSource);
   try {
     db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
   } finally {

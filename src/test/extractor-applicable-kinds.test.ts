@@ -19,7 +19,7 @@
  * `.claude/agents/*.md`, etc.).
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it,beforeAll as before,afterAll as after} from 'bun:test';
 import { strictEqual, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

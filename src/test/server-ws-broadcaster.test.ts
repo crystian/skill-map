@@ -22,7 +22,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it } from 'bun:test';
 
 import {
   WsBroadcaster,

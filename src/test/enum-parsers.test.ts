@@ -16,7 +16,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 
 import {
   isStability, parseStability,

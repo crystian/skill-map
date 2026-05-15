@@ -9,7 +9,7 @@
  * issues that the verbs operate on.
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it,beforeAll as before,afterAll as after} from 'bun:test';
 import {
   deepStrictEqual,
   match,

@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { strictEqual, ok } from 'node:assert';
 
 import { triggerCollisionRule } from './trigger-collision/index.js';

@@ -60,15 +60,15 @@ export default defineConfig({
   ],
 
   webServer: {
-    // Boots the deps-free Node static server that serves web/demo/. Run
-    // `npm run demo:build` from the repo root before invoking the smoke
+    // Boots the deps-free static server that serves web/demo/. Run
+    // `bun run demo:build` from the repo root before invoking the smoke
     // suite so the demo bundle exists. Playwright tears the server down
     // automatically when the test run ends.
     //
     // The live-BFF kernel is NOT booted via `webServer` — it lives in
     // globalSetup so the harness can pick a free port at boot and
     // materialise its fixture tempdir before the kernel attaches.
-    command: `node ../web/scripts/serve-demo.js --port=${PORT}`,
+    command: `bun ../web/scripts/serve-demo.js --port=${PORT}`,
     cwd: '.',
     url: `http://127.0.0.1:${PORT}/demo/`,
     reuseExistingServer: !isCI,

@@ -21,11 +21,11 @@
  *  12. `GET  *` (static)             → `serveStatic` rooted at `uiDist`.
  *  13. `GET  *` (SPA fallback)       → `index.html` for any other GET.
  *
- * `/ws` is a real Hono route — `@hono/node-server@2.x` natively
- * supports WebSocket upgrades through its built-in `upgradeWebSocket`
- * helper. The Node http `'upgrade'` listener is wired by node-server
- * itself when `serve({ websocket: { server: wss } })` is called from
- * the composition root.
+ * `/ws` is a no-op stub at the Hono layer — the real WebSocket upgrade
+ * lives one layer up in `index.ts`'s `Bun.serve()` fetch callback,
+ * which inspects the URL and calls `server.upgrade(req)` before
+ * delegating to `app.fetch`. The stub returns `426 Upgrade Required`
+ * if anything actually reaches it (a non-upgrade GET).
  *
  * Error envelope (mirrors `cli-contract.md` §Machine-readable output rules):
  *

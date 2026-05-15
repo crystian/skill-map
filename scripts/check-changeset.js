@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * PR gate: fail if workspace code changed without a changeset.
  *

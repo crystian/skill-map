@@ -29,11 +29,12 @@
  * `feedback_sqlite_in_memory_workaround.md`).
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it,beforeAll as before,afterAll as after} from 'bun:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
 import {
@@ -600,8 +601,10 @@ describe('node_enrichments — universal enrichment layer (A.8)', () => {
 
 // --- (f) sm refresh stub ---------------------------------------------------
 
-const REPO_ROOT = process.cwd();
-const SM_BIN = join(REPO_ROOT, 'bin', 'sm.js');
+// Resolve `bin/sm.js` relative to this test file rather than `process.cwd()`.
+// Test runners may be invoked from any directory (the workspace root or
+// the src/ workspace); only `import.meta.url` is invariant.
+const SM_BIN = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'bin', 'sm.js');
 
 interface ICliResult {
   status: number;
@@ -610,7 +613,7 @@ interface ICliResult {
 }
 
 function runCli(cwd: string, args: string[]): ICliResult {
-  const result = spawnSync('node', [SM_BIN, ...args], {
+  const result = spawnSync(process.execPath, [SM_BIN, ...args], {
     cwd,
     encoding: 'utf8',
     env: { ...process.env, NO_COLOR: '1' },

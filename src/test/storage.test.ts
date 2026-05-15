@@ -11,9 +11,9 @@
 import { mkdtempSync, rmSync, copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { Database as DatabaseSync } from 'bun:sqlite';
 import { strictEqual, ok, rejects, throws, deepStrictEqual } from 'node:assert';
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll as before, afterAll as after } from 'bun:test';
 
 import {
   SqliteStorageAdapter,
@@ -345,12 +345,16 @@ describe('migrations runner', () => {
     const beforeRestore = readBodyHash(path, nodeFixture.path);
     ok(beforeRestore?.startsWith('corrupt'), 'corruption should be present pre-restore');
 
-    // Restore the backup over the target. Real `sm db restore` would also
-    // remove -wal/-shm sidecars; at this scale the file copy suffices.
-    copyFileSync(backupPath, path);
+    // Restore the backup over the target. Real `sm db restore` removes
+    // sidecars + unlinks the existing main file before copy — under
+    // bun:sqlite, replacing the file in-place leaves stale page-cache
+    // entries that surface as SQLITE_IOERR_SHORT_READ on first read.
+    // Allocating a new inode sidesteps that.
     for (const sidecar of [`${path}-wal`, `${path}-shm`]) {
       if (existsSync(sidecar)) rmSync(sidecar);
     }
+    if (existsSync(path)) rmSync(path);
+    copyFileSync(backupPath, path);
 
     // Verify round-trip: the pristine row is back, byte-for-byte.
     const adapter2 = new SqliteStorageAdapter({ databasePath: path, autoMigrate: false });

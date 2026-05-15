@@ -5,16 +5,16 @@
   "type": "module",
   "description": "skill-map.dev public site source. Static HTML + i18n; deployed via Caddy/Docker.",
   "scripts": {
-    "dev": "node scripts/dev-server.js",
-    "demo:build": "npm --prefix .. run build --workspace=ui && node scripts/build-demo-dataset.js && cp -R ../ui/dist/ui/browser/. demo/ && node scripts/patch-demo-mode.js",
-    "demo:serve": "node scripts/serve-demo.js",
-    "build": "npm run demo:build && node scripts/build-site.js",
+    "dev": "bun scripts/dev-server.js",
+    "demo:build": "bun run --filter ui build && bun scripts/build-demo-dataset.js && cp -R ../ui/dist/ui/browser/. demo/ && bun scripts/patch-demo-mode.js",
+    "demo:serve": "bun scripts/serve-demo.js",
+    "build": "bun run demo:build && bun scripts/build-site.js",
     "docker:build": "docker build -t skill-map-test ..",
     "docker:run": "docker run --rm -p 8080:8080 skill-map-test",
-    "docker": "npm run docker:build && npm run docker:run",
-    "validate": "npm run build"
+    "docker": "bun run docker:build && bun run docker:run",
+    "validate": "bun run build"
   },
   "engines": {
-    "node": ">=24.0"
+    "bun": ">=1.2"
   }
 }

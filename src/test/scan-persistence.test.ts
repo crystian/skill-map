@@ -9,21 +9,21 @@
  *     populated one wipes every prior row across all three tables.
  *
  * Uses a temp file-based SQLite (one per `it`) — `SqliteStorageAdapter`
- * applies migrations on a short-lived raw `DatabaseSync` and then opens a
+ * applies migrations on a short-lived raw `Database` and then opens a
  * separate Kysely connection, which works with file paths but not
- * `:memory:` (each `DatabaseSync(':memory:')` is an isolated DB). See
+ * `:memory:` (each `Database(':memory:')` is an isolated DB). See
  * `src/kernel/adapters/sqlite/storage-adapter.ts`.
  *
  * Uses the orchestrator (not the CLI) so we can inspect intermediate
  * state.
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, beforeAll as before, afterAll as after } from 'bun:test';
 import { strictEqual, ok, deepStrictEqual } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { Database as DatabaseSync } from 'bun:sqlite';
 
 import { createKernel, runScan } from '../kernel/index.js';
 import { builtIns, listBuiltIns } from '../built-in-plugins/built-ins.js';
@@ -186,7 +186,7 @@ describe('persistScanResult', () => {
     }
 
     // Open a brand-new raw connection. This mirrors what an external
-    // tool (sqlitebrowser, DBeaver, an ad-hoc `node:sqlite` consumer)
+    // tool (sqlitebrowser, DBeaver, an ad-hoc `bun:sqlite` consumer)
     // would do: open the .db file, read scan_* directly. The CamelCase
     // plugin lives on the writer's Kysely; the reader uses snake_case
     // SQL identifiers as they exist on disk.

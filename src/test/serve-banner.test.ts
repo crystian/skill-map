@@ -15,7 +15,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 
 import { renderBanner, resolveColorEnabled } from '../cli/util/serve-banner.js';
 

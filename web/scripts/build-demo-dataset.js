@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * `web/scripts/build-demo-dataset.js` — derive the demo bundle's data assets.
  *

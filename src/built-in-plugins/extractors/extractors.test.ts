@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { strictEqual, deepStrictEqual, ok } from 'node:assert';
 
 import { frontmatterExtractor } from './frontmatter/index.js';

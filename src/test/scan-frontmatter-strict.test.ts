@@ -25,7 +25,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 
 import { createKernel, runScan } from '../kernel/index.js';
 import { builtIns } from '../built-in-plugins/built-ins.js';

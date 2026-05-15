@@ -24,7 +24,7 @@ import { strict as assert } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it } from 'bun:test';
 
 import { WebSocket } from 'ws';
 
@@ -197,7 +197,7 @@ function freshFixture(): IFixture {
 }
 
 describe('server `/ws` — broadcaster integration', () => {
-  it('boots the watcher and broadcasts watcher.started + scan.completed for the initial batch', async (t) => {
+  it('boots the watcher and broadcasts watcher.started + scan.completed for the initial batch', async () => {
     // The initial scan happens BEFORE the WS client connects, so the
     // first observable event is `watcher.started`. We then touch a
     // file to trigger a fresh batch and assert `scan.completed`.
@@ -236,7 +236,7 @@ describe('server `/ws` — broadcaster integration', () => {
       } finally {
         await client.close();
       }
-      t.diagnostic(`ws events received: ${client.events.map((e) => e.type).join(', ')}`);
+      // diagnostic: ws events received → client.events.map((e) => e.type).join(', ')
     });
   });
 

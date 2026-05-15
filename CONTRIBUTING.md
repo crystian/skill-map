@@ -18,7 +18,7 @@ Thanks for your interest in `skill-map`. The project is in active pre-1.0 develo
 - TypeScript strict mode, Node ESM, Node ≥ 24.0.
 - Every extension ships a sibling `*.test.ts`. Missing test → contract check fails → tool does not boot.
 - No feature is added without updating `spec/` first (when normative). Spec > ROADMAP > AGENTS, in that authority order.
-- Lint clean: `npm run lint` (CI runs it via `npm run validate`). Both errors AND warnings block CI — there are no `warn` rules in the config.
+- Lint clean: `bun run lint` (CI runs it via `bun run validate`). Both errors AND warnings block CI — there are no `warn` rules in the config.
 - All artifacts in English (code, commits, PRs, docs). Conversation language follows the activation rule in AGENTS.md.
 
 ## Versioning — changesets + integrity hashes
@@ -41,7 +41,7 @@ Workspaces declared in the root `workspaces` array but exempt from the changeset
 ### Creating a changeset
 
 ```bash
-npm run release:changeset
+bun run release:changeset
 ```
 
 Pick the affected package(s), the bump type, and write a one-paragraph summary. Commit the generated `.changeset/*.md` with your change.
@@ -67,17 +67,17 @@ Nothing ships to npm without an explicit merge of the Version Packages PR.
 `spec/index.json` carries a sha256 per file shipped. Regenerate after any change under `spec/`:
 
 ```bash
-npm run spec --workspace=@skill-map/spec          # regenerate
-npm run spec:check --workspace=@skill-map/spec    # verify (used by CI via root validate)
+bun run spec --workspace=@skill-map/spec          # regenerate
+bun run spec:check --workspace=@skill-map/spec    # verify (used by CI via root validate)
 ```
 
-The orchestrator (`npm run validate`) runs `spec:check` for every PR through the spec workspace's `validate`. Drift → red build. A pre-commit hook (`.githooks/pre-commit`, wired automatically by `npm install` via the root `prepare` script that sets `core.hooksPath`) also runs the spec workspace's `validate` whenever a commit touches `spec/`, so an out-of-sync `index.json` fails locally before reaching CI.
+The orchestrator (`bun run validate`) runs `spec:check` for every PR through the spec workspace's `validate`. Drift → red build. A pre-commit hook (`.githooks/pre-commit`, wired automatically by `bun install` via the root `prepare` script that sets `core.hooksPath`) also runs the spec workspace's `validate` whenever a commit touches `spec/`, so an out-of-sync `index.json` fails locally before reaching CI.
 
 Same discipline applies to the auto-generated CLI reference at `context/cli-reference.md`:
 
 ```bash
-npm run reference --workspace=@skill-map/cli         # regenerate from `sm help --format md`
-npm run reference:check --workspace=@skill-map/cli   # verify (used by CI via root validate)
+bun run reference --workspace=@skill-map/cli         # regenerate from `sm help --format md`
+bun run reference:check --workspace=@skill-map/cli   # verify (used by CI via root validate)
 ```
 
 ### Version Packages PR exception

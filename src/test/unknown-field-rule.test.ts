@@ -15,7 +15,7 @@
  * easy to control in isolation.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { strictEqual } from 'node:assert';
 
 import { unknownFieldRule } from '../built-in-plugins/rules/unknown-field/index.js';

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * `web/scripts/patch-demo-mode.js [<target-html>]` — flip the runtime-mode
  * meta-tag and the `<base href>` on a built SPA `index.html` so it

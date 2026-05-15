@@ -13,7 +13,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { Database } from 'bun:sqlite';
 import { withSqlite } from '../util/with-sqlite.js';
 import { confirm } from '../util/confirm.js';
 import { tx } from '../../kernel/util/tx.js';
@@ -127,6 +127,12 @@ export class DbRestoreCommand extends SmCommand {
     description: 'Preview the restore without overwriting the live DB.',
   });
 
+  // Restore is a multi-branch operation by nature: validate source,
+  // optional dry-run preview, optional confirm prompt, sidecar
+  // cleanup, target inode swap, copy, perms. Splitting it further
+  // would obscure the linear contract; the cyclomatic budget is
+  // intentionally lifted here.
+  // eslint-disable-next-line complexity
   protected async run(): Promise<number> {
     const target = resolveDbPath({ global: this.global, db: this.db, ...defaultRuntimeContext() });
     const sourcePath = resolve(this.source);
@@ -166,16 +172,21 @@ export class DbRestoreCommand extends SmCommand {
     }
 
     await mkdir(dirname(target), { recursive: true });
+    // WAL sidecars from the old DB would be out of sync — delete them so
+    // next open starts clean against the restored main file. Also remove
+    // the existing main file (not just overwrite) before the copy: under
+    // bun:sqlite, replacing the file in-place can leave stale page-cache
+    // entries that surface as SQLITE_IOERR_SHORT_READ on the first read
+    // after restore. Allocating a new inode sidesteps that.
+    for (const sidecar of [`${target}-wal`, `${target}-shm`]) {
+      if (await pathExists(sidecar)) await rm(sidecar);
+    }
+    if (await pathExists(target)) await rm(target);
     await copyFile(sourcePath, target);
     // Defence in depth (audit L4): force restrictive owner-only perms on
     // the restored DB. Helper-extracted so the try/catch doesn't push
     // `execute` past the cyclomatic budget.
     await chmodOwnerOnlyBestEffort(target);
-    // WAL sidecars from the old DB would be out of sync — delete them so
-    // next open starts clean against the restored main file.
-    for (const sidecar of [`${target}-wal`, `${target}-shm`]) {
-      if (await pathExists(sidecar)) await rm(sidecar);
-    }
 
     this.printer!.data(tx(DB_TEXTS.restoreDone, { sourcePath, target }));
     return ExitCode.Ok;
@@ -265,7 +276,7 @@ export class DbResetCommand extends SmCommand {
       }
     }
 
-    const db = new DatabaseSync(path);
+    const db = new Database(path);
     try {
       const rows = db
         .prepare(
@@ -447,7 +458,7 @@ export class DbDumpCommand extends SmCommand {
     category: 'Database',
     description: 'SQL dump to stdout.',
     details:
-      'Read-only. Pure node:sqlite — no external `sqlite3` binary required. Use --tables <names...> to limit the dump to specific tables.',
+      'Read-only. Pure bun:sqlite — no external `sqlite3` binary required. Use --tables <names...> to limit the dump to specific tables.',
   });
 
   tables = Option.Array('--tables', { required: false });
@@ -477,8 +488,8 @@ export class DbDumpCommand extends SmCommand {
 }
 
 /**
- * Pure-node SQL dump. Equivalent (for the subset we care about) to the
- * sqlite3 CLI's `.dump` meta-command, but uses `node:sqlite` directly
+ * Pure-bun SQL dump. Equivalent (for the subset we care about) to the
+ * sqlite3 CLI's `.dump` meta-command, but uses `bun:sqlite` directly
  * so we have zero dependency on a system binary. Output format matches
  * what sqlite3's `.dump` produces closely enough to be loadable via
  * `sqlite3 newdb < dump.sql` or `cat dump.sql | sqlite3 newdb`:
@@ -500,7 +511,7 @@ function dumpDatabaseToStream(
   out: NodeJS.WritableStream,
   tables: string[] | null,
 ): void {
-  const db = new DatabaseSync(dbPath, { readOnly: true });
+  const db = new Database(dbPath, { readonly: true });
   try {
     out.write('PRAGMA foreign_keys=OFF;\n');
     out.write('BEGIN TRANSACTION;\n');
@@ -533,7 +544,7 @@ interface ISchemaObject {
   sql: string | null;
 }
 
-function listSchemaObjects(db: DatabaseSync, tables: string[] | null): ISchemaObject[] {
+function listSchemaObjects(db: Database, tables: string[] | null): ISchemaObject[] {
   const baseQuery =
     "SELECT type, name, sql FROM sqlite_master WHERE type IN ('table','index','trigger','view') AND name NOT LIKE 'sqlite_%'";
   if (tables === null || tables.length === 0) {
@@ -546,7 +557,7 @@ function listSchemaObjects(db: DatabaseSync, tables: string[] | null): ISchemaOb
   return db.prepare(sql).all(...tables, ...tables) as unknown as ISchemaObject[];
 }
 
-function writeTableData(db: DatabaseSync, out: NodeJS.WritableStream, tableName: string): void {
+function writeTableData(db: Database, out: NodeJS.WritableStream, tableName: string): void {
   // Identifier already vetted by SAFE_SQL_IDENTIFIER_RE (alphanumeric +
   // underscore, must start with letter / underscore). Quote anyway so a
   // future relaxation of the validator doesn't open an injection path.
@@ -626,7 +637,7 @@ export class DbMigrateCommand extends SmCommand {
     // `autoMigrate: false` keeps the adapter from running migrations
     // on init() — the verb itself orchestrates the apply (or skips it
     // for `--status` / `--dry-run`). The migrations namespace's
-    // methods open their own short-lived raw `DatabaseSync` handles
+    // methods open their own short-lived raw `Database` handles
     // internally; the adapter's Kysely connection is unused by this
     // verb.
     const adapter = createSqliteStorage({

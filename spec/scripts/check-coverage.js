@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Coverage gate: every schema under `spec/schemas/` MUST have a row in the
  * coverage matrix at `spec/conformance/coverage.md`, and every row in the

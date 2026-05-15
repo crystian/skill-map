@@ -1,11 +1,11 @@
 /**
- * Custom Kysely `Dialect` for Node 24's built-in `node:sqlite` module.
+ * Custom Kysely `Dialect` for Bun's built-in `bun:sqlite` module.
  *
  * Kysely ships a `SqliteDialect` that wraps `better-sqlite3` (native dep,
- * forbidden by Decision #7 — runtime is Node 24+ with zero native deps).
+ * forbidden by Decision #7 — runtime is Bun with zero native deps).
  * We therefore reuse Kysely's SQLite `Adapter`, `Introspector`, and
  * `QueryCompiler` (pure-JS, dialect-shape-only) and plug a bespoke
- * `Driver` that translates Kysely's `CompiledQuery` into `node:sqlite`
+ * `Driver` that translates Kysely's `CompiledQuery` into `bun:sqlite`
  * prepared statements.
  *
  * Minimal by design: a single connection, serialised via an async mutex
@@ -13,7 +13,7 @@
  * ROLLBACK` transactions driven through the same prepared-statement path.
  */
 
-import { DatabaseSync, type StatementSync } from 'node:sqlite';
+import { Database, type Statement } from 'bun:sqlite';
 
 import {
   SqliteAdapter,
@@ -36,10 +36,10 @@ export interface INodeSqliteDialectConfig {
   databasePath: string;
 
   /**
-   * Called once after the underlying `DatabaseSync` is opened — use to
+   * Called once after the underlying `Database` is opened — use to
    * configure PRAGMAs (journal_mode, foreign_keys, etc.). Runs synchronously.
    */
-  onCreateConnection?: (db: DatabaseSync) => void;
+  onCreateConnection?: (db: Database) => void;
 }
 
 export class NodeSqliteDialect implements Dialect {
@@ -68,7 +68,7 @@ export class NodeSqliteDialect implements Dialect {
 
 class NodeSqliteDriver implements Driver {
   readonly #config: INodeSqliteDialectConfig;
-  #db: DatabaseSync | null = null;
+  #db: Database | null = null;
   #connection: NodeSqliteConnection | null = null;
   #mutex = new AsyncMutex();
 
@@ -77,13 +77,13 @@ class NodeSqliteDriver implements Driver {
   }
 
   async init(): Promise<void> {
-    this.#db = new DatabaseSync(this.#config.databasePath);
+    this.#db = new Database(this.#config.databasePath);
     this.#config.onCreateConnection?.(this.#db);
     this.#connection = new NodeSqliteConnection(this.#db);
   }
 
   async acquireConnection(): Promise<DatabaseConnection> {
-    if (!this.#connection) throw new Error('node-sqlite driver not initialised');
+    if (!this.#connection) throw new Error('bun-sqlite driver not initialised');
     await this.#mutex.lock();
     return this.#connection;
   }
@@ -112,9 +112,9 @@ class NodeSqliteDriver implements Driver {
 }
 
 class NodeSqliteConnection implements DatabaseConnection {
-  readonly #db: DatabaseSync;
+  readonly #db: Database;
 
-  constructor(db: DatabaseSync) {
+  constructor(db: Database) {
     this.#db = db;
   }
 
@@ -123,7 +123,7 @@ class NodeSqliteConnection implements DatabaseConnection {
   }
 
   async executeQuery<R>(query: CompiledQuery): Promise<QueryResult<R>> {
-    const stmt: StatementSync = this.#db.prepare(query.sql);
+    const stmt: Statement = this.#db.prepare(query.sql);
     const params = query.parameters as unknown[];
 
     const head = query.sql.trim().slice(0, 6).toUpperCase();
@@ -150,7 +150,7 @@ class NodeSqliteConnection implements DatabaseConnection {
   }
 
   async *streamQuery<R>(query: CompiledQuery): AsyncIterableIterator<QueryResult<R>> {
-    // node:sqlite does not expose a cursor API. Buffer then yield once —
+    // bun:sqlite does not expose a cursor API. Buffer then yield once —
     // acceptable for our scale (kernel tables are small) and consistent
     // with Kysely's contract for streamless backends.
     const result = await this.executeQuery<R>(query);
@@ -159,7 +159,7 @@ class NodeSqliteConnection implements DatabaseConnection {
 }
 
 /**
- * Bare-bones async mutex. node:sqlite is single-threaded; SQLite writers
+ * Bare-bones async mutex. bun:sqlite is single-threaded; SQLite writers
  * serialise anyway, so this guards Kysely's request/release lifecycle
  * without a real connection pool.
  */

@@ -23,7 +23,7 @@
  * runs every spec + Claude case directly through the runner.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { match, ok, strictEqual } from 'node:assert/strict';
 
 import type { BaseContext } from 'clipanion';

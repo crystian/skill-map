@@ -666,8 +666,8 @@ install -y sqlitebrowser).
 
 SQL dump to stdout.
 
-Read-only. Pure node:sqlite — no external `sqlite3` binary required. Use 
---tables <names...> to limit the dump to specific tables.
+Read-only. Pure bun:sqlite — no external `sqlite3` binary required. Use --tables 
+<names...> to limit the dump to specific tables.
 
 **Flags:**
 

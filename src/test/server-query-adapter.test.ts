@@ -6,7 +6,7 @@
  */
 
 import { strict as assert } from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 
 import { ExportQueryError } from '../kernel/index.js';
 import type { Issue, Node } from '../kernel/index.js';

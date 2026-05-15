@@ -27,13 +27,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: true
 
-      - name: Setup Node
-        uses: actions/setup-node@v5
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 24
+          bun-version: 1.3.11
 
       - name: Install deps
-        run: npm ci --ignore-scripts
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build UI
         # The CLI publish step depends on the Angular SPA being built so
@@ -42,20 +42,20 @@ jobs:
         # serves the bundle from there in installed mode; without this
         # step the published tarball would ship without any UI and
         # `sm` would render the placeholder forever.
-        run: npm run build --workspace=ui
+        run: bun run --filter ui build
 
       - name: Build CLI
-        run: npm run build --workspace=@skill-map/cli
+        run: bun run --filter @skill-map/cli build
 
       - name: Verify spec index is up to date
-        run: npm run spec:check --workspace=@skill-map/spec
+        run: bun run --filter @skill-map/spec spec:check
 
       - name: Changesets — version PR or publish
         id: changesets
         uses: changesets/action@v1
         with:
-          version: npm run release:version
-          publish: npm run release:publish
+          version: bun run release:version
+          publish: bun run release:publish
           commit: "chore: version packages"
           title: "chore: version packages"
         env:
@@ -69,7 +69,7 @@ jobs:
           # published versions. The publish itself just returned, but the
           # CDN can lag a few seconds before the new tag resolves.
           sleep 60
-          npm i -g @skill-map/cli@latest
+          bun install -g @skill-map/cli@latest
           sm --version
           skill-map --version
           sm --help > /dev/null

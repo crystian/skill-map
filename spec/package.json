@@ -45,11 +45,11 @@
     "index.json"
   ],
   "scripts": {
-    "spec": "node scripts/build-index.js",
-    "spec:check": "node scripts/build-index.js --check && node scripts/check-coverage.js",
-    "pin": "node scripts/sync-pin.js",
-    "pin:check": "node scripts/sync-pin.js --check",
-    "validate": "npm run spec:check && npm run pin:check"
+    "spec": "bun scripts/build-index.js",
+    "spec:check": "bun scripts/build-index.js --check && bun scripts/check-coverage.js",
+    "pin": "bun scripts/sync-pin.js",
+    "pin:check": "bun scripts/sync-pin.js --check",
+    "validate": "bun run spec:check && bun run pin:check"
   },
   "publishConfig": {
     "access": "public"

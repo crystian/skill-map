@@ -1,6 +1,6 @@
 /**
  * `SqliteStorageAdapter` — default `StoragePort` implementation. Opens a
- * `node:sqlite` database behind the bespoke Kysely dialect, configures
+ * `bun:sqlite` database behind the bespoke Kysely dialect, configures
  * the mandatory PRAGMAs (WAL, foreign keys), runs pending kernel
  * migrations, and exposes the namespaced port surface plus the typed
  * Kysely instance.
@@ -32,7 +32,7 @@
 
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { Database } from 'bun:sqlite';
 
 import { CamelCasePlugin, Kysely, sql } from 'kysely';
 import type { Transaction } from 'kysely';
@@ -182,7 +182,7 @@ export class SqliteStorageAdapter implements StoragePort {
       // DB is the same either way.
       const files = discoverMigrations();
       if (files.length > 0) {
-        const raw = new DatabaseSync(path);
+        const raw = new Database(path);
         try {
           raw.exec('PRAGMA foreign_keys = ON');
           applyMigrations(
@@ -420,7 +420,7 @@ async function findNodes(
   }
   if (filter.hasIssues === true) {
     // Subquery: keep only nodes whose path is referenced by any
-    // `scan_issues.nodeIds` array. node:sqlite ships JSON1 enabled,
+    // `scan_issues.nodeIds` array. bun:sqlite ships JSON1 enabled,
     // so json_each is available everywhere we run.
     query = query.where(({ exists, selectFrom, ref }) =>
       exists(
@@ -614,15 +614,15 @@ async function listFavoritePaths(db: Kysely<IDatabase>): Promise<Set<string>> {
 }
 
 /**
- * Open a raw `node:sqlite` handle for migration runs, invoke `fn`,
+ * Open a raw `bun:sqlite` handle for migration runs, invoke `fn`,
  * and close it. Each port-method call gets its own handle (the
  * verb's per-method calls are infrequent, so the open/close
  * overhead is negligible). The synchronous `fn` matches the
  * underlying free functions, which run BEGIN/COMMIT on the raw
  * handle directly per `migrations.ts` / `plugin-migrations.ts`.
  */
-function withRawDb<T>(path: string, fn: (raw: DatabaseSync) => T): T {
-  const raw = new DatabaseSync(path);
+function withRawDb<T>(path: string, fn: (raw: Database) => T): T {
+  const raw = new Database(path);
   try {
     return fn(raw);
   } finally {

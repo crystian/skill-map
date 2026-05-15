@@ -222,17 +222,16 @@ function collectNodesWithIssues(issues: Issue[]): Set<string> {
  * v1.0; we can grow this when consumers ask for it.
  */
 function compileGlob(pattern: string): RegExp {
-  // First escape every regex metachar EXCEPT `*` (which we'll process
-  // in a second pass). A negated character class is the cleanest way
-  // to enumerate "everything that needs escaping in a path glob".
+  // Escape every regex metachar EXCEPT `*` (which we process below as
+  // the glob wildcard). A negated character class enumerates everything
+  // that needs escaping in a path glob.
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
-  // `**` first so the `*` pass below doesn't double-process it. Use a
-  // sentinel that can't appear in user input post-escape.
-  const withDouble = escaped.replace(/\*\*/g, ' DOUBLESTAR ');
-  const withSingle = withDouble.replace(/\*/g, '[^/]*');
-  // Null-byte sentinel is intentional — guarantees the marker can't
-  // collide with anything in user-supplied glob patterns post-escape.
-  // eslint-disable-next-line no-control-regex
-  const final = withSingle.replace(/ DOUBLESTAR /g, '.*');
-  return new RegExp(`^${final}$`);
+  // Single left-to-right pass matches `**` OR `*` and substitutes each
+  // form, avoiding any need for a placeholder sentinel between two
+  // sequential `.replace()` calls. Order in the alternation matters:
+  // the regex is greedy and bites `**` before `*`.
+  const compiled = escaped.replace(/\*\*?/g, (m) =>
+    m === '**' ? '.*' : '[^/]*',
+  );
+  return new RegExp(`^${compiled}$`);
 }

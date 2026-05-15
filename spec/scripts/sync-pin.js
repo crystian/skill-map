@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * `spec/scripts/sync-pin.js [--check]` — keep `@skill-map/cli`'s pin
  * on `@skill-map/spec` in lockstep with the spec's actual published

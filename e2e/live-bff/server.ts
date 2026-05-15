@@ -5,10 +5,10 @@
  * Spawn pattern (per AGENTS.md §"Smoke-testing live servers from an
  * agent — NO `--watch`, free ports with `fuser`"):
  *
- *   - One-shot `node --import tsx src/cli/entry.ts serve --no-open
- *     --port <free> --no-watcher=false`. NO `--watch` wrapper — that
- *     spawns descendants that get reparented to init when the wrapper
- *     dies, breaking the polling/cleanup story Playwright relies on.
+ *   - One-shot `bun src/cli/entry.ts serve --no-open --port <free>
+ *     --no-watcher=false`. NO `--watch` wrapper — that spawns
+ *     descendants that get reparented to init when the wrapper dies,
+ *     breaking the polling/cleanup story Playwright relies on.
  *   - `cwd` is the materialised fixture tempdir, so `defaultRuntimeContext()`
  *     in the kernel resolves the right project DB / scan root.
  *   - The watcher IS armed (default — we WANT the initial batch to
@@ -85,10 +85,8 @@ export async function spawnLiveBff(opts: ILiveBffSpawnOpts): Promise<ILiveBffSer
   const baseUrl = `http://127.0.0.1:${port}/`;
   const entry = `${opts.repoRoot}/src/cli/entry.ts`;
   const child: ChildProcess = spawn(
-    'node',
+    'bun',
     [
-      '--disable-warning=ExperimentalWarning',
-      '--import', 'tsx',
       entry,
       'serve',
       '--no-open',

@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { strictEqual, throws } from 'node:assert';
 
 import { _unregisterParserForTests, getParser, registerParser } from './index.js';

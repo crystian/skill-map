@@ -1,9 +1,9 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Regenerate context/cli-reference.md from `sm help --format md`.
  *
- *   npm run reference --workspace=@skill-map/cli           → write the file
- *   npm run reference:check --workspace=@skill-map/cli     → fail if drift
+ *   bun run --filter @skill-map/cli reference         → write the file
+ *   bun run --filter @skill-map/cli reference:check   → fail if drift
  *
  * --check is what CI runs: it captures the current output, compares to
  * context/cli-reference.md, and exits 1 with a diff pointer on mismatch.
@@ -12,7 +12,7 @@
  * the CLI without re-running this script.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,26 +25,28 @@ const args = process.argv.slice(2);
 const CHECK = args.includes('--check');
 
 function runHelp() {
-  // tsx has to be invoked against the TypeScript source — the dist/ output
-  // would work too but would require a build step, and the script is meant
-  // to run at any moment (dev, pre-commit, CI).
+  // Bun executes the TS source directly — no tsx loader needed. The
+  // dist/ output would also work but would require a build step, and
+  // this script is meant to run at any moment (dev, pre-commit, CI).
   const entry = resolve(REPO_ROOT, 'src/cli/entry.ts');
-  const cmd = `node --import tsx ${JSON.stringify(entry)} help --format md`;
-  return execSync(cmd, { cwd: REPO_ROOT, encoding: 'utf8' });
+  return execFileSync('bun', [entry, 'help', '--format', 'md'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  });
 }
 
 const generated = runHelp();
 
 if (CHECK) {
   if (!existsSync(TARGET)) {
-    console.error(`cli-reference.md missing at ${TARGET}. Run: npm run reference --workspace=@skill-map/cli`);
+    console.error(`cli-reference.md missing at ${TARGET}. Run: bun run --filter @skill-map/cli reference`);
     process.exit(1);
   }
   const current = readFileSync(TARGET, 'utf8');
   if (current !== generated) {
     console.error(
       'context/cli-reference.md is out of sync with `sm help --format md`.\n' +
-        'Run: npm run reference --workspace=@skill-map/cli',
+        'Run: bun run --filter @skill-map/cli reference',
     );
     process.exit(1);
   }

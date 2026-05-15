@@ -12,7 +12,7 @@ import { strict as assert } from 'node:assert';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 
 import { PluginLoader, installedSpecVersion } from '../kernel/adapters/plugin-loader.js';
 import { loadSchemaValidators } from '../kernel/adapters/schema-validators.js';

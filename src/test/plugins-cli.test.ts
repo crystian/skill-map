@@ -16,7 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { after, before, describe, it } from 'node:test';
+import {afterAll as after,beforeAll as before, describe, it } from 'bun:test';
 
 import { SqliteStorageAdapter } from '../kernel/adapters/sqlite/index.js';
 import { getPluginEnabled } from '../kernel/adapters/sqlite/plugins.js';

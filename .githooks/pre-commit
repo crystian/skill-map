@@ -16,6 +16,6 @@
 set -e
 
 if git diff --cached --name-only --diff-filter=ACMR | grep -q '^spec/'; then
-  echo "[pre-commit] spec/ touched — running validate -w @skill-map/spec"
-  npm run validate --workspace=@skill-map/spec
+  echo "[pre-commit] spec/ touched — running validate --filter @skill-map/spec"
+  bun run --filter @skill-map/spec validate
 fi

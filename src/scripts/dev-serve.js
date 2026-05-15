@@ -1,27 +1,27 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
- * dev:serve — wrapper around `node --import tsx --watch sm serve` that
- * frees the target port before booting the watcher.
+ * dev:serve — wrapper around `bun --watch sm serve` that frees the
+ * target port before booting the watcher.
  *
  * Why this exists: a previous watcher tree can leak (the npm wrapper
- * dies but the actual node child gets reparented to init), leaving the
- * dev port held. Manually finding + killing the orphan is friction the
+ * dies but the actual child gets reparented to init), leaving the dev
+ * port held. Manually finding + killing the orphan is friction the
  * Architect should not have to repeat.
  *
  * Safety: this script ONLY kills processes whose command line matches
- * an `sm serve` / `tsx` / `cli/entry` signature. Anything else on the
+ * an `sm serve` / `bun` / `cli/entry` signature. Anything else on the
  * port (Postgres, Docker, an unrelated dev server) aborts the script
  * with a clear message — better than nuking the Architect's Postgres
  * because it happened to bind 4242.
  *
  * Usage (workspace-scoped — paths are resolved relative to the repo root):
- *   npm run dev:serve --workspace=@skill-map/cli                                  # default port 4242, cwd=src/
- *   npm run dev:serve --workspace=@skill-map/cli -- --port 4243                   # override port
- *   npm run dev:serve --workspace=@skill-map/cli -- --cwd fixtures/foo            # serve a fixture scope
- *   npm run dev:serve --workspace=@skill-map/cli -- --strict                      # any extra flags pass through
+ *   bun run --filter @skill-map/cli dev:serve                                 # default port 4242, cwd=src/
+ *   bun run --filter @skill-map/cli dev:serve -- --port 4243                  # override port
+ *   bun run --filter @skill-map/cli dev:serve -- --cwd fixtures/foo           # serve a fixture scope
+ *   bun run --filter @skill-map/cli dev:serve -- --strict                     # any extra flags pass through
  *
  * From the repo root, the `bff:dev` shortcut wires the local-scope fixture
- * preset: `npm run bff:dev` ≡ the second invocation above with the fixture path.
+ * preset: `bun run bff:dev` ≡ the second invocation above with the fixture path.
  *
  * `--cwd <path>` is the modal switch: without it, the watcher serves
  * `src/.skill-map/` (handy for kernel iteration); with it, the watcher
@@ -31,10 +31,10 @@
  *
  * Defaults to `--no-open` (no browser-tab spam on every restart). To
  * exercise the auto-open feature, run the entry directly:
- *   node --import tsx src/cli/entry.ts serve
+ *   bun src/cli/entry.ts serve
  *
- * POSIX-only (uses lsof / ps). The repo engines field requires Node 24+;
- * Windows support is out of scope for the dev wrapper.
+ * POSIX-only (uses lsof / ps). Windows support is out of scope for the
+ * dev wrapper.
  */
 
 import { execFileSync, spawn } from 'node:child_process';
@@ -60,13 +60,8 @@ const targetCwd = cwdOverride ?? SRC;
 await freePort(port);
 
 const child = spawn(
-  'node',
+  'bun',
   [
-    // Suppress the `node:sqlite` ExperimentalWarning the same way
-    // `src/bin/sm.js` does via its shebang. Without this, every dev
-    // restart prints two extra lines that drown the actual server logs.
-    '--disable-warning=ExperimentalWarning',
-    '--import', 'tsx',
     '--watch',
     ENTRY,
     'serve',
@@ -173,7 +168,7 @@ function cmdline(pid) {
 }
 
 function isOurProcess(cmd) {
-  return /tsx|cli\/entry|sm serve/.test(cmd);
+  return /bun|cli\/entry|sm serve/.test(cmd);
 }
 
 function trySignal(pid, signal) {

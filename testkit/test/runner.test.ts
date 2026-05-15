@@ -2,7 +2,7 @@
  * Step 9.3 unit tests for the fake `RunnerPort`.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it } from 'bun:test';
 import { deepStrictEqual, strictEqual } from 'node:assert';
 
 import { makeFakeRunner } from '../src/runner.js';

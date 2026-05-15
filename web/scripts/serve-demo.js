@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * Deps-free static server for the skill-map demo bundle. Used by
  * Playwright's `webServer` so the smoke suite can exercise `web/demo/`
