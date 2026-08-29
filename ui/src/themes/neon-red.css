@@ -404,3 +404,19 @@ html:root.app-neon-red {
 html:root.app-neon-red {
   --sm-accent-text: #ff7788;
 }
+
+/* === Live execution palette ===
+   The lit surfaces (executing spine, comets, invocation edges, the
+   card's conic ring + ribbon, the halo) read the shared `--sm-exec-c*`
+   stops (styles.css). The base palettes keep the rainbow; this theme
+   re-keys the stops to its own rose ramp, crimson to hot rose to blush, and freezes
+   the spine's hue sweep so the ramp never leaves the theme. */
+:root.app-neon-red {
+  --sm-exec-c1: #f43f5e;
+  --sm-exec-c2: #ff3355;
+  --sm-exec-c3: #ff859b;
+  --sm-exec-c4: #fda4af;
+  --sm-exec-c5: #be123c;
+  --sm-exec-comet: #fff1f3;
+  --sm-exec-hue-sweep: 0deg;
+}

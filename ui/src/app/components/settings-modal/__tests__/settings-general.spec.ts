@@ -265,6 +265,36 @@ describe('SettingsGeneral row order', () => {
     expect(updates).toBeLessThan(theme);
   });
 
+  it('the theme dropdown lists every registry theme and applies the picked one', async () => {
+    const { fixture, proto } = bootstrap({
+      getPreferences: vi.fn().mockResolvedValue(prefs(true, false)),
+    } as Partial<IDataSourcePort>);
+    fixture.componentRef.setInput('visible', true);
+    fixture.detectChanges();
+    await flushAsync();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="settings-general-extra-theme"]')).not.toBeNull();
+    // None + every registry entry (matrix, three neons, blueprint, paper).
+    const options = (proto as unknown as { extraThemeOptions: { value: string }[] }).extraThemeOptions;
+    expect(options.map((o) => o.value)).toEqual([
+      'none',
+      'neon-red',
+      'neon-green',
+      'neon-blue',
+      'matrix',
+      'blueprint',
+      'paper',
+    ]);
+    // The dropdown's change lands on the theme service and the html class.
+    (proto as unknown as { onExtraThemeChange(next: string): void }).onExtraThemeChange('blueprint');
+    TestBed.tick();
+    expect(document.documentElement.classList.contains('app-blueprint')).toBe(true);
+    (proto as unknown as { onExtraThemeChange(next: string): void }).onExtraThemeChange('none');
+    TestBed.tick();
+    expect(document.documentElement.classList.contains('app-blueprint')).toBe(false);
+  });
+
   it('gives both groups the same row treatment', async () => {
     // The two groups share one template; this catches a future copy of
     // the markup drifting (a missing label association, a row that

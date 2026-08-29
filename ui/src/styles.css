@@ -179,16 +179,25 @@
   --sm-violet-800: #4C1D95;
   --sm-violet-900: #2E1065;
 
-  /* Live-activity rainbow (spec/provider-activity.md). Deliberately
-     theme-independent: the five saturated stops ARE the effect (no theme
-     token can express a multi-hue sweep), shared by the node card's
-     conic ring + ribbon (node-card.css), the rotating halo behind an
-     executing card and the executing edge treatment (graph-view.css). */
+  /* Live-activity rainbow (spec/provider-activity.md): the five stops
+     are shared by the node card's conic ring + ribbon (node-card.css),
+     the rotating halo behind an executing card and the executing edge
+     treatment (spine, comets, invocation edges, graph-view.css). The
+     base palettes keep the multi-hue rainbow (the effect no single
+     theme token can express); every EXTRA theme re-keys the five stops
+     to its own ramp (user call 2026-08-29: the lit edges must read as
+     the theme's, not as a fixed violet), and freezes the spine's hue
+     sweep through `--sm-exec-hue-sweep`, since sweeping a monochrome
+     ramp through the wheel would leave the theme again. */
   --sm-exec-c1: #a78bfa;
   --sm-exec-c2: #22d3ee;
   --sm-exec-c3: #34d399;
   --sm-exec-c4: #fbbf24;
   --sm-exec-c5: #fb7185;
+  /* How far the executing spine's hue-rotate sweep travels per cycle
+     (graph-view.css `sm-exec-edge-hue`): a full turn on the rainbow,
+     `0deg` on the themed ramps. */
+  --sm-exec-hue-sweep: 360deg;
   /* Spine comet tint (graph-view.css `.f-conn--comet`): the particle
      that travels the executing spine. A near-white cyan so it reads as
      a highlight over the violet-to-green gradient line on every theme;

@@ -838,3 +838,76 @@
     display: none;
   }
 }
+
+/* ── Theme menu (topbar trigger's popover) ──────────────────────────────
+   Rendered at <body> (appendTo), so the panel tightening needs the
+   `::ng-deep` reach like the map-view switcher's popover; the rows are
+   this template's own nodes and keep their `_ngcontent` scope. A
+   `menuitemradio` list, one line per row (name only, user call
+   2026-08-29: the descriptions made the menu tall for nothing): the
+   checked row wears the primary tint, hover the content-hover surface. */
+:host ::ng-deep .sm-theme-menu .p-popover-content {
+  padding: 6px;
+}
+
+.theme-menu {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 11rem;
+}
+
+.theme-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.3rem 0.6rem;
+  border: 0;
+  border-radius: var(--sm-radius-md);
+  background: transparent;
+  color: var(--p-text-color);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.theme-menu__item:hover,
+.theme-menu__item:focus-visible {
+  background: var(--p-content-hover-background);
+}
+
+.theme-menu__item[aria-checked='true'] {
+  color: var(--p-primary-color);
+  background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+}
+
+.theme-menu__icon {
+  width: 1.25rem;
+  text-align: center;
+  font-size: var(--sm-fs-md);
+  flex-shrink: 0;
+}
+
+.theme-menu__label {
+  font-size: var(--sm-fs-sm);
+  line-height: 1.3;
+}
+
+.theme-menu__separator {
+  margin: 4px 0 2px;
+  padding-top: 6px;
+  border-top: 1px solid var(--p-content-border-color);
+}
+
+.theme-menu__group {
+  display: block;
+  padding: 0 0.6rem;
+  font-size: var(--sm-fs-2xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--p-text-muted-color);
+}

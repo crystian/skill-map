@@ -320,3 +320,19 @@ html:root.app-blueprint {
 html:root.app-blueprint {
   --sm-accent-text: var(--p-primary-color);
 }
+
+/* === Live execution palette ===
+   The lit surfaces (executing spine, comets, invocation edges, the
+   card's conic ring + ribbon, the halo) read the shared `--sm-exec-c*`
+   stops (styles.css). The base palettes keep the rainbow; this theme
+   re-keys the stops to its own blue-ink ramp, sky to white, and freezes
+   the spine's hue sweep so the ramp never leaves the theme. */
+:root.app-blueprint {
+  --sm-exec-c1: #38bdf8;
+  --sm-exec-c2: #7dd3fc;
+  --sm-exec-c3: #e0f2fe;
+  --sm-exec-c4: #a5c8e6;
+  --sm-exec-c5: #0ea5e9;
+  --sm-exec-comet: #ffffff;
+  --sm-exec-hue-sweep: 0deg;
+}

@@ -734,7 +734,9 @@
       filter: var(--sm-exec-edge-glow) hue-rotate(0deg);
     }
     to {
-      filter: var(--sm-exec-edge-glow) hue-rotate(360deg);
+      /* Themed ramps set the sweep to 0deg (styles.css): the glow keeps
+         breathing through the keyframe, the hue stays the theme's. */
+      filter: var(--sm-exec-edge-glow) hue-rotate(var(--sm-exec-hue-sweep));
     }
   }
 }

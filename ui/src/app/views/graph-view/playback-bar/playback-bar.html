@@ -24,6 +24,7 @@
       icon="pi pi-times"
       [ariaLabel]="texts.exit"
       [pTooltip]="texts.exit"
+      class="pbar__quiet"
       severity="secondary"
       [text]="true"
       [rounded]="true"
@@ -39,6 +40,7 @@
         icon="pi pi-trash"
         [ariaLabel]="trashTooltip()"
         [pTooltip]="trashTooltip()"
+        class="pbar__quiet"
         severity="secondary"
         [text]="true"
         [rounded]="true"
@@ -53,6 +55,7 @@
       [icon]="playback.playing() ? 'pi pi-pause' : 'pi pi-play'"
       [ariaLabel]="playback.playing() ? texts.pause : texts.play"
       [pTooltip]="playback.playing() ? texts.pause : texts.play"
+      class="pbar__transport"
       severity="secondary"
       [text]="true"
       [rounded]="true"
@@ -65,6 +68,7 @@
       icon="pi pi-step-backward"
       [ariaLabel]="texts.stepBack"
       [pTooltip]="texts.stepBack"
+      class="pbar__transport"
       severity="secondary"
       [text]="true"
       [rounded]="true"
@@ -77,6 +81,7 @@
       icon="pi pi-step-forward"
       [ariaLabel]="texts.stepForward"
       [pTooltip]="texts.stepForward"
+      class="pbar__transport"
       severity="secondary"
       [text]="true"
       [rounded]="true"
@@ -87,12 +92,14 @@
     />
     <!-- Director camera: close-ups on each step (on) vs the whole
          route in frame (off). Label + tooltip carry the CURRENT state;
-         the amber severity mirrors the replay accent while on. -->
+         on = the theme primary like the transport verbs, off = muted. -->
     <p-button
       icon="pi pi-video"
       [ariaLabel]="livePrefs.directorEnabled() ? texts.directorOn : texts.directorOff"
       [pTooltip]="livePrefs.directorEnabled() ? texts.directorOn : texts.directorOff"
-      [severity]="livePrefs.directorEnabled() ? 'warn' : 'secondary'"
+      [class.pbar__transport]="livePrefs.directorEnabled()"
+      [class.pbar__quiet]="!livePrefs.directorEnabled()"
+      severity="secondary"
       [text]="true"
       [rounded]="true"
       size="small"
@@ -106,6 +113,7 @@
         [icon]="linkCopied() ? 'pi pi-check' : 'pi pi-link'"
         [ariaLabel]="linkCopied() ? texts.linkCopied : texts.copyLink"
         [pTooltip]="linkCopied() ? texts.linkCopied : texts.copyLink"
+        class="pbar__transport"
         severity="secondary"
         [text]="true"
         [rounded]="true"

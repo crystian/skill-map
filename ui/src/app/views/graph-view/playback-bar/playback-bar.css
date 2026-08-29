@@ -51,6 +51,30 @@
   outline-offset: 2px;
 }
 
+/* Transport verbs (play / pause, step, copy link, director when on)
+   paint in the THEME primary, not the secondary grey and not the replay
+   amber (user call 2026-08-29): the arrows read as the theme's own
+   controls, violet on the base palette, green on matrix, sky on
+   blueprint, rust on paper, while the amber stays the bar's "replay"
+   chrome (border, scrubber, badge). Re-keys the PrimeNG secondary-text
+   chain at the host so the vars reach the inner button; the hover /
+   active washes are the same mixes the extra themes use. */
+.pbar__transport {
+  --p-button-text-secondary-color: var(--p-primary-color);
+  --p-button-text-secondary-hover-color: var(--p-primary-hover-color);
+  --p-button-text-secondary-active-color: var(--p-primary-active-color);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--p-primary-color) 14%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--p-primary-color) 22%, transparent);
+}
+
+/* Quiet verbs (exit, trash, director when off): muted text, primary
+   only on hover, so the eye lands on the transport. */
+.pbar__quiet {
+  --p-button-text-secondary-color: var(--p-text-muted-color);
+  --p-button-text-secondary-hover-color: var(--p-primary-color);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--p-primary-color) 10%, transparent);
+}
+
 /* Row 2: controls left, scope + counter clustered right. The auto
    margin lands on whichever of the two renders first (the scope chip
    is conditional), so the right cluster holds without a spacer. */

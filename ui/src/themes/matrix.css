@@ -580,3 +580,19 @@ html:root.app-matrix {
 html:root.app-matrix {
   --sm-accent-text: var(--p-primary-color);
 }
+
+/* === Live execution palette ===
+   The lit surfaces (executing spine, comets, invocation edges, the
+   card's conic ring + ribbon, the halo) read the shared `--sm-exec-c*`
+   stops (styles.css). The base palettes keep the rainbow; this theme
+   re-keys the stops to its own green ramp, dim to electric to mint, and freezes
+   the spine's hue sweep so the ramp never leaves the theme. */
+:root.app-matrix {
+  --sm-exec-c1: #22c55e;
+  --sm-exec-c2: #39ff14;
+  --sm-exec-c3: #6ee7b7;
+  --sm-exec-c4: #4ade80;
+  --sm-exec-c5: #16a34a;
+  --sm-exec-comet: #ecfff1;
+  --sm-exec-hue-sweep: 0deg;
+}

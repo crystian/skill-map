@@ -260,7 +260,7 @@ export class SettingsGeneral {
     // Usage analytics (opt-in, default OFF): the selected id comes from
     // the shipped registry (closed set) or the `none` sentinel, safe to
     // send verbatim. See spec/telemetry.md §Usage event taxonomy.
-    this.usageTracker.trackFeature('theme-extra', next ?? EXTRA_THEME_NONE);
+    this.usageTracker.trackFeature('theme-extra', next ?? EXTRA_THEME_NONE, 'settings');
     this.themeService.setExtraTheme(fromExtraThemeWire(next ?? EXTRA_THEME_NONE));
   }
 

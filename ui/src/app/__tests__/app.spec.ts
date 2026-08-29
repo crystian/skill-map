@@ -16,6 +16,7 @@ import { ProjectIgnoreService } from '../../services/project-ignore';
 import { SKILL_MAP_MODE } from '../../services/data-source/runtime-mode';
 import { WsEventStreamService, WS_SOCKET_FACTORY, type TWsSocketFactory, type IWsLike } from '../../services/ws-event-stream';
 import { UpdateCheckService } from '../services/update-check';
+import { ThemeService } from '../../services/theme';
 import { EMPTY } from 'rxjs';
 
 /**
@@ -467,6 +468,40 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     const app = fixture.componentInstance;
     expect(app).toBeTruthy();
+  });
+
+  it('the topbar theme menu picks base modes and extra themes through the ThemeService', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const app = fixture.componentInstance as unknown as {
+      pickThemeMode(mode: 'auto' | 'light' | 'dark'): void;
+      pickExtraTheme(id: string): void;
+      themeIcon(): string;
+      themeTrigger(): string;
+    };
+    const theme = TestBed.inject(ThemeService);
+    const root = document.documentElement;
+
+    app.pickExtraTheme('matrix');
+    TestBed.tick();
+    expect(theme.extraTheme()).toBe('matrix');
+    expect(root.classList.contains('app-matrix')).toBe(true);
+    expect(app.themeIcon()).toBe('pi pi-palette');
+    expect(app.themeTrigger()).toContain('Matrix');
+
+    // A base mode clears the extra theme, the three of them still work.
+    app.pickThemeMode('light');
+    TestBed.tick();
+    expect(theme.extraTheme()).toBeNull();
+    expect(theme.mode()).toBe('light');
+    expect(root.classList.contains('app-matrix')).toBe(false);
+    expect(app.themeIcon()).toBe('pi pi-sun');
+
+    app.pickThemeMode('auto');
+    TestBed.tick();
+    expect(theme.mode()).toBe('auto');
+    expect(app.themeIcon()).toBe('pi pi-desktop');
   });
 
   it('should render the prototype heading', async () => {

@@ -267,18 +267,82 @@
       >
         <i class="pi pi-sync" aria-hidden="true"></i>
       </button>
+      <!-- Theme menu trigger: the glyph is the current look (mode icon,
+           or the palette while an extra theme is on); the menu below
+           lists the tri-state base plus the registry's extras. -->
       <p-button
         [icon]="themeIcon()"
-        [ariaLabel]="themeLabel()"
-        [pTooltip]="themeTooltip()"
+        [ariaLabel]="themeTrigger()"
+        [pTooltip]="themeTrigger()"
         tooltipPosition="left"
         severity="secondary"
         [text]="true"
         [rounded]="true"
         size="small"
-        (onClick)="toggleTheme()"
+        (onClick)="openThemeMenu($event)"
         data-testid="action-theme-toggle"
       />
+      <p-popover #themeMenu appendTo="body" styleClass="sm-theme-menu">
+        <ul class="theme-menu" role="menu" [attr.aria-label]="themeTexts.menuAria" data-testid="theme-menu">
+          <li role="none">
+            <button
+              type="button"
+              role="menuitemradio"
+              class="theme-menu__item"
+              [attr.aria-checked]="isModeActive('auto')"
+              (click)="pickThemeMode('auto')"
+              data-testid="theme-menu-mode-auto"
+            >
+              <i class="pi pi-desktop theme-menu__icon" aria-hidden="true"></i>
+              <span class="theme-menu__label">{{ themeTexts.optionAuto }}</span>
+            </button>
+          </li>
+          <li role="none">
+            <button
+              type="button"
+              role="menuitemradio"
+              class="theme-menu__item"
+              [attr.aria-checked]="isModeActive('light')"
+              (click)="pickThemeMode('light')"
+              data-testid="theme-menu-mode-light"
+            >
+              <i class="pi pi-sun theme-menu__icon" aria-hidden="true"></i>
+              <span class="theme-menu__label">{{ themeTexts.optionLight }}</span>
+            </button>
+          </li>
+          <li role="none">
+            <button
+              type="button"
+              role="menuitemradio"
+              class="theme-menu__item"
+              [attr.aria-checked]="isModeActive('dark')"
+              (click)="pickThemeMode('dark')"
+              data-testid="theme-menu-mode-dark"
+            >
+              <i class="fa-regular fa-moon theme-menu__icon" aria-hidden="true"></i>
+              <span class="theme-menu__label">{{ themeTexts.optionDark }}</span>
+            </button>
+          </li>
+          <li role="separator" class="theme-menu__separator">
+            <span class="theme-menu__group">{{ themeTexts.extrasGroup }}</span>
+          </li>
+          @for (extra of extraThemes; track extra.id) {
+            <li role="none">
+              <button
+                type="button"
+                role="menuitemradio"
+                class="theme-menu__item"
+                [attr.aria-checked]="extraTheme() === extra.id"
+                (click)="pickExtraTheme(extra.id)"
+                [attr.data-testid]="'theme-menu-extra-' + extra.id"
+              >
+                <i class="pi pi-palette theme-menu__icon" aria-hidden="true"></i>
+                <span class="theme-menu__label">{{ extra.label }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      </p-popover>
       <p-button
         icon="pi pi-sliders-h"
         [ariaLabel]="settingsTexts.a11y.triggerLabel"

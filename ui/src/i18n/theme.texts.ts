@@ -7,10 +7,15 @@
  * self-evident).
  */
 export const THEME_TEXTS = {
-  toggleToAuto: 'Switch to auto theme (follow system)',
-  toggleToLight: 'Switch to light theme',
-  toggleToDark: 'Switch to dark theme',
+  /** Topbar trigger: accessible name + tooltip carry the CURRENT theme. */
+  trigger: (current: string): string => `Theme: ${current}`,
+  menuAria: 'Choose a theme',
   currentAuto: 'Auto theme (follows system)',
   currentLight: 'Light theme',
   currentDark: 'Dark theme',
+  /** Menu rows for the tri-state base (name only, user call 2026-08-29), then the registry's extras. */
+  optionAuto: 'Auto',
+  optionLight: 'Light',
+  optionDark: 'Dark',
+  extrasGroup: 'Specialty',
 } as const;

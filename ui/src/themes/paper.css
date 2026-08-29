@@ -301,3 +301,19 @@ html:root.app-paper {
 html:root.app-paper {
   --sm-accent-text: var(--p-primary-color);
 }
+
+/* === Live execution palette ===
+   The lit surfaces (executing spine, comets, invocation edges, the
+   card's conic ring + ribbon, the halo) read the shared `--sm-exec-c*`
+   stops (styles.css). The base palettes keep the rainbow; this theme
+   re-keys the stops to its own rust-ink ramp; the comet is the darkest ink, a light particle would vanish on cream, and freezes
+   the spine's hue sweep so the ramp never leaves the theme. */
+:root.app-paper {
+  --sm-exec-c1: #8a4b2a;
+  --sm-exec-c2: #b8743f;
+  --sm-exec-c3: #d9a86c;
+  --sm-exec-c4: #6b3a1f;
+  --sm-exec-c5: #a95f3a;
+  --sm-exec-comet: #2b2418;
+  --sm-exec-hue-sweep: 0deg;
+}

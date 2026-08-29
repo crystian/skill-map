@@ -1,9 +1,10 @@
-import { ChangeDetectionStrategy, Component, computed, inject, isDevMode, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, isDevMode, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgOptimizedImage } from '@angular/common';
 import { RouterOutlet } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
+import { Popover, PopoverModule } from 'primeng/popover';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { APP_TEXTS } from '../i18n/app.texts';
@@ -25,7 +26,8 @@ import { ProjectInfoService } from './services/project-info';
 import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
 import { UsageTrackerService } from './services/usage-tracker';
-import { ThemeService } from '../services/theme';
+import { ThemeService, type TThemeMode } from '../services/theme';
+import { EXTRA_THEMES, findExtraTheme } from '../themes/registry';
 import { ProviderRegistryService, type IProviderUi } from '../services/provider-registry';
 import { DemoBanner } from './components/demo-banner/demo-banner';
 import { TutorialReminderBanner } from './components/tutorial-reminder-banner/tutorial-reminder-banner';
@@ -47,7 +49,7 @@ import { ViewContributionsHost } from './components/view-contributions-host/view
 
 @Component({
   selector: 'sm-root',
-  imports: [RouterOutlet, ButtonModule, InputTextModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, QuickStartModal, CrashReportDialog, IgnoreConfirmDialog, /* DEBUG-SLOTS */ ViewContributionsHost],
+  imports: [RouterOutlet, ButtonModule, InputTextModule, PopoverModule, TooltipModule, FormsModule, NgOptimizedImage, DemoBanner, TutorialReminderBanner, ProviderMarkerDriftBanner, OversizedBanner, SkippedFilesBanner, ConnectionBanner, SettingsModal, QuickStartModal, CrashReportDialog, IgnoreConfirmDialog, /* DEBUG-SLOTS */ ViewContributionsHost],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -397,9 +399,21 @@ export class App {
     return trimmed;
   });
   protected readonly isDevMode = isDevMode();
+  protected readonly themeTexts = THEME_TEXTS;
   protected readonly themeMode = this.theme.mode;
   protected readonly markSrc = this.theme.markSrc;
+  protected readonly extraTheme = this.theme.extraTheme;
+  /** The registry's extra themes, rendered after the tri-state in the menu. */
+  protected readonly extraThemes = EXTRA_THEMES;
+  private readonly themeMenu = viewChild<Popover>('themeMenu');
+
+  /**
+   * Topbar trigger glyph: the base mode's icon, or the palette while
+   * an extra theme is on (the extras sit on top of the tri-state, so
+   * the mode icon alone would misreport what the eye sees).
+   */
   protected readonly themeIcon = computed(() => {
+    if (this.extraTheme() !== null) return 'pi pi-palette';
     switch (this.themeMode()) {
       case 'auto':
         return 'pi pi-desktop';
@@ -409,17 +423,11 @@ export class App {
         return 'fa-regular fa-moon';
     }
   });
-  protected readonly themeLabel = computed(() => {
-    switch (this.themeMode()) {
-      case 'auto':
-        return THEME_TEXTS.toggleToLight;
-      case 'light':
-        return THEME_TEXTS.toggleToDark;
-      case 'dark':
-        return THEME_TEXTS.toggleToAuto;
-    }
-  });
-  protected readonly themeTooltip = computed(() => {
+
+  /** What the trigger names: the extra theme's label, else the mode. */
+  protected readonly themeCurrentLabel = computed(() => {
+    const extra = findExtraTheme(this.extraTheme());
+    if (extra !== null) return extra.label;
     switch (this.themeMode()) {
       case 'auto':
         return THEME_TEXTS.currentAuto;
@@ -429,11 +437,36 @@ export class App {
         return THEME_TEXTS.currentDark;
     }
   });
+  protected readonly themeTrigger = computed(() => THEME_TEXTS.trigger(this.themeCurrentLabel()));
 
-  protected toggleTheme(): void {
-    this.theme.toggle();
-    // Emit AFTER the flip so `value` is the mode the gesture SET
-    // (`auto` / `light` / `dark`, the service owns the cycle).
-    this.usageTracker.trackFeature('theme-toggle', this.theme.mode());
+  /**
+   * The topbar theme button opens a menu (user call 2026-08-29): the
+   * tri-state base (auto / light / dark, the three the toggle used to
+   * cycle) plus every extra theme from the registry, so the specialty
+   * looks stop being a Settings-only affordance. Popover appended to
+   * <body> like the map-view switcher's.
+   */
+  protected openThemeMenu(event: Event): void {
+    this.themeMenu()?.toggle(event);
+  }
+
+  protected isModeActive(mode: TThemeMode): boolean {
+    return this.extraTheme() === null && this.themeMode() === mode;
+  }
+
+  /** Base mode row: clears any extra theme and sets the tri-state. */
+  protected pickThemeMode(mode: TThemeMode): void {
+    this.themeMenu()?.hide();
+    this.theme.setExtraTheme(null);
+    this.theme.set(mode);
+    // `value` is the mode the gesture SET (`auto` / `light` / `dark`).
+    this.usageTracker.trackFeature('theme-toggle', mode);
+  }
+
+  /** Extra-theme row: the registry id, stamped `topbar` (Settings stamps `settings`). */
+  protected pickExtraTheme(id: string): void {
+    this.themeMenu()?.hide();
+    this.theme.setExtraTheme(id);
+    this.usageTracker.trackFeature('theme-extra', id, 'topbar');
   }
 }

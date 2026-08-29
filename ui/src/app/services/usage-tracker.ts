@@ -114,7 +114,7 @@ export type TUsageFeatureSurface =
  * so adoption of each path is comparable in PostHog; single-surface
  * features omit it.
  */
-export type TUsageFeatureSource = 'settings' | 'quick-start' | 'inspector' | 'files';
+export type TUsageFeatureSource = 'settings' | 'quick-start' | 'inspector' | 'files' | 'topbar';
 
 /** The map toolbox's filter families, the `group` property of `ui.filter`. */
 export type TUsageFilterGroup = 'kind' | 'severity' | 'link' | 'favorites';

@@ -687,7 +687,7 @@
       "schemas/tags/markdown.schema.json": "9fcbaf7942da80705d5da4fb5e195bfd97ec53ca17914e69a80fd15c865d6723",
       "schemas/user-settings.schema.json": "7d598aba10c123adb7c3a92cea3ba3f8e6432c03038ce243cefd338d077ffdd8",
       "schemas/view-slots.schema.json": "2a3a39a3f8a5e0db51a4cb3a5e0e3589230e5a9b22b4440f331470c89369af77",
-      "telemetry.md": "c5bc5ff66dc83f6c500fe68cb1c971d2ebf4a89f5ab827509c24433595060449",
+      "telemetry.md": "b323d214d1a6574cf3f871489948ffab0eb535ec8f572b9dc789ad1f308b8829",
       "versioning.md": "37aaceacd9fbc3f22b868115d68ac623a50b8ea10b51bcb1237bc4abd1d8880b",
       "view-slots.md": "0c92f8a8bf258b5416d55e900fc0ac7d520a8e3a4444b146aaf9e58d97320916"
     }
