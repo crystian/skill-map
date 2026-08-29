@@ -113,6 +113,23 @@ export interface ISessionEntry {
   readonly agents: readonly ISessionAgentNode[];
   /** Total agents across all depths (the row's counter). */
   readonly agentCount: number;
+  /**
+   * The recording this session belongs to: the tape frames' Record
+   * stamp (`TRecordedEvent.recordedAt`), or the journal file's
+   * `startedAt` once the catalog folds it. Together with `rootOwner`
+   * it is the session's identity (`sessionKeyOf`): the same runtime
+   * session recorded twice is two sessions. Absent on legacy tapes.
+   */
+  readonly recordedAt?: number;
+}
+
+/**
+ * Identity of a session row: root owner + recording window. Every
+ * consumer that keys on a session (expansion, replay selection, the
+ * active-step match, the journal dedupe) goes through this.
+ */
+export function sessionKeyOf(session: { rootOwner: string; recordedAt?: number }): string {
+  return `${session.rootOwner}|${session.recordedAt ?? ''}`;
 }
 
 export interface ISessionIndex {
@@ -136,6 +153,18 @@ export interface ISessionReplaySelection {
   readonly rootOwner: string;
   readonly agentSpawnId?: string;
   /**
+   * Recording identity (`ISessionEntry.recordedAt`): rides the replay
+   * source and the deep link so a session recorded twice can be named
+   * unambiguously. Identity only; the tape window filter is `tapeWindow`.
+   */
+  readonly recordedAt?: number;
+  /**
+   * Tape-native rows only: narrow the live tape to the frames stamped
+   * with this Record window before scoping. Journal rows carry their
+   * own `sourceFrames` instead (a file already IS one window).
+   */
+  readonly tapeWindow?: number;
+  /**
    * Out-of-tape frame source for a JOURNAL-hydrated session
    * (2026-08-16): a session listed off `.skill-map/sessions/` has no
    * frames on the client recorder, so the selection carries the
@@ -148,6 +177,8 @@ export interface ISessionReplaySelection {
 
 interface IMutableAgentNode {
   spawnId: string;
+  /** Record window of the node's first spawn frame (see `ISessionEntry.recordedAt`). */
+  recordedAt?: number;
   owner?: string;
   name?: string;
   childNodePath?: string;
@@ -164,6 +195,7 @@ interface IMutableAgentNode {
 
 interface IMutableSession {
   rootOwner: string;
+  recordedAt?: number;
   sessionId?: string;
   firstTMs: number;
   lastTMs: number;
@@ -207,6 +239,7 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
     if (node === undefined) {
       node = {
         spawnId: data.spawnId,
+        ...(event.recordedAt === undefined ? {} : { recordedAt: event.recordedAt }),
         parentOwner: data.parentOwner,
         parentIsAgent: data.parentNodePath !== undefined,
         firstTMs: event.tMs,
@@ -253,12 +286,16 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
   // Structural roots plus every activity owner never claimed as a
   // child (first-sight roots: spawn-less providers, and the accepted
   // trim-created false roots).
+  // Keyed by `sessionKeyOf` (root owner + recording window): the same
+  // runtime session across two Record gestures is two sessions.
   const sessionsByRoot = new Map<string, IMutableSession>();
-  const sessionOf = (rootOwner: string, tMs: number): IMutableSession => {
-    let session = sessionsByRoot.get(rootOwner);
+  const sessionOf = (rootOwner: string, tMs: number, recordedAt?: number): IMutableSession => {
+    const key = sessionKeyOf({ rootOwner, ...(recordedAt === undefined ? {} : { recordedAt }) });
+    let session = sessionsByRoot.get(key);
     if (session === undefined) {
       session = {
         rootOwner,
+        ...(recordedAt === undefined ? {} : { recordedAt }),
         firstTMs: tMs,
         lastTMs: tMs,
         eventCount: 0,
@@ -270,7 +307,7 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
         const hint = rootOwner.slice(MAIN_OWNER_PREFIX.length);
         if (hint.length > 0) session.sessionId = hint;
       }
-      sessionsByRoot.set(rootOwner, session);
+      sessionsByRoot.set(key, session);
     }
     return session;
   };
@@ -316,7 +353,7 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
         touchNode(node, event.tMs, data.nodePath);
         if (step !== null) node.steps.push(step);
       } else {
-        const session = sessionOf(owner, event.tMs);
+        const session = sessionOf(owner, event.tMs, event.recordedAt);
         touchSession(session, event.tMs, data.nodePath);
         if (step !== null) session.steps.push(step);
         if (session.sessionId === undefined && data.session !== undefined) {
@@ -329,12 +366,16 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
     // belongs to the session whose id it names; otherwise nothing on
     // the frame says where it goes.
     if (data.session !== undefined) {
+      // Prefer the session of the frame's own recording window; a
+      // legacy frame (no stamp) settles for the first id match.
       let matched: IMutableSession | undefined;
       for (const session of sessionsByRoot.values()) {
-        if (session.sessionId === data.session) {
+        if (session.sessionId !== data.session) continue;
+        if (session.recordedAt === event.recordedAt) {
           matched = session;
           break;
         }
+        matched ??= session;
       }
       if (matched !== undefined) {
         touchSession(matched, event.tMs);
@@ -349,14 +390,14 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
   for (const rootOwner of structuralRoots) {
     if (!claimsByOwner.has(rootOwner)) {
       const node = firstSpawnOfParent(nodesBySpawnId, rootOwner);
-      sessionOf(rootOwner, node?.firstTMs ?? 0);
+      sessionOf(rootOwner, node?.firstTMs ?? 0, node?.recordedAt);
     }
   }
 
   // ---- Pass 4: attach the spawn nodes --------------------------------------
   for (const node of nodesBySpawnId.values()) {
     if (structuralRoots.has(node.parentOwner) && !claimsByOwner.has(node.parentOwner)) {
-      sessionOf(node.parentOwner, node.firstTMs).agents.push(node);
+      sessionOf(node.parentOwner, node.firstTMs, node.recordedAt).agents.push(node);
       continue;
     }
     const parent = claimAt(node.parentOwner, node.firstTMs);
@@ -364,7 +405,12 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
       parent.children.push(node);
       continue;
     }
-    const rootSession = sessionsByRoot.get(node.parentOwner);
+    const rootSession = sessionsByRoot.get(
+      sessionKeyOf({
+        rootOwner: node.parentOwner,
+        ...(node.recordedAt === undefined ? {} : { recordedAt: node.recordedAt }),
+      }),
+    );
     if (rootSession !== undefined) {
       // First-sight root that also spawned (agent-context parent whose
       // own spawn frame the tape never saw, or a plain session root).
@@ -394,6 +440,7 @@ export function computeSessionIndex(events: readonly TRecordedEvent[]): ISession
     for (const agent of session.agents) walk(agent);
     return {
       rootOwner: session.rootOwner,
+      ...(session.recordedAt === undefined ? {} : { recordedAt: session.recordedAt }),
       ...(session.sessionId === undefined ? {} : { sessionId: session.sessionId }),
       ordinal: index + 1,
       firstTMs,
@@ -435,8 +482,18 @@ export function filterTapeForSession(
   events: readonly TRecordedEvent[],
   selection: ISessionReplaySelection,
 ): TRecordedEvent[] {
-  const index = computeSessionIndex(events);
-  const session = index.sessions.find((s) => s.rootOwner === selection.rootOwner);
+  // A tape-native row replays ITS Record window only: the same runtime
+  // session recorded again lives in another window (and another row).
+  const scoped =
+    selection.tapeWindow === undefined
+      ? events
+      : events.filter((event) => event.recordedAt === selection.tapeWindow);
+  const index = computeSessionIndex(scoped);
+  const session = index.sessions.find(
+    (s) =>
+      s.rootOwner === selection.rootOwner &&
+      (selection.tapeWindow === undefined || s.recordedAt === selection.tapeWindow),
+  );
   if (session === undefined) return [];
 
   let scopeAgents: readonly ISessionAgentNode[];
@@ -462,7 +519,7 @@ export function filterTapeForSession(
   };
   for (const agent of scopeAgents) collect(agent);
 
-  return events.filter((event) => {
+  return scoped.filter((event) => {
     if (event.type === 'agent.spawn') {
       const data = event.data;
       if (spawnIds.has(data.spawnId)) return true;

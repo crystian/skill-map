@@ -1814,6 +1814,7 @@ export class GraphView implements OnInit {
         kind: selection.sourceFrames !== undefined ? 'journal' : 'tape-session',
         rootOwner: selection.rootOwner,
         ...(selection.agentSpawnId === undefined ? {} : { agentSpawnId: selection.agentSpawnId }),
+        ...(selection.recordedAt === undefined ? {} : { recordedAt: selection.recordedAt }),
       },
     );
     if (!this.lensOn()) this.liveLensCtl.toggle();
@@ -1856,6 +1857,7 @@ export class GraphView implements OnInit {
       }
       return resolveReplayTarget({
         rootOwner: link.rootOwner,
+        ...(link.recordedAt === undefined ? {} : { recordedAt: link.recordedAt }),
         ...(link.agentSpawnId === undefined ? {} : { agentSpawnId: link.agentSpawnId }),
         tapeSessions,
         journal: foldJournalRecordings(tapeSessions, recordings),

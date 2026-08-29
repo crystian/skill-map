@@ -36,8 +36,8 @@ const TAPE: TRecordedEvent[] = [
   activity(T0 + 200, { phase: 'start', nodePath: LINT, owner: 'main:s1' }),
 ];
 
-function recording(rootOwner: string, frames: TRecordedEvent[]): ISessionRecordingApi {
-  return { schemaVersion: 1, rootOwner, startedAt: T0, frames } as unknown as ISessionRecordingApi;
+function recording(rootOwner: string, frames: TRecordedEvent[], startedAt = T0): ISessionRecordingApi {
+  return { schemaVersion: 1, rootOwner, startedAt, frames } as unknown as ISessionRecordingApi;
 }
 
 describe('session-catalog', () => {
@@ -48,8 +48,36 @@ describe('session-catalog', () => {
       recording('main:j1', [activity(T0 + 5000, { phase: 'start', nodePath: LINT, owner: 'main:j1' })]),
     ]);
     expect(journal.entries.map((e) => e.rootOwner)).toEqual(['main:j1']);
-    expect(journal.frames.get('main:j1')).toHaveLength(1);
+    expect(journal.frames.get(`main:j1|${T0}`)).toHaveLength(1);
     expect(foldJournalRecordings(tape, [])).toBe(EMPTY_JOURNAL_CATALOG);
+  });
+
+  it('every recording file is its own row; the tape hides only the window it narrates', () => {
+    const first = [activity(T0 + 10_000, { phase: 'start', nodePath: SKILL, owner: 'main:j1' })];
+    const second = [activity(T0 + 20_000, { phase: 'start', nodePath: LINT, owner: 'main:j1' })];
+    // No tape: two rows for the same runtime session, keyed by recording.
+    const journal = foldJournalRecordings([], [
+      recording('main:j1', first, T0 + 10_000),
+      recording('main:j1', second, T0 + 20_000),
+    ]);
+    expect(journal.entries.map((e) => e.recordedAt)).toEqual([T0 + 10_000, T0 + 20_000]);
+    expect([...journal.frames.keys()]).toEqual([`main:j1|${T0 + 10_000}`, `main:j1|${T0 + 20_000}`]);
+    // The tape currently narrating the SECOND recording hides that file only.
+    const tapeSecond = computeSessionIndex(second.map((e) => ({ ...e, recordedAt: T0 + 19_500 }))).sessions;
+    const withTape = foldJournalRecordings(tapeSecond, [
+      recording('main:j1', first, T0 + 10_000),
+      recording('main:j1', second, T0 + 20_000),
+    ]);
+    expect(withTape.entries.map((e) => e.recordedAt)).toEqual([T0 + 10_000]);
+    // Resolving names the exact recording, or the latest when unnamed.
+    expect(resolveReplayTarget({ rootOwner: 'main:j1', recordedAt: T0 + 10_000, tapeSessions: [], journal })?.selection.sourceFrames).toBe(first);
+    expect(resolveReplayTarget({ rootOwner: 'main:j1', tapeSessions: [], journal })?.selection.sourceFrames).toBe(second);
+    // A tape row resolves to its window filter, identity included.
+    expect(resolveReplayTarget({ rootOwner: 'main:j1', tapeSessions: tapeSecond, journal })?.selection).toEqual({
+      rootOwner: 'main:j1',
+      recordedAt: T0 + 19_500,
+      tapeWindow: T0 + 19_500,
+    });
   });
 
   it('titles a session by its touched names, counters when nothing was touched', () => {

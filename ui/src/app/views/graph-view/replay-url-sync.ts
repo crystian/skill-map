@@ -36,10 +36,13 @@ import type { IReplayTarget } from '../../../services/session-catalog';
 export const REPLAY_PARAM = 'replay';
 export const REPLAY_AGENT_PARAM = 'agent';
 export const REPLAY_AT_PARAM = 'at';
+/** The recording (`ISessionEntry.recordedAt`): a runtime session recorded twice is two links. */
+export const REPLAY_REC_PARAM = 'rec';
 
 export interface IReplayLink {
   readonly rootOwner: string;
   readonly agentSpawnId?: string;
+  readonly recordedAt?: number;
   /** 0-based frame index inside the SCOPED tape; the replay lands paused there. */
   readonly at?: number;
 }
@@ -51,9 +54,12 @@ export function parseReplayLink(read: (name: string) => string | null): IReplayL
   const agent = read(REPLAY_AGENT_PARAM);
   const atRaw = read(REPLAY_AT_PARAM);
   const at = atRaw === null ? undefined : Number.parseInt(atRaw, 10);
+  const recRaw = read(REPLAY_REC_PARAM);
+  const rec = recRaw === null ? undefined : Number.parseInt(recRaw, 10);
   return {
     rootOwner,
     ...(agent === null || agent.length === 0 ? {} : { agentSpawnId: agent }),
+    ...(rec === undefined || !Number.isInteger(rec) || rec <= 0 ? {} : { recordedAt: rec }),
     ...(at === undefined || !Number.isInteger(at) || at < 0 ? {} : { at }),
   };
 }
@@ -68,6 +74,7 @@ export function replayLinkFromPlayback(
   return {
     rootOwner: source.rootOwner,
     ...(source.agentSpawnId === undefined ? {} : { agentSpawnId: source.agentSpawnId }),
+    ...(source.recordedAt === undefined ? {} : { recordedAt: source.recordedAt }),
     ...(!playing && cursor >= 0 ? { at: cursor } : {}),
   };
 }
@@ -77,6 +84,7 @@ export function replayLinkQueryParams(link: IReplayLink | null): Record<string, 
   return {
     [REPLAY_PARAM]: link?.rootOwner ?? null,
     [REPLAY_AGENT_PARAM]: link?.agentSpawnId ?? null,
+    [REPLAY_REC_PARAM]: link?.recordedAt === undefined ? null : String(link.recordedAt),
     [REPLAY_AT_PARAM]: link?.at === undefined ? null : String(link.at),
   };
 }

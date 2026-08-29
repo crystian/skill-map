@@ -44,6 +44,7 @@ import { DATA_SOURCE, type IDataSourcePort } from '../../../services/data-source
 import { LiveLensService } from '../../../services/live-lens';
 import { pathBasenameForLink } from '../../../services/path-basename';
 import {
+  sessionKeyOf,
   computeSessionIndex,
   type ISessionAgentNode,
   type ISessionEntry,
@@ -209,7 +210,10 @@ export class SessionsView {
    * off, pre-ladder files) show no tag.
    */
   protected captureLevelTag(session: ISessionEntry): string | null {
-    const recording = this.journalRecordings().find((r) => r.rootOwner === session.rootOwner);
+    const recordings = this.journalRecordings().filter((r) => r.rootOwner === session.rootOwner);
+    const recording =
+      recordings.find((r) => r.startedAt === session.recordedAt) ??
+      recordings.find((r) => session.firstTMs <= r.startedAt && r.startedAt <= session.lastTMs);
     const level = recording?.captureLevel;
     if (level === undefined) return null;
     return this.texts.levelTag[level] ?? level;
@@ -258,8 +262,13 @@ export class SessionsView {
     this.pageFirst.set(event.first ?? 0);
   }
 
-  /** Expanded rows; session rows key by rootOwner, agents by spawnId. */
+  /** Expanded rows; session rows key by `sessionKeyOf` (root + recording), agents by spawnId. */
   private readonly expanded = signal<ReadonlySet<string>>(new Set());
+
+  /** The row's identity for expansion, tracking and the active-step match. */
+  protected sessionKey(session: ISessionEntry): string {
+    return sessionKeyOf(session);
+  }
 
   protected isExpanded(key: string): boolean {
     return this.expanded().has(key);
@@ -300,24 +309,32 @@ export class SessionsView {
    * deep-link identifies a row (`tMs` + node path within the scoped
    * tape). `null` off-replay, before step 0, or on a node-less frame.
    */
-  private readonly activeStep = computed<{ rootOwner: string; tMs: number; path: string } | null>(
-    () => {
-      if (!this.playback.active()) return null;
-      const source = this.playback.source();
-      if (source.kind === 'whole-tape') return null;
-      const event = this.playback.tape()[this.playback.cursor()];
-      if (event === undefined || event.type !== 'node.activity') return null;
-      const path = event.data.nodePath;
-      if (path === undefined) return null;
-      return { rootOwner: source.rootOwner, tMs: event.tMs, path };
-    },
-  );
+  private readonly activeStep = computed<{
+    rootOwner: string;
+    recordedAt?: number;
+    tMs: number;
+    path: string;
+  } | null>(() => {
+    if (!this.playback.active()) return null;
+    const source = this.playback.source();
+    if (source.kind === 'whole-tape') return null;
+    const event = this.playback.tape()[this.playback.cursor()];
+    if (event === undefined || event.type !== 'node.activity') return null;
+    const path = event.data.nodePath;
+    if (path === undefined) return null;
+    return {
+      rootOwner: source.rootOwner,
+      ...(source.recordedAt === undefined ? {} : { recordedAt: source.recordedAt }),
+      tMs: event.tMs,
+      path,
+    };
+  });
 
   protected isActiveStep(session: ISessionEntry, step: ISessionStep): boolean {
     const active = this.activeStep();
     return (
       active !== null &&
-      active.rootOwner === session.rootOwner &&
+      sessionKeyOf(active) === sessionKeyOf(session) &&
       active.tMs === step.tMs &&
       active.path === step.path
     );
@@ -329,13 +346,14 @@ export class SessionsView {
    * chain when the step belongs to a subagent) and bring it into view.
    * The DOM query runs a tick later, after the expansion rendered.
    */
-  private revealStep(active: { rootOwner: string; tMs: number; path: string }): void {
-    const session = this.sessions().find((s) => s.rootOwner === active.rootOwner);
+  private revealStep(active: { rootOwner: string; recordedAt?: number; tMs: number; path: string }): void {
+    const key = sessionKeyOf(active);
+    const session = this.sessions().find((s) => sessionKeyOf(s) === key);
     if (session === undefined) return;
     const chain = agentChainForStep(session.agents, active.tMs, active.path);
     this.expanded.update((current) => {
       const next = new Set(current);
-      next.add(session.rootOwner);
+      next.add(key);
       for (const spawnId of chain) next.add(spawnId);
       return next;
     });
@@ -376,11 +394,17 @@ export class SessionsView {
    * never saw them, see `ISessionReplaySelection.sourceFrames`).
    */
   private selectionFor(session: ISessionEntry, agentSpawnId?: string): ISessionReplaySelection {
-    const sourceFrames = this.journalIndex().frames.get(session.rootOwner);
+    const sourceFrames = this.journalIndex().frames.get(sessionKeyOf(session));
     return {
       rootOwner: session.rootOwner,
       ...(agentSpawnId === undefined ? {} : { agentSpawnId }),
-      ...(sourceFrames === undefined ? {} : { sourceFrames }),
+      ...(session.recordedAt === undefined ? {} : { recordedAt: session.recordedAt }),
+      // A journal row replays its file; a tape row replays ITS window.
+      ...(sourceFrames !== undefined
+        ? { sourceFrames }
+        : session.recordedAt === undefined
+          ? {}
+          : { tapeWindow: session.recordedAt }),
     };
   }
 

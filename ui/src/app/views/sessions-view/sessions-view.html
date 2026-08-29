@@ -37,27 +37,27 @@
       <p class="sessions__notice" data-testid="sessions-trimmed">{{ texts.trimmedNotice }}</p>
     }
     <ul class="sessions__list" role="list">
-      @for (session of pagedSessions(); track session.rootOwner) {
+      @for (session of pagedSessions(); track sessionKey(session)) {
         <li class="sessions__row" [attr.data-testid]="'sessions-row-' + session.ordinal">
           <div class="sessions__row-main">
             <!-- Inline glyph chevron (files-view row convention). -->
             <button
               type="button"
               class="sessions__chevron"
-              [attr.aria-expanded]="isExpanded(session.rootOwner)"
+              [attr.aria-expanded]="isExpanded(sessionKey(session))"
               [attr.aria-label]="
-                isExpanded(session.rootOwner)
+                isExpanded(sessionKey(session))
                   ? texts.collapse(sessionName(session))
                   : texts.expand(sessionName(session))
               "
               [disabled]="session.agents.length === 0 && session.steps.length === 0"
-              (click)="toggle(session.rootOwner)"
+              (click)="toggle(sessionKey(session))"
               [attr.data-testid]="'sessions-toggle-' + session.ordinal"
             >
               <i
                 class="pi"
-                [class.pi-chevron-right]="!isExpanded(session.rootOwner)"
-                [class.pi-chevron-down]="isExpanded(session.rootOwner)"
+                [class.pi-chevron-right]="!isExpanded(sessionKey(session))"
+                [class.pi-chevron-down]="isExpanded(sessionKey(session))"
                 aria-hidden="true"
               ></i>
             </button>
@@ -116,7 +116,7 @@
               [attr.data-testid]="'sessions-play-' + session.ordinal"
             />
           </div>
-          @if (isExpanded(session.rootOwner)) {
+          @if (isExpanded(sessionKey(session))) {
             <!-- The MAIN context's own steps, before its spawned agents. -->
             @if (session.steps.length > 0) {
               <ng-container

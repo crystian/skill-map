@@ -39,8 +39,8 @@ import { ActivityRecorderService, type TRecordedEvent } from './activity-recorde
  */
 export type TReplaySource =
   | { kind: 'whole-tape' }
-  | { kind: 'tape-session'; rootOwner: string; agentSpawnId?: string }
-  | { kind: 'journal'; rootOwner: string; agentSpawnId?: string };
+  | { kind: 'tape-session'; rootOwner: string; agentSpawnId?: string; recordedAt?: number }
+  | { kind: 'journal'; rootOwner: string; agentSpawnId?: string; recordedAt?: number };
 
 /** Fixed playback cadence: one recorded event per wall-clock second. */
 export const PLAYBACK_STEP_MS = 1000;

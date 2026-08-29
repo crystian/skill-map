@@ -24,6 +24,7 @@ import type { TRecordedEvent } from './activity-recorder';
 import { pathBasenameForLink } from './path-basename';
 import {
   computeSessionIndex,
+  sessionKeyOf,
   type ISessionAgentNode,
   type ISessionEntry,
   type ISessionReplaySelection,
@@ -31,8 +32,25 @@ import {
 
 export interface IJournalCatalog {
   readonly entries: readonly ISessionEntry[];
-  /** Recording frames keyed by session root owner. */
+  /** Recording frames keyed by `sessionKeyOf(entry)` (root owner + recording). */
   readonly frames: ReadonlyMap<string, readonly TRecordedEvent[]>;
+}
+
+/**
+ * Does a tape session already narrate the recording that started at
+ * `startedAt` for the same root? The tape stamps its own window on
+ * every frame (`recordedAt`, the client clock at Record) and the
+ * journal's `startedAt` is the first server frame inside it, so the
+ * window contains it; a legacy tape (no stamp) falls back to its frame
+ * span. Both memories hold the same frames, the live one wins.
+ */
+function tapeCovers(tapeSessions: readonly ISessionEntry[], rootOwner: string, startedAt: number): boolean {
+  return tapeSessions.some(
+    (t) =>
+      t.rootOwner === rootOwner &&
+      (t.recordedAt ?? t.firstTMs) <= startedAt &&
+      startedAt <= Math.max(t.lastTMs, t.recordedAt ?? 0),
+  );
 }
 
 export const EMPTY_JOURNAL_CATALOG: IJournalCatalog = { entries: [], frames: new Map() };
@@ -42,18 +60,23 @@ export function foldJournalRecordings(
   recordings: readonly ISessionRecordingApi[],
 ): IJournalCatalog {
   if (recordings.length === 0) return EMPTY_JOURNAL_CATALOG;
-  const clientRoots = new Set(tapeSessions.map((s) => s.rootOwner));
   const entries: ISessionEntry[] = [];
   const frames = new Map<string, readonly TRecordedEvent[]>();
   for (const recording of recordings) {
-    if (clientRoots.has(recording.rootOwner)) continue;
+    // Every recording FILE is its own row (user decision 2026-08-29:
+    // each press of Record is a new session), identified by root owner
+    // + the file's `startedAt`; the tape hides only the window it
+    // already narrates itself.
+    if (tapeCovers(tapeSessions, recording.rootOwner, recording.startedAt)) continue;
     // AJV pinned the frame shapes server-side (`session-recording.
     // schema.json`), and they ARE the recorder's own tape shape.
     const recFrames = recording.frames as unknown as readonly TRecordedEvent[];
-    for (const entry of computeSessionIndex(recFrames).sessions) {
-      if (clientRoots.has(entry.rootOwner) || frames.has(entry.rootOwner)) continue;
+    for (const folded of computeSessionIndex(recFrames).sessions) {
+      const entry: ISessionEntry = { ...folded, recordedAt: recording.startedAt };
+      const key = sessionKeyOf(entry);
+      if (frames.has(key)) continue;
       entries.push(entry);
-      frames.set(entry.rootOwner, recFrames);
+      frames.set(key, recFrames);
     }
   }
   return { entries, frames };
@@ -99,19 +122,41 @@ export interface IReplayTarget {
 
 export interface IResolveReplayTargetArgs {
   readonly rootOwner: string;
+  /** Recording identity; when absent the LATEST recording of the root wins. */
+  readonly recordedAt?: number;
   readonly agentSpawnId?: string;
   readonly tapeSessions: readonly ISessionEntry[];
   readonly journal: IJournalCatalog;
 }
 
+/** Latest (by first frame) session of `rootOwner`, or the exact recording when named. */
+function pickSession(
+  sessions: readonly ISessionEntry[],
+  rootOwner: string,
+  recordedAt: number | undefined,
+): ISessionEntry | undefined {
+  const candidates = sessions.filter(
+    (s) => s.rootOwner === rootOwner && (recordedAt === undefined || s.recordedAt === recordedAt),
+  );
+  return candidates.reduce<ISessionEntry | undefined>(
+    (best, s) => (best === undefined || s.firstTMs > best.firstTMs ? s : best),
+    undefined,
+  );
+}
+
 export function resolveReplayTarget(args: IResolveReplayTargetArgs): IReplayTarget | null {
-  const tapeEntry = args.tapeSessions.find((s) => s.rootOwner === args.rootOwner);
-  const entry = tapeEntry ?? args.journal.entries.find((s) => s.rootOwner === args.rootOwner);
+  const tapeEntry = pickSession(args.tapeSessions, args.rootOwner, args.recordedAt);
+  const entry = tapeEntry ?? pickSession(args.journal.entries, args.rootOwner, args.recordedAt);
   if (entry === undefined) return null;
-  const sourceFrames = tapeEntry === undefined ? args.journal.frames.get(entry.rootOwner) : undefined;
+  const sourceFrames = tapeEntry === undefined ? args.journal.frames.get(sessionKeyOf(entry)) : undefined;
   const base: ISessionReplaySelection = {
     rootOwner: entry.rootOwner,
-    ...(sourceFrames === undefined ? {} : { sourceFrames }),
+    ...(entry.recordedAt === undefined ? {} : { recordedAt: entry.recordedAt }),
+    ...(sourceFrames === undefined
+      ? tapeEntry?.recordedAt === undefined
+        ? {}
+        : { tapeWindow: tapeEntry.recordedAt }
+      : { sourceFrames }),
   };
   const title = sessionTitle(entry);
   if (args.agentSpawnId === undefined) return { selection: base, label: title };

@@ -109,6 +109,25 @@ describe('ActivityRecorderService', () => {
     expect(service.events()[1]).toMatchObject({ tMs: T0 + 9, type: 'agent.spawn' });
   });
 
+  it('stamps every captured frame with its Record gesture, a new stamp per press', async () => {
+    const { service, events$ } = bootstrap();
+    const first = service.recordingSince();
+    events$.next(activityFrame(T0 + 5));
+    await flushed();
+    expect(first).not.toBeNull();
+    expect(service.events()[0]).toMatchObject({ recordedAt: first });
+
+    // Stop, let the clock move, record again: the next frame carries the new stamp.
+    service.stop();
+    vi.setSystemTime(T0 + 60_000);
+    service.start();
+    const second = service.recordingSince();
+    events$.next(activityFrame(T0 + 60_010));
+    await flushed();
+    expect(second).not.toBe(first);
+    expect(service.events()[1]).toMatchObject({ recordedAt: second });
+  });
+
   it('ignores every other frame type (the scan fan-out must not flood the tape)', async () => {
     const { service, events$ } = bootstrap();
     events$.next({ type: 'scan.completed', timestamp: T0, data: {} } as IWsEvent);

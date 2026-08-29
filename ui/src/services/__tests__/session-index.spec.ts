@@ -12,6 +12,7 @@ import type { TRecordedEvent } from '../activity-recorder';
 import {
   computeSessionIndex,
   filterTapeForSession,
+  sessionKeyOf,
   type ISessionAgentNode,
 } from '../session-index';
 import type { IWsAgentSpawnData, IWsNodeActivityData } from '../../models/ws-event';
@@ -236,6 +237,25 @@ describe('computeSessionIndex', () => {
     ]);
     expect(index.sessions[0]?.eventCount).toBe(2);
     expect(index.unattributed.eventCount).toBe(1);
+  });
+
+  it('partitions the same runtime session by Record gesture; the tape filter scopes to one window', () => {
+    const rec = (event: TRecordedEvent, recordedAt: number): TRecordedEvent => ({ ...event, recordedAt });
+    const events: TRecordedEvent[] = [
+      rec(activity(T0, { phase: 'start', nodePath: SKILL, owner: MAIN }), 1000),
+      rec(activity(T0 + 100, { phase: 'start', nodePath: DOC, owner: MAIN }), 1000),
+      rec(activity(T0 + 5000, { phase: 'start', nodePath: SKILL, owner: MAIN }), 2000),
+    ];
+    const index = computeSessionIndex(events);
+    expect(index.sessions.map((s) => [s.rootOwner, s.recordedAt, s.eventCount])).toEqual([
+      [MAIN, 1000, 2],
+      [MAIN, 2000, 1],
+    ]);
+    expect(index.sessions.map((s) => sessionKeyOf(s))).toEqual([`${MAIN}|1000`, `${MAIN}|2000`]);
+    // The second recording replays ITS frames only.
+    expect(filterTapeForSession(events, { rootOwner: MAIN, tapeWindow: 2000 })).toEqual([events[2]]);
+    // A legacy selection (no window) still scopes by owner alone.
+    expect(filterTapeForSession(events, { rootOwner: MAIN })).toHaveLength(3);
   });
 
   it('a session that only ever spawned still gets its row', () => {

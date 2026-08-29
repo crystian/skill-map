@@ -104,12 +104,23 @@ export interface IRecordedActivityEvent {
   readonly tMs: number;
   readonly type: 'node.activity';
   readonly data: IWsNodeActivityData;
+  /**
+   * The Record gesture this frame belongs to (the client clock at
+   * `start()`, user decision 2026-08-29: every press of Record is a
+   * new session). The session index partitions by it, so two
+   * recordings of the same runtime session never merge. Absent on
+   * journal frames (a recording file IS the window) and on tapes
+   * mirrored before the stamp existed.
+   */
+  readonly recordedAt?: number;
 }
 
 export interface IRecordedSpawnEvent {
   readonly tMs: number;
   readonly type: 'agent.spawn';
   readonly data: IWsAgentSpawnData;
+  /** See `IRecordedActivityEvent.recordedAt`. */
+  readonly recordedAt?: number;
 }
 
 export type TRecordedEvent = IRecordedActivityEvent | IRecordedSpawnEvent;
@@ -213,10 +224,12 @@ export class ActivityRecorderService {
     const sub = events.events$.subscribe((event) => {
       if (!this._recording()) return;
       if (!this.prefs.activityEnabled()) return;
+      const since = this._recordingSince();
+      const window = since === null ? {} : { recordedAt: since };
       if (isNodeActivityEvent(event)) {
-        this.pending.push({ tMs: wsEventTimestampMs(event), type: 'node.activity', data: event.data });
+        this.pending.push({ tMs: wsEventTimestampMs(event), type: 'node.activity', data: event.data, ...window });
       } else if (isAgentSpawnEvent(event)) {
-        this.pending.push({ tMs: wsEventTimestampMs(event), type: 'agent.spawn', data: event.data });
+        this.pending.push({ tMs: wsEventTimestampMs(event), type: 'agent.spawn', data: event.data, ...window });
       } else {
         return;
       }

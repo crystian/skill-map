@@ -290,6 +290,22 @@ describe('SessionsView', () => {
     expect(steps[1]?.getAttribute('aria-current')).toBe('step');
   });
 
+  it('two recordings of the same runtime session are two rows, each replaying its own window', () => {
+    const tape: TRecordedEvent[] = [
+      { ...activity(T0, { phase: 'start', nodePath: SKILL, owner: MAIN }), recordedAt: 1000 },
+      { ...activity(T0 + 60_000, { phase: 'start', nodePath: 'docs/guide.md', owner: MAIN }), recordedAt: 2000 },
+    ];
+    const { fixture, replaySession } = makeFixture({ tape });
+    expect(query(fixture, 'sessions-toggle-1')).not.toBeNull();
+    expect(query(fixture, 'sessions-toggle-2')).not.toBeNull();
+    // Newest first: row 1 is the second recording; its Play scopes to its window.
+    (query(fixture, 'sessions-play-1')?.querySelector('button') as HTMLButtonElement).click();
+    expect(replaySession).toHaveBeenCalledWith(
+      { rootOwner: MAIN, recordedAt: 2000, tapeWindow: 2000 },
+      'guide',
+    );
+  });
+
   it('a step row deep-links: session selection + the step identity through the intent', () => {
     const tape: TRecordedEvent[] = [
       activity(T0, { phase: 'start', nodePath: SKILL, owner: MAIN, detail: 'Skill' }),
@@ -455,7 +471,8 @@ describe('SessionsView', () => {
     // recorder never saw them, so the tape cannot be the source.
     (query(fixture, 'sessions-play-1')?.querySelector('button') as HTMLButtonElement).click();
     expect(replaySession).toHaveBeenCalledWith(
-      { rootOwner: 'main:old-1', sourceFrames: journalFrames },
+      // A journal row carries its recording identity (the file's startedAt).
+      { rootOwner: 'main:old-1', recordedAt: T0 - 500_000, sourceFrames: journalFrames },
       'deploy',
     );
   });

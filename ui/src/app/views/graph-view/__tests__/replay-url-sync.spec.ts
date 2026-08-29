@@ -38,6 +38,11 @@ describe('replay-url-sync helpers', () => {
       agentSpawnId: 'sp-7',
       at: 4,
     });
+    expect(parseReplayLink(reader({ replay: 'main:s1', rec: '1700000000000' }))).toEqual({
+      rootOwner: 'main:s1',
+      recordedAt: 1_700_000_000_000,
+    });
+    expect(parseReplayLink(reader({ replay: 'main:s1', rec: '0' }))).toEqual({ rootOwner: 'main:s1' });
     expect(parseReplayLink(reader({ replay: 'main:s1', at: 'x' }))).toEqual({ rootOwner: 'main:s1' });
     expect(parseReplayLink(reader({ replay: 'main:s1', at: '-1' }))).toEqual({ rootOwner: 'main:s1' });
   });
@@ -56,12 +61,17 @@ describe('replay-url-sync helpers', () => {
   });
 
   it('query params clear with nulls so a merge navigation drops them', () => {
-    expect(replayLinkQueryParams(null)).toEqual({ replay: null, agent: null, at: null });
-    expect(replayLinkQueryParams({ rootOwner: 'main:s1', at: 0 })).toEqual({
+    expect(replayLinkQueryParams(null)).toEqual({ replay: null, agent: null, rec: null, at: null });
+    expect(replayLinkQueryParams({ rootOwner: 'main:s1', recordedAt: 42, at: 0 })).toEqual({
       replay: 'main:s1',
       agent: null,
+      rec: '42',
       at: '0',
     });
+    // The recording rides the link from the playback source.
+    expect(
+      replayLinkFromPlayback({ kind: 'tape-session', rootOwner: 'main:s1', recordedAt: 42 }, true, 0),
+    ).toEqual({ rootOwner: 'main:s1', recordedAt: 42 });
   });
 });
 
