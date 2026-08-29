@@ -135,3 +135,6 @@ fixtures/*/pnpm-lock.yaml
 
 # Generated dev-server index (ui/scripts/stamp-dev-index.mjs)
 ui/src/index.dev.html
+
+# Private campaign/communication repo (nested git repo, never published)
+/other/
