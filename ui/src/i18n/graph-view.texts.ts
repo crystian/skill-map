@@ -71,9 +71,9 @@ export const GRAPH_VIEW_TEXTS = {
      */
     followActivity: {
       tooltipOn: 'Stop following the activity',
-      tooltipOff: 'Follow the activity',
+      tooltipOff: 'Follow the activity (camera and focus)',
       ariaOn: 'Stop following the activity',
-      ariaOff: 'Follow the activity',
+      ariaOff: 'Follow the activity (camera and focus)',
     },
     resetLayoutLabel: 'Re-arrange layout',
     resetLayoutTooltip: 'Re-arrange the visible nodes',

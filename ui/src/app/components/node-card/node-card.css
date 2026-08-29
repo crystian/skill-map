@@ -67,7 +67,33 @@
   border-color: var(--p-primary-color);
   box-shadow: var(--sm-shadow-card-hover);
 }
-:host(.sm-gnode--dimmed) { opacity: 0.25; }
+/*
+ * Graded focus (models/selection.ts): `--dimmed` alone is the near ring
+ * (two hops from the focus), a light fade that keeps the context
+ * readable; `--far` (three hops and beyond, or unreachable) fades deep
+ * AND desaturates, so the eye lands on the focus like depth of field.
+ * Saturation rides `filter` on purpose (no blur: a blur on a thousand
+ * cards is a compositing bill, a saturate is not).
+ */
+:host(.sm-gnode--dimmed) { opacity: 0.55; }
+:host(.sm-gnode--far) {
+  opacity: 0.22;
+  filter: saturate(0.25);
+}
+
+/* The fade eases in and out so a focus change reads as a rack focus,
+   not a cut; PRM-gated like every motion treatment (reduced-motion
+   users get the instant swap). */
+@media (prefers-reduced-motion: no-preference) {
+  :host {
+    transition:
+      box-shadow 120ms ease,
+      border-color 120ms ease,
+      transform 120ms ease,
+      opacity 400ms ease,
+      filter 400ms ease;
+  }
+}
 
 /*
  * Live-activity glow (spec/provider-activity.md): the node's unit is
@@ -112,7 +138,10 @@
       )
       border-box;
 }
-:host(.sm-gnode--executing.sm-gnode--dimmed) { opacity: 1; }
+:host(.sm-gnode--executing.sm-gnode--dimmed) {
+  opacity: 1;
+  filter: none;
+}
 
 /*
  * Transient tool badge (spec/provider-activity.md §detail): names the

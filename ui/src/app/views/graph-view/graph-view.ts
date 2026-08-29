@@ -144,12 +144,14 @@ const SELECTION_DEFAULT: ISelectionView = {
   selected: false,
   highlighted: false,
   dimmed: false,
+  far: false,
 };
 
 /** Default edge bundle when an edge is not yet in the selection map. */
 const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
   highlighted: false,
   dimmed: false,
+  far: false,
   opacity: 1,
 };
 
@@ -1292,10 +1294,26 @@ export class GraphView implements OnInit {
   });
   protected readonly activeTagSelection = this.tagSelection.activeTagSelection;
 
+  /**
+   * Activity focus origins (selection-state.ts): while Follow the
+   * Activity is armed on the curated map with Real Time on, the
+   * executing nodes become the focus and the map falls off around them
+   * (near ring dimmed, everything farther desaturated), so attention
+   * follows the action the way the camera does. Empty under the lens
+   * and the replay (they narrow the canvas themselves) and whenever
+   * follow is off, which keeps the existing opt-out in charge of both.
+   */
+  private readonly activityFocus = computed<ReadonlySet<string>>(() => {
+    if (this.lensOn() || this.replayOn()) return EMPTY_PATH_SET;
+    if (!this.nodeActivity.enabled() || !this.followActivity()) return EMPTY_PATH_SET;
+    return this.nodeActivity.activePaths();
+  });
+
   private readonly selectionState = createSelectionState({
     graph: this.graph,
     selectedNodeId: this.selectedNodeId,
     activeTagSelection: this.activeTagSelection,
+    activityFocus: this.activityFocus,
   });
 
   protected onTagSelect(tag: string): void {

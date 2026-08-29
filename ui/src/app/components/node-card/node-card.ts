@@ -39,6 +39,7 @@ const DEFAULT_SELECTION: ISelectionView = {
   selected: false,
   highlighted: false,
   dimmed: false,
+  far: false,
 };
 
 /**
@@ -72,6 +73,7 @@ const DEFAULT_SELECTION: ISelectionView = {
     '[class.sm-gnode--selected]': 'selection().selected',
     '[class.sm-gnode--highlighted]': 'selection().highlighted',
     '[class.sm-gnode--dimmed]': 'selection().dimmed',
+    '[class.sm-gnode--far]': 'selection().far',
     '[class.sm-gnode--executing]': 'executing()',
     '[style.--node-color]': 'nodeColor()',
     '[style.--accent]': 'kindAccentVar()',

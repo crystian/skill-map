@@ -7,14 +7,23 @@
  */
 
 /**
- * Per-node selection state. Three booleans rolled into one record so a
+ * Per-node selection state. Four booleans rolled into one record so a
  * Map lookup in the template hands the card host its full selection
- * picture in one shot (instead of N x 3 function calls per CD pass).
+ * picture in one shot (instead of N x 4 function calls per CD pass).
+ *
+ * The focus is graded by hop distance from its origin (the selected
+ * node, or every executing node while the activity focus applies, see
+ * `selection-state.ts`): hop 1 is `highlighted` (selection only), hop
+ * 2 is `dimmed` (the near ring, a light fade), hop 3 and beyond (or
+ * unreachable) is `dimmed` + `far` (deep fade plus desaturation), so
+ * the map falls off around the focus like depth of field instead of
+ * cutting to a flat two-tone.
  */
 export interface ISelectionView {
   readonly selected: boolean;
   readonly highlighted: boolean;
   readonly dimmed: boolean;
+  readonly far: boolean;
 }
 
 /**
@@ -27,5 +36,7 @@ export interface ISelectionView {
 export interface IEdgeSelectionView {
   readonly highlighted: boolean;
   readonly dimmed: boolean;
+  /** Beyond the near ring (same grading as the node `far`). */
+  readonly far: boolean;
   readonly opacity: number;
 }

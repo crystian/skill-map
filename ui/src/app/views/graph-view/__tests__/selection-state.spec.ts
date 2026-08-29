@@ -81,6 +81,71 @@ describe('selection-state', () => {
       });
       expect(handle.isHighlighted('d')).toBe(false);
       expect(handle.isDimmed('d')).toBe(true);
+      // Unreachable from the focus: beyond the near ring.
+      expect(handle.isFar('d')).toBe(true);
+    });
+  });
+
+  it('grades the focus by hop distance: ring at 1, near dim at 2, far at 3+', () => {
+    TestBed.runInInjectionContext(() => {
+      // a-b-c-d-e chain, select a.
+      const graph: IGraphData = {
+        nodes: [node('a'), node('b'), node('c'), node('d'), node('e')],
+        edges: [edge('e:ab', 'a', 'b'), edge('e:bc', 'b', 'c'), edge('e:cd', 'c', 'd'), edge('e:de', 'd', 'e')],
+      };
+      const handle = createSelectionState({
+        graph: signal(graph),
+        selectedNodeId: signal<string | null>('a'),
+        activeTagSelection: signal<string | null>(null),
+      });
+      const view = handle.selectionView();
+      expect(view.get('b')).toEqual({ selected: false, highlighted: true, dimmed: false, far: false });
+      expect(view.get('c')).toEqual({ selected: false, highlighted: false, dimmed: true, far: false });
+      expect(view.get('d')).toEqual({ selected: false, highlighted: false, dimmed: true, far: true });
+      expect(view.get('e')).toEqual({ selected: false, highlighted: false, dimmed: true, far: true });
+      // Edges follow their farther endpoint: inside the ring stays lit,
+      // into the near ring dims, beyond it goes far.
+      const edges = handle.edgeSelectionView();
+      expect(edges.get('e:ab')).toMatchObject({ highlighted: true, dimmed: false, far: false });
+      expect(edges.get('e:bc')).toMatchObject({ dimmed: true, far: false, opacity: 0.3 });
+      expect(edges.get('e:cd')).toMatchObject({ dimmed: true, far: true, opacity: 0.12 });
+    });
+  });
+
+  it('activity focus: executing nodes are the origins while nothing is selected', () => {
+    TestBed.runInInjectionContext(() => {
+      const graph: IGraphData = {
+        nodes: [node('a'), node('b'), node('c'), node('d')],
+        edges: [edge('e:ab', 'a', 'b'), edge('e:bc', 'b', 'c'), edge('e:cd', 'c', 'd')],
+      };
+      const selected = signal<string | null>(null);
+      const focus = signal<ReadonlySet<string>>(new Set(['a']));
+      const handle = createSelectionState({
+        graph: signal(graph),
+        selectedNodeId: selected,
+        activeTagSelection: signal<string | null>(null),
+        activityFocus: focus,
+      });
+      let view = handle.selectionView();
+      // No selection ring on activity focus: neighbours stay plain.
+      expect(view.get('a')).toEqual({ selected: false, highlighted: false, dimmed: false, far: false });
+      expect(view.get('b')).toEqual({ selected: false, highlighted: false, dimmed: false, far: false });
+      expect(view.get('c')).toEqual({ selected: false, highlighted: false, dimmed: true, far: false });
+      expect(view.get('d')).toEqual({ selected: false, highlighted: false, dimmed: true, far: true });
+
+      // A selection is the operator's own focus and wins over the activity.
+      selected.set('d');
+      view = handle.selectionView();
+      expect(view.get('c')?.highlighted).toBe(true);
+      expect(view.get('a')?.far).toBe(true);
+
+      // Focus gone (follow off / activity ended): nothing dims.
+      selected.set(null);
+      focus.set(new Set());
+      view = handle.selectionView();
+      for (const id of ['a', 'b', 'c', 'd']) {
+        expect(view.get(id)?.dimmed).toBe(false);
+      }
     });
   });
 
@@ -120,9 +185,10 @@ describe('selection-state', () => {
       const view = handle.edgeSelectionView();
       // e:ab touches the selected node 'a': highlighted, not dimmed,
       // opacity from the confidence gradient (0.25 + 0.75 * 0.6 = 0.7).
-      expect(view.get('e:ab')).toEqual({ highlighted: true, dimmed: false, opacity: 0.7 });
-      // e:bc touches neither endpoint of 'a': dimmed, flat fade opacity.
-      expect(view.get('e:bc')).toEqual({ highlighted: false, dimmed: true, opacity: 0.15 });
+      expect(view.get('e:ab')).toEqual({ highlighted: true, dimmed: false, far: false, opacity: 0.7 });
+      // e:bc leads into the near ring (c is two hops from 'a'): dimmed,
+      // the near-ring fade opacity, not yet far.
+      expect(view.get('e:bc')).toEqual({ highlighted: false, dimmed: true, far: false, opacity: 0.3 });
     });
   });
 
@@ -135,7 +201,7 @@ describe('selection-state', () => {
       });
       const view = handle.edgeSelectionView();
       for (const id of ['e:ab', 'e:bc']) {
-        expect(view.get(id)).toEqual({ highlighted: false, dimmed: false, opacity: 0.7 });
+        expect(view.get(id)).toEqual({ highlighted: false, dimmed: false, far: false, opacity: 0.7 });
       }
     });
   });

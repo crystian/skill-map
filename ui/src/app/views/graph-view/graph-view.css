@@ -690,8 +690,16 @@
   --ff-connection-width: 2px;
 }
 
+/* Graded focus (models/selection.ts): the inline `[style.opacity]`
+   binding is the source of truth for both tiers (near ring 0.3, far
+   0.12, selection-state.ts); the classes stay as hooks so a theme can
+   retint a tier without touching the numbers. */
 .f-conn--dimmed {
-  opacity: 0.15;
+  opacity: 0.3;
+}
+
+.f-conn--far {
+  opacity: 0.12;
 }
 
 /* Live-activity spine (spec/provider-activity.md): both endpoints are
@@ -1009,10 +1017,10 @@
   align-items: center;
   gap: 0.25rem;
   pointer-events: none;
-  /* Smooth the opacity hop alongside the card's own selection / dim
-     animation, since the marker reads as part of the card it belongs
-     to (chips + alert icons floated above the NE corner). */
-  transition: opacity 0.15s ease;
+  /* Smooth the opacity hop alongside the card's own focus fade
+     (node-card.css, 400ms), since the marker reads as part of the card
+     it belongs to (chips + alert icons floated above the NE corner). */
+  transition: opacity 400ms ease;
 }
 
 /* The marker-anchor is a SIBLING of `<sm-node-card>` inside the same
@@ -1022,7 +1030,11 @@
    so the alert icons + chips fade in lockstep with the card they
    describe. */
 sm-node-card.sm-gnode--dimmed + .sm-gnode__marker-anchor {
-  opacity: 0.25;
+  opacity: 0.55;
+}
+
+sm-node-card.sm-gnode--far + .sm-gnode__marker-anchor {
+  opacity: 0.22;
 }
 
 sm-node-card.sm-gnode--deprecated + .sm-gnode__marker-anchor {
