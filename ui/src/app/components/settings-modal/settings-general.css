@@ -169,3 +169,27 @@
   margin: 0;
   color: var(--p-text-muted-color);
 }
+
+/* Extra-theme dropdown (the registry outgrew a selectbutton strip).
+   Fixed width so the row's right column does not jump between the
+   short and long theme labels; the overlay options stack label over a
+   muted one-line description. The overlay is appended to <body>, so
+   its option rules live in `styles.css` under `.sm-settings-select-overlay`. */
+.settings-general__extra-theme-select {
+  min-width: 11rem;
+}
+
+.settings-general__extra-theme-select .p-select {
+  width: 100%;
+}
+
+.settings-general__extra-theme-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.settings-general__extra-theme-option-desc {
+  font-size: var(--sm-fs-xs);
+  color: var(--sm-text-muted);
+}

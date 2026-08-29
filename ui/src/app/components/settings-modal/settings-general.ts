@@ -30,6 +30,7 @@ import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { MessageModule } from 'primeng/message';
+import { SelectModule } from 'primeng/select';
 import { SelectButtonModule } from 'primeng/selectbutton';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { TooltipModule } from 'primeng/tooltip';
@@ -136,7 +137,7 @@ function fromExtraThemeWire(value: TExtraThemeWire): TExtraTheme {
 
 @Component({
   selector: 'sm-settings-general',
-  imports: [ButtonModule, DialogModule, FormsModule, MessageModule, NgTemplateOutlet, SelectButtonModule, ToggleRowDirective, ToggleSwitchModule, TooltipModule],
+  imports: [ButtonModule, DialogModule, FormsModule, MessageModule, NgTemplateOutlet, SelectButtonModule, SelectModule, ToggleRowDirective, ToggleSwitchModule, TooltipModule],
   templateUrl: './settings-general.html',
   styleUrl: './settings-general.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

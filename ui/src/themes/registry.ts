@@ -25,6 +25,11 @@ export interface IExtraThemeDescriptor {
    * (`.app-dark` + `.dark`). Matrix piggybacks on the dark palette
    * so its retint sits on a dark base rather than the light one. */
   readonly forcesDark: boolean;
+  /** Whether activation should force the LIGHT base (drop `.app-dark`
+   * + `.dark` even when the tri-state resolves dark). Paper sits on
+   * the light palette the way the neons sit on the dark one. Mutually
+   * exclusive with `forcesDark`. */
+  readonly forcesLight?: boolean;
   /** Optional SVG favicon swapped while the theme is active.
    * Resolved against the app root (so `'favicon-matrix.svg'` lives
    * next to the default `favicon.svg`). */
@@ -81,6 +86,23 @@ export const EXTRA_THEMES: readonly IExtraThemeDescriptor[] = [
     fontLinkId: 'sm-matrix-font',
     label: 'Matrix',
     description: 'Cyber-green retint on the dark palette.',
+  },
+  {
+    id: 'blueprint',
+    htmlClass: 'app-blueprint',
+    forcesDark: true,
+    favicon: 'favicon-blueprint.svg',
+    label: 'Blueprint',
+    description: 'Drafting-sheet blue with white ink and a technical grid.',
+  },
+  {
+    id: 'paper',
+    htmlClass: 'app-paper',
+    forcesDark: false,
+    forcesLight: true,
+    favicon: 'favicon-paper.svg',
+    label: 'Paper',
+    description: 'Warm parchment with sepia ink, on the light palette.',
   },
 ] as const;
 

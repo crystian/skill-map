@@ -100,11 +100,13 @@ export class ThemeService {
       const extraId = this.extraTheme();
       const activeExtra = findExtraTheme(extraId);
       const baseDark = this.resolved() === 'dark';
-      // Extra themes that piggyback on the dark palette (today:
-      // matrix) force the PrimeNG / Foblex dark classes whenever
-      // they're active so the retint sits on a dark base rather than
-      // the light palette.
-      const isDark = baseDark || activeExtra?.forcesDark === true;
+      // Extra themes that piggyback on the dark palette (matrix, the
+      // neons, blueprint) force the PrimeNG / Foblex dark classes
+      // whenever they're active so the retint sits on a dark base
+      // rather than the light palette; a `forcesLight` theme (paper)
+      // does the mirror image and drops them even under a dark mode.
+      const isDark =
+        activeExtra?.forcesLight === true ? false : baseDark || activeExtra?.forcesDark === true;
       const root = this.doc.documentElement;
       root.classList.toggle(PRIMENG_DARK_CLASS, isDark);
       root.classList.toggle(FOBLEX_DARK_CLASS, isDark);

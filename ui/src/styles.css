@@ -966,6 +966,20 @@ button.sm-md-img:focus-visible {
   font-size: var(--sm-fs-sm);
 }
 
+/* Extra-theme picker options (settings-general.html): label over a
+   muted description. The template lands in the body-appended overlay,
+   past the component's emulated encapsulation, hence global. */
+.sm-settings-select-overlay .settings-general__extra-theme-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.sm-settings-select-overlay .settings-general__extra-theme-option-desc {
+  font-size: var(--sm-fs-xs);
+  color: var(--sm-text-muted);
+}
+
 /* ---------------------------------------------------------------------
  * Pointer affordance for the boolean Settings rows that flip their
  * switch from anywhere (`[smToggleRow]`, see the directive for the

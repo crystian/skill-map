@@ -1,0 +1,322 @@
+/* skill-map blueprint theme. An architect's drafting sheet: cyanotype
+ * blue paper, white and sky-blue ink, a technical grid under the map.
+ * Activated by `ThemeService` when `extraTheme === 'blueprint'` (the
+ * service toggles `.app-blueprint` on `<html>`, alongside `.app-dark`
+ * + `.dark` so PrimeNG / Foblex run their dark base). Self-contained:
+ * removing this file from `angular.json`'s `styles` array fully
+ * disables the theme.
+ *
+ * Distinct from the neons on purpose: no glow. Blueprint is INK on
+ * paper, so cards carry a crisp white rule instead of a halo, edges
+ * are flat strokes, and the only chroma is the sky-blue accent that
+ * marks what is active. The drafting grid is the identity.
+ *
+ * Selector prefix:
+ *   - `:root.app-blueprint`   for the var palette (beats PrimeNG's
+ *                             runtime `:root,:host` injection).
+ *   - `html.app-blueprint .X` for per-element retints (beats Angular's
+ *                             emulated-encapsulation rewrite of
+ *                             component CSS, which lands later).
+ */
+
+/* === Base palette, SM tokens + PrimeNG retint + shadows === */
+:root.app-blueprint {
+  --sm-bp-accent: #7dd3fc;        /* sky ink, primary accent */
+  --sm-bp-accent-bright: #e0f2fe; /* white-blue for active states */
+  --sm-bp-accent-dim: #38bdf8;    /* deeper sky, secondary accent */
+  --sm-bp-muted: #a5c8e6;         /* calm blue-grey ink */
+  --sm-bp-ink: #f2f8ff;           /* white ink, body text */
+  --sm-bp-border: #2a5a9c;        /* ruled line on the sheet */
+
+  --sm-bg-page: #0a2a5e;          /* cyanotype paper */
+  --sm-bg-content: #0f3570;       /* card sheet, one tone up */
+  --sm-bg-hover: #164283;         /* lifted sheet */
+  --sm-border: var(--sm-bp-border);
+  --sm-nav-active-bg: color-mix(in srgb, var(--sm-bp-accent) 14%, transparent);
+
+  /* White-blue body text, blue-grey muted, so the sheet reads like
+     ink on paper and the accent never has to carry legibility. */
+  --sm-text-muted: #9fbbe0;
+
+  /* Edge kind ramp: blue-grey base brightening toward white ink
+     (`invokes`, strongest), `mentions` the weakest, `points` at 50%.
+     Active variants run the same interpolation to the bright accent. */
+  --sm-edge-neutral: #4f7cb0;
+  --sm-edge-mentions: color-mix(in srgb, var(--sm-bp-accent) 33%, var(--sm-edge-neutral));
+  --sm-edge-points: color-mix(in srgb, var(--sm-bp-accent) 50%, var(--sm-edge-neutral));
+  --sm-edge-references: color-mix(in srgb, var(--sm-bp-accent) 67%, var(--sm-edge-neutral));
+  --sm-edge-invokes: var(--sm-bp-accent);
+  --sm-edge-mentions-active: color-mix(in srgb, var(--sm-bp-accent-bright) 33%, #9fbbe0);
+  --sm-edge-points-active: color-mix(in srgb, var(--sm-bp-accent-bright) 50%, #9fbbe0);
+  --sm-edge-references-active: color-mix(in srgb, var(--sm-bp-accent-bright) 67%, #9fbbe0);
+  --sm-edge-invokes-active: var(--sm-bp-accent-bright);
+
+  /* Spawn edges: a red-pencil correction mark, the one warm stroke on
+     the blue sheet, so live spawns never blend into the ink ramp. */
+  --sm-edge-spawn: #f4a4c4;
+
+  --sm-link-in-bg: color-mix(in srgb, var(--sm-bp-accent) 16%, transparent);
+  --sm-link-in-fg: var(--sm-bp-accent);
+  --sm-link-out-bg: color-mix(in srgb, var(--sm-bp-muted) 16%, transparent);
+  --sm-link-out-fg: var(--sm-bp-muted);
+
+  --p-text-color: var(--sm-bp-ink);
+  --p-text-muted-color: var(--sm-text-muted);
+  --p-primary-color: var(--sm-bp-accent);
+  --p-primary-contrast-color: #07203f;
+  /* Primary hover / active plus the secondary-text chain, set globally
+     so dialogs appended to <body> pick them up too (the neon idiom). */
+  --p-primary-hover-color: color-mix(in srgb, var(--sm-bp-accent) 75%, #ffffff);
+  --p-primary-active-color: color-mix(in srgb, var(--sm-bp-accent) 70%, #000000);
+  --p-button-text-secondary-color: var(--sm-bp-accent-dim);
+  --p-button-text-secondary-hover-color: var(--sm-bp-accent);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-bp-accent) 16%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-bp-accent) 24%, transparent);
+  --p-content-background: var(--sm-bg-content);
+  --p-content-hover-background: var(--sm-bg-hover);
+  --p-content-border-color: var(--sm-bp-border);
+  --p-surface-900: var(--sm-bg-page);
+
+  /* Physical-stat chip tints, re-keyed to the blue sheet. */
+  --sm-stat-tokens-bg: color-mix(in srgb, var(--sm-bp-accent-dim) 22%, transparent);
+  --sm-stat-bytes-bg: color-mix(in srgb, var(--sm-bp-muted) 18%, transparent);
+
+  /* Flat drafting look: shadows are thin ink offsets, never glows. */
+  --sm-shadow-topbar: 0 1px 0 color-mix(in srgb, var(--sm-bp-ink) 18%, transparent);
+  --sm-shadow-eventlog: 0 -1px 0 color-mix(in srgb, var(--sm-bp-ink) 18%, transparent);
+  --sm-shadow-floating: 0 2px 10px rgba(2, 12, 32, 0.55);
+  --sm-shadow-card: 0 1px 0 color-mix(in srgb, var(--sm-bp-ink) 10%, transparent);
+  --sm-shadow-card-hover: 0 0 0 1px color-mix(in srgb, var(--sm-bp-accent) 60%, transparent);
+  --sm-shadow-panel: 0 4px 24px rgba(2, 12, 32, 0.6);
+
+  /* Tooltips live in <body>, so the vars sit at :root. */
+  --p-tooltip-background: var(--sm-bg-content);
+  --p-tooltip-color: var(--sm-bp-ink);
+  --p-tooltip-shadow: 0 0 0 1px color-mix(in srgb, var(--sm-bp-ink) 35%, transparent);
+}
+
+/* === Topbar palette === */
+html.app-blueprint .shell__topbar {
+  --shell-topbar-bg: var(--sm-bg-page);
+  --shell-topbar-border: color-mix(in srgb, var(--sm-bp-ink) 30%, transparent);
+  --shell-topbar-text: var(--sm-bp-ink);
+  --shell-topbar-text-strong: var(--sm-bp-accent);
+  --shell-topbar-text-muted: var(--sm-bp-muted);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-bp-accent) 16%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-bp-accent) 24%, transparent);
+  --shell-topbar-active-text: var(--sm-bp-accent-bright);
+  --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-bp-accent) 16%, transparent);
+}
+
+/* Active nav reads as an underlined title block on the sheet. */
+html.app-blueprint .shell__nav a.is-active {
+  box-shadow: inset 0 -2px 0 var(--sm-bp-accent);
+}
+
+/* Settings modal sidebar mirrors the topbar active state. */
+html.app-blueprint .settings-modal__sidebar-item:hover {
+  background: color-mix(in srgb, var(--sm-bp-accent) 10%, transparent);
+}
+
+html.app-blueprint .settings-modal__sidebar-item.is-active {
+  background: color-mix(in srgb, var(--sm-bp-accent) 18%, transparent);
+  color: var(--sm-bp-accent-bright);
+}
+
+/* === Topbar chips (beta / version / update), one-off palettes === */
+html.app-blueprint .shell__beta {
+  color: var(--sm-bp-accent-bright);
+  background: color-mix(in srgb, var(--sm-bp-accent) 14%, transparent);
+}
+
+html.app-blueprint .shell__version {
+  color: var(--sm-bp-muted);
+  background: color-mix(in srgb, var(--sm-bp-accent) 10%, transparent);
+}
+
+html.app-blueprint .shell__update-chip {
+  color: var(--sm-bp-accent);
+  background: color-mix(in srgb, var(--sm-bp-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--sm-bp-accent) 40%, transparent);
+}
+
+html.app-blueprint .shell__update-chip:hover,
+html.app-blueprint .shell__update-chip:focus-visible {
+  background: color-mix(in srgb, var(--sm-bp-accent) 18%, transparent);
+  color: var(--sm-bp-accent-bright);
+}
+
+html.app-blueprint .shell__update-npm-link {
+  color: var(--sm-bp-accent-dim);
+}
+
+html.app-blueprint .shell__update-npm-link:hover,
+html.app-blueprint .shell__update-npm-link:focus-visible {
+  color: var(--sm-bp-accent-bright);
+  background: color-mix(in srgb, var(--sm-bp-accent) 14%, transparent);
+}
+
+/* === Form fields === (the neon rationale: the form + highlight chains
+   trace back to the global surface palette, which this theme does not
+   retint at :root, so the pickers would keep the default greys.) */
+html.app-blueprint {
+  --p-form-field-background: var(--sm-bg-content);
+  --p-form-field-disabled-background: var(--sm-bg-content);
+  --p-form-field-filled-background: var(--sm-bg-content);
+  --p-form-field-filled-hover-background: var(--sm-bg-hover);
+  --p-form-field-filled-focus-background: var(--sm-bg-hover);
+  --p-form-field-border-color: var(--sm-bp-border);
+  --p-form-field-hover-border-color: color-mix(in srgb, var(--sm-bp-accent) 50%, transparent);
+  --p-form-field-focus-border-color: var(--sm-bp-accent);
+  --p-form-field-color: var(--sm-bp-ink);
+  --p-form-field-disabled-color: var(--sm-bp-muted);
+  --p-form-field-placeholder-color: var(--sm-bp-muted);
+  --p-form-field-icon-color: var(--sm-bp-accent-dim);
+  --p-form-field-float-label-color: var(--sm-bp-muted);
+  --p-form-field-float-label-focus-color: var(--sm-bp-accent);
+  --p-highlight-background: color-mix(in srgb, var(--sm-bp-accent) 18%, transparent);
+  --p-highlight-focus-background: color-mix(in srgb, var(--sm-bp-accent) 26%, transparent);
+  --p-highlight-color: var(--sm-bp-accent-bright);
+  --p-highlight-focus-color: var(--sm-bp-accent-bright);
+}
+
+html.app-blueprint .p-togglebutton {
+  background: transparent;
+  border-color: var(--sm-bp-border);
+  color: var(--sm-bp-muted);
+}
+
+html.app-blueprint .p-togglebutton:hover {
+  background: color-mix(in srgb, var(--sm-bp-accent) 10%, transparent);
+  color: var(--sm-bp-accent);
+}
+
+html.app-blueprint .p-togglebutton-checked {
+  background: color-mix(in srgb, var(--sm-bp-accent) 18%, transparent);
+  border-color: var(--sm-bp-accent);
+  color: var(--sm-bp-accent-bright);
+}
+
+html.app-blueprint .p-togglebutton-checked .p-togglebutton-content {
+  background: transparent;
+  color: var(--sm-bp-accent-bright);
+  box-shadow: none;
+}
+
+html.app-blueprint .p-button-outlined.p-button-secondary {
+  color: var(--sm-bp-muted);
+  border-color: var(--sm-bp-border);
+  background: transparent;
+}
+
+html.app-blueprint .p-button-outlined.p-button-secondary:enabled:hover,
+html.app-blueprint .p-button-outlined.p-button-secondary:enabled:focus-visible {
+  color: var(--sm-bp-accent-bright);
+  border-color: var(--sm-bp-accent);
+  background: color-mix(in srgb, var(--sm-bp-accent) 12%, transparent);
+}
+
+html.app-blueprint .p-button-outlined.p-button-secondary:enabled:active {
+  background: color-mix(in srgb, var(--sm-bp-accent) 20%, transparent);
+}
+
+/* === Graph view ===
+   Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
+   tokens at the wrap, no `::ng-deep`, no hand-rolled SVG. */
+
+/* The drafting sheet: a flat cyanotype blue with the technical grid
+   drawn in white ink at low opacity (Foblex's own background layer,
+   the flow background made transparent so the sheet shows through).
+   A faint paper vignette keeps the corners a shade deeper. */
+html.app-blueprint .graph__canvas-wrap {
+  background: radial-gradient(
+    ellipse 130% 100% at 50% 40%,
+    #0c3068 0%,
+    #0a2a5e 60%,
+    #082250 100%
+  );
+  --ff-flow-background-color: transparent;
+  --ff-background-line-color: color-mix(in srgb, var(--sm-bp-ink) 14%, transparent);
+  --ff-background-dot-color: color-mix(in srgb, var(--sm-bp-ink) 22%, transparent);
+
+  /* Minimap: a corner detail of the same sheet, quieter ink. */
+  --ff-minimap-background-color: #082250;
+  --ff-minimap-border-color: color-mix(in srgb, var(--sm-bp-ink) 35%, transparent);
+  --ff-minimap-node-color: color-mix(in srgb, var(--sm-bp-accent-dim) 50%, var(--sm-bg-content));
+  --ff-minimap-node-selected-color: var(--sm-bp-accent-bright);
+  --ff-minimap-view-color: color-mix(in srgb, var(--sm-bp-accent) 10%, transparent);
+  --ff-minimap-view-border-color: color-mix(in srgb, var(--sm-bp-accent) 70%, transparent);
+  --ff-minimap-shadow: var(--sm-shadow-floating);
+}
+
+/* Node cards: a crisp white ink rule, the drafted-box look, no halo.
+   Beats the component `:host { border-color: var(--sm-border) }`. */
+html.app-blueprint sm-node-card {
+  border-color: color-mix(in srgb, var(--sm-bp-ink) 60%, var(--sm-bp-border));
+}
+
+/* Flat ink strokes for the connections: the selected / highlighted
+   edge gets a hairline white outline instead of a glow. */
+html.app-blueprint .f-conn--highlighted,
+html.app-blueprint .f-connection.f-selected {
+  filter: drop-shadow(0 0 1px color-mix(in srgb, var(--sm-bp-ink) 80%, transparent));
+}
+
+/* Floating zoom toolbar: another drafted box on the sheet. */
+html.app-blueprint .graph__toolbar {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--sm-bp-ink) 35%, transparent);
+  background: var(--sm-bg-page);
+}
+
+/* Floating filter palettes: sheet surface, ruled borders. */
+html.app-blueprint .graph__filter-stack .kind-palette,
+html.app-blueprint .graph__filter-stack .link-kind-palette {
+  background: color-mix(in srgb, var(--sm-bg-page) 85%, transparent);
+}
+
+html.app-blueprint .graph__filter-stack .kind-palette__btn,
+html.app-blueprint .graph__filter-stack .link-kind-palette__btn,
+html.app-blueprint .graph__filter-stack .severity-palette__btn {
+  border-color: color-mix(in srgb, var(--sm-bp-ink) 18%, transparent);
+}
+
+html.app-blueprint .graph__filter-stack .kind-palette__btn[aria-pressed='true'],
+html.app-blueprint .graph__filter-stack .link-kind-palette__btn[aria-pressed='true'],
+html.app-blueprint .graph__filter-stack .severity-palette__btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--sm-bp-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--sm-bp-accent) 60%, transparent);
+}
+
+/* Perf HUD: a title-block readout, muted ink. */
+html.app-blueprint sm-perf-hud .perf-hud {
+  --perf-fg: color-mix(in oklab, var(--sm-bp-muted) 80%, #0a2a5e);
+  background: color-mix(in srgb, var(--sm-bg-page) 60%, transparent);
+  border-color: color-mix(in srgb, var(--sm-bp-ink) 25%, transparent);
+  color: var(--perf-fg);
+  --p-text-color: var(--perf-fg);
+  --p-text-muted-color: var(--perf-fg);
+  --p-togglebutton-color: var(--perf-fg);
+  --p-togglebutton-checked-color: var(--perf-fg);
+  --p-togglebutton-hover-color: var(--perf-fg);
+  --p-togglebutton-background: var(--sm-bg-page);
+  --p-togglebutton-checked-background: var(--sm-bg-page);
+  --p-togglebutton-hover-background: var(--sm-bg-page);
+}
+
+html.app-blueprint sm-perf-hud .perf-hud .perf-hud__header .perf-hud__cell,
+html.app-blueprint sm-perf-hud .perf-hud .perf-hud__expandable-inner .perf-hud__cell {
+  color: var(--perf-fg);
+}
+
+/* WCAG 1.4.11: text-field borders at 3:1 against the field surface
+   (the neon idiom, doubled selector to outrank the preset's runtime
+   token). sky-400 clears it on the blue sheet. */
+html:root.app-blueprint {
+  --p-inputtext-border-color: #38bdf8;
+}
+
+/* WCAG 1.4.3: accent-coloured text (active sort header, active rail
+   tab); the sky accent clears 4.5:1 on the sheet. */
+html:root.app-blueprint {
+  --sm-accent-text: var(--p-primary-color);
+}

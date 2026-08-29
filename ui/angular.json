@@ -35,6 +35,8 @@
               "src/themes/neon.css",
               "src/themes/neon-green.css",
               "src/themes/neon-red.css",
+              "src/themes/blueprint.css",
+              "src/themes/paper.css",
               "src/themes/highlight.css"
             ],
             "allowedCommonJsDependencies": [

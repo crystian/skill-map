@@ -153,13 +153,31 @@ describe('ThemeService', () => {
 
     it('serves the retinted mark of every extra theme, and falls back on clear', () => {
       const svc = TestBed.inject(ThemeService);
-      for (const id of ['matrix', 'neon-blue', 'neon-green', 'neon-red'] as const) {
+      for (const id of ['matrix', 'neon-blue', 'neon-green', 'neon-red', 'blueprint', 'paper'] as const) {
         svc.setExtraTheme(id);
         expect(svc.markSrc()).toBe(`skill-map-mark-${id}.svg`);
       }
       svc.setExtraTheme(null);
       svc.set('light');
       expect(svc.markSrc()).toBe('skill-map-mark-dark.svg');
+    });
+  });
+
+  describe('extra theme (paper, forcesLight)', () => {
+    it('drops the dark classes even under a dark mode, and restores them on clear', () => {
+      const svc = TestBed.inject(ThemeService);
+      svc.set('dark');
+      TestBed.tick();
+      expect(document.documentElement.classList.contains('app-dark')).toBe(true);
+      svc.setExtraTheme('paper');
+      TestBed.tick();
+      expect(document.documentElement.classList.contains('app-paper')).toBe(true);
+      expect(document.documentElement.classList.contains('app-dark')).toBe(false);
+      expect(document.documentElement.classList.contains('dark')).toBe(false);
+      svc.setExtraTheme(null);
+      TestBed.tick();
+      expect(document.documentElement.classList.contains('app-paper')).toBe(false);
+      expect(document.documentElement.classList.contains('app-dark')).toBe(true);
     });
   });
 

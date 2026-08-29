@@ -74,12 +74,11 @@
       data-testid="settings-general-row-extra-theme"
     >
       <div class="settings-general__row-text">
-        <!-- `<p-selectbutton>` renders `role="group"` and names it ONLY
-             from `aria-labelledby`; there is no labelable input to pair
-             a `<label for>` with, so the visible label carries an id and
-             the group points at it. Without this the group is anonymous
-             and a screen reader announces the theme options with no clue
-             what axis they belong to. -->
+        <!-- The id below NAMES the `<p-select>` (its `ariaLabelledBy`):
+             a PrimeNG select falls back to announcing its CURRENT value
+             ("Blueprint, combo box") and never what the control picks,
+             so the visible label carries the id and the combo box points
+             at it (the active-lens select's idiom). -->
         <div class="settings-general__row-label" id="settings-general-extra-theme-label">
           {{ texts.general.extraTheme.label }}
         </div>
@@ -87,23 +86,30 @@
           {{ texts.general.extraTheme.description }}
         </div>
       </div>
-      <p-selectbutton
+      <!-- A dropdown, not a selectbutton row: the registry outgrew a
+           button strip (six extras + None). Each option lists the theme's
+           one-line description under its label, the collapsed control
+           shows the current label only. -->
+      <p-select
+        class="settings-general__extra-theme-select"
         ariaLabelledBy="settings-general-extra-theme-label"
+        panelStyleClass="sm-settings-select-overlay"
+        size="small"
         [options]="extraThemeOptions"
-        [ngModel]="extraThemeWire()"
-        (ngModelChange)="onExtraThemeChange($event)"
         optionLabel="label"
         optionValue="value"
-        [allowEmpty]="false"
-        size="small"
+        [ngModel]="extraThemeWire()"
+        (ngModelChange)="onExtraThemeChange($event)"
+        appendTo="body"
         data-testid="settings-general-extra-theme"
       >
-        <ng-template let-option pTemplate="item">
-          <span data-testid="settings-general-extra-theme-option">
-            {{ option.label }}
+        <ng-template let-option #item>
+          <span class="settings-general__extra-theme-option" data-testid="settings-general-extra-theme-option">
+            <span class="settings-general__extra-theme-option-label">{{ option.label }}</span>
+            <span class="settings-general__extra-theme-option-desc">{{ option.description }}</span>
           </span>
         </ng-template>
-      </p-selectbutton>
+      </p-select>
     </li>
 
     @for (def of togglesAfterTheme; track def.key) {

@@ -1,0 +1,303 @@
+/* skill-map paper theme. Warm parchment and sepia ink, the first extra
+ * theme that sits on the LIGHT base: `ThemeService` toggles `.app-paper`
+ * on `<html>` when `extraTheme === 'paper'` and, because the registry
+ * entry declares `forcesLight`, drops `.app-dark` + `.dark` even under a
+ * dark tri-state, so PrimeNG / Foblex run their light palette beneath
+ * the retint. Self-contained: removing this file from `angular.json`'s
+ * `styles` array fully disables the theme.
+ *
+ * The look is a notebook, not a console: cream paper, brown-black ink,
+ * a rust accent for what is active, and a faint dotted grid like a
+ * bullet journal. No glow anywhere; shadows are soft paper lifts.
+ *
+ * Selector prefix:
+ *   - `:root.app-paper`   for the var palette (beats PrimeNG's runtime
+ *                         `:root,:host` injection).
+ *   - `html.app-paper .X` for per-element retints (beats Angular's
+ *                         emulated-encapsulation rewrite of component
+ *                         CSS, which lands later).
+ */
+
+/* === Base palette, SM tokens + PrimeNG retint + shadows === */
+:root.app-paper {
+  --sm-pp-accent: #8a4b2a;        /* rust ink, primary accent */
+  --sm-pp-accent-bright: #a95f3a; /* warmer rust for hover */
+  --sm-pp-accent-dim: #6b3a1f;    /* deep rust for pressed states */
+  --sm-pp-muted: #8c7a60;         /* faded pencil */
+  --sm-pp-ink: #2b2418;           /* brown-black ink, body text */
+  --sm-pp-border: #d6c6a8;        /* ruled line on the page */
+
+  --sm-bg-page: #f4ecdc;          /* parchment */
+  --sm-bg-content: #fbf6ea;       /* the card sheet, a shade lighter */
+  --sm-bg-hover: #efe5d1;         /* thumbed page */
+  --sm-border: var(--sm-pp-border);
+  --sm-nav-active-bg: color-mix(in srgb, var(--sm-pp-accent) 12%, transparent);
+
+  --sm-text-muted: #7a6a52;
+
+  /* Edge kind ramp: pencil grey warming toward full ink (`invokes`,
+     strongest), `mentions` the faintest, `points` at 50%. Active
+     variants deepen toward the darkest ink. */
+  --sm-edge-neutral: #b4a48a;
+  --sm-edge-mentions: color-mix(in srgb, var(--sm-pp-ink) 33%, var(--sm-edge-neutral));
+  --sm-edge-points: color-mix(in srgb, var(--sm-pp-ink) 50%, var(--sm-edge-neutral));
+  --sm-edge-references: color-mix(in srgb, var(--sm-pp-ink) 67%, var(--sm-edge-neutral));
+  --sm-edge-invokes: #4a3728;
+  --sm-edge-mentions-active: color-mix(in srgb, var(--sm-pp-ink) 45%, var(--sm-edge-neutral));
+  --sm-edge-points-active: color-mix(in srgb, var(--sm-pp-ink) 62%, var(--sm-edge-neutral));
+  --sm-edge-references-active: color-mix(in srgb, var(--sm-pp-ink) 80%, var(--sm-edge-neutral));
+  --sm-edge-invokes-active: var(--sm-pp-ink);
+
+  /* Spawn edges: a red-ink annotation, the one saturated stroke. */
+  --sm-edge-spawn: #b03a5b;
+
+  --sm-link-in-bg: color-mix(in srgb, var(--sm-pp-accent) 14%, transparent);
+  --sm-link-in-fg: var(--sm-pp-accent);
+  --sm-link-out-bg: color-mix(in srgb, var(--sm-pp-muted) 18%, transparent);
+  --sm-link-out-fg: var(--sm-pp-muted);
+
+  --p-text-color: var(--sm-pp-ink);
+  --p-text-muted-color: var(--sm-text-muted);
+  --p-primary-color: var(--sm-pp-accent);
+  --p-primary-contrast-color: #fbf6ea;
+  --p-primary-hover-color: var(--sm-pp-accent-bright);
+  --p-primary-active-color: var(--sm-pp-accent-dim);
+  --p-button-text-secondary-color: var(--sm-pp-muted);
+  --p-button-text-secondary-hover-color: var(--sm-pp-accent);
+  --p-button-text-secondary-hover-background: color-mix(in srgb, var(--sm-pp-accent) 12%, transparent);
+  --p-button-text-secondary-active-background: color-mix(in srgb, var(--sm-pp-accent) 20%, transparent);
+  --p-content-background: var(--sm-bg-content);
+  --p-content-hover-background: var(--sm-bg-hover);
+  --p-content-border-color: var(--sm-pp-border);
+  --p-surface-0: var(--sm-bg-content);
+  --p-surface-50: var(--sm-bg-page);
+  --p-surface-100: var(--sm-bg-hover);
+
+  /* Physical-stat chip tints, re-keyed to the parchment. */
+  --sm-stat-tokens-bg: color-mix(in srgb, var(--sm-pp-accent) 16%, transparent);
+  --sm-stat-bytes-bg: color-mix(in srgb, var(--sm-pp-muted) 22%, transparent);
+
+  /* Paper lifts: warm, soft, short. */
+  --sm-shadow-topbar: 0 1px 2px rgba(74, 55, 40, 0.18);
+  --sm-shadow-eventlog: 0 -2px 10px rgba(74, 55, 40, 0.12);
+  --sm-shadow-floating: 0 4px 16px rgba(74, 55, 40, 0.18);
+  --sm-shadow-card: 0 1px 3px rgba(74, 55, 40, 0.16);
+  --sm-shadow-card-hover: 0 4px 14px rgba(74, 55, 40, 0.24);
+  --sm-shadow-panel: 0 6px 28px rgba(74, 55, 40, 0.22);
+
+  /* Tooltips live in <body>, so the vars sit at :root. */
+  --p-tooltip-background: var(--sm-pp-ink);
+  --p-tooltip-color: var(--sm-bg-content);
+  --p-tooltip-shadow: 0 2px 10px rgba(74, 55, 40, 0.3);
+}
+
+/* === Topbar palette === */
+html.app-paper .shell__topbar {
+  --shell-topbar-bg: var(--sm-bg-page);
+  --shell-topbar-border: var(--sm-pp-border);
+  --shell-topbar-text: var(--sm-pp-ink);
+  --shell-topbar-text-strong: var(--sm-pp-accent);
+  --shell-topbar-text-muted: var(--sm-pp-muted);
+  --shell-topbar-hover-bg: color-mix(in srgb, var(--sm-pp-accent) 10%, transparent);
+  --shell-topbar-active-bg: color-mix(in srgb, var(--sm-pp-accent) 16%, transparent);
+  --shell-topbar-active-text: var(--sm-pp-accent-dim);
+  --shell-topbar-badge-bg: color-mix(in srgb, var(--sm-pp-accent) 12%, transparent);
+}
+
+/* Active nav: an ink underline, like a heading in a notebook. */
+html.app-paper .shell__nav a.is-active {
+  box-shadow: inset 0 -2px 0 var(--sm-pp-accent);
+}
+
+html.app-paper .settings-modal__sidebar-item:hover {
+  background: color-mix(in srgb, var(--sm-pp-accent) 8%, transparent);
+}
+
+html.app-paper .settings-modal__sidebar-item.is-active {
+  background: color-mix(in srgb, var(--sm-pp-accent) 14%, transparent);
+  color: var(--sm-pp-accent-dim);
+}
+
+/* === Topbar chips (beta / version / update), one-off palettes === */
+html.app-paper .shell__beta {
+  color: var(--sm-pp-accent-dim);
+  background: color-mix(in srgb, var(--sm-pp-accent) 12%, transparent);
+}
+
+html.app-paper .shell__version {
+  color: var(--sm-pp-muted);
+  background: color-mix(in srgb, var(--sm-pp-muted) 14%, transparent);
+}
+
+html.app-paper .shell__update-chip {
+  color: var(--sm-pp-accent);
+  background: color-mix(in srgb, var(--sm-pp-accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--sm-pp-accent) 40%, transparent);
+}
+
+html.app-paper .shell__update-chip:hover,
+html.app-paper .shell__update-chip:focus-visible {
+  background: color-mix(in srgb, var(--sm-pp-accent) 16%, transparent);
+  color: var(--sm-pp-accent-dim);
+}
+
+html.app-paper .shell__update-npm-link {
+  color: var(--sm-pp-accent);
+}
+
+html.app-paper .shell__update-npm-link:hover,
+html.app-paper .shell__update-npm-link:focus-visible {
+  color: var(--sm-pp-accent-dim);
+  background: color-mix(in srgb, var(--sm-pp-accent) 12%, transparent);
+}
+
+/* === Form fields === */
+html.app-paper {
+  --p-form-field-background: var(--sm-bg-content);
+  --p-form-field-disabled-background: var(--sm-bg-page);
+  --p-form-field-filled-background: var(--sm-bg-content);
+  --p-form-field-filled-hover-background: var(--sm-bg-hover);
+  --p-form-field-filled-focus-background: var(--sm-bg-content);
+  --p-form-field-border-color: var(--sm-pp-border);
+  --p-form-field-hover-border-color: color-mix(in srgb, var(--sm-pp-accent) 50%, transparent);
+  --p-form-field-focus-border-color: var(--sm-pp-accent);
+  --p-form-field-color: var(--sm-pp-ink);
+  --p-form-field-disabled-color: var(--sm-pp-muted);
+  --p-form-field-placeholder-color: var(--sm-pp-muted);
+  --p-form-field-icon-color: var(--sm-pp-accent);
+  --p-form-field-float-label-color: var(--sm-pp-muted);
+  --p-form-field-float-label-focus-color: var(--sm-pp-accent);
+  --p-highlight-background: color-mix(in srgb, var(--sm-pp-accent) 14%, transparent);
+  --p-highlight-focus-background: color-mix(in srgb, var(--sm-pp-accent) 22%, transparent);
+  --p-highlight-color: var(--sm-pp-accent-dim);
+  --p-highlight-focus-color: var(--sm-pp-accent-dim);
+}
+
+html.app-paper .p-togglebutton {
+  background: transparent;
+  border-color: var(--sm-pp-border);
+  color: var(--sm-pp-muted);
+}
+
+html.app-paper .p-togglebutton:hover {
+  background: color-mix(in srgb, var(--sm-pp-accent) 8%, transparent);
+  color: var(--sm-pp-accent);
+}
+
+html.app-paper .p-togglebutton-checked {
+  background: color-mix(in srgb, var(--sm-pp-accent) 14%, transparent);
+  border-color: var(--sm-pp-accent);
+  color: var(--sm-pp-accent-dim);
+}
+
+html.app-paper .p-togglebutton-checked .p-togglebutton-content {
+  background: transparent;
+  color: var(--sm-pp-accent-dim);
+  box-shadow: none;
+}
+
+html.app-paper .p-button-outlined.p-button-secondary {
+  color: var(--sm-pp-muted);
+  border-color: var(--sm-pp-border);
+  background: transparent;
+}
+
+html.app-paper .p-button-outlined.p-button-secondary:enabled:hover,
+html.app-paper .p-button-outlined.p-button-secondary:enabled:focus-visible {
+  color: var(--sm-pp-accent-dim);
+  border-color: var(--sm-pp-accent);
+  background: color-mix(in srgb, var(--sm-pp-accent) 10%, transparent);
+}
+
+html.app-paper .p-button-outlined.p-button-secondary:enabled:active {
+  background: color-mix(in srgb, var(--sm-pp-accent) 18%, transparent);
+}
+
+/* === Graph view ===
+   Foblex tokens overridden per the foblex-flow skill (rules 5 + 7):
+   tokens at the wrap, no `::ng-deep`, no hand-rolled SVG. */
+
+/* The page: parchment with a faint warm vignette and a pencil-grey
+   dotted grid (Foblex's background layer, flow background transparent). */
+html.app-paper .graph__canvas-wrap {
+  background: radial-gradient(
+    ellipse 130% 100% at 50% 40%,
+    #f7f0e1 0%,
+    #f4ecdc 60%,
+    #ecdfc7 100%
+  );
+  --ff-flow-background-color: transparent;
+  --ff-background-line-color: rgba(74, 55, 40, 0.1);
+  --ff-background-dot-color: rgba(74, 55, 40, 0.18);
+
+  /* Minimap: a thumbnail sketch in the page corner. */
+  --ff-minimap-background-color: #efe5d1;
+  --ff-minimap-border-color: var(--sm-pp-border);
+  --ff-minimap-node-color: color-mix(in srgb, var(--sm-pp-ink) 35%, var(--sm-bg-content));
+  --ff-minimap-node-selected-color: var(--sm-pp-accent);
+  --ff-minimap-view-color: color-mix(in srgb, var(--sm-pp-accent) 8%, transparent);
+  --ff-minimap-view-border-color: color-mix(in srgb, var(--sm-pp-accent) 60%, transparent);
+  --ff-minimap-shadow: var(--sm-shadow-floating);
+}
+
+/* Node cards: an ink rule with a soft paper lift, no halo. */
+html.app-paper sm-node-card {
+  border-color: #c9b58f;
+}
+
+/* Floating zoom toolbar: a card on the page. */
+html.app-paper .graph__toolbar {
+  box-shadow: var(--sm-shadow-card);
+  background: var(--sm-bg-content);
+}
+
+/* Floating filter palettes: parchment surface, ruled borders. */
+html.app-paper .graph__filter-stack .kind-palette,
+html.app-paper .graph__filter-stack .link-kind-palette {
+  background: color-mix(in srgb, var(--sm-bg-content) 88%, transparent);
+}
+
+html.app-paper .graph__filter-stack .kind-palette__btn,
+html.app-paper .graph__filter-stack .link-kind-palette__btn,
+html.app-paper .graph__filter-stack .severity-palette__btn {
+  border-color: color-mix(in srgb, var(--sm-pp-ink) 14%, transparent);
+}
+
+html.app-paper .graph__filter-stack .kind-palette__btn[aria-pressed='true'],
+html.app-paper .graph__filter-stack .link-kind-palette__btn[aria-pressed='true'],
+html.app-paper .graph__filter-stack .severity-palette__btn[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--sm-pp-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--sm-pp-accent) 55%, transparent);
+}
+
+/* Perf HUD: pencil notes in the margin. */
+html.app-paper sm-perf-hud .perf-hud {
+  --perf-fg: var(--sm-pp-muted);
+  background: color-mix(in srgb, var(--sm-bg-content) 70%, transparent);
+  border-color: var(--sm-pp-border);
+  color: var(--perf-fg);
+  --p-text-color: var(--perf-fg);
+  --p-text-muted-color: var(--perf-fg);
+  --p-togglebutton-color: var(--perf-fg);
+  --p-togglebutton-checked-color: var(--perf-fg);
+  --p-togglebutton-hover-color: var(--perf-fg);
+  --p-togglebutton-background: var(--sm-bg-content);
+  --p-togglebutton-checked-background: var(--sm-bg-content);
+  --p-togglebutton-hover-background: var(--sm-bg-content);
+}
+
+html.app-paper sm-perf-hud .perf-hud .perf-hud__header .perf-hud__cell,
+html.app-paper sm-perf-hud .perf-hud .perf-hud__expandable-inner .perf-hud__cell {
+  color: var(--perf-fg);
+}
+
+/* WCAG 1.4.11: text-field borders at 3:1 against the cream field
+   surface; the pencil-brown clears it. */
+html:root.app-paper {
+  --p-inputtext-border-color: #8c7a60;
+}
+
+/* WCAG 1.4.3: accent-coloured text; the rust ink clears 4.5:1 on cream. */
+html:root.app-paper {
+  --sm-accent-text: var(--p-primary-color);
+}
