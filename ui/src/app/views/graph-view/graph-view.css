@@ -798,6 +798,62 @@
   }
 }
 
+/* Spine comets: a sibling connection layered over the executing spine
+   with the same geometry (graph-view.html, the `cometEdges` block), so
+   the library draws the identical path and this class only dresses it.
+   The stroke is a capsule train, one 16-unit round-capped dash every
+   160 units of path, painted in the comet tint over the spine's
+   gradient line, with its own glow (the spine's hue sweep never
+   reaches it: separate element, separate filter). The dash offset
+   marches toward the path END, which Foblex draws source-to-target,
+   so every particle travels from the caller to the callee. No markers
+   are projected, and the drag-handle circle is already transparent at
+   the wrap. `pointer-events: none` on the library's group keeps the
+   static edge underneath clickable (the host is `pointer-events: none`
+   by default, the group is what re-enables them). `stroke-dasharray` /
+   `stroke-linecap` have no token, so they go through ::ng-deep scoped
+   under the canvas wrap (rule 5). */
+.f-conn--comet {
+  --ff-connection-color: var(--sm-exec-comet);
+  --ff-connection-width: 5px;
+  filter:
+    drop-shadow(0 0 3px color-mix(in srgb, var(--sm-exec-comet) 90%, transparent))
+    drop-shadow(0 0 9px color-mix(in srgb, var(--sm-exec-c2) 70%, transparent));
+}
+
+.graph__canvas-wrap ::ng-deep .f-conn--comet .f-connection-group {
+  pointer-events: none;
+}
+
+.graph__canvas-wrap ::ng-deep .f-conn--comet .f-connection-path {
+  stroke-linecap: round;
+  stroke-dasharray: 16 144;
+}
+
+/* The march IS the effect: under reduced motion a still capsule train
+   over the spine would read as a dotted line, so the track paints
+   nothing instead of freezing (unlike the spine, which keeps a static
+   line). Animating stroke-dashoffset never touches a Foblex-owned
+   transform (rule 3). */
+@media (prefers-reduced-motion: no-preference) {
+  .graph__canvas-wrap ::ng-deep .f-conn--comet .f-connection-path {
+    animation: sm-comet-travel 1s linear infinite;
+  }
+
+  @keyframes sm-comet-travel {
+    to {
+      stroke-dashoffset: -160;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .f-conn--comet {
+    --ff-connection-color: transparent;
+    filter: none;
+  }
+}
+
 /* A static edge whose pair has counted conversations is clickable
    (opens the historical thread dialog); advertise it like the spawn
    edges do. Label-less static edges keep the default cursor. */

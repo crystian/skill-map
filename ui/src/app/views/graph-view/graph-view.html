@@ -309,6 +309,35 @@
             }
           </ng-container>
 
+          <!-- Spine comets (spec/provider-activity.md §Roles and boundary,
+               the UI-owned spine treatment): while a static edge is the
+               executing spine, a second connection with the SAME geometry
+               inputs rides on top of it dressed as comets only (marching
+               capsule dash, no continuous stroke, no markers), so bright
+               particles travel the library-drawn path from the caller to
+               the callee while the spine keeps its gradient line
+               underneath. Pure chrome: selection off, pointer-events off
+               (graph-view.css), hidden from AT (the static edge already
+               carries the accessible connection). Spawn-active pairs are
+               excluded upstream, their marching dash is the flow signal. -->
+          <ng-container ngProjectAs="[fConnections]">
+            @for (edge of cometEdges(); track edge.key) {
+              <f-connection
+                [fSourceId]="edge.sourceId"
+                [fTargetId]="edge.targetId"
+                [fSourceSide]="outputSide()"
+                [fTargetSide]="inputSide()"
+                [fType]="connectionType()"
+                [fBehavior]="connectionBehavior"
+                [fReassignDisabled]="true"
+                [fSelectionDisabled]="true"
+                class="f-conn--comet"
+                aria-hidden="true"
+                [attr.data-testid]="'graph-comet-edge-' + edge.key"
+              />
+            }
+          </ng-container>
+
           <!--
             Both branches duplicate the full <div fNode> markup on purpose:
             Foblex resolves fNodeInput / fNodeOutput / connectors via content

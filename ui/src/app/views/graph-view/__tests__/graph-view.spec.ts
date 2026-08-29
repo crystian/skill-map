@@ -1296,6 +1296,40 @@ describe('GraphView, follow-the-activity camera', () => {
     expect(localStorage.getItem(FOLLOW_KEY)).toBe('false');
   });
 
+  it('spine comets: one track per executing pair, none while only one endpoint runs', async () => {
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, cmp } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a'), makeNode('b.md', 'b')],
+      active,
+      signal(true),
+    );
+    const loader = TestBed.inject(CollectionLoaderService) as unknown as IStubLoader;
+    // Two link kinds on the same directed pair: they collapse into ONE
+    // comet track (two overlaid trains would smear).
+    loader.scan.set({
+      ...loader.scan()!,
+      links: [
+        { source: 'a.md', target: 'b.md', kind: 'references', confidence: 1, sources: ['x'] },
+        { source: 'a.md', target: 'b.md', kind: 'mentions', confidence: 1, sources: ['x'] },
+      ],
+    });
+    await settleBoot(fixture);
+    const comets = (cmp as unknown as { cometEdges: () => readonly { key: string }[] }).cometEdges;
+    expect(comets()).toHaveLength(0);
+
+    active.set(new Set(['a.md']));
+    await flushEffects(fixture);
+    expect(comets()).toHaveLength(0);
+
+    active.set(new Set(['a.md', 'b.md']));
+    await flushEffects(fixture);
+    expect(comets().map((c) => c.key)).toEqual(['a.md>>b.md']);
+
+    active.set(new Set());
+    await flushEffects(fixture);
+    expect(comets()).toHaveLength(0);
+  });
+
   it('a canvas gesture while the camera RESTS keeps follow armed', async () => {
     const active = signal<ReadonlySet<string>>(new Set());
     const { fixture, probe } = await bootstrapWithActivity(

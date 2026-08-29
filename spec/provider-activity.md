@@ -37,7 +37,7 @@ The pipeline crosses four independently-owned pieces:
   content-free frames under `.skill-map/sessions/`.
 - **Bridge** is the tiny artifact installed into the provider's own hook config. It
   has ZERO skill-map logic beyond discovery + forwarding (see §Bridge contract).
-- **UI** owns presentation: per-node lighting, the active spine, TTL decay.
+- **UI** owns presentation: per-node lighting, the active spine (including the source-to-target particle flow it carries while it executes, so the direction of the live call reads on the map), TTL decay.
 
 ## The `provider.activity` capability
 

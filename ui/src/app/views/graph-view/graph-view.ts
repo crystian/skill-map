@@ -114,6 +114,7 @@ import { setupCamera, type ICameraHandle } from './camera.controller';
 import { setupSpawnAnchors } from './spawn-anchors.controller';
 import { edgePairKey, type ISpawnOverlayEdge } from './spawn-overlay';
 import type { IInvocationOverlayEdge } from './invocation-overlay';
+import { resolveCometOverlay, type ICometOverlayEdge } from './comet-overlay';
 import { type IViewportTransform } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
@@ -1605,6 +1606,22 @@ export class GraphView implements OnInit {
       label: inv.label,
     }));
   });
+
+  /**
+   * Comet tracks for the template: one connection per executing spine
+   * pair, layered over the static edge with the same geometry inputs
+   * so the library draws the identical path (see `comet-overlay.ts`
+   * for the layering rationale). Reads the same signals
+   * `isEdgeExecuting` / `spawnActiveIdFor` read, so the tracks follow
+   * live activity, lens observation and replay alike.
+   */
+  protected readonly cometEdges = computed<readonly ICometOverlayEdge[]>(() =>
+    resolveCometOverlay({
+      edges: this.graph().edges,
+      isExecuting: (edge) => this.isEdgeExecuting(edge),
+      isSpawnActive: (edge) => this.spawnActiveIdFor(edge) !== null,
+    }),
+  );
 
   /** O(1) pair -> lastSpawnId lookup over the lens's observed spawns. */
   private readonly lensSpawnByPair = computed<ReadonlyMap<string, string>>(() => {

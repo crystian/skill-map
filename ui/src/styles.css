@@ -189,6 +189,11 @@
   --sm-exec-c3: #34d399;
   --sm-exec-c4: #fbbf24;
   --sm-exec-c5: #fb7185;
+  /* Spine comet tint (graph-view.css `.f-conn--comet`): the particle
+     that travels the executing spine. A near-white cyan so it reads as
+     a highlight over the violet-to-green gradient line on every theme;
+     its outer glow reuses the rainbow's cyan stop. */
+  --sm-exec-comet: #e0fbff;
 
   /* Live lens "on air" chrome (frame + LIVE badge, graph-view.css).
      A dedicated broadcast red, NOT --sm-severity-error: the severity
