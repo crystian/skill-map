@@ -1,5 +1,57 @@
 # skill-map
 
+## 1.12.3
+
+### Patch Changes
+
+- Runtime activity stats now survive `sm serve` restarts: the accumulator checkpoints into two new project-DB tables (`state_activity_stats`, `state_activity_pairs`, `spec/db-schema.md`), hydrates from them at boot, and the Activity clear-all drops the rows too. A shell sighting's frame now carries the node's unchanged stats and the inspector's empty gate honours the recent log, so a node lit by a `Bash` mention shows who named it. Existing project DBs rebuild on their next scan.
+
+  ## User-facing
+
+  Execution counts and the Activity log no longer vanish when you restart `sm serve`, so replaying an older session shows what really ran. Files mentioned in a Bash command now show that mention in their Activity section. Your project database is rebuilt on the next scan.
+
+- The map's selection dim is now graded like depth of field: one hop from the selected node stays lit, two hops fade lightly, three and beyond fade deep and desaturate, with edges following their farther endpoint. The same falloff engages around the EXECUTING nodes while Follow the Activity is armed on the curated map, so attention follows the action the way the camera does; the follow toggle now names both (camera and focus). Eases over 400ms, reduced-motion aware.
+
+  ## User-facing
+
+  Selecting a node now fades the map gradually around it: close links stay bright, farther ones dim and lose color. With Follow the Activity on, the same focus wraps whatever your agent is running, so the action stands out while the rest of the map stays as context.
+
+- The map now draws itself on load: cards fade and rise in staggered along the layout's diagonal, then the edges draw themselves from source to target with the markers popping in as the lines finish. A once-per-mount intro keyed on the first reconciled layout pass (`ui/src/app/views/graph-view/intro.controller.ts`), so nothing flashes at the origin while dagre runs; fully behind the reduced-motion gate and never replayed by live refreshes, lens toggles or view switches.
+
+  ## User-facing
+
+  Opening the map now plays a short intro: the cards appear in a wave across the layout and the links draw themselves between them. It runs once per page load and respects your system's reduced-motion setting.
+
+- A session replay is now a URL: `?replay=<rootOwner>[&agent=<spawnId>][&at=<frame>]` opens the replay at boot (tape first, then the journal) and lands paused on the frame; while a session-scoped replay is on screen the address bar mirrors it (`at` only while paused) and the transport bar's new Copy link hands the URL out. `spec/provider-activity.md` §Session journal documents the addressable replay.
+
+  ## User-facing
+
+  You can now share a replay: press the link button in the replay bar to copy a URL that opens the same session on this project, paused on the exact moment you were looking at (or from the top if it was playing).
+
+- The session replay gained a director camera: with the director on (transport-bar toggle, default on) the camera glides into a close-up of the node each frame is about, holds on frames about nothing on the map, and pulls back to the whole route at the end of the tape. The playback fold carries `trail` (the route in first-touch order), and `spec/provider-activity.md` §Roles and boundary names the replay chrome as UI-owned.
+
+  ## User-facing
+
+  Replaying a session now plays like a film: the camera follows each step up close and pulls back at the end to show the whole route. Turn the director camera off in the replay bar to keep the full route in view instead.
+
+- The Sessions rail now follows a replay: the step row under the cursor is marked current and scrolled into view, and the session (or agent chain) holding it auto-expands. Cards are draggable while the Live lens or a replay is on: the drag pins the card for the lens session only (force relayouts respect it, nothing is persisted, the pin dies with the lens exit), documented in `spec/map-views.md`.
+
+  ## User-facing
+
+  During a replay the Sessions list highlights the current step and keeps it in view. You can now drag cards around while the live view or a replay is on; the arrangement lasts until you leave it and is never saved.
+
+- The executing spine on the map now carries comets: while a static edge lights up because both endpoints execute, bright particles march along it from the caller to the callee, so the direction of the live call reads on the map. A sibling Foblex connection with the spine's own geometry (`ui/src/app/views/graph-view/comet-overlay.ts`), skipped on spawn-active pairs, painted out under reduced motion. `spec/provider-activity.md` §Roles and boundary names the flow as UI-owned spine treatment.
+
+  ## User-facing
+
+  When your agent runs a chain on the map, the lit link between the caller and what it invoked now carries small bright particles flowing in the direction of the call, so you can read who called whom at a glance.
+
+- Two extra themes join the Settings picker: Blueprint (drafting-sheet blue with white ink and a technical grid, on the dark base) and Paper (warm parchment with sepia ink, the first extra theme on the LIGHT base, via a new `forcesLight` registry flag). Same self-contained shape as the neon and matrix themes: one CSS file, one registry entry, per-theme favicon and brand mark. The theme picker became a dropdown with a one-line description per option, the registry outgrew a button strip.
+
+  ## User-facing
+
+  Two new looks under Settings, Theme: Blueprint turns the map into an architect's drafting sheet, and Paper gives it a warm parchment-and-ink feel on a light background. The theme picker is now a dropdown.
+
 ## 1.12.2
 
 ### Patch Changes

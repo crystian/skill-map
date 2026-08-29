@@ -2,6 +2,66 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.12.3",
+      "date": "2026-08-29",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Execution counts and the Activity log no longer vanish when you restart `sm serve`, so replaying an older session shows what really ran. Files mentioned in a Bash command now show that mention in their Activity section. Your project database is rebuilt on the next scan.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Selecting a node now fades the map gradually around it: close links stay bright, farther ones dim and lose color. With Follow the Activity on, the same focus wraps whatever your agent is running, so the action stands out while the rest of the map stays as context.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Opening the map now plays a short intro: the cards appear in a wave across the layout and the links draw themselves between them. It runs once per page load and respects your system's reduced-motion setting.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "You can now share a replay: press the link button in the replay bar to copy a URL that opens the same session on this project, paused on the exact moment you were looking at (or from the top if it was playing).",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Replaying a session now plays like a film: the camera follows each step up close and pulls back at the end to show the whole route. Turn the director camera off in the replay bar to keep the full route in view instead.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "During a replay the Sessions list highlights the current step and keeps it in view. You can now drag cards around while the live view or a replay is on; the arrangement lasts until you leave it and is never saved.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "When your agent runs a chain on the map, the lit link between the caller and what it invoked now carries small bright particles flowing in the direction of the call, so you can read who called whom at a glance.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        },
+        {
+          "body": "Two new looks under Settings, Theme: Blueprint turns the map into an architect's drafting sheet, and Paper gives it a warm parchment-and-ink feel on a light background. The theme picker is now a dropdown.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.12.2",
       "date": "2026-08-19",
       "kind": "user-facing",
