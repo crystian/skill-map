@@ -115,6 +115,7 @@ import { setupSpawnAnchors } from './spawn-anchors.controller';
 import { edgePairKey, type ISpawnOverlayEdge } from './spawn-overlay';
 import type { IInvocationOverlayEdge } from './invocation-overlay';
 import { resolveCometOverlay, type ICometOverlayEdge } from './comet-overlay';
+import { INTRO_SWEEP_MS, setupIntro } from './intro.controller';
 import { type IViewportTransform } from './viewport-animation';
 
 const ZOOM_BUTTON_STEP = 0.2;
@@ -222,6 +223,11 @@ const EMPTY_PATH_SET: ReadonlySet<string> = new Set();
     // Short-lived while a map view applies its pin set; the CSS keys
     // the (PRM-gated) node transition + fade on it.
     '[class.view-switching]': 'viewSwitching()',
+    // Boot intro (intro.controller.ts): `intro-pending` hides the
+    // unpositioned pile until the first dagre pass is reconciled,
+    // `intro-running` keys the (PRM-gated) draw-in in graph-view.css.
+    '[class.intro-pending]': "intro.phase() === 'pending'",
+    '[class.intro-running]': "intro.phase() === 'running'",
   },
 })
 export class GraphView implements OnInit {
@@ -725,6 +731,16 @@ export class GraphView implements OnInit {
    * `afterRender*` family documents ordering).
    */
   private readonly layoutReconciledAt = signal(0);
+
+  /**
+   * Boot intro phase (`pending` -> `running` -> `done`), keyed on the
+   * reconcile stamp above so the draw-in starts only once every card
+   * has its dagre position; see `intro.controller.ts`.
+   */
+  protected readonly intro = setupIntro({
+    destroyRef: this.destroyRef,
+    layoutReconciledAt: this.layoutReconciledAt,
+  });
 
   // Camera controller handle (fit / center / tween orchestration).
   // Assigned in the constructor; closures created before the assignment
@@ -1622,6 +1638,39 @@ export class GraphView implements OnInit {
       isSpawnActive: (edge) => this.spawnActiveIdFor(edge) !== null,
     }),
   );
+
+  /**
+   * Diagonal extent of the rendered cards while the boot intro runs
+   * (`null` otherwise, so the per-card inline delay is removed the
+   * moment the intro closes and never rides normal renders). The
+   * stagger sweeps along `x + y`: a top-down layout unfolds rank by
+   * rank, a left-right one sweeps across, both from the layout's
+   * origin corner.
+   */
+  private readonly introSweep = computed<{ min: number; range: number } | null>(() => {
+    if (this.intro.phase() !== 'running') return null;
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const node of this.graph().nodes) {
+      const diagonal = node.position.x + node.position.y;
+      if (diagonal < min) min = diagonal;
+      if (diagonal > max) max = diagonal;
+    }
+    if (!Number.isFinite(min)) return null;
+    return { min, range: Math.max(1, max - min) };
+  });
+
+  /**
+   * Per-card `--sm-intro-delay` (a CSS time string, or `null` to
+   * unset) for the boot intro's stagger: 0 at the origin corner of
+   * the layout, `INTRO_SWEEP_MS` at the far one.
+   */
+  protected introDelayFor(node: { position: IPoint }): string | null {
+    const sweep = this.introSweep();
+    if (sweep === null) return null;
+    const t = (node.position.x + node.position.y - sweep.min) / sweep.range;
+    return `${Math.round(t * INTRO_SWEEP_MS)}ms`;
+  }
 
   /** O(1) pair -> lastSpawnId lookup over the lens's observed spawns. */
   private readonly lensSpawnByPair = computed<ReadonlyMap<string, string>>(() => {

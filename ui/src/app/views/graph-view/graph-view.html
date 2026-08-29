@@ -391,6 +391,7 @@
                 [fConnectorId]="node.id"
                 (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                 class="sm-gnode-host"
+                [style.--sm-intro-delay]="introDelayFor(node)"
                 data-canvas-click-shield
                 tabindex="0"
                 role="group"
@@ -454,6 +455,7 @@
                   [fConnectorId]="node.id"
                   (fNodePositionChange)="onNodePositionChange(node.id, $event)"
                   class="sm-gnode-host"
+                [style.--sm-intro-delay]="introDelayFor(node)"
                   data-canvas-click-shield
                   tabindex="0"
                   role="group"

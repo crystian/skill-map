@@ -1034,6 +1034,88 @@ sm-node-card.sm-gnode--deprecated + .sm-gnode__marker-anchor {
    toolbar markup. Moved out so Angular's emulated encapsulation stamps
    each rule with the host component the popover actually sits in. */
 
+/* ── Boot intro: the map draws itself (intro.controller.ts) ───────────
+   Two short-lived host classes drive a once-per-mount entrance.
+
+   `intro-pending` (mount -> first reconciled dagre pass): the layout is
+   async and every card sits at (0, 0) meanwhile, so the cards and the
+   edge layer stay invisible instead of flashing a pile at the origin.
+   Opacity only, on elements Foblex keeps measuring underneath.
+
+   `intro-running` (`INTRO_ANIMATION_MS`): cards fade in on the
+   `[fNode]` host and rise on the card host, staggered along the
+   layout's diagonal through the per-card `--sm-intro-delay` inline
+   var (`introDelayFor`); the edges then draw themselves from source
+   to target (a dash the length of the longest plausible path sliding
+   in over `stroke-dashoffset`, the keyframes carry the dasharray so
+   the live dashed families read solid while they draw and snap back
+   to their own dash when the window closes). Markers stay hidden for
+   the whole window (author CSS beats the presentation attributes
+   Foblex sets), so the dot + arrowhead pop in right as the lines
+   finish. `backwards` fill holds every element at its first keyframe
+   through its delay.
+
+   Rule 3 split, same as the view-switch fade below: the `[fNode]` host
+   only ever animates opacity (Foblex owns its transform), the rise
+   lands on `<sm-node-card>`, its child, which the library never
+   positions. Whole block behind the reduced-motion gate: with
+   "animation effects off" the phases toggle over an unchanged canvas
+   and nothing is ever hidden. */
+@media (prefers-reduced-motion: no-preference) {
+  :host(.intro-pending) .sm-gnode-host {
+    opacity: 0;
+  }
+
+  :host(.intro-pending) .graph__canvas-wrap ::ng-deep .f-connections-container {
+    opacity: 0;
+  }
+
+  :host(.intro-running) .sm-gnode-host {
+    animation: sm-intro-fade 420ms ease-out backwards;
+    animation-delay: calc(var(--sm-intro-delay, 0ms) + 80ms);
+  }
+
+  :host(.intro-running) .sm-gnode-host > sm-node-card {
+    animation: sm-intro-rise 420ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+    animation-delay: calc(var(--sm-intro-delay, 0ms) + 80ms);
+  }
+
+  :host(.intro-running) .graph__canvas-wrap ::ng-deep .f-connection-path {
+    marker-start: none;
+    marker-end: none;
+    animation: sm-intro-draw 800ms cubic-bezier(0.4, 0, 0.2, 1) 300ms backwards;
+  }
+
+  @keyframes sm-intro-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes sm-intro-rise {
+    from {
+      transform: translateY(14px) scale(0.96);
+    }
+    to {
+      transform: none;
+    }
+  }
+
+  @keyframes sm-intro-draw {
+    from {
+      stroke-dasharray: 4000 4000;
+      stroke-dashoffset: 4000;
+    }
+    to {
+      stroke-dasharray: 4000 4000;
+      stroke-dashoffset: 0;
+    }
+  }
+}
+
 /* ── Map-view switch animation (spec/map-views.md) ─────────────────────
    Engaged ONLY while the host carries `view-switching` (a short-lived
    class the graph view toggles around a view's pin-set apply, see

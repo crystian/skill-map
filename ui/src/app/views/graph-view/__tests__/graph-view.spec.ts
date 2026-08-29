@@ -1296,6 +1296,26 @@ describe('GraphView, follow-the-activity camera', () => {
     expect(localStorage.getItem(FOLLOW_KEY)).toBe('false');
   });
 
+  it('boot intro: pending until the first layout pass is reconciled, then running on the host', async () => {
+    const active = signal<ReadonlySet<string>>(new Set());
+    const { fixture, cmp } = await bootstrapWithActivity(
+      [makeNode('a.md', 'a'), makeNode('b.md', 'b')],
+      active,
+      signal(true),
+    );
+    const intro = (cmp as unknown as { intro: { phase: () => string } }).intro;
+    // Before any change detection nothing has been laid out: pending.
+    expect(intro.phase()).toBe('pending');
+
+    // The stubbed dagre resolves during boot; the reconcile effect
+    // stamps `layoutReconciledAt`, which is the intro's only trigger.
+    await settleBoot(fixture);
+    expect(intro.phase()).toBe('running');
+    const host = fixture.nativeElement as HTMLElement;
+    expect(host.classList.contains('intro-running')).toBe(true);
+    expect(host.classList.contains('intro-pending')).toBe(false);
+  });
+
   it('spine comets: one track per executing pair, none while only one endpoint runs', async () => {
     const active = signal<ReadonlySet<string>>(new Set());
     const { fixture, cmp } = await bootstrapWithActivity(
