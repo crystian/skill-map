@@ -2,6 +2,20 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.12.5",
+      "date": "2026-08-29",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Each time you press Record you get a new session in the Sessions list, even inside the same agent session; earlier recordings stay as their own rows and replay on their own.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.12.4",
       "date": "2026-08-29",
       "kind": "user-facing",
