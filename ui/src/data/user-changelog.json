@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.12.4",
+      "date": "2026-08-29",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "The replay controls and the glow on running nodes and links now take the colours of your theme (green on Matrix, cyan on Neon B, and so on) instead of a fixed violet rainbow; the default themes keep the rainbow.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "The theme button at the top right now opens a menu with Auto, Light, Dark and every specialty theme (Matrix, the Neons, Blueprint, Paper), so you can switch looks without opening Settings.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.12.3",
       "date": "2026-08-29",
       "kind": "user-facing",

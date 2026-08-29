@@ -1,5 +1,21 @@
 # skill-map
 
+## 1.12.4
+
+### Patch Changes
+
+- The replay bar's transport controls (play / pause, step back / forward, copy link, the director camera while on) now paint in the active theme's primary colour instead of the secondary grey or the replay amber; exit, trash and the director while off stay muted; the amber remains the bar's replay chrome. The live execution palette (spine, comets, invocation edges, card ring and halo) now follows each extra theme's own ramp, the rainbow staying the base look.
+
+  ## User-facing
+
+  The replay controls and the glow on running nodes and links now take the colours of your theme (green on Matrix, cyan on Neon B, and so on) instead of a fixed violet rainbow; the default themes keep the rainbow.
+
+- The topbar theme button now opens a menu instead of cycling: Auto, Light and Dark (the three it used to cycle) plus every specialty theme, with the current look checked and the button's glyph naming it (the palette while a specialty theme is on). Picking a specialty theme from there emits `ui.feature.theme-extra` stamped `source: topbar`; `spec/telemetry.md` adds `topbar` to the source set.
+
+  ## User-facing
+
+  The theme button at the top right now opens a menu with Auto, Light, Dark and every specialty theme (Matrix, the Neons, Blueprint, Paper), so you can switch looks without opening Settings.
+
 ## 1.12.3
 
 ### Patch Changes
