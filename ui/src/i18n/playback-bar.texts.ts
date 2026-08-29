@@ -8,6 +8,9 @@ export const PLAYBACK_BAR_TEXTS = {
   /** Director camera toggle; label + tooltip name the CURRENT state. */
   directorOn: 'Director camera on: the replay follows each step up close',
   directorOff: 'Director camera off: the replay keeps the whole route in frame',
+  /** Replay deep link (paused = this frame, playing = from the top). */
+  copyLink: 'Copy a link to this moment',
+  linkCopied: 'Link copied',
   scrubber: 'Replay position',
   /** `k / N` progress readout. */
   counter: (current: number, total: number): string => `${current} / ${total}`,

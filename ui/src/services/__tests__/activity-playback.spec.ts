@@ -151,8 +151,8 @@ describe('ActivityPlaybackService', () => {
     service.exit();
     expect(service.source()).toEqual({ kind: 'whole-tape' });
 
-    service.enter(TAPE, 'journal row', { kind: 'journal' });
-    expect(service.source()).toEqual({ kind: 'journal' });
+    service.enter(TAPE, 'journal row', { kind: 'journal', rootOwner: 'main:j1' });
+    expect(service.source()).toEqual({ kind: 'journal', rootOwner: 'main:j1' });
     service.exit();
 
     // Entering without a source keeps the historical default.

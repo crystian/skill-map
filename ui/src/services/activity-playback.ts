@@ -31,13 +31,16 @@ import { ActivityRecorderService, type TRecordedEvent } from './activity-recorde
 
 /**
  * Frame provenance of one replay (see `ActivityPlaybackService.source`).
- * `tape-session` carries the session's root owner so the transport can
- * re-filter the live tape at delete time.
+ * Both session-scoped kinds carry the session's root owner (plus the
+ * agent spawn id for an agent-branch scope): `tape-session` so the
+ * transport can re-filter the live tape at delete time, both so the
+ * replay deep link (`graph-view/replay-url-sync.ts`) can name the
+ * moment on screen.
  */
 export type TReplaySource =
   | { kind: 'whole-tape' }
-  | { kind: 'tape-session'; rootOwner: string }
-  | { kind: 'journal' };
+  | { kind: 'tape-session'; rootOwner: string; agentSpawnId?: string }
+  | { kind: 'journal'; rootOwner: string; agentSpawnId?: string };
 
 /** Fixed playback cadence: one recorded event per wall-clock second. */
 export const PLAYBACK_STEP_MS = 1000;

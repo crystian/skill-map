@@ -51,7 +51,7 @@ import { NodeActivityService } from '../../../services/node-activity';
 import { NodeSparkService } from '../../../services/node-spark';
 import { NodeActivityStatsService } from '../../../services/node-activity-stats';
 import { DATA_SOURCE } from '../../../services/data-source/data-source.port';
-import type { INodeActivityStatsApi } from '../../../models/api';
+import type { ISessionRecordingApi, INodeActivityStatsApi } from '../../../models/api';
 import { directNeighborhood } from './node-neighborhood';
 import { BranchCapBanner } from './branch-cap-banner/branch-cap-banner';
 import { GraphLayoutToolbar } from './graph-layout-toolbar/graph-layout-toolbar';
@@ -73,6 +73,7 @@ import { ActivityPlaybackService } from '../../../services/activity-playback';
 import { ActivityRecorderService } from '../../../services/activity-recorder';
 import { LiveLensService } from '../../../services/live-lens';
 import {
+  computeSessionIndex,
   filterTapeForSession,
   type ISessionReplaySelection,
   type ISessionStep,
@@ -116,6 +117,8 @@ import { edgePairKey, type ISpawnOverlayEdge } from './spawn-overlay';
 import type { IInvocationOverlayEdge } from './invocation-overlay';
 import { resolveCometOverlay, type ICometOverlayEdge } from './comet-overlay';
 import { buildTrailIndex, EMPTY_TRAIL_INDEX, type ITrailStep } from './director';
+import { setupReplayUrlSync } from './replay-url-sync';
+import { foldJournalRecordings, resolveReplayTarget } from '../../../services/session-catalog';
 import { INTRO_SWEEP_MS, setupIntro } from './intro.controller';
 import { type IViewportTransform } from './viewport-animation';
 
@@ -1782,7 +1785,12 @@ export class GraphView implements OnInit {
    * recorder, not the frozen tape, so an empty scoped replay would have
    * no way to stand itself down.
    */
-  replaySessionFromTape(selection: ISessionReplaySelection, label: string, step?: ISessionStep): void {
+  replaySessionFromTape(
+    selection: ISessionReplaySelection,
+    label: string,
+    step?: ISessionStep,
+    at?: number,
+  ): void {
     if (!this.liveLens.replayAvailable()) return;
     // Journal-hydrated sessions carry their own frames (the client
     // recorder never saw them); tape-native sessions re-filter live.
@@ -1795,9 +1803,11 @@ export class GraphView implements OnInit {
     this.playback.enter(
       tape,
       label,
-      selection.sourceFrames !== undefined
-        ? { kind: 'journal' }
-        : { kind: 'tape-session', rootOwner: selection.rootOwner },
+      {
+        kind: selection.sourceFrames !== undefined ? 'journal' : 'tape-session',
+        rootOwner: selection.rootOwner,
+        ...(selection.agentSpawnId === undefined ? {} : { agentSpawnId: selection.agentSpawnId }),
+      },
     );
     if (!this.lensOn()) this.liveLensCtl.toggle();
     // Step deep-link (user request 2026-08-16): a step row's click lands
@@ -1807,13 +1817,45 @@ export class GraphView implements OnInit {
     // `(tMs, path)` within the scoped tape; a step the filter somehow
     // excluded degrades to a paused from-the-start replay.
     if (step !== undefined) {
-      const at = tape.findIndex(
+      const frame = tape.findIndex(
         (e) => e.type === 'node.activity' && e.tMs === step.tMs && e.data.nodePath === step.path,
       );
-      if (at >= 0) this.playback.seek(at);
+      if (frame >= 0) this.playback.seek(frame);
+      this.playback.pause();
+    } else if (at !== undefined) {
+      // Deep link landing (`replay-url-sync.ts`): the frame index is the
+      // link's own coordinate inside the scoped tape; out of range
+      // degrades to a paused from-the-start replay, same as a stale step.
+      if (at < tape.length) this.playback.seek(at);
       this.playback.pause();
     }
   }
+
+  /**
+   * Replay deep link (`?replay=<rootOwner>[&agent=…][&at=…]`): boot read
+   * resolved against the client tape and the journal (one best-effort
+   * GET, demo mode included), then written back while a session-scoped
+   * replay is on screen. See `replay-url-sync.ts`.
+   */
+  private readonly replayUrl = setupReplayUrlSync({
+    playback: this.playback,
+    resolve: async (link) => {
+      const tapeSessions = computeSessionIndex(this.recorder.events()).sessions;
+      let recordings: readonly ISessionRecordingApi[] = [];
+      try {
+        recordings = (await this.dataSource.getSessionJournal()).sessions;
+      } catch {
+        // Best-effort (server down, demo without a journal): the tape still resolves.
+      }
+      return resolveReplayTarget({
+        rootOwner: link.rootOwner,
+        ...(link.agentSpawnId === undefined ? {} : { agentSpawnId: link.agentSpawnId }),
+        tapeSessions,
+        journal: foldJournalRecordings(tapeSessions, recordings),
+      });
+    },
+    enter: (target, at) => this.replaySessionFromTape(target.selection, target.label, undefined, at),
+  });
 
   // ── Follow the Activity ─────────────────────────────────────────────
   // Camera state machine extracted to `follow-activity.controller.ts`

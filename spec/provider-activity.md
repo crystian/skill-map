@@ -1080,6 +1080,7 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   SPA's Sessions tab list and replay sessions recorded before the page
   opened (or by another browser): the journal is the durable memory,
   the client tape only the current page's.
+- **Addressable replay**: the SPA's replay is a deep link, `?replay=<rootOwner>[&agent=<spawnId>][&at=<frame>]`, resolved once at boot against the client tape and then the journal (one best-effort `GET /api/activity/sessions`; a target neither knows, another machine's journal or a purged session, is ignored silently and the params drop). `at` is the 0-based frame index inside the scoped tape and lands the replay PAUSED on that frame. While a session-scoped replay is on screen the SPA writes the params back (`at` only while paused: a playing replay is a film that starts from the top), and the transport's Copy link hands out that URL. The whole-tape replay has no session identity and is never linkable. The journal is per machine (`.skill-map/` is not committed), so a link travels with the recording file it names.
 - **Deletion**: `DELETE /api/activity/sessions` empties the journal in one
   gesture: every session file plus the serve process's open in-memory
   buffers (discarded without finalizing, so a pending debounce flush

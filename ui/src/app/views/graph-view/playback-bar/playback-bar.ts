@@ -12,16 +12,20 @@
  * `accent-color` with zero vendor styling.
  */
 
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { Location } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { TooltipModule } from 'primeng/tooltip';
 
 import { PLAYBACK_BAR_TEXTS } from '../../../../i18n/playback-bar.texts';
 import { ActivityPlaybackService } from '../../../../services/activity-playback';
 import { ActivityRecorderService } from '../../../../services/activity-recorder';
+import { COPIED_FEEDBACK_MS, copyToClipboard } from '../../../../services/clipboard';
 import { LivePreferencesService } from '../../../../services/live-preferences';
 import { pathBasenameForLink } from '../../../../services/path-basename';
 import { filterTapeForSession } from '../../../../services/session-index';
+import { replayLinkFromPlayback, replayLinkQueryParams } from '../replay-url-sync';
 
 @Component({
   selector: 'sm-playback-bar',
@@ -34,6 +38,8 @@ export class PlaybackBar {
   protected readonly playback = inject(ActivityPlaybackService);
   protected readonly recorder = inject(ActivityRecorderService);
   protected readonly livePrefs = inject(LivePreferencesService);
+  private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   protected readonly texts = PLAYBACK_BAR_TEXTS;
 
@@ -43,6 +49,44 @@ export class PlaybackBar {
   );
 
   protected readonly trimmed = computed(() => this.recorder.droppedCount() > 0);
+
+  /**
+   * The replay deep link for THIS moment (`replay-url-sync.ts`): the
+   * session (and agent branch) on screen, plus the frame while paused.
+   * `null` for the whole-tape replay, which has no session identity,
+   * so the Copy link hides there.
+   */
+  protected readonly link = computed(() =>
+    replayLinkFromPlayback(this.playback.source(), this.playback.playing(), this.playback.cursor()),
+  );
+
+  /** True for `COPIED_FEEDBACK_MS` after a successful copy (icon + tooltip flip). */
+  protected readonly linkCopied = signal(false);
+  private copiedTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Copy an absolute link to this moment. Built from the router (the
+   * current tree merged with the link params, then the app's base
+   * href), never from `location.href`: the URL write-back is a pending
+   * navigation right after a step, so the address bar can lag the
+   * transport by a frame.
+   */
+  protected async copyLink(): Promise<void> {
+    const link = this.link();
+    if (link === null) return;
+    const tree = this.router.createUrlTree([], {
+      queryParams: replayLinkQueryParams(link),
+      queryParamsHandling: 'merge',
+    });
+    const url = `${window.location.origin}${this.location.prepareExternalUrl(this.router.serializeUrl(tree))}`;
+    if (!(await copyToClipboard(url))) return;
+    this.linkCopied.set(true);
+    if (this.copiedTimer !== null) clearTimeout(this.copiedTimer);
+    this.copiedTimer = setTimeout(() => {
+      this.copiedTimer = null;
+      this.linkCopied.set(false);
+    }, COPIED_FEEDBACK_MS);
+  }
 
   /**
    * Director camera toggle: the lens follow reads the preference and

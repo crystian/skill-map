@@ -49,6 +49,7 @@ import {
 } from '../../../services/session-index';
 import { CaptureLevelService } from '../../../services/capture-level';
 import { DismissedNotesService } from '../../../services/dismissed-notes';
+import { foldJournalRecordings, sessionTitle } from '../../../services/session-catalog';
 import { SessionPurgeService } from '../../../services/session-purge';
 import { CaptureLevelSelector } from '../../components/capture-level-selector/capture-level-selector';
 import { SessionRecordControl } from '../../components/session-record-control/session-record-control';
@@ -115,23 +116,9 @@ export class SessionsView {
    * frames map feeds the replay selection (`sourceFrames`), the client
    * recorder never saw these frames.
    */
-  private readonly journalIndex = computed(() => {
-    const clientRoots = new Set(this.index().sessions.map((s) => s.rootOwner));
-    const entries: ISessionEntry[] = [];
-    const frames = new Map<string, readonly TRecordedEvent[]>();
-    for (const recording of this.journalRecordings()) {
-      if (clientRoots.has(recording.rootOwner)) continue;
-      // AJV pinned the frame shapes server-side (`session-recording.
-      // schema.json`), and they ARE the recorder's own tape shape.
-      const recFrames = recording.frames as unknown as readonly TRecordedEvent[];
-      for (const entry of computeSessionIndex(recFrames).sessions) {
-        if (clientRoots.has(entry.rootOwner) || frames.has(entry.rootOwner)) continue;
-        entries.push(entry);
-        frames.set(entry.rootOwner, recFrames);
-      }
-    }
-    return { entries, frames };
-  });
+  private readonly journalIndex = computed(() =>
+    foldJournalRecordings(this.index().sessions, this.journalRecordings()),
+  );
 
   /**
    * Newest first, tape + journal merged (the session you just watched
@@ -305,18 +292,7 @@ export class SessionsView {
    * the title line never goes blank.
    */
   protected sessionTitle(session: ISessionEntry): string {
-    const names: string[] = [];
-    const seen = new Set<string>();
-    for (const path of session.touchedPaths) {
-      const name = pathBasenameForLink(path);
-      if (seen.has(name)) continue;
-      seen.add(name);
-      names.push(name);
-    }
-    if (names.length === 0) {
-      return this.texts.stats(session.eventCount, session.touchedPaths.size, session.agentCount);
-    }
-    return names.join(this.texts.touchedSeparator);
+    return sessionTitle(session);
   }
 
   /** The subtitle's counters half (the id half renders as its own chip). */

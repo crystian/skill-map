@@ -99,6 +99,21 @@
       (onClick)="toggleDirector()"
       data-testid="graph-playback-director"
     />
+    <!-- Copy link: the replay deep link for this moment (paused = this
+         frame, playing = from the top). Session-scoped replays only. -->
+    @if (link() !== null) {
+      <p-button
+        [icon]="linkCopied() ? 'pi pi-check' : 'pi pi-link'"
+        [ariaLabel]="linkCopied() ? texts.linkCopied : texts.copyLink"
+        [pTooltip]="linkCopied() ? texts.linkCopied : texts.copyLink"
+        severity="secondary"
+        [text]="true"
+        [rounded]="true"
+        size="small"
+        (onClick)="copyLink()"
+        data-testid="graph-playback-copy-link"
+      />
+    }
     @if (playback.scopeLabel(); as scope) {
       <!-- Tooltip carries the FULL label: the chip ellipsizes and the
            label is now the session title (touched-node names), so the

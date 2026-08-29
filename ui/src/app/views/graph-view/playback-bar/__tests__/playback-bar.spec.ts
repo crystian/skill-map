@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { computed, signal } from '@angular/core';
 
 import { PlaybackBar } from '../playback-bar';
@@ -74,6 +75,7 @@ function makeFixture(init?: {
   TestBed.configureTestingModule({
     imports: [PlaybackBar],
     providers: [
+      provideRouter([]),
       { provide: ActivityPlaybackService, useValue: playback },
       { provide: ActivityRecorderService, useValue: recorder },
       { provide: SessionPurgeService, useValue: { purge } },
@@ -117,6 +119,29 @@ describe('PlaybackBar', () => {
     const { fixture, playback } = makeFixture();
     (query(fixture, 'graph-playback-exit')?.querySelector('button') as HTMLButtonElement).click();
     expect(playback.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('copy link: hidden on the whole-tape replay, copies the paused frame for a session', async () => {
+    expect(query(makeFixture({ source: { kind: 'whole-tape' } }).fixture, 'graph-playback-copy-link')).toBeNull();
+
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    const { fixture } = makeFixture({
+      source: { kind: 'tape-session', rootOwner: 'main:s1', agentSpawnId: 'sp-7' },
+      cursor: 2,
+      playing: false,
+    });
+    const button = query(fixture, 'graph-playback-copy-link')?.querySelector('button') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    button.click();
+    await fixture.whenStable();
+    expect(writeText).toHaveBeenCalledTimes(1);
+    const url = new URL(writeText.mock.calls[0]?.[0] as string);
+    expect(url.searchParams.get('replay')).toBe('main:s1');
+    expect(url.searchParams.get('agent')).toBe('sp-7');
+    expect(url.searchParams.get('at')).toBe('2');
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-label')).toBe('Link copied');
   });
 
   it('the director toggle flips the browser-local camera preference', () => {
@@ -173,7 +198,7 @@ describe('PlaybackBar', () => {
   });
 
   it('a journal-sourced replay shows no trash at all (nothing of it lives in this browser)', () => {
-    const { fixture } = makeFixture({ source: { kind: 'journal' } });
+    const { fixture } = makeFixture({ source: { kind: 'journal', rootOwner: 'main:j1' } });
     expect(query(fixture, 'graph-playback-delete')).toBeNull();
   });
 
