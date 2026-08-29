@@ -1,8 +1,13 @@
 /**
- * In-memory per-node execution-stats accumulator (see
- * `spec/provider-activity.md` §Execution stats). Process lifetime only:
- * instantiated once in `createServer`, reset on every boot, never
- * persisted (no `scan_*` / `state_*` writes).
+ * Per-node execution-stats accumulator (see `spec/provider-activity.md`
+ * §Execution stats). In-memory hot path, instantiated once in
+ * `createServer`, CHECKPOINTED into the project DB: every mutation
+ * marks its node / pair dirty, a short debounce hands the dirty rows to
+ * the optional `sink` (`activity-stats-store.ts`, the `state_activity_*`
+ * tables), and `hydrate()` adopts the rows back at boot so counts, the
+ * recent log, the aggregates and the pair counters survive a restart.
+ * Without a sink (tests, no DB) the accumulator is exactly the
+ * memory-only service it used to be.
  *
  * Counting semantics (normative in the spec):
  *
@@ -15,7 +20,9 @@
  *     parsed out of a shell command is not an execution (spec §Capture
  *     level rung 5, "a SIGHTING, not evidence"). The sighting still
  *     lands in the typed recent log (both ends, `kind: 'shell'`) so
- *     the inspector can show who named the file.
+ *     the inspector can show who named the file, and the frame rides
+ *     WITH the node's unchanged (count 0) stats so a client learns the
+ *     node has a log to show.
  *   - Everything else (skill invocations, command expansions, markdown
  *     reads) counts on every signal.
  *
@@ -23,7 +30,11 @@
  * never errors and never blocks ingestion.
  */
 
+import type { IActivityPairRow, IActivityStatsRow } from '../kernel/types/storage.js';
 import type { INodeActivityEventData, INodeActivityStats } from './events.js';
+
+/** Debounce window between a mutation and its checkpoint write. */
+export const CHECKPOINT_FLUSH_MS = 250;
 
 /** Distinct-owner set cap per node; the count saturates here. */
 export const DISTINCT_OWNERS_CAP = 256;
@@ -71,6 +82,8 @@ export interface IActivityNodeDetail {
 
 interface INodeStatsState {
   count: number;
+  /** Unix ms of the node's first stat (the summary's `since` floor). */
+  firstSeenAt: number;
   lastStartAt: number;
   lastOwner: string | undefined;
   owners: Set<string>;
@@ -85,6 +98,28 @@ interface INodeStatsState {
 export interface IActivityPairStats {
   count: number;
   lastStartAt: number;
+}
+
+/** Internal pair state: the counter plus the identities the checkpoint row needs. */
+interface IPairState extends IActivityPairStats {
+  parent: string;
+  childNodePath: string;
+}
+
+/**
+ * Checkpoint sink (`activity-stats-store.ts`): receives the dirty rows
+ * once per debounce window. Best-effort by contract, a rejection is
+ * swallowed and the rows stay dirty for the next window.
+ */
+export interface IActivityStatsSink {
+  upsertNodes(rows: readonly IActivityStatsRow[]): Promise<void>;
+  upsertPairs(rows: readonly IActivityPairRow[]): Promise<void>;
+}
+
+export interface IActivityStatsOptions {
+  sink?: IActivityStatsSink;
+  /** Override for tests; defaults to `CHECKPOINT_FLUSH_MS`. */
+  flushDelayMs?: number;
 }
 
 /**
@@ -106,13 +141,164 @@ export function pairKeyTouches(key: string, nodePath: string): boolean {
 }
 
 export class ActivityStatsService {
-  /** Unix-ms boot timestamp, the `since` of every summary snapshot. */
-  readonly sinceMs = Date.now();
+  private readonly bootMs = Date.now();
+
+  /**
+   * The `since` of every summary snapshot: the earliest first-sighting
+   * among the (hydrated or live) nodes, the boot time while empty.
+   */
+  get sinceMs(): number {
+    let since = this.bootMs;
+    for (const state of this.nodes.values()) {
+      if (state.firstSeenAt < since) since = state.firstSeenAt;
+    }
+    return since;
+  }
 
   private readonly nodes = new Map<string, INodeStatsState>();
 
   /** Spawn counters per directional pair, see `pairKeyOf`. */
-  private readonly pairs = new Map<string, IActivityPairStats>();
+  private readonly pairs = new Map<string, IPairState>();
+
+  private readonly sink: IActivityStatsSink | undefined;
+  private readonly flushDelayMs: number;
+  private readonly dirtyNodes = new Set<string>();
+  private readonly dirtyPairs = new Set<string>();
+  private flushTimer: ReturnType<typeof setTimeout> | null = null;
+  private inflight: Promise<void> | null = null;
+
+  constructor(options: IActivityStatsOptions = {}) {
+    this.sink = options.sink;
+    this.flushDelayMs = options.flushDelayMs ?? CHECKPOINT_FLUSH_MS;
+  }
+
+  /**
+   * Adopt a checkpoint (boot). Replaces the in-memory maps wholesale
+   * and marks nothing dirty: the rows came FROM the store. Malformed
+   * entries are dropped one by one, never the whole checkpoint.
+   */
+  hydrate(nodes: readonly IActivityStatsRow[], pairs: readonly IActivityPairRow[]): void {
+    this.nodes.clear();
+    for (const row of nodes) {
+      if (typeof row.nodePath !== 'string' || row.nodePath.length === 0) continue;
+      this.nodes.set(row.nodePath, {
+        count: row.count,
+        firstSeenAt: row.firstSeenAt,
+        lastStartAt: row.lastStartAt,
+        lastOwner: row.lastOwner ?? undefined,
+        owners: new Set(row.owners.slice(0, DISTINCT_OWNERS_CAP)),
+        recent: row.recent.slice(0, RECENT_RING_SIZE).map((entry) => ({ ...entry }) as IActivityRecentEntry),
+        toolUses: row.toolUses,
+        tokens: row.tokens,
+        summarizedRuns: row.summarizedRuns,
+      });
+    }
+    this.pairs.clear();
+    for (const row of pairs) {
+      if (this.pairs.size >= PAIR_CAP) break;
+      this.pairs.set(pairKeyOf(row.parent, row.childNodePath), {
+        parent: row.parent,
+        childNodePath: row.childNodePath,
+        count: row.count,
+        lastStartAt: row.lastStartAt,
+      });
+    }
+  }
+
+  /** Checkpoint rows for the given node paths (unknown paths skipped). */
+  exportNodes(paths: Iterable<string>): IActivityStatsRow[] {
+    const rows: IActivityStatsRow[] = [];
+    for (const path of paths) {
+      const state = this.nodes.get(path);
+      if (!state) continue;
+      rows.push({
+        nodePath: path,
+        count: state.count,
+        firstSeenAt: state.firstSeenAt,
+        lastStartAt: state.lastStartAt,
+        lastOwner: state.lastOwner ?? null,
+        owners: [...state.owners],
+        recent: state.recent.map((entry) => ({ ...entry })),
+        toolUses: state.toolUses,
+        tokens: state.tokens,
+        summarizedRuns: state.summarizedRuns,
+      });
+    }
+    return rows;
+  }
+
+  /** Checkpoint rows for the given pair keys (unknown keys skipped). */
+  exportPairs(keys: Iterable<string>): IActivityPairRow[] {
+    const rows: IActivityPairRow[] = [];
+    for (const key of keys) {
+      const state = this.pairs.get(key);
+      if (!state) continue;
+      rows.push({
+        parent: state.parent,
+        childNodePath: state.childNodePath,
+        count: state.count,
+        lastStartAt: state.lastStartAt,
+      });
+    }
+    return rows;
+  }
+
+  /**
+   * Write every dirty row to the sink now (the debounce fires this;
+   * `createServer`'s close calls it so a mutation in the last window
+   * still lands). A rejected write keeps its rows dirty for the next
+   * window; without a sink the dirty sets simply drain.
+   */
+  async flush(): Promise<void> {
+    if (this.flushTimer !== null) {
+      clearTimeout(this.flushTimer);
+      this.flushTimer = null;
+    }
+    if (this.inflight) await this.inflight;
+    const nodePaths = [...this.dirtyNodes];
+    const pairKeys = [...this.dirtyPairs];
+    this.dirtyNodes.clear();
+    this.dirtyPairs.clear();
+    if (!this.sink || (nodePaths.length === 0 && pairKeys.length === 0)) return;
+    const sink = this.sink;
+    const nodeRows = this.exportNodes(nodePaths);
+    const pairRows = this.exportPairs(pairKeys);
+    this.inflight = (async () => {
+      try {
+        if (nodeRows.length > 0) await sink.upsertNodes(nodeRows);
+      } catch {
+        for (const path of nodePaths) this.dirtyNodes.add(path);
+      }
+      try {
+        if (pairRows.length > 0) await sink.upsertPairs(pairRows);
+      } catch {
+        for (const key of pairKeys) this.dirtyPairs.add(key);
+      }
+    })();
+    await this.inflight;
+    this.inflight = null;
+  }
+
+  private markNodeDirty(nodePath: string): void {
+    this.dirtyNodes.add(nodePath);
+    this.scheduleFlush();
+  }
+
+  private markPairDirty(key: string): void {
+    this.dirtyPairs.add(key);
+    this.scheduleFlush();
+  }
+
+  private scheduleFlush(): void {
+    if (!this.sink || this.flushTimer !== null) return;
+    const timer = setTimeout(() => {
+      this.flushTimer = null;
+      void this.flush();
+    }, this.flushDelayMs);
+    // Never keep the process alive for a checkpoint.
+    timer.unref?.();
+    this.flushTimer = timer;
+  }
 
   /**
    * Sticky dedupe memory, APPEND-ONLY by design: runtimes re-emit
@@ -165,19 +351,22 @@ export class ActivityStatsService {
     childNodePath?: string;
   }): number | null {
     if (spawn.childNodePath === undefined) return null;
-    const key = pairKeyOf(spawn.parentNodePath ?? spawn.parentOwner, spawn.childNodePath);
+    const parent = spawn.parentNodePath ?? spawn.parentOwner;
+    const key = pairKeyOf(parent, spawn.childNodePath);
     if (spawn.phase !== 'start') return this.pairs.get(key)?.count ?? null;
-    return this.countPair(key);
+    return this.countPair(parent, spawn.childNodePath);
   }
 
   /** Increment one pair, honoring the cap for previously-unseen pairs. */
-  private countPair(key: string): number | null {
+  private countPair(parent: string, childNodePath: string): number | null {
+    const key = pairKeyOf(parent, childNodePath);
     const existing = this.pairs.get(key);
     if (!existing && this.pairs.size >= PAIR_CAP) return null;
-    const state = existing ?? { count: 0, lastStartAt: 0 };
+    const state: IPairState = existing ?? { parent, childNodePath, count: 0, lastStartAt: 0 };
     this.pairs.set(key, state);
     state.count += 1;
     state.lastStartAt = Date.now();
+    this.markPairDirty(key);
     return state.count;
   }
 
@@ -194,7 +383,7 @@ export class ActivityStatsService {
   pairSnapshot(): Record<string, IActivityPairStats> {
     const out: Record<string, IActivityPairStats> = {};
     for (const [key, state] of this.pairs) {
-      out[key] = { ...state };
+      out[key] = { count: state.count, lastStartAt: state.lastStartAt };
     }
     return out;
   }
@@ -224,8 +413,12 @@ export class ActivityStatsService {
    */
   clearNode(path: string): void {
     this.nodes.delete(path);
+    this.dirtyNodes.delete(path);
     for (const key of [...this.pairs.keys()]) {
-      if (pairKeyTouches(key, path)) this.pairs.delete(key);
+      if (pairKeyTouches(key, path)) {
+        this.pairs.delete(key);
+        this.dirtyPairs.delete(key);
+      }
     }
   }
 
@@ -259,10 +452,14 @@ export class ActivityStatsService {
 
   /** Get-or-create one node's mutable state. */
   private stateFor(nodePath: string): INodeStatsState {
+    // Every mutation path reaches its node through here, so this is
+    // the single dirty-marking chokepoint for the checkpoint.
+    this.markNodeDirty(nodePath);
     const existing = this.nodes.get(nodePath);
     if (existing) return existing;
     const fresh: INodeStatsState = {
       count: 0,
+      firstSeenAt: Date.now(),
       lastStartAt: 0,
       lastOwner: undefined,
       owners: new Set<string>(),
@@ -279,23 +476,24 @@ export class ActivityStatsService {
    * A shell SIGHTING: lands in the typed recent log on both ends (the
    * sighted node's entry plus the caller's mirrored one) but mutates
    * NO execution stat, `count` / `lastStartAt` / `lastOwner` / owner
-   * set stay untouched (spec §Execution stats). Returns `null` so the
-   * WS frame rides without stats enrichment, like `keepAlive` custody.
+   * set stay untouched (spec §Execution stats). Returns the node's
+   * UNCHANGED stats so the WS frame carries them and a client learns
+   * the node has a log to show (a count of 0 next to a non-empty
+   * recent log reads as sighted-only); custody `keepAlive` starts keep
+   * riding bare, they log nothing.
    */
   private sight(
     nodePath: string,
     owner: string | undefined,
     detail: string | undefined,
     access: 'shell',
-  ): null {
+  ): INodeActivityStats {
     const at = Date.now();
     const caller = this.correlateCaller(nodePath, owner, access);
-    this.pushRecent(
-      this.stateFor(nodePath),
-      buildRecentEntry({ at, owner, detail, caller, kind: access }),
-    );
+    const state = this.stateFor(nodePath);
+    this.pushRecent(state, buildRecentEntry({ at, owner, detail, caller, kind: access }));
     this.trackAccess(nodePath, owner, detail, access, caller, at);
-    return null;
+    return projectStats(state);
   }
 
   private count(

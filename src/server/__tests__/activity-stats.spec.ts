@@ -9,6 +9,7 @@ import { describe, it } from 'node:test';
 
 import {
   ActivityStatsService,
+  type IActivityStatsSink,
   DISTINCT_OWNERS_CAP,
   RECENT_RING_SIZE,
   STICKY_DEDUPE_CAP,
@@ -127,8 +128,10 @@ describe('ActivityStatsService.record', () => {
       detail: 'Bash',
       access: 'shell',
     });
-    // No stats enrichment on the frame (like keepAlive custody)...
-    assert.equal(enriched, null);
+    // The frame rides WITH the node's unchanged stats (count stays 0),
+    // so a client learns the node has a log to show...
+    assert.equal(enriched?.count, 0);
+    assert.equal(enriched?.lastStartAt, 0);
     // ...and no execution stat mutates: count, lastStartAt, owners all zero.
     const detail = stats.nodeDetail(file);
     assert.equal(detail.stats.count, 0);
@@ -374,5 +377,79 @@ describe('ActivityStatsService execution aggregates', () => {
     assert.equal(projected.count, 1);
     assert.equal(projected.toolUses, undefined);
     assert.equal(projected.tokens, undefined);
+  });
+});
+
+describe('ActivityStatsService checkpoint', () => {
+  it('export -> hydrate round-trips counts, owners, the recent log, aggregates and pairs', () => {
+    const stats = new ActivityStatsService();
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s1', detail: 'Skill' });
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s2' });
+    stats.recordExecution(NODE, { toolUses: 3, tokens: 400 });
+    stats.recordSpawn({ phase: 'start', parentOwner: 'main:s1', parentNodePath: NODE, childNodePath: 'b.md' });
+    const nodes = stats.exportNodes([NODE]);
+    const pairs = stats.exportPairs([pairKeyOf(NODE, 'b.md')]);
+    assert.equal(nodes.length, 1);
+    assert.equal(pairs.length, 1);
+
+    const reborn = new ActivityStatsService();
+    reborn.hydrate(nodes, pairs);
+    const detail = reborn.nodeDetail(NODE);
+    assert.equal(detail.stats.count, 2);
+    assert.equal(detail.stats.distinctOwners, 2);
+    assert.equal(detail.stats.lastOwner, 'main:s2');
+    assert.equal(detail.stats.toolUses, 3);
+    assert.equal(detail.stats.tokens, 400);
+    assert.equal(detail.recent.length, 2);
+    assert.equal(detail.recent[1]?.detail, 'Skill');
+    assert.deepEqual(reborn.pairSnapshot()[pairKeyOf(NODE, 'b.md')]?.count, 1);
+    // `since` follows the hydrated first sighting, not the reborn boot.
+    assert.equal(reborn.sinceMs, nodes[0]?.firstSeenAt);
+  });
+
+  it('hands dirty rows to the sink once per window, and keeps them dirty when the write fails', async () => {
+    const written: { nodes: string[][]; pairs: string[][] } = { nodes: [], pairs: [] };
+    let fail = false;
+    const sink: IActivityStatsSink = {
+      async upsertNodes(rows) {
+        if (fail) throw new Error('db gone');
+        written.nodes.push(rows.map((r) => r.nodePath));
+      },
+      async upsertPairs(rows) {
+        written.pairs.push(rows.map((r) => `${r.parent}>>${r.childNodePath}`));
+      },
+    };
+    const stats = new ActivityStatsService({ sink, flushDelayMs: 0 });
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s1' });
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s1' });
+    stats.recordSpawn({ phase: 'start', parentOwner: 'main:s1', childNodePath: 'b.md' });
+    await stats.flush();
+    // One write per window with the coalesced rows, not one per frame.
+    assert.deepEqual(written.nodes, [[NODE]]);
+    assert.deepEqual(written.pairs, [['main:s1>>b.md']]);
+
+    fail = true;
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s1' });
+    await stats.flush();
+    assert.equal(written.nodes.length, 1);
+    fail = false;
+    await stats.flush();
+    // The failed row stayed dirty and lands on the next window.
+    assert.deepEqual(written.nodes, [[NODE], [NODE]]);
+  });
+
+  it('clearNode drops the node from the pending checkpoint too', async () => {
+    const written: string[][] = [];
+    const sink: IActivityStatsSink = {
+      async upsertNodes(rows) {
+        written.push(rows.map((r) => r.nodePath));
+      },
+      async upsertPairs() {},
+    };
+    const stats = new ActivityStatsService({ sink, flushDelayMs: 0 });
+    stats.record({ nodePath: NODE, phase: 'start', owner: 'main:s1' });
+    stats.clearNode(NODE);
+    await stats.flush();
+    assert.deepEqual(written, []);
   });
 });

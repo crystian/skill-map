@@ -387,6 +387,36 @@ CREATE TABLE state_node_favorites (
   favorited_at INTEGER NOT NULL
 );
 
+-- Runtime activity-stats checkpoint (spec/db-schema.md §state_activity_stats):
+-- the persisted half of the BFF's in-memory execution-stats accumulator
+-- (spec/provider-activity.md §Execution stats). Written debounced by
+-- `sm serve`, read once at boot, cleared per node by the Activity
+-- clear-all. `owners_json` / `recent_json` are JSON arrays the
+-- accumulator owns (bounded there, opaque here).
+CREATE TABLE state_activity_stats (
+  node_path TEXT PRIMARY KEY,
+  count INTEGER NOT NULL DEFAULT 0,
+  first_seen_at INTEGER NOT NULL,
+  last_start_at INTEGER NOT NULL DEFAULT 0,
+  last_owner TEXT,
+  owners_json TEXT NOT NULL DEFAULT '[]',
+  recent_json TEXT NOT NULL DEFAULT '[]',
+  tool_uses INTEGER NOT NULL DEFAULT 0,
+  tokens INTEGER NOT NULL DEFAULT 0,
+  summarized_runs INTEGER NOT NULL DEFAULT 0
+);
+
+-- Per-pair spawn counters (the edge conversation-count labels), the
+-- persisted half of the accumulator's pair map. `parent` is the parent
+-- node path (agent parents) or the session owner key (session parents).
+CREATE TABLE state_activity_pairs (
+  parent TEXT NOT NULL,
+  child_node_path TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 0,
+  last_start_at INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (parent, child_node_path)
+);
+
 -- --- Config zone -----------------------------------------------------------
 
 CREATE TABLE config_preferences (

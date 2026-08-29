@@ -45,6 +45,8 @@ import type {
 import type { ISuppressionEntry } from '../jobs/findings-report.js';
 import type { IUpdateCheckCache } from '../update-check/index.js';
 import type {
+  IActivityPairRow,
+  IActivityStatsRow,
   IApplyOptions,
   IApplyResult,
   IBranchProjection,
@@ -778,6 +780,30 @@ export interface StoragePort {
      * one query per request, no SQL JOIN against `scan_nodes`.
      */
     listPaths(): Promise<Set<string>>;
+  };
+
+  // --- activity namespace -------------------------------------------------
+  /**
+   * Runtime execution-stats checkpoint (`state_activity_stats` /
+   * `state_activity_pairs`, `spec/db-schema.md` §state_activity_stats):
+   * the persisted half of the BFF's in-memory accumulator
+   * (`spec/provider-activity.md` §Execution stats). Rows are opaque to
+   * the kernel, the BFF projects its state in and out; the port only
+   * stores, loads, deletes and (via `history.migrateNodeFks`) migrates.
+   */
+  activity: {
+    /** Every persisted node row + pair row (the boot hydration read). */
+    loadAll(): Promise<{ nodes: IActivityStatsRow[]; pairs: IActivityPairRow[] }>;
+    /** Insert-or-replace node rows (the debounced checkpoint write). */
+    upsertNodes(rows: readonly IActivityStatsRow[]): Promise<void>;
+    /** Insert-or-replace pair rows (same debounce). */
+    upsertPairs(rows: readonly IActivityPairRow[]): Promise<void>;
+    /**
+     * Drop the node's row plus every pair row naming it on either side
+     * (the Activity clear-all, `spec/provider-activity.md` §DELETE
+     * /api/activity/node). Idempotent.
+     */
+    deleteNode(nodePath: string): Promise<void>;
   };
 
   // --- pluginKvs namespace ------------------------------------------------

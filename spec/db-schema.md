@@ -31,7 +31,7 @@ Every kernel table belongs to exactly one zone, identified by a mandatory prefix
 | Zone | Prefix | Nature | Regenerable | Backed up | Example |
 |---|---|---|---|---|---|
 | Scan | `scan_` | Output of the last scan. Truncated and repopulated by `sm scan`. | Yes | Yes (rides the file copy) | `scan_nodes` |
-| State | `state_` | Persistent operational data: jobs, executions, summaries, enrichment, plugin KV. | No | Yes | `state_jobs` |
+| State | `state_` | Persistent operational data: jobs, executions, summaries, enrichment, plugin KV, the runtime activity-stats checkpoint. | No | Yes | `state_jobs` |
 | Config | `config_` | Kernel-owned durable bookkeeping: the internal preference cache, migration ledger. User-facing configuration lives in `.skill-map/settings.json`, not here. | No | Yes | `config_preferences` |
 
 `sm db reset` drops `scan_*` only (non-destructive, equivalent to forcing the next scan from a clean slate). `sm db reset --state` also drops `state_*` (destructive to operational history). `sm db reset --hard` deletes the DB file entirely. `sm db backup` is a WAL checkpoint plus a copy of the whole DB file, so `scan_*` rides along rather than being filtered out; it is regenerable, so a restored backup carrying stale scan rows is refreshed by the next `sm scan`.
@@ -493,6 +493,38 @@ No indexes (PK covers lookup by path; the table is keyed-by-path exclusively).
 `node_path` is FK-semantic to `scan_nodes.path`. Per `§ Rename detection` below, the rename heuristic MUST migrate rows here when a path is renamed (same protocol as `state_jobs` / `state_summaries` / `state_findings` / `state_enrichments` / `state_plugin_kvs`). A simple PK update suffices; no composite key, so collisions cannot occur (if the destination path already has a row, the migrating row is dropped to preserve the live one).
 
 The BFF's `/api/nodes` route loads the full set of favorited paths once per request (`SELECT node_path FROM state_node_favorites`) and decorates each emitted `Node` with a derived `isFavorite` boolean by Set membership: no SQL JOIN against `scan_nodes`, zero per-scan persistence transactions.
+
+### `state_activity_stats`
+
+Runtime execution stats per node: the checkpoint of the BFF's in-memory accumulator ([`provider-activity.md`](./provider-activity.md) §Execution stats). One row per node the live activity ever touched, counted executions AND shell sightings alike (a sighting keeps `count` at 0 next to a non-empty recent log). Written debounced by `sm serve` on every mutation, read once at boot to hydrate the accumulator, so counts survive a server restart. Machine-generated (§Storage rule in [`architecture.md`](./architecture.md)); cleared per node by `DELETE /api/activity/node/<pathB64>`, never by a scan.
+
+| Column | Type | Constraint |
+|---|---|---|
+| `node_path` | TEXT | PRIMARY KEY |
+| `count` | INTEGER | NOT NULL DEFAULT 0 | Counted executions. |
+| `first_seen_at` | INTEGER | NOT NULL | Unix milliseconds of the first stat on this node (the summary's `since` floor). |
+| `last_start_at` | INTEGER | NOT NULL DEFAULT 0 | Unix milliseconds of the last counted start. |
+| `last_owner` | TEXT | NULL | Owner key of the last counted start. |
+| `owners_json` | TEXT | NOT NULL DEFAULT '[]' | Distinct owner keys, a JSON array (bounded, saturating). |
+| `recent_json` | TEXT | NOT NULL DEFAULT '[]' | The recent ring, a JSON array most recent first (bounded). |
+| `tool_uses` | INTEGER | NOT NULL DEFAULT 0 | Spawn-summary aggregate. |
+| `tokens` | INTEGER | NOT NULL DEFAULT 0 | Spawn-summary aggregate. |
+| `summarized_runs` | INTEGER | NOT NULL DEFAULT 0 | Spawn-summary aggregate. |
+
+No indexes (PK covers lookup by path). `node_path` is FK-semantic to `scan_nodes.path`: the rename heuristic MUST migrate rows here (§Rename detection); a destination collision keeps the destination row and is reported.
+
+### `state_activity_pairs`
+
+Per-pair spawn counters (the edge conversation-count labels), the persisted half of the accumulator's pair map. `parent` is the parent node path for agent parents or the session owner key for session parents, exactly the identity the summary's pair keys carry.
+
+| Column | Type | Constraint |
+|---|---|---|
+| `parent` | TEXT | NOT NULL, part of PK |
+| `child_node_path` | TEXT | NOT NULL, part of PK |
+| `count` | INTEGER | NOT NULL DEFAULT 0 |
+| `last_start_at` | INTEGER | NOT NULL DEFAULT 0 |
+
+Primary key `(parent, child_node_path)`. Both columns are FK-semantic to `scan_nodes.path` when they name a node; the rename heuristic migrates either side (a collision keeps the destination row and is reported).
 
 ---
 

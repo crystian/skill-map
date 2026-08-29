@@ -697,6 +697,34 @@ export interface IStateNodeFavoritesTable {
   favoritedAt: number;
 }
 
+/**
+ * Runtime activity-stats checkpoint (`spec/db-schema.md`
+ * §state_activity_stats): one row per node the live activity touched,
+ * the persisted half of the BFF accumulator. `ownersJson` / `recentJson`
+ * are JSON arrays owned by the accumulator. Migrated by `migrateNodeFks`
+ * on rename like every keyed-by-node `state_*` table.
+ */
+export interface IStateActivityStatsTable {
+  nodePath: string;
+  count: number;
+  firstSeenAt: number;
+  lastStartAt: number;
+  lastOwner: string | null;
+  ownersJson: string;
+  recentJson: string;
+  toolUses: number;
+  tokens: number;
+  summarizedRuns: number;
+}
+
+/** Per-pair spawn counters, PK `(parent, childNodePath)` (spec §state_activity_pairs). */
+export interface IStateActivityPairsTable {
+  parent: string;
+  childNodePath: string;
+  count: number;
+  lastStartAt: number;
+}
+
 // --- Config zone -----------------------------------------------------------
 
 
@@ -736,6 +764,8 @@ export interface IDatabase {
   state_enrichments: IStateEnrichmentsTable;
   state_plugin_kvs: IStatePluginKvsTable;
   state_node_favorites: IStateNodeFavoritesTable;
+  state_activity_stats: IStateActivityStatsTable;
+  state_activity_pairs: IStateActivityPairsTable;
 
   config_preferences: IConfigPreferencesTable;
   config_schema_versions: IConfigSchemaVersionsTable;

@@ -132,7 +132,9 @@ export function registerActivityDetailRoutes(
         adapter,
       ): Promise<{ kind: 'unknown-node' } | { kind: 'cleared'; runs: number }> => {
         if ((await adapter.scans.findNode(nodePath)) === null) return { kind: 'unknown-node' };
-        return { kind: 'cleared', runs: await adapter.history.deleteForNode(nodePath) };
+        const runs = await adapter.history.deleteForNode(nodePath);
+        await adapter.activity.deleteNode(nodePath);
+        return { kind: 'cleared', runs };
       },
     );
     if (dbResult?.kind === 'unknown-node') {

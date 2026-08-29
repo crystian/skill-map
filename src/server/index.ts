@@ -88,6 +88,7 @@ import { ActivityOwnerIndex } from './activity-owner-index.js';
 import { ActivityDisclaimedStore } from './activity-disclaimed.js';
 import { ActivityProbeStore } from './activity-probe.js';
 import { ActivityStatsService } from './activity-stats.js';
+import { createActivityStatsSink, hydrateActivityStats } from './activity-stats-store.js';
 import { AgentPresenceTracker } from './agent-presence.js';
 import { createApp } from './app.js';
 import { startBootPing, type IBootPingHandle } from './boot-ping.js';
@@ -212,7 +213,12 @@ export async function createServer(
   // The capture gate initialises from the project-local config layer
   // (default off); `POST /api/activity/capture` keeps store and config
   // in sync afterwards.
-  const activityStats = new ActivityStatsService();
+  const activityStats = new ActivityStatsService({
+    sink: createActivityStatsSink(options.dbPath),
+  });
+  // Checkpoint hydration (spec §Execution stats): best-effort, a
+  // missing DB or one predating the tables leaves the accumulator empty.
+  await hydrateActivityStats(activityStats, options.dbPath);
   // `owner -> agent node` index (see `activity-owner-index.ts`): lets the
   // resolver anchor a spawn that names no parent on the agent that owner
   // is running, instead of a synthetic session capsule.
@@ -376,6 +382,9 @@ export async function createServer(
     // stamp + operations-log line) before the process goes away.
     // Fire-and-forget inside, so it can never delay or fail the close.
     activityJournal.shutdown();
+    // Stats checkpoint flush: a mutation inside the last debounce window
+    // still lands (best-effort, the sink swallows storage failures).
+    await activityStats.flush();
     // MCP teardown BEFORE the broadcaster shuts down: unregister the
     // realtime sink and drain every live MCP session (closing its SSE
     // stream) so no notification races the broadcaster's client drain.

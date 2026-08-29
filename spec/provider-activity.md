@@ -28,13 +28,7 @@ The pipeline crosses four independently-owned pieces:
 - **Kernel** owns only the ABSTRACTION: the optional `activity` capability on the
   `provider` extension manifest (install descriptor + event mapping). The kernel is
   a scan-time engine; it is not alive at runtime and never transports events.
-- **BFF** owns the runtime: the ingest route, the event->node resolution against the
-  scanned node set, the WebSocket broadcast, the in-memory execution-stats
-  accumulator (§Execution stats), the consent-gated conversation store
-  (§Conversation capture), and the session journal (§Session journal). Activity
-  STATE is in-memory only, no `scan_*` / `state_*` writes, and dies with the
-  process; the one durable output is the journal's per-session files of RESOLVED,
-  content-free frames under `.skill-map/sessions/`.
+- **BFF** owns the runtime: the ingest route, the event->node resolution against the scanned node set, the WebSocket broadcast, the execution-stats accumulator (§Execution stats; an in-memory hot path CHECKPOINTED into the project DB's `state_activity_*` tables, so counts survive a restart), the consent-gated conversation store (§Conversation capture), and the session journal (§Session journal). Live claims, spawn state and conversations are in-memory only and die with the process; the durable outputs are the stats checkpoint and the journal's per-session files of RESOLVED, content-free frames under `.skill-map/sessions/`.
 - **Bridge** is the tiny artifact installed into the provider's own hook config. It
   has ZERO skill-map logic beyond discovery + forwarding (see §Bridge contract).
 - **UI** owns presentation: per-node lighting, the active spine (including the source-to-target particle flow it carries while it executes, so the direction of the live call reads on the map), TTL decay, and the replay's narration chrome (the camera that follows the node each frame is about, and the step numbers along the route the tape walked, both derived from the same fold that lights the replay).
@@ -802,9 +796,7 @@ normal `parentNodePath` and need no new rule.
 
 ## Execution stats
 
-The BFF accumulates per-node execution stats in memory (process lifetime,
-reset on every `sm serve` boot, never persisted). Counting semantics
-(normative):
+The BFF accumulates per-node execution stats in memory as the hot path and CHECKPOINTS them into the project DB (`state_activity_stats` / `state_activity_pairs`, [`db-schema.md`](./db-schema.md) §state_activity_stats): every mutation marks its node / pair dirty and a short debounce upserts the dirty rows, best-effort (no DB, or a DB that predates the tables, means memory only, the previous behaviour). At boot the accumulator hydrates from those rows, so counts, the recent log, the aggregates and the pair counters survive `sm serve` restarts and a replay of an older recording still shows what executed (user decision 2026-08-29: the map must show everything that ran, not only what ran since the last boot). The sticky dedupe memory and the caller correlation stay in memory (a runtime resuming after a restart counts once more, like a fresh instance). The summary's `since` is the earliest first-sighting stamp among persisted nodes, the boot time while the store is empty. Counting semantics (normative):
 
 - Only node-attributed `phase: "start"` signals count. Ends, owner releases
   and relation-only signals never mutate stats.
@@ -815,11 +807,7 @@ reset on every `sm serve` boot, never persisted). Counting semantics
   fresh owner id and counts again. The dedupe memory is append-only (owners
   are not forgotten on `ownerScope` ends, or every pause/resume cycle would
   recount).
-- `access: "shell"` starts NEVER count: a heuristic path sighting parsed out
-  of a shell command is not an execution (§Capture level rung 5, "a SIGHTING,
-  not evidence"). The sighting still lands in the typed recent log (below),
-  tagged `kind: "shell"`, so the inspector can show who named the file; the
-  node's `count`, `lastStartAt`, `lastOwner` and owner set stay untouched.
+- `access: "shell"` starts NEVER count: a heuristic path sighting parsed out of a shell command is not an execution (§Capture level rung 5, "a SIGHTING, not evidence"). The sighting still lands in the typed recent log (below), tagged `kind: "shell"`, so the inspector can show who named the file; the node's `count`, `lastStartAt`, `lastOwner` and owner set stay untouched. The frame still rides WITH the node's (unchanged) `stats`, so a client learns the node has a log to show: a `count` of 0 next to a non-empty recent log is a sighted-only node, never an executed one (custody `keepAlive` starts, which log nothing, keep riding bare).
 - All other starts (skill invocations, command expansions, markdown reads)
   count on every signal.
 
@@ -920,8 +908,8 @@ clear-all): the persistent AI-run history (every `state_executions` row whose
 node list contains the path, the same JSON1 containment the GET's `runs`
 filter uses, so the delete removes exactly what the section lists; an
 execution recorded against several nodes disappears from all of them), the
-node's in-memory runtime stats + recent ring, the pair counters touching the
-node as parent or child, and the retained spawn conversations touching the
+node's runtime stats + recent ring (memory AND the persisted `state_activity_stats` row), the pair counters touching the
+node as parent or child (memory AND `state_activity_pairs`), and the retained spawn conversations touching the
 node. Both halves are machine-generated, regenerable data
 ([`architecture.md`](./architecture.md) §Storage rule), so there is NO
 consent gate and no sidecar touch, the same posture as the summaries /

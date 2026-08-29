@@ -818,6 +818,43 @@ export type THistoryStatsPeriod = 'day' | 'week' | 'month';
  * Lists how many rows in each `state_*` table were repointed plus any
  * composite-PK collisions that forced a drop instead of an update.
  */
+/**
+ * One entry of a node's recent-activity ring as persisted in
+ * `state_activity_stats.recent_json` (`spec/db-schema.md`
+ * §state_activity_stats). The BFF accumulator owns the shape and its
+ * caps; the kernel stores it opaquely, so `kind` stays a plain string.
+ */
+export interface IActivityRecentRow {
+  at: number;
+  owner?: string;
+  detail?: string;
+  caller?: string;
+  target?: string;
+  kind?: string;
+}
+
+/** One `state_activity_stats` row, JSON columns already decoded. */
+export interface IActivityStatsRow {
+  nodePath: string;
+  count: number;
+  firstSeenAt: number;
+  lastStartAt: number;
+  lastOwner: string | null;
+  owners: readonly string[];
+  recent: readonly IActivityRecentRow[];
+  toolUses: number;
+  tokens: number;
+  summarizedRuns: number;
+}
+
+/** One `state_activity_pairs` row (spec §state_activity_pairs). */
+export interface IActivityPairRow {
+  parent: string;
+  childNodePath: string;
+  count: number;
+  lastStartAt: number;
+}
+
 export interface IMigrateNodeFksReport {
   jobs: number;
   executions: number;
@@ -826,6 +863,10 @@ export interface IMigrateNodeFksReport {
   enrichments: number;
   pluginKvs: number;
   nodeFavorites: number;
+  /** `state_activity_stats` rows moved (0 or 1). */
+  activityStats: number;
+  /** `state_activity_pairs` rows repointed (either side). */
+  activityPairs: number;
   /**
    * Collisions encountered when migrating any of the keyed-by-node
    * `state_*` tables because a row already existed at the destination
@@ -840,7 +881,9 @@ export interface IMigrateNodeFksReport {
       | 'state_summaries'
       | 'state_enrichments'
       | 'state_plugin_kvs'
-      | 'state_node_favorites';
+      | 'state_node_favorites'
+      | 'state_activity_stats'
+      | 'state_activity_pairs';
     fromPath: string;
     toPath: string;
     keys: Record<string, string>;

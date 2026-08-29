@@ -61,6 +61,12 @@ import type {
   IPruneResult,
 } from '../../types/storage.js';
 import type { Issue, Node, ScanResult } from '../../types.js';
+import {
+  deleteActivityForNode,
+  loadActivityCheckpoint,
+  upsertActivityPairRows,
+  upsertActivityStatsRows,
+} from './activity-stats.js';
 import { STORAGE_TEXTS } from '../../i18n/storage.texts.js';
 import { tx } from '../../util/tx.js';
 import { NodeSqliteDialect } from './dialect.js';
@@ -256,6 +262,7 @@ export class SqliteStorageAdapter implements StoragePort {
   summaries!: StoragePort['summaries'];
   findings!: StoragePort['findings'];
   favorites!: StoragePort['favorites'];
+  activity!: StoragePort['activity'];
   pluginKvs!: StoragePort['pluginKvs'];
   preferences!: StoragePort['preferences'];
   migrations!: StoragePort['migrations'];
@@ -450,6 +457,13 @@ export class SqliteStorageAdapter implements StoragePort {
       set: (path) => setFavorite(this.db, path),
       unset: (path) => unsetFavorite(this.db, path),
       listPaths: () => listFavoritePaths(this.db),
+    };
+
+    this.activity = {
+      loadAll: () => loadActivityCheckpoint(this.db),
+      upsertNodes: (rows) => upsertActivityStatsRows(this.db, rows),
+      upsertPairs: (rows) => upsertActivityPairRows(this.db, rows),
+      deleteNode: (nodePath) => deleteActivityForNode(this.db, nodePath),
     };
 
     this.pluginKvs = {

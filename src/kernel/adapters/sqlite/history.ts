@@ -683,6 +683,8 @@ export async function migrateNodeFks(
   await migrateEnrichments(trx, fromPath, toPath, report);
   if (fromPath !== '') await migratePluginKvs(trx, fromPath, toPath, report);
   await migrateNodeFavorites(trx, fromPath, toPath, report);
+  await migrateActivityStats(trx, fromPath, toPath, report);
+  await migrateActivityPairs(trx, fromPath, toPath, report);
   return report;
 }
 
@@ -695,6 +697,8 @@ function emptyMigrateReport(): IMigrateNodeFksReport {
     enrichments: 0,
     pluginKvs: 0,
     nodeFavorites: 0,
+    activityStats: 0,
+    activityPairs: 0,
     collisions: [],
   };
 }
@@ -900,6 +904,87 @@ async function migratePluginKvs(
  * migrating row if the destination already holds a favorite
  * (preserve the live node's record), otherwise update in place.
  */
+/**
+ * state_activity_stats.node_path, simple PK: delete + reinsert at the
+ * new path (favorites protocol). A destination row wins on collision.
+ */
+async function migrateActivityStats(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const row = await trx
+    .selectFrom('state_activity_stats')
+    .selectAll()
+    .where('nodePath', '=', fromPath)
+    .executeTakeFirst();
+  if (!row) return;
+  const collision = await trx
+    .selectFrom('state_activity_stats')
+    .select(['nodePath'])
+    .where('nodePath', '=', toPath)
+    .executeTakeFirst();
+  await trx.deleteFrom('state_activity_stats').where('nodePath', '=', fromPath).execute();
+  if (collision) {
+    report.collisions.push({ table: 'state_activity_stats', fromPath, toPath, keys: {} });
+    return;
+  }
+  await trx
+    .insertInto('state_activity_stats')
+    .values({ ...row, nodePath: toPath })
+    .execute();
+  report.activityStats += 1;
+}
+
+/**
+ * state_activity_pairs, composite PK `(parent, child_node_path)`: every
+ * row naming the path on either side is repointed, row by row, so a
+ * destination that already exists is reported as a collision (the
+ * destination row wins) instead of tripping the PK.
+ */
+async function migrateActivityPairs(
+  trx: TDbOrTx,
+  fromPath: string,
+  toPath: string,
+  report: IMigrateNodeFksReport,
+): Promise<void> {
+  const rows = await trx
+    .selectFrom('state_activity_pairs')
+    .selectAll()
+    .where((eb) => eb.or([eb('parent', '=', fromPath), eb('childNodePath', '=', fromPath)]))
+    .execute();
+  for (const row of rows) {
+    const parent = row.parent === fromPath ? toPath : row.parent;
+    const childNodePath = row.childNodePath === fromPath ? toPath : row.childNodePath;
+    const collision = await trx
+      .selectFrom('state_activity_pairs')
+      .select(['parent'])
+      .where('parent', '=', parent)
+      .where('childNodePath', '=', childNodePath)
+      .executeTakeFirst();
+    await trx
+      .deleteFrom('state_activity_pairs')
+      .where('parent', '=', row.parent)
+      .where('childNodePath', '=', row.childNodePath)
+      .execute();
+    if (collision) {
+      report.collisions.push({
+        table: 'state_activity_pairs',
+        fromPath,
+        toPath,
+        keys: { parent, childNodePath },
+      });
+      continue;
+    }
+    await trx
+      .insertInto('state_activity_pairs')
+      .values({ parent, childNodePath, count: row.count, lastStartAt: row.lastStartAt })
+      .execute();
+    report.activityPairs += 1;
+  }
+}
+
 async function migrateNodeFavorites(
   trx: TDbOrTx,
   fromPath: string,

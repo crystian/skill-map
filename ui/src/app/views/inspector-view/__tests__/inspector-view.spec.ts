@@ -1936,6 +1936,40 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
   });
 
+  it('a sighted-only node (count 0, shell entry in the log) shows its timeline, not the quiet line', async () => {
+    const node = makeNode();
+    const loader = makeStubLoader([node]);
+    const dataSource = makeStubDataSource();
+    dataSource.getNode.mockResolvedValue(makeDetail(makeApiNode({ body: '' })));
+    dataSource.getNodeActivity.mockResolvedValue({
+      stats: { count: 0, lastStartAt: 0, distinctOwners: 0 },
+      recent: [{ at: 3000, owner: 'main:abc', detail: 'Bash', caller: 'skills/deploy/SKILL.md' }],
+      spawns: [],
+      captureEnabled: false,
+      runs: [],
+    });
+    const { fixture } = bootstrap({
+      loader,
+      dataSource,
+      // The sighting frame rides the node's count-0 stats, so the mirror knows the node.
+      activityStats: new Map([[node.path, makeActivityStats({ count: 0, lastStartAt: 0, distinctOwners: 0 })]]),
+    });
+    fixture.componentRef.setInput('path', node.path);
+    await flush(fixture);
+    const toggle = fixture.nativeElement.querySelector(
+      '[data-testid="inspector-activity-toggle"]',
+    ) as HTMLButtonElement;
+    expect(toggle).not.toBeNull();
+    toggle.click();
+    await flush(fixture);
+    await flush(fixture);
+    const dom: HTMLElement = fixture.nativeElement;
+    expect(dom.querySelector('[data-testid="inspector-activity-empty"]')).toBeNull();
+    expect(dom.querySelectorAll('[data-testid="inspector-activity-recent-row"]').length).toBe(1);
+    // The sighting row names the shell tool (a typed access row, not the plain-detail shape).
+    expect(dom.querySelector('[data-testid="inspector-activity-recent-row"]')!.textContent).toContain('Bash');
+  });
+
   it('renders the runtime-only timeline unchanged when runs is empty', async () => {
     const fixture = await bootWithTimeline(
       [{ at: 3000, owner: 'main:abc', detail: 'read-tool' }],
