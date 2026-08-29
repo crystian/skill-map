@@ -192,6 +192,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The row under the replay cursor: amber rail on the left edge, lifted
+   surface, full-strength text. `aria-current="step"` carries the same
+   state to assistive tech. */
+.sessions__step--active .sessions__step-link {
+  background: color-mix(in srgb, var(--sm-replay-c-bright) 14%, transparent);
+  box-shadow: inset 2px 0 0 var(--sm-replay-c-bright);
+  color: var(--p-text-color);
+}
+
 .sessions__step-label {
   min-width: 0;
   overflow: hidden;

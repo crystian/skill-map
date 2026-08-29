@@ -1046,57 +1046,6 @@ sm-node-card.sm-gnode--deprecated + .sm-gnode__marker-anchor {
    toolbar markup. Moved out so Angular's emulated encapsulation stamps
    each rule with the host component the popover actually sits in. */
 
-/* Replay trail badge (director.ts `buildTrailIndex`): the step number
-   of this node along the route the tape walked, pinned to the card's
-   north-west tip (the alert marker anchor owns the north-east one).
-   Painted in the replay amber so it reads as transport chrome, not as
-   node state; dark ink on the bright amber clears WCAG AA where white
-   would not. `--sm-trail-recency` (0 = latest step, 1 = oldest) fades
-   the route toward its start so the eye lands on the newest step. A
-   sibling of the card inside the `[fNode]` host, so its own transform
-   is free (rule 3 only guards the host); the pop is PRM-gated. */
-.sm-gnode__trail {
-  position: absolute;
-  top: -12px;
-  left: -12px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  border-radius: 999px;
-  background: var(--sm-replay-c-bright);
-  color: #1c1917;
-  font-family: var(--sm-font-mono);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1;
-  pointer-events: none;
-  box-shadow:
-    0 0 0 2px var(--sm-bg-content),
-    0 0 10px color-mix(in srgb, var(--sm-replay-c-bright) 70%, transparent);
-  opacity: calc(1 - var(--sm-trail-recency, 0) * 0.55);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .sm-gnode__trail {
-    animation: sm-trail-pop 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  }
-
-  @keyframes sm-trail-pop {
-    from {
-      transform: scale(0.4);
-      opacity: 0;
-    }
-    to {
-      transform: none;
-      opacity: calc(1 - var(--sm-trail-recency, 0) * 0.55);
-    }
-  }
-}
-
 /* ── Boot intro: the map draws itself (intro.controller.ts) ───────────
    Two short-lived host classes drive a once-per-mount entrance.
 

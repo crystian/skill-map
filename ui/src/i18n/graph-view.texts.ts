@@ -170,10 +170,6 @@ export const GRAPH_VIEW_TEXTS = {
   invocationEdge: {
     aria: (tool: string): string => `Running tool ${tool}`,
   },
-  /** Replay trail badge: the node's step number along the tape's route. */
-  trailStep: {
-    aria: (step: number): string => `Replay step ${step}`,
-  },
   /**
    * Edge conversation-count pill (spec/provider-activity.md §Execution
    * stats, per-pair spawn counters). Shown on any edge whose pair has

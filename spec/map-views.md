@@ -22,6 +22,7 @@ must not be confused:
 | **Map view** (this doc) | Per view, shared via git | `.skill-map/views/<slug>.json` | Presentational: hides and arranges without touching the scan or the DB |
 | Live map state (overrides, pins, viewport) | Per browser | localStorage | The working canvas; a view is saved FROM it and applied INTO it |
 | Isolate / tag selection | Per session | In-memory only | Ephemeral lenses, deliberately not persisted |
+| Live lens node drags | Per lens session | In-memory only | A card dragged while the Live lens (or a replay) is on keeps its position through the lens's force relayouts, and the pin dies with the lens exit; it never reaches the curated pins, `localStorage` or a map view |
 
 A view carries HUMAN curation only. No machine process may author or
 rewrite a view file; implementations MAY at most propose changes (the

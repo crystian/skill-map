@@ -24,10 +24,12 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   effect,
   inject,
   signal,
+  untracked,
 } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { ButtonModule } from 'primeng/button';
@@ -36,6 +38,7 @@ import { TooltipModule } from 'primeng/tooltip';
 
 import { SESSIONS_VIEW_TEXTS } from '../../../i18n/sessions-view.texts';
 import type { ISessionRecordingApi } from '../../../models/api';
+import { ActivityPlaybackService } from '../../../services/activity-playback';
 import { ActivityRecorderService, type TRecordedEvent } from '../../../services/activity-recorder';
 import { DATA_SOURCE, type IDataSourcePort } from '../../../services/data-source/data-source.port';
 import { LiveLensService } from '../../../services/live-lens';
@@ -81,6 +84,8 @@ export class SessionsView {
   protected readonly recorder = inject(ActivityRecorderService);
   private readonly liveLens = inject(LiveLensService);
   private readonly replayIntent = inject(SESSION_REPLAY_INTENT);
+  private readonly playback = inject(ActivityPlaybackService);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly dataSource: IDataSourcePort = inject(DATA_SOURCE);
   private readonly purge = inject(SessionPurgeService);
   private readonly captureLevelSvc = inject(CaptureLevelService);
@@ -133,6 +138,12 @@ export class SessionsView {
 
   constructor() {
     void this.refreshJournal();
+    // The rail follows the replay cursor (see `revealStep`).
+    effect(() => {
+      const active = this.activeStep();
+      if (active === null) return;
+      untracked(() => this.revealStep(active));
+    });
     // Falling edge of recording -> refetch (the finalize/flush is
     // server-side; the GET flushes buffers itself, no debounce wait).
     // Tape emptied -> refetch after a small delay: the Settings purge
@@ -285,6 +296,60 @@ export class SessionsView {
   }
 
   /**
+   * The step under the replay cursor, identified the way the step
+   * deep-link identifies a row (`tMs` + node path within the scoped
+   * tape). `null` off-replay, before step 0, or on a node-less frame.
+   */
+  private readonly activeStep = computed<{ rootOwner: string; tMs: number; path: string } | null>(
+    () => {
+      if (!this.playback.active()) return null;
+      const source = this.playback.source();
+      if (source.kind === 'whole-tape') return null;
+      const event = this.playback.tape()[this.playback.cursor()];
+      if (event === undefined || event.type !== 'node.activity') return null;
+      const path = event.data.nodePath;
+      if (path === undefined) return null;
+      return { rootOwner: source.rootOwner, tMs: event.tMs, path };
+    },
+  );
+
+  protected isActiveStep(session: ISessionEntry, step: ISessionStep): boolean {
+    const active = this.activeStep();
+    return (
+      active !== null &&
+      active.rootOwner === session.rootOwner &&
+      active.tMs === step.tMs &&
+      active.path === step.path
+    );
+  }
+
+  /**
+   * Follow the replay (user request 2026-08-29): when the cursor lands
+   * on a step, open the rows that hide it (the session, and the agent
+   * chain when the step belongs to a subagent) and bring it into view.
+   * The DOM query runs a tick later, after the expansion rendered.
+   */
+  private revealStep(active: { rootOwner: string; tMs: number; path: string }): void {
+    const session = this.sessions().find((s) => s.rootOwner === active.rootOwner);
+    if (session === undefined) return;
+    const chain = agentChainForStep(session.agents, active.tMs, active.path);
+    this.expanded.update((current) => {
+      const next = new Set(current);
+      next.add(session.rootOwner);
+      for (const spawnId of chain) next.add(spawnId);
+      return next;
+    });
+    setTimeout(() => {
+      const row = this.host.nativeElement.querySelector<HTMLElement>('[aria-current="step"]');
+      if (row === null || typeof row.scrollIntoView !== 'function') return;
+      const reduce = this.host.nativeElement.ownerDocument.defaultView?.matchMedia?.(
+        '(prefers-reduced-motion: reduce)',
+      ).matches;
+      row.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+    }, 0);
+  }
+
+  /**
    * A session's title: the NAMES of everything it touched (user call
    * 2026-08-16, usage over identity), first-touch order, deduped by
    * display name (two paths can share a basename). A session that
@@ -360,4 +425,21 @@ export class SessionsView {
 /** Row-sized session id, 5 chars (user call 2026-08-16); the full value rides the chip tooltip. */
 function shortSessionId(id: string): string {
   return id.length > 5 ? `${id.slice(0, 5)}…` : id;
+}
+
+/**
+ * The spawn-id chain (outermost first) of the agent whose own steps
+ * hold `(tMs, path)`, empty when the step belongs to the main context.
+ */
+function agentChainForStep(
+  agents: readonly ISessionAgentNode[],
+  tMs: number,
+  path: string,
+): string[] {
+  for (const agent of agents) {
+    if (agent.steps.some((s) => s.tMs === tMs && s.path === path)) return [agent.spawnId];
+    const nested = agentChainForStep(agent.children, tMs, path);
+    if (nested.length > 0) return [agent.spawnId, ...nested];
+  }
+  return [];
 }

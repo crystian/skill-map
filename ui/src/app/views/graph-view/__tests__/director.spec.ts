@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildTrailIndex, DIRECTOR_HOLD, EMPTY_TRAIL_INDEX, resolveDirectorTargets } from '../director';
+import { DIRECTOR_HOLD, resolveDirectorTargets } from '../director';
 
 const AGENT = '.claude/agents/reviewer.md';
 const SKILL = '.claude/skills/deploy/SKILL.md';
@@ -52,22 +52,5 @@ describe('resolveDirectorTargets', () => {
     expect(
       resolveDirectorTargets({ ...base, atEnd: true, caption: { kind: 'start', path: SKILL } }),
     ).toBe(MEMBERSHIP);
-  });
-});
-
-describe('buildTrailIndex', () => {
-  it('shares the empty sentinel for an empty route', () => {
-    expect(buildTrailIndex([])).toBe(EMPTY_TRAIL_INDEX);
-  });
-
-  it('numbers steps 1-based and fades recency from the latest (0) to the oldest (1)', () => {
-    const index = buildTrailIndex([AGENT, SKILL, 'mcp://db']);
-    expect(index.get(AGENT)).toEqual({ step: 1, recency: 1 });
-    expect(index.get(SKILL)).toEqual({ step: 2, recency: 0.5 });
-    expect(index.get('mcp://db')).toEqual({ step: 3, recency: 0 });
-  });
-
-  it('a single-step route is the latest step, never a faded one', () => {
-    expect(buildTrailIndex([AGENT]).get(AGENT)).toEqual({ step: 1, recency: 0 });
   });
 });

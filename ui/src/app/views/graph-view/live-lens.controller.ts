@@ -32,7 +32,7 @@
  * standard fit win via `fitMainView`).
  */
 
-import { computed, effect, signal, untracked, type Signal } from '@angular/core';
+import { computed, effect, signal, untracked, type Signal, type WritableSignal } from '@angular/core';
 
 import type { TLinkKindApi } from '../../../models/api';
 import type { INodeView } from '../../../models/node';
@@ -118,8 +118,14 @@ export interface ILiveLensHandle {
   toggle(): void;
   /** Animated fit over the lens set (the toolbar fit button while on). */
   fitToLens(): void;
-  /** Effective lens position (force output only, no pin layer). */
+  /** Effective lens position: the session-local pin, else the force output. */
   positionOf(path: string): IPoint | undefined;
+  /**
+   * Session-local drag pins (never persisted, emptied on exit). The
+   * host's lens drag instance writes here; the pipeline projection
+   * and the next force relayout honour them.
+   */
+  readonly pins: WritableSignal<TNodePositions>;
 }
 
 /** Viewport + main-fingerprint snapshot captured on enter. */
@@ -147,9 +153,13 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
     linkKindToggleExplicitEmpty: off.asReadonly(),
   };
 
-  // Permanently-empty pin layer: the whole point of the lens is that
-  // no position it shows can ever become persisted state.
-  const lensPositions = signal<TNodePositions>(new Map());
+  // Session-local pin layer (user call 2026-08-29): a node the operator
+  // drags while the lens is on keeps the dragged position through every
+  // force relayout (the seed pins it, `fx` / `fy`), but the layer lives
+  // ONLY here: never read from or written to localStorage, and emptied
+  // on every exit, so no position the lens shows can become persisted
+  // state. Cards on the live map can pile up; this is the way out.
+  const lensPins = signal<TNodePositions>(new Map());
 
   const lensAlgorithm = computed(() => 'force' as const);
   const lensDirection = computed(() => 'LEFT_RIGHT' as const);
@@ -159,7 +169,7 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
     scan: lens.lensScan,
     filters: filterStub,
     issuesBySeverity: config.issuesBySeverity,
-    nodePositions: lensPositions,
+    nodePositions: lensPins,
     layoutAlgorithm: lensAlgorithm,
     layoutDirection: lensDirection,
   });
@@ -182,9 +192,15 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
     const key = topologyFingerprint(nodes, topology.edges);
     if (key === lastLayoutKey) return;
     lastLayoutKey = key;
-    const positions = untracked(() =>
-      computeForceLayoutPositions(nodes, topology.edges, layoutSeed),
-    );
+    // Seed = survivors' last positions overlaid with the operator's
+    // pins (read untracked: a drag must never re-run the layout, the
+    // projection already overlays the pin; the next topology change
+    // is what carries it into the simulation as a fixed node).
+    const positions = untracked(() => {
+      const seed = new Map<string, IPoint>(layoutSeed);
+      for (const [path, pin] of lensPins()) seed.set(path, { x: pin.x, y: pin.y });
+      return computeForceLayoutPositions(nodes, topology.edges, seed);
+    });
     layoutSeed = positions;
     untracked(() => {
       pipeline.layoutPositions.set(positions);
@@ -192,8 +208,9 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
     });
   });
 
+  /** Effective lens position: the operator's pin wins over the force output. */
   const positionOf = (path: string): IPoint | undefined =>
-    pipeline.fullLayout().positions.get(path);
+    lensPins().get(path) ?? pipeline.fullLayout().positions.get(path);
 
   /**
    * Session-local camera arming: re-armed on every enter, never
@@ -275,6 +292,8 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
     if (active) return; // enter work happens in `toggle()`
     untracked(() => {
       config.beginViewSwitch();
+      // The pins die with the lens: they were never persisted state.
+      lensPins.set(new Map());
       const snap = snapshot;
       snapshot = null;
       if (snap && config.mainPathsFingerprint() === snap.fingerprint) {
@@ -293,10 +312,9 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
   const fitToLens = (): void => {
     const host = config.hostElement();
     if (!host) return;
-    const positions = pipeline.fullLayout().positions;
     const points: IPoint[] = [];
     for (const path of pipeline.mapVisiblePaths()) {
-      const pt = positions.get(path);
+      const pt = positionOf(path);
       if (pt) points.push({ x: pt.x, y: pt.y });
     }
     for (const session of config.sessions()) {
@@ -314,6 +332,7 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
 
   return {
     active: lens.active,
+    pins: lensPins,
     pipeline,
     follow,
     layoutFitFingerprint,

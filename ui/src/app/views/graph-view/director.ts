@@ -16,8 +16,6 @@
  *     empty-fingerprint sentinel. Before the first frame and at the END
  *     of the tape the whole membership is framed again: overview in,
  *     close-ups through, pull back to reveal the route the tape walked.
- *   - `buildTrailIndex`: step number + recency per node of the fold's
- *     first-touch `trail`, for the numbered badges along that route.
  */
 
 import type { TPlaybackCaption } from '../../../services/activity-playback-state';
@@ -50,23 +48,4 @@ export function resolveDirectorTargets(input: IDirectorInput): ReadonlySet<strin
     default:
       return DIRECTOR_HOLD;
   }
-}
-
-export interface ITrailStep {
-  /** 1-based position along the route. */
-  step: number;
-  /** 0 for the latest step, 1 for the oldest (0 when the route has one step). */
-  recency: number;
-}
-
-export const EMPTY_TRAIL_INDEX: ReadonlyMap<string, ITrailStep> = new Map();
-
-export function buildTrailIndex(trail: readonly string[]): ReadonlyMap<string, ITrailStep> {
-  if (trail.length === 0) return EMPTY_TRAIL_INDEX;
-  const index = new Map<string, ITrailStep>();
-  const span = Math.max(1, trail.length - 1);
-  trail.forEach((path, i) => {
-    index.set(path, { step: i + 1, recency: (trail.length - 1 - i) / span });
-  });
-  return index;
 }

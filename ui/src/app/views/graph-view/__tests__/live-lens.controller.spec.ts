@@ -269,6 +269,25 @@ describe('live-lens.controller', () => {
     );
   });
 
+  it('a lens drag pins the card through relayouts and dies with the exit', () => {
+    const h = makeHarness();
+    h.setLive([A, B]);
+    h.handle.toggle();
+    TestBed.tick();
+    h.handle.pins.set(new Map([[A, { x: 900, y: 700, manual: true }]]));
+    expect(h.handle.positionOf(A)).toEqual({ x: 900, y: 700, manual: true });
+    // A newcomer triggers a force relayout: the pinned survivor stays put.
+    h.setLive([A, B, 'c.md']);
+    TestBed.tick();
+    expect(h.handle.positionOf(A)).toEqual({ x: 900, y: 700, manual: true });
+    expect(h.handle.pipeline.fullLayout().positions.get(A)).toEqual({ x: 900, y: 700 });
+    // Exit: the pin layer empties, nothing was ever persisted.
+    h.handle.toggle();
+    TestBed.tick();
+    expect(h.handle.pins().size).toBe(0);
+    expect(localStorage.getItem(scopedKey('sm.graph.node-positions'))).toBeNull();
+  });
+
   it('fitToLens frames the laid-out lens set', () => {
     const h = makeHarness();
     h.setLive([A, B]);

@@ -104,7 +104,7 @@ import { setupViewportStore, ZOOM_MIN, ZOOM_MAX } from './viewport-store';
 import { isAnyPrimengOverlayOpen, isFlowDragging } from './graph-view.utils';
 import type { IEdgeSelectionView, ISelectionView } from '../../../models/selection';
 import { createSelectionState } from './selection-state';
-import { CLICK_DRAG_TOLERANCE_PX, setupNodeDrag } from './node-drag.controller';
+import { CLICK_DRAG_TOLERANCE_PX, setupNodeDrag, type INodeDragHandle } from './node-drag.controller';
 import { setupExpansion } from './expansion.controller';
 import { setupFollowActivity } from './follow-activity.controller';
 import { setupLiveLens } from './live-lens.controller';
@@ -116,7 +116,6 @@ import { setupSpawnAnchors } from './spawn-anchors.controller';
 import { edgePairKey, type ISpawnOverlayEdge } from './spawn-overlay';
 import type { IInvocationOverlayEdge } from './invocation-overlay';
 import { resolveCometOverlay, type ICometOverlayEdge } from './comet-overlay';
-import { buildTrailIndex, EMPTY_TRAIL_INDEX, type ITrailStep } from './director';
 import { setupReplayUrlSync } from './replay-url-sync';
 import { foldJournalRecordings, resolveReplayTarget } from '../../../services/session-catalog';
 import { INTRO_SWEEP_MS, setupIntro } from './intro.controller';
@@ -163,7 +162,6 @@ const EDGE_SELECTION_DEFAULT: IEdgeSelectionView = {
  * is on (stable identities, so OnPush consumers see one change on the
  * flip, not a fresh object per read).
  */
-const EMPTY_NODE_POSITIONS: TNodePositions = new Map();
 const EMPTY_PATH_SET: ReadonlySet<string> = new Set();
 
 
@@ -520,8 +518,30 @@ export class GraphView implements OnInit {
     this.lensOn() ? this.liveLensCtl.pipeline.fullLayout() : this.fullLayout(),
   );
   private readonly displayNodePositions = computed<TNodePositions>(() =>
-    this.lensOn() ? EMPTY_NODE_POSITIONS : this.nodePositions(),
+    this.lensOn() ? this.liveLensCtl.pins() : this.nodePositions(),
   );
+
+  /**
+   * Lens drag state machine (user call 2026-08-29: cards on the live
+   * map can pile up, so they are draggable there too). Same buffer +
+   * mouseup flush as the curated map's, but it writes the lens's
+   * session-local pins and commits NOTHING to storage: a lens position
+   * never becomes persisted state. `activeNodeDrag()` routes every
+   * pointer / position event to the instance that owns the canvas.
+   */
+  private readonly lensNodeDrag = setupNodeDrag({
+    destroyRef: this.destroyRef,
+    nodePositions: this.liveLensCtl.pins,
+    onCommit: () => {},
+    onDragEnd: () => {
+      if ((this.flow()?.getSelection().fNodeIds.length ?? 0) > 1) return;
+      this.applySelection(this.selectedNodeId());
+    },
+  });
+
+  private activeNodeDrag(): INodeDragHandle {
+    return this.lensOn() ? this.lensNodeDrag : this.nodeDrag;
+  }
 
   readonly hasData = computed(() => this.pipeline.graph().nodes.length > 0);
   /**
@@ -1113,10 +1133,9 @@ export class GraphView implements OnInit {
   }
 
   onNodePositionChange(id: string, position: IPoint): void {
-    // Belt-and-braces with `[fNodeDraggingDisabled]`: nothing the lens
-    // shows may ever reach the drag buffer / persisted positions.
-    if (this.lensOn()) return;
-    this.nodeDrag.onNodePositionChange(id, position);
+    // Lens drags land in the session-local pin layer (`lensNodeDrag`),
+    // curated-map drags in the persisted positions; the two never mix.
+    this.activeNodeDrag().onNodePositionChange(id, position);
   }
 
   // Zoom / fit keep follow armed (every toolbar button does now): they
@@ -1198,7 +1217,7 @@ export class GraphView implements OnInit {
   // origin state, rAF coalescing, and cleanup all live there.
 
   onNodePointerDown(event: PointerEvent): void {
-    this.nodeDrag.onNodePointerDown(event);
+    this.activeNodeDrag().onNodePointerDown(event);
   }
 
   // Session-anchor + agent-capsule drags (ephemeral overrides, per-move
@@ -1223,7 +1242,7 @@ export class GraphView implements OnInit {
   }
 
   selectNode(node: IGraphNode, event: MouseEvent): void {
-    if (!this.nodeDrag.isClickWithoutDrag(event)) return;
+    if (!this.activeNodeDrag().isClickWithoutDrag(event)) return;
     // Modifier clicks are multi-selection gestures owned by Foblex:
     // Ctrl/Cmd+click toggles the node in and out of the selection
     // (`SelectByPointer`), Shift belongs to the marquee. Forcing the
@@ -1696,18 +1715,6 @@ export class GraphView implements OnInit {
     return `${Math.round(t * INTRO_SWEEP_MS)}ms`;
   }
 
-  /**
-   * Replay trail: step number + recency per node of the route the tape
-   * walked so far (the fold's first-touch `trail`), empty outside a
-   * replay so the badges never ride the live map. See `director.ts`.
-   */
-  private readonly trailIndex = computed<ReadonlyMap<string, ITrailStep>>(() =>
-    this.replayOn() ? buildTrailIndex(this.playback.state().trail) : EMPTY_TRAIL_INDEX,
-  );
-
-  protected trailStepFor(id: string): ITrailStep | null {
-    return this.trailIndex().get(id) ?? null;
-  }
 
   /** O(1) pair -> lastSpawnId lookup over the lens's observed spawns. */
   private readonly lensSpawnByPair = computed<ReadonlyMap<string, string>>(() => {

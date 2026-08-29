@@ -236,13 +236,17 @@
 <ng-template #stepsTpl let-steps="steps" let-session="session">
   <ul class="sessions__steps" role="list">
     @for (step of steps; track step.tMs + '|' + step.path + '|' + $index) {
-      <li class="sessions__step">
+      @let current = isActiveStep(session, step);
+      <li class="sessions__step" [class.sessions__step--active]="current">
+        <!-- While this session replays, the row under the cursor is
+             `aria-current="step"` and the rail follows it. -->
         <button
           type="button"
           class="sessions__step-link"
           [disabled]="!playAvailable() || replayBlocked(session)"
           [pTooltip]="playTooltip(session, texts.stepTooltip)"
           tooltipPosition="top"
+          [attr.aria-current]="current ? 'step' : null"
           (click)="playStep(session, step)"
           data-testid="sessions-step"
         >

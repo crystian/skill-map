@@ -60,6 +60,10 @@ function makeFixture(init?: {
   recording?: boolean;
   recordingSince?: number | null;
   replaying?: boolean;
+  /** The replay transport's scoped tape / cursor / source (defaults: empty, -1, whole tape). */
+  replayTape?: TRecordedEvent[];
+  cursor?: number;
+  source?: { kind: 'whole-tape' } | { kind: 'tape-session' | 'journal'; rootOwner: string; agentSpawnId?: string };
   /** Server-journal recordings the hydration fetch resolves. */
   journal?: ISessionRecordingApi[];
   journalCaptureLevel?: string;
@@ -75,6 +79,9 @@ function makeFixture(init?: {
     // replaying hint follows `playing`, like REC follows capture.
     playing: replaying.asReadonly(),
     exit: playbackExit,
+    tape: signal<readonly TRecordedEvent[]>(init?.replayTape ?? []).asReadonly(),
+    cursor: signal(init?.cursor ?? -1).asReadonly(),
+    source: signal(init?.source ?? { kind: 'whole-tape' }).asReadonly(),
   } as unknown as ActivityPlaybackService;
   const recorder = {
     events: signal<readonly TRecordedEvent[]>(init?.tape ?? TAPE).asReadonly(),
@@ -260,6 +267,27 @@ describe('SessionsView', () => {
     const allSteps = dom.querySelectorAll('[data-testid="sessions-step"]');
     expect(allSteps.length).toBe(2);
     expect(allSteps[1]?.textContent).toContain('Read guide');
+  });
+
+  it('while its session replays, the cursor row is current and the session auto-expands', () => {
+    const tape: TRecordedEvent[] = [
+      activity(T0, { phase: 'start', nodePath: SKILL, owner: MAIN, detail: 'Skill' }),
+      activity(T0 + 500, { phase: 'start', nodePath: 'docs/guide.md', owner: MAIN }),
+    ];
+    const { fixture } = makeFixture({
+      tape,
+      replaying: true,
+      replayTape: tape,
+      cursor: 1,
+      source: { kind: 'tape-session', rootOwner: MAIN },
+    });
+    // The rail follows the cursor: the session auto-expands, no click needed.
+    fixture.detectChanges();
+    const dom = fixture.nativeElement as HTMLElement;
+    const steps = dom.querySelectorAll('[data-testid="sessions-step"]');
+    expect(steps.length).toBe(2);
+    expect(steps[0]?.getAttribute('aria-current')).toBeNull();
+    expect(steps[1]?.getAttribute('aria-current')).toBe('step');
   });
 
   it('a step row deep-links: session selection + the step identity through the intent', () => {
