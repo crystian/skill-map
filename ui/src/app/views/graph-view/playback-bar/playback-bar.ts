@@ -19,6 +19,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { PLAYBACK_BAR_TEXTS } from '../../../../i18n/playback-bar.texts';
 import { ActivityPlaybackService } from '../../../../services/activity-playback';
 import { ActivityRecorderService } from '../../../../services/activity-recorder';
+import { LivePreferencesService } from '../../../../services/live-preferences';
 import { pathBasenameForLink } from '../../../../services/path-basename';
 import { filterTapeForSession } from '../../../../services/session-index';
 
@@ -32,6 +33,7 @@ import { filterTapeForSession } from '../../../../services/session-index';
 export class PlaybackBar {
   protected readonly playback = inject(ActivityPlaybackService);
   protected readonly recorder = inject(ActivityRecorderService);
+  protected readonly livePrefs = inject(LivePreferencesService);
 
   protected readonly texts = PLAYBACK_BAR_TEXTS;
 
@@ -41,6 +43,15 @@ export class PlaybackBar {
   );
 
   protected readonly trimmed = computed(() => this.recorder.droppedCount() > 0);
+
+  /**
+   * Director camera toggle: the lens follow reads the preference and
+   * switches between close-ups on each step and the whole route
+   * (`director.ts`). Persisted browser-local like follow.
+   */
+  protected toggleDirector(): void {
+    this.livePrefs.setDirectorEnabled(!this.livePrefs.directorEnabled());
+  }
 
   /**
    * Wall-clock `HH:MM:SS` (local) of the cursor event, rendered at the

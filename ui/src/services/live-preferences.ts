@@ -51,6 +51,7 @@ import { Injectable, Injector, inject, signal } from '@angular/core';
 import { DATA_SOURCE, type IDataSourcePort } from './data-source/data-source.port';
 
 const FOLLOW_ACTIVITY_KEY = 'sm.live.follow-activity';
+const DIRECTOR_KEY = 'sm.live.director';
 
 @Injectable({ providedIn: 'root' })
 export class LivePreferencesService {
@@ -74,6 +75,7 @@ export class LivePreferencesService {
   private readonly _showRuntimeAgents = signal(true);
   private readonly _changeSpark = signal(true);
   private readonly _followActivity = signal(readStoredBool(FOLLOW_ACTIVITY_KEY, true));
+  private readonly _director = signal(readStoredBool(DIRECTOR_KEY, true));
 
   /** Live `/ws` channel wanted at all. Default ON. */
   readonly wsEnabled = this._wsEnabled.asReadonly();
@@ -97,6 +99,12 @@ export class LivePreferencesService {
   readonly changeSparkEnabled = this._changeSpark.asReadonly();
   /** Camera auto-frames the executing nodes. Default ON (user call 2026-07-26). */
   readonly followActivityEnabled = this._followActivity.asReadonly();
+  /**
+   * Replay director camera (default ON): the replay frames the node
+   * each step is about instead of the whole route (`director.ts`).
+   * Browser-local like follow: a camera taste, not project config.
+   */
+  readonly directorEnabled = this._director.asReadonly();
 
   /**
    * Fetch the persisted `ui.*` preferences and settle the signals.
@@ -145,6 +153,12 @@ export class LivePreferencesService {
     if (this._followActivity() === value) return;
     this._followActivity.set(value);
     writeStoredBool(FOLLOW_ACTIVITY_KEY, value);
+  }
+
+  setDirectorEnabled(value: boolean): void {
+    if (this._director() === value) return;
+    this._director.set(value);
+    writeStoredBool(DIRECTOR_KEY, value);
   }
 
   /**

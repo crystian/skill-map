@@ -85,6 +85,20 @@
       (onClick)="playback.stepForward()"
       data-testid="graph-playback-step-forward"
     />
+    <!-- Director camera: close-ups on each step (on) vs the whole
+         route in frame (off). Label + tooltip carry the CURRENT state;
+         the amber severity mirrors the replay accent while on. -->
+    <p-button
+      icon="pi pi-video"
+      [ariaLabel]="livePrefs.directorEnabled() ? texts.directorOn : texts.directorOff"
+      [pTooltip]="livePrefs.directorEnabled() ? texts.directorOn : texts.directorOff"
+      [severity]="livePrefs.directorEnabled() ? 'warn' : 'secondary'"
+      [text]="true"
+      [rounded]="true"
+      size="small"
+      (onClick)="toggleDirector()"
+      data-testid="graph-playback-director"
+    />
     @if (playback.scopeLabel(); as scope) {
       <!-- Tooltip carries the FULL label: the chip ellipsizes and the
            label is now the session title (touched-node names), so the

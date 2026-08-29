@@ -109,6 +109,29 @@ describe('computePlaybackState', () => {
     expect(state.caption).toEqual({ kind: 'session-end', session: 's1' });
   });
 
+  it('the trail lists every lit node once, in first-touch order, ignoring spawn frames', () => {
+    const events = [
+      activity(T0, { phase: 'start', nodePath: AGENT, owner: 'a' }),
+      spawn(T0 + 100, {
+        spawnId: 's1',
+        phase: 'start',
+        parentOwner: 'a',
+        parentNodePath: AGENT,
+        childNodePath: SKILL,
+      }),
+      activity(T0 + 200, { phase: 'start', nodePath: SKILL, owner: 'b' }),
+      activity(T0 + 300, { phase: 'start', nodePath: MCP, owner: 'b', detail: 'query' }),
+      activity(T0 + 400, { phase: 'end', nodePath: SKILL, owner: 'b' }),
+      activity(T0 + 500, { phase: 'start', nodePath: AGENT, owner: 'a' }),
+    ];
+    expect(computePlaybackState(events, -1).trail).toEqual([]);
+    // The spawn frame adds SKILL to members but not to the trail yet.
+    expect(computePlaybackState(events, 1).trail).toEqual([AGENT]);
+    expect(computePlaybackState(events, 1).members.has(SKILL)).toBe(true);
+    // A node's second start never re-enters the route.
+    expect(stateAtEnd(events).trail).toEqual([AGENT, SKILL, MCP]);
+  });
+
   it('correlates an mcp invocation to the most recent unit of the same owner', () => {
     const state = stateAtEnd([
       activity(T0, { phase: 'start', nodePath: AGENT, owner: 'a', sticky: true }),

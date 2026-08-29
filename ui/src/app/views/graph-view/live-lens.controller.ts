@@ -38,6 +38,7 @@ import type { TLinkKindApi } from '../../../models/api';
 import type { INodeView } from '../../../models/node';
 import type { IIssuePathsBySeverity } from '../../../services/issue-paths';
 import type { LiveLensService } from '../../../services/live-lens';
+import type { IPlaybackState } from '../../../services/activity-playback-state';
 import type { LivePreferencesService } from '../../../services/live-preferences';
 import type { NodeActivityService } from '../../../services/node-activity';
 import {
@@ -53,11 +54,25 @@ import {
 } from './graph-layout';
 import { setupGraphPipeline, type IGraphPipelineHandle } from './graph-pipeline';
 import { computeFitTransform, type IViewportTransform } from './viewport-animation';
+import { resolveDirectorTargets } from './director';
 
 export interface ILiveLensControllerConfig {
   lens: LiveLensService;
   nodeActivity: NodeActivityService;
   livePrefs: LivePreferencesService;
+  /**
+   * Replay transport slice the director camera reads: `active`, the
+   * cursor / total pair (end-of-tape pull-back) and the fold (cursor
+   * caption). Structural so the spec stubs it without the service.
+   */
+  playback: {
+    active: Signal<boolean>;
+    cursor: Signal<number>;
+    total: Signal<number>;
+    state: Signal<IPlaybackState>;
+  };
+  /** `LivePreferencesService.directorEnabled`, the replay camera taste. */
+  directorEnabled: Signal<boolean>;
   /** Real severity index; the lens filter stub never reads it, passed only to satisfy the pipeline config. */
   issuesBySeverity: Signal<IIssuePathsBySeverity>;
   /** MAIN pipeline fingerprint, frozen while the lens is on (see `layoutFitFingerprint`). */
@@ -189,8 +204,20 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
   const follow = setupFollowActivity({
     livePrefs: config.livePrefs,
     nodeActivity: config.nodeActivity,
-    // The camera frames the WHOLE lens set (executing + lingering).
-    targetPaths: lens.membership,
+    // The camera frames the WHOLE lens set (executing + lingering),
+    // except under the replay's director camera, which frames the node
+    // the cursor frame is about (close-ups gliding from caller to
+    // callee, overview before the first frame and at the end of the
+    // tape); see `director.ts`.
+    targetPaths: computed(() =>
+      resolveDirectorTargets({
+        replayOn: config.playback.active(),
+        director: config.directorEnabled(),
+        atEnd: config.playback.cursor() >= config.playback.total() - 1,
+        caption: config.playback.state().caption,
+        membership: lens.membership(),
+      }),
+    ),
     followState: {
       enabled: lensFollowArmed.asReadonly(),
       setEnabled: (value) => lensFollowArmed.set(value),

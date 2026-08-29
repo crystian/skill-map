@@ -380,6 +380,7 @@
               @let activity = activityStatsFor(node.id);
               @let expanded = isExpanded(node.id);
               @let hostLabel = nodeHostLabel(node);
+              @let trail = trailStepFor(node.id);
               <div
                 fNode
                 fDragHandle
@@ -432,6 +433,20 @@
                 <div class="sm-gnode__marker-anchor">
                   <sm-view-contributions-host slot="graph.node.alert" [node]="node.view" />
                 </div>
+                <!-- Replay trail badge (spec/provider-activity.md §Roles and
+                     boundary, the replay narration chrome): the step number
+                     of this node along the route the tape walked, mounted
+                     only while a replay is active. Recency drives the opacity
+                     in CSS so the latest step reads brightest and the route
+                     fades toward its start. Pure chrome, pointer-events off. -->
+                @if (trail) {
+                  <div
+                    class="sm-gnode__trail"
+                    [style.--sm-trail-recency]="trail.recency"
+                    [attr.aria-label]="texts.trailStep.aria(trail.step)"
+                    [attr.data-testid]="'graph-node-trail-' + node.id"
+                  >{{ trail.step }}</div>
+                }
               </div>
             </ng-container>
           } @else {
@@ -444,6 +459,7 @@
                 @let activity = activityStatsFor(node.id);
                 @let expanded = isExpanded(node.id);
                 @let hostLabel = nodeHostLabel(node);
+                @let trail = trailStepFor(node.id);
                 <div
                   fNode
                   fDragHandle
@@ -496,6 +512,20 @@
                   <div class="sm-gnode__marker-anchor">
                     <sm-view-contributions-host slot="graph.node.alert" [node]="node.view" />
                   </div>
+                  <!-- Replay trail badge (spec/provider-activity.md §Roles and
+                       boundary, the replay narration chrome): the step number
+                       of this node along the route the tape walked, mounted
+                       only while a replay is active. Recency drives the opacity
+                       in CSS so the latest step reads brightest and the route
+                       fades toward its start. Pure chrome, pointer-events off. -->
+                  @if (trail) {
+                    <div
+                      class="sm-gnode__trail"
+                      [style.--sm-trail-recency]="trail.recency"
+                      [attr.aria-label]="texts.trailStep.aria(trail.step)"
+                      [attr.data-testid]="'graph-node-trail-' + node.id"
+                    >{{ trail.step }}</div>
+                  }
                 </div>
               }
             </ng-container>

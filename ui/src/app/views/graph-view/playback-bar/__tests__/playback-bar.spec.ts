@@ -10,6 +10,7 @@ import {
 import type { TRecordedEvent } from '../../../../../services/activity-recorder';
 import { ActivityRecorderService } from '../../../../../services/activity-recorder';
 import { SessionPurgeService } from '../../../../../services/session-purge';
+import { LivePreferencesService } from '../../../../../services/live-preferences';
 import type { IPlaybackState, TPlaybackCaption } from '../../../../../services/activity-playback-state';
 
 /**
@@ -35,6 +36,7 @@ function makeFixture(init?: {
     executing: new Set<string>(),
     details: new Map<string, string>(),
     members: new Set<string>(),
+    trail: [],
     invocations: [],
     spawns: [],
     coLitPairs: new Set<string>(),
@@ -115,6 +117,24 @@ describe('PlaybackBar', () => {
     const { fixture, playback } = makeFixture();
     (query(fixture, 'graph-playback-exit')?.querySelector('button') as HTMLButtonElement).click();
     expect(playback.exit).toHaveBeenCalledTimes(1);
+  });
+
+  it('the director toggle flips the browser-local camera preference', () => {
+    const { fixture } = makeFixture();
+    const prefs = TestBed.inject(LivePreferencesService);
+    prefs.setDirectorEnabled(true);
+    fixture.detectChanges();
+    const button = (): HTMLButtonElement =>
+      query(fixture, 'graph-playback-director')?.querySelector('button') as HTMLButtonElement;
+    expect(button().getAttribute('aria-label')).toContain('Director camera on');
+
+    button().click();
+    expect(prefs.directorEnabled()).toBe(false);
+    fixture.detectChanges();
+    expect(button().getAttribute('aria-label')).toContain('Director camera off');
+
+    button().click();
+    expect(prefs.directorEnabled()).toBe(true);
   });
 
   it('the trash clears the browser tape ONLY, immediately (the journal evidence survives)', () => {

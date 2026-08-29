@@ -115,6 +115,7 @@ import { setupSpawnAnchors } from './spawn-anchors.controller';
 import { edgePairKey, type ISpawnOverlayEdge } from './spawn-overlay';
 import type { IInvocationOverlayEdge } from './invocation-overlay';
 import { resolveCometOverlay, type ICometOverlayEdge } from './comet-overlay';
+import { buildTrailIndex, EMPTY_TRAIL_INDEX, type ITrailStep } from './director';
 import { INTRO_SWEEP_MS, setupIntro } from './intro.controller';
 import { type IViewportTransform } from './viewport-animation';
 
@@ -434,6 +435,8 @@ export class GraphView implements OnInit {
     lens: this.liveLens,
     nodeActivity: this.nodeActivity,
     livePrefs: this.livePrefs,
+    playback: this.playback,
+    directorEnabled: this.livePrefs.directorEnabled,
     issuesBySeverity: this.issuePaths.bySeverity,
     mainPathsFingerprint: this.pathsFingerprint,
     viewportPosition: this.viewportPosition,
@@ -1670,6 +1673,19 @@ export class GraphView implements OnInit {
     if (sweep === null) return null;
     const t = (node.position.x + node.position.y - sweep.min) / sweep.range;
     return `${Math.round(t * INTRO_SWEEP_MS)}ms`;
+  }
+
+  /**
+   * Replay trail: step number + recency per node of the route the tape
+   * walked so far (the fold's first-touch `trail`), empty outside a
+   * replay so the badges never ride the live map. See `director.ts`.
+   */
+  private readonly trailIndex = computed<ReadonlyMap<string, ITrailStep>>(() =>
+    this.replayOn() ? buildTrailIndex(this.playback.state().trail) : EMPTY_TRAIL_INDEX,
+  );
+
+  protected trailStepFor(id: string): ITrailStep | null {
+    return this.trailIndex().get(id) ?? null;
   }
 
   /** O(1) pair -> lastSpawnId lookup over the lens's observed spawns. */

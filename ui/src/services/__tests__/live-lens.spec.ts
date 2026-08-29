@@ -69,6 +69,7 @@ const EMPTY_PLAYBACK_STATE: IPlaybackState = {
   executing: new Set(),
   details: new Map(),
   members: new Set(),
+  trail: [],
   invocations: [],
   spawns: [],
   coLitPairs: new Set(),

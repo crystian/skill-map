@@ -5,6 +5,9 @@ export const PLAYBACK_BAR_TEXTS = {
   pause: 'Pause',
   stepBack: 'Previous event',
   stepForward: 'Next event',
+  /** Director camera toggle; label + tooltip name the CURRENT state. */
+  directorOn: 'Director camera on: the replay follows each step up close',
+  directorOff: 'Director camera off: the replay keeps the whole route in frame',
   scrubber: 'Replay position',
   /** `k / N` progress readout. */
   counter: (current: number, total: number): string => `${current} / ${total}`,

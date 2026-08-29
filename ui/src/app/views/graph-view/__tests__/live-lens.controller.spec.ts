@@ -26,6 +26,7 @@ import {
 } from '../../../../services/data-source/data-source.port';
 import type { IIssuePathsBySeverity } from '../../../../services/issue-paths';
 import type { LiveLensService } from '../../../../services/live-lens';
+import { computePlaybackState } from '../../../../services/activity-playback-state';
 import { LivePreferencesService } from '../../../../services/live-preferences';
 import type { NodeActivityService } from '../../../../services/node-activity';
 import { setupLiveLens, type ILiveLensHandle } from '../live-lens.controller';
@@ -120,6 +121,13 @@ function makeHarness(opts?: { bootDone?: boolean }) {
         activePaths: activePaths.asReadonly(),
       } as unknown as NodeActivityService,
       livePrefs: TestBed.inject(LivePreferencesService),
+      playback: {
+        active: signal(false).asReadonly(),
+        cursor: signal(-1).asReadonly(),
+        total: signal(0).asReadonly(),
+        state: signal(computePlaybackState([], -1)).asReadonly(),
+      },
+      directorEnabled: signal(true).asReadonly(),
       issuesBySeverity: signal(EMPTY_SEVERITIES).asReadonly(),
       mainPathsFingerprint: mainFingerprint.asReadonly(),
       viewportPosition: viewportPosition.asReadonly(),

@@ -59,6 +59,14 @@ export interface IPlaybackState {
   readonly details: ReadonlyMap<string, string>;
   /** Every node the tape touched up to the cursor (accumulative). */
   readonly members: ReadonlySet<string>;
+  /**
+   * Every node the tape lit, in FIRST-TOUCH order (units, mcp targets
+   * and reads alike, one entry per node): the numbered route the replay
+   * draws. Accumulative like `members`, which it orders; spawn frames
+   * touch `members` but never the trail (a spawn is a relation, the
+   * child's own start frame is the step).
+   */
+  readonly trail: readonly string[];
   /** Accumulated caller -> target tool invocations. */
   readonly invocations: readonly IObservedInvocation[];
   /** Accumulated node-to-node spawns. */
@@ -86,6 +94,7 @@ const EMPTY_STATE: IPlaybackState = {
   executing: new Set(),
   details: new Map(),
   members: new Set(),
+  trail: [],
   invocations: [],
   spawns: [],
   coLitPairs: new Set(),
@@ -114,6 +123,8 @@ export function computePlaybackState(
   const lastUnitByOwner = new Map<string, string>();
   const sessionByOwner = new Map<string, string>();
   const members = new Set<string>();
+  const trail: string[] = [];
+  const touched = new Set<string>();
   const invocations = new Map<string, IObservedInvocation>();
   const spawns = new Map<string, IObservedSpawn>();
   const coLitPairs = new Set<string>();
@@ -234,6 +245,10 @@ export function computePlaybackState(
 
     members.add(data.nodePath);
     if (data.phase === 'start') {
+      if (!touched.has(data.nodePath)) {
+        touched.add(data.nodePath);
+        trail.push(data.nodePath);
+      }
       const ttl = data.sticky === true ? stickyTtlMs : ttlMs;
       if (data.detail !== undefined && data.nodePath.startsWith(MCP_NODE_PREFIX)) {
         const caller = correlateCaller(data.nodePath, owner);
@@ -309,6 +324,7 @@ export function computePlaybackState(
     executing,
     details,
     members,
+    trail,
     invocations: [...invocations.values()],
     spawns: [...spawns.values()],
     coLitPairs,
