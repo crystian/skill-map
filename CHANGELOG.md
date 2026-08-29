@@ -6,6 +6,17 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.12.5</b> · 2026-08-29</summary>
+
+### CLI Patch
+- Every press of Record is now a new session in the Sessions rail. A session's identity became root owner plus recording: the browser tape stamps each captured frame with its Record gesture and partitions by it, every journal file lists as its own row, a replay is scoped to its recording, and the deep link gains `rec=<recording>`. Before, recordings of the same runtime session merged into one row and hid the separate journal files. `spec/provider-activity.md` §Session journal documents it.
+
+### Spec Patch (1.12.5)
+- Every press of Record is now a new session in the Sessions rail. A session's identity became root owner plus recording: the browser tape stamps each captured frame with its Record gesture and partitions by it, every journal file lists as its own row, a replay is scoped to its recording, and the deep link gains `rec=<recording>`. Before, recordings of the same runtime session merged into one row and hid the separate journal files. `spec/provider-activity.md` §Session journal documents it.
+
+</details>
+
+<details>
 <summary><b>1.12.4</b> · 2026-08-29</summary>
 
 ### CLI Patch
