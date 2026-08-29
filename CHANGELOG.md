@@ -6,6 +6,18 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.12.4</b> · 2026-08-29</summary>
+
+### CLI Patch
+- The replay bar's transport controls (play / pause, step back / forward, copy link, the director camera while on) now paint in the active theme's primary colour instead of the secondary grey or the replay amber; exit, trash and the director while off stay muted; the amber remains the bar's replay chrome. The live execution palette (spine, comets, invocation edges, card ring and halo) now follows each extra theme's own ramp, the rainbow staying the base look.
+- The topbar theme button now opens a menu instead of cycling: Auto, Light and Dark (the three it used to cycle) plus every specialty theme, with the current look checked and the button's glyph naming it (the palette while a specialty theme is on). Picking a specialty theme from there emits `ui.feature.theme-extra` stamped `source: topbar`; `spec/telemetry.md` adds `topbar` to the source set.
+
+### Spec Patch (1.12.4)
+- The topbar theme button now opens a menu instead of cycling: Auto, Light and Dark (the three it used to cycle) plus every specialty theme, with the current look checked and the button's glyph naming it (the palette while a specialty theme is on). Picking a specialty theme from there emits `ui.feature.theme-extra` stamped `source: topbar`; `spec/telemetry.md` adds `topbar` to the source set.
+
+</details>
+
+<details>
 <summary><b>1.12.3</b> · 2026-08-29</summary>
 
 ### CLI Patch

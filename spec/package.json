@@ -1,6 +1,6 @@
 {
   "name": "@skill-map/spec",
-  "version": "1.12.3",
+  "version": "1.12.4",
   "description": "JSON Schemas, prose contracts, and conformance suite for the skill-map specification.",
   "license": "MIT",
   "type": "module",
