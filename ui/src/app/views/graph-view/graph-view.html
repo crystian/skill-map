@@ -183,31 +183,13 @@
                     fEndColor="var(--sm-exec-c3)"
                   />
                 }
-                <!-- Schema-designer style: a circular dot at the source and
-                     an arrow at the target. The dot uses the `svg[fMarker]`
-                     custom-marker directive with `markerUnits="userSpaceOnUse"`
-                     so it renders at a fixed 9px regardless of the stroke
-                     width set by the kind class, the built-in
-                     `<f-connection-marker-circle>` only renders a 5x5 box
-                     scaled by `strokeWidth`, which goes sub-pixel at our
-                     thinner edges and reads as a smudge instead of a circle.
-                     The arrow stays on the built-in since a triangle scales
-                     gracefully with `strokeWidth`. Both inherit
-                     `--ff-marker-color` set on the `.f-conn--<kind>` class,
-                     so dot and arrowhead always match the line color. -->
-                <svg
-                  fMarker
-                  [type]="markerStart"
-                  viewBox="0 0 9 9"
-                  [width]="9"
-                  [height]="9"
-                  [refX]="4.5"
-                  [refY]="4.5"
-                  markerUnits="userSpaceOnUse"
-                  class="sm-edge-dot"
-                >
-                  <circle cx="4.5" cy="4.5" r="3.5" />
-                </svg>
+                <!-- Arrowhead at the target only, on the built-in marker: a
+                     triangle scales gracefully with the per-kind
+                     `strokeWidth`, and it inherits `--ff-marker-color` from
+                     the `.f-conn--<kind>` class so it always matches the
+                     line color. No source-side marker: the dot the
+                     schema-designer look projected there read as a second
+                     arrowhead and made edge direction ambiguous. -->
                 <f-connection-marker-arrow [type]="markerEnd" />
                 <!-- Conversation-count pill (spec §Execution stats,
                      per-pair spawn counters), Foblex's own connection

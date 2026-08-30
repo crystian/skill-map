@@ -287,11 +287,11 @@ export class GraphView implements OnInit {
   // mapping table.
   protected readonly connectionType = this.graphPreferences.connectionType;
   readonly connectionBehavior = EFConnectionBehavior.FIXED;
-  // Schema-designer style endpoints: a small circle at the source and
-  // an arrow at the target. `*_ALL_STATES` covers selected + idle with
-  // the same glyph (we currently disable connection selection, but the
-  // marker stays correct if `[fSelectionDisabled]` is ever flipped).
-  readonly markerStart = EFMarkerType.START_ALL_STATES;
+  // Arrowhead at the target only (no source-side marker, so the edge
+  // reads unambiguously source -> target). `END_ALL_STATES` covers
+  // selected + idle with the same glyph (we currently disable connection
+  // selection, but the marker stays correct if `[fSelectionDisabled]` is
+  // ever flipped).
   readonly markerEnd = EFMarkerType.END_ALL_STATES;
 
   /**
