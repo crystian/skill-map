@@ -58,7 +58,13 @@ describe('activity-stats-store', () => {
     assert.equal(after.nodeDetail('docs/notes.md').stats.count, 1);
     assert.equal(after.nodeDetail('docs/notes.md').recent[0]?.kind, 'shell');
     assert.equal(after.pairSnapshot()[pairKeyOf(NODE, CHILD)]?.count, 1);
-    assert.equal(after.sinceMs, before.sinceMs);
+    // `since` after the restart is the earliest PERSISTED first sighting
+    // (NODE was recorded first), not the reborn process's boot time.
+    // Compared against the stamp itself: `before.sinceMs` is its own boot
+    // time, which equals that stamp only when construction and the first
+    // record land in the same millisecond (a CI-load flake otherwise).
+    const [firstRow] = before.exportNodes([NODE]);
+    assert.equal(after.sinceMs, firstRow?.firstSeenAt);
   });
 
   it('no DB file: the sink is a no-op and hydration adopts nothing', async () => {
