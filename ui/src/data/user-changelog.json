@@ -2,6 +2,26 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "version": "1.12.6",
+      "date": "2026-08-30",
+      "kind": "user-facing",
+      "highlights": [
+        {
+          "body": "Map edges lost the small dot at their starting end; the arrowhead alone now shows which node a link points at.",
+          "packages": [
+            "@skill-map/cli"
+          ]
+        },
+        {
+          "body": "Files mentioned in a shell command (Bash) now count on the node card's execution counter and count as reads for the observed-link finders, matching what the inspector's Activity section already listed.",
+          "packages": [
+            "@skill-map/cli",
+            "@skill-map/spec"
+          ]
+        }
+      ]
+    },
+    {
       "version": "1.12.5",
       "date": "2026-08-29",
       "kind": "user-facing",

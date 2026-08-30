@@ -6,6 +6,18 @@
 > Forward-looking plan: [`ROADMAP.md`](./ROADMAP.md).
 
 <details open>
+<summary><b>1.12.6</b> · 2026-08-30</summary>
+
+### CLI Patch
+- Graph edges no longer draw a dot marker at their source end. The schema-designer look projected a fixed-size circle at the origin of every static edge alongside the arrowhead at the target, and the dot read as a second endpoint glyph that made the edge direction ambiguous. Static edges now carry only the target arrowhead, matching the spawn edges that never had a source marker.
+- Shell sightings (a `.md` named in a Bash / `run_command` / `bash` command under capture rung 5) now count as evidence: they add to the node's execution stats, so the node card's execution pill agrees with the inspector's Activity section, and the session-journal fold turns them into `reads` relations for the observed-* finders; the recent-log entry stays tagged `kind: "shell"`. Spec: `provider-activity.md` §Execution stats, §Capture level rung 5, §Session journal.
+
+### Spec Patch (1.12.6)
+- Shell sightings (a `.md` named in a Bash / `run_command` / `bash` command under capture rung 5) now count as evidence: they add to the node's execution stats, so the node card's execution pill agrees with the inspector's Activity section, and the session-journal fold turns them into `reads` relations for the observed-* finders; the recent-log entry stays tagged `kind: "shell"`. Spec: `provider-activity.md` §Execution stats, §Capture level rung 5, §Session journal.
+
+</details>
+
+<details>
 <summary><b>1.12.5</b> · 2026-08-29</summary>
 
 ### CLI Patch
