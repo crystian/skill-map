@@ -1936,7 +1936,7 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     expect(dom.querySelectorAll('[data-testid="inspector-activity-run-row"]').length).toBe(1);
   });
 
-  it('a sighted-only node (count 0, shell entry in the log) shows its timeline, not the quiet line', async () => {
+  it('a count-0 node with a non-empty log (a pre-2026-08-30 shell checkpoint) shows its timeline, not the quiet line', async () => {
     const node = makeNode();
     const loader = makeStubLoader([node]);
     const dataSource = makeStubDataSource();
@@ -1951,7 +1951,7 @@ describe('InspectorView, activity merged timeline (runtime + AI runs)', () => {
     const { fixture } = bootstrap({
       loader,
       dataSource,
-      // The sighting frame rides the node's count-0 stats, so the mirror knows the node.
+      // The summary snapshot carries the hydrated count-0 row, so the mirror knows the node.
       activityStats: new Map([[node.path, makeActivityStats({ count: 0, lastStartAt: 0, distinctOwners: 0 })]]),
     });
     fixture.componentRef.setInput('path', node.path);

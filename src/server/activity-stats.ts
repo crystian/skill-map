@@ -16,15 +16,15 @@
  *   - `keepAlive` starts NEVER count and never touch the owner sets:
  *     custody is not an execution.
  *   - `sticky` starts count ONCE per `(nodePath, owner)` pair.
- *   - `access: 'shell'` starts NEVER count: a heuristic path sighting
- *     parsed out of a shell command is not an execution (spec §Capture
- *     level rung 5, "a SIGHTING, not evidence"). The sighting still
- *     lands in the typed recent log (both ends, `kind: 'shell'`) so
- *     the inspector can show who named the file, and the frame rides
- *     WITH the node's unchanged (count 0) stats so a client learns the
- *     node has a log to show.
+ *   - `access: 'shell'` starts COUNT like any other resource access
+ *     (user decision 2026-08-30, reversing the 2026-08-18 no-count
+ *     rule: the card's execution pill is the map's only per-node
+ *     counter, and a sighted-only node was invisible there). The entry
+ *     stays tagged `kind: 'shell'` in the typed recent log (both ends)
+ *     so the inspector tells a sighting apart from a read; the
+ *     session-journal fold admits it as a `reads` relation too.
  *   - Everything else (skill invocations, command expansions, markdown
- *     reads) counts on every signal.
+ *     reads and writes) counts on every signal.
  *
  * Every bound below saturates or evicts oldest entries; hitting a cap
  * never errors and never blocks ingestion.
@@ -327,9 +327,6 @@ export class ActivityStatsService {
   record(data: INodeActivityEventData): INodeActivityStats | null {
     if (data.nodePath === undefined || data.phase !== 'start') return null;
     if (data.keepAlive === true) return null;
-    if (data.access === 'shell') {
-      return this.sight(data.nodePath, data.owner, data.detail, data.access);
-    }
     if (data.sticky === true && data.owner !== undefined) {
       if (!this.claimStickyOnce(data.nodePath, data.owner)) return null;
     }
@@ -473,34 +470,16 @@ export class ActivityStatsService {
   }
 
   /**
-   * A shell SIGHTING: lands in the typed recent log on both ends (the
-   * sighted node's entry plus the caller's mirrored one) but mutates
-   * NO execution stat, `count` / `lastStartAt` / `lastOwner` / owner
-   * set stay untouched (spec §Execution stats). Returns the node's
-   * UNCHANGED stats so the WS frame carries them and a client learns
-   * the node has a log to show (a count of 0 next to a non-empty
-   * recent log reads as sighted-only); custody `keepAlive` starts keep
-   * riding bare, they log nothing.
+   * Count one start: every node-attributed start that survived the
+   * gates above, a unit's own execution or a resource access (mcp /
+   * read / write / shell alike, spec §Execution stats). The typed
+   * recent entry lands on both ends of a resource access.
    */
-  private sight(
-    nodePath: string,
-    owner: string | undefined,
-    detail: string | undefined,
-    access: 'shell',
-  ): INodeActivityStats {
-    const at = Date.now();
-    const caller = this.correlateCaller(nodePath, owner, access);
-    const state = this.stateFor(nodePath);
-    this.pushRecent(state, buildRecentEntry({ at, owner, detail, caller, kind: access }));
-    this.trackAccess(nodePath, owner, detail, access, caller, at);
-    return projectStats(state);
-  }
-
   private count(
     nodePath: string,
     owner: string | undefined,
     detail: string | undefined,
-    access: 'mcp' | 'read' | 'write' | undefined,
+    access: 'mcp' | 'read' | 'write' | 'shell' | undefined,
   ): INodeActivityStats {
     const state = this.stateFor(nodePath);
     state.count += 1;

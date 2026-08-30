@@ -32,6 +32,10 @@
  *     uses (2026-08-17, lifting the original reads deferral: the noise
  *     lives in the ANALYZER gates, repetition + points coverage, not in
  *     the fold). The read path never becomes the owner's current unit.
+ *     Since 2026-08-30 an `access: 'shell'` sighting folds as `reads` too
+ *     (user decision: the command named the file, heuristic but admitted
+ *     as evidence; the analyzer gates absorb the noise). `write` frames
+ *     stay unfolded until they earn a relation of their own.
  *
  * The unit correlation is TURN-BOUNDED (user call 2026-08-17): a
  * `turnEnd` frame clears its owner's current-unit claim, so an access in
@@ -312,8 +316,10 @@ function foldUnitStart(
 
 /**
  * One resource-access frame: the owner's current unit (when known)
- * touched the accessed path. `mcp` folds as `invokes`, `read` as
- * `reads`; any future access class is ignored until it earns a fold.
+ * touched the accessed path. `mcp` folds as `invokes`, `read` and
+ * `shell` as `reads` (a shell sighting is a heuristic read, admitted
+ * 2026-08-30); `write` and any future class are ignored until they
+ * earn a fold.
  */
 function foldAccessFrame(
   relations: Map<string, IFoldEntry>,
@@ -323,7 +329,8 @@ function foldAccessFrame(
   access: unknown,
   tMs: number,
 ): void {
-  const relation = access === 'mcp' ? 'invokes' : access === 'read' ? 'reads' : null;
+  const relation =
+    access === 'mcp' ? 'invokes' : access === 'read' || access === 'shell' ? 'reads' : null;
   if (relation === null) return;
   const caller = state.lastUnitByOwner.get(owner);
   if (caller !== undefined && caller !== accessedPath) {

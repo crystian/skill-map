@@ -261,9 +261,9 @@ export class InspectorActivitySection {
   /** True when the fetched detail has nothing to show (quiet node). */
   protected readonly activityEmpty = computed<boolean>(() => {
     const detail = this.activityDetail();
-    // A sighted-only node (shell rung: `count` 0, non-empty recent log)
-    // is NOT quiet: the log is exactly what the section exists to show
-    // (spec/provider-activity.md §Execution stats, the shell bullet).
+    // A node with a log but no counted start (a row checkpointed before
+    // shell sightings counted, spec/provider-activity.md §Execution
+    // stats) is NOT quiet: the log is what the section exists to show.
     return (
       detail !== null &&
       detail.stats.count === 0 &&

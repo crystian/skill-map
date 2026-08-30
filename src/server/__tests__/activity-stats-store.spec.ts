@@ -54,8 +54,8 @@ describe('activity-stats-store', () => {
       after.nodeDetail(NODE).recent.map((e) => e.detail),
       ['Bash', 'Skill'],
     );
-    // The sighted-only node survives too: count 0, log intact.
-    assert.equal(after.nodeDetail('docs/notes.md').stats.count, 0);
+    // The sighted node survives too: its counted sighting and the typed log.
+    assert.equal(after.nodeDetail('docs/notes.md').stats.count, 1);
     assert.equal(after.nodeDetail('docs/notes.md').recent[0]?.kind, 'shell');
     assert.equal(after.pairSnapshot()[pairKeyOf(NODE, CHILD)]?.count, 1);
     assert.equal(after.sinceMs, before.sinceMs);

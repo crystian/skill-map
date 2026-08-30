@@ -160,7 +160,7 @@ describe('foldObservedActivity relations', () => {
     assert.equal(invoke.relation, 'invokes');
   });
 
-  it('a shell sighting never becomes an observed relation (heuristic, not evidence)', () => {
+  it('a shell sighting folds as a read of the sighted file (heuristic, admitted 2026-08-30)', () => {
     const rec = recording({
       frames: [
         {
@@ -168,16 +168,27 @@ describe('foldObservedActivity relations', () => {
           type: 'node.activity',
           data: { nodePath: SKILL, phase: 'start', owner: 'main:s1' },
         },
-        // Rung-5 frame: renders in replays, but the fold treats it as
-        // a sighting, not a design-evidence access.
+        // Rung-5 frame: the command named the file, so the unit that ran
+        // the command is observed reading it. The sighted path never
+        // becomes the owner's current unit, like a plain read.
         {
           tMs: 2,
           type: 'node.activity',
           data: { nodePath: 'README.md', phase: 'start', owner: 'main:s1', access: 'shell' },
         },
+        {
+          tMs: 3,
+          type: 'node.activity',
+          data: { nodePath: MCP, phase: 'start', owner: 'main:s1', access: 'mcp' },
+        },
       ],
     });
-    assert.equal(foldRelations([rec]).size, 0);
+    const folded = foldRelations([rec]);
+    assert.equal(folded.size, 2);
+    const sighted = folded.get(`${SKILL}\x00README.md`)!;
+    assert.equal(sighted.relation, 'reads');
+    assert.equal(sighted.count, 1);
+    assert.equal(folded.get(`${SKILL}\x00${MCP}`)?.relation, 'invokes');
   });
 
   it('a turnEnd cuts the unit attribution: later-turn accesses never blame an earlier unit', () => {

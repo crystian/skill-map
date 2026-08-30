@@ -571,8 +571,8 @@ Broadcast over `/ws` in the common envelope of
   `mcp://` server (a tool call), `"read"` when it is a file a unit read,
   `"write"` when the unit wrote / edited it (2026-08-17, the capture-level
   ladder's third rung), or `"shell"` for a HEURISTIC path sighting parsed
-  out of a shell command (the ladder's fifth rung; never folded into
-  observed relations). Absent on a UNIT's own execution (a skill / agent /
+  out of a shell command (the ladder's fifth rung; folds as `reads` since
+  2026-08-30). Absent on a UNIT's own execution (a skill / agent /
   command start). The resolver derives the resource-vs-unit split from the
   signal SHAPE, a PATH signal is a resource access, a NAME signal (`kind` +
   `name`) is a unit execution, so a unit reading another unit's file still
@@ -807,7 +807,7 @@ The BFF accumulates per-node execution stats in memory as the hot path and CHECK
   fresh owner id and counts again. The dedupe memory is append-only (owners
   are not forgotten on `ownerScope` ends, or every pause/resume cycle would
   recount).
-- `access: "shell"` starts NEVER count: a heuristic path sighting parsed out of a shell command is not an execution (§Capture level rung 5, "a SIGHTING, not evidence"). The sighting still lands in the typed recent log (below), tagged `kind: "shell"`, so the inspector can show who named the file; the node's `count`, `lastStartAt`, `lastOwner` and owner set stay untouched. The frame still rides WITH the node's (unchanged) `stats`, so a client learns the node has a log to show: a `count` of 0 next to a non-empty recent log is a sighted-only node, never an executed one (custody `keepAlive` starts, which log nothing, keep riding bare).
+- `access: "shell"` starts COUNT like any other resource access (user decision 2026-08-30, reversing the 2026-08-18 no-count rule): the execution pill on the node card is the only per-node counter the map shows, and a node named by a shell command that never counted stayed invisible there while the inspector listed the sighting, a split the operator read as a defect. The entry still lands in the typed recent log (below) tagged `kind: "shell"`, so the inspector tells a shell sighting apart from a read, and the frame rides WITH the node's updated `stats` like every counted start. The same decision admits the class as evidence in the observed-relations fold, where a sighting folds as `reads` (§Session journal, Consumption): the command named the file, and the analyzer gates absorb the heuristic noise. Custody `keepAlive` starts keep riding bare (they log nothing).
 - All other starts (skill invocations, command expansions, markdown reads)
   count on every signal.
 
@@ -1106,7 +1106,7 @@ WHICH nodes executed and who spawned whom, no latency, no tokens, no content.
   frames into **observed relations**, `(source node, target node)` pairs with
   `relation: invokes` (an MCP tool call correlated to its calling unit by
   owner), `relation: spawns` (a spawn frame carrying both resolved paths), or
-  `relation: reads` (an `access: 'read'` frame correlated to its reading unit
+  `relation: reads` (an `access: 'read'` frame, or since 2026-08-30 an `access: 'shell'` sighting, the command named the file, correlated to its reading unit
   by owner, the same correlation the invokes class uses; the read path never
   becomes the owner's current unit). The unit correlation is TURN-BOUNDED: a
   `turnEnd` frame clears its owner's current-unit claim, so an access in a
@@ -1218,11 +1218,7 @@ per event, cheap enough that the hooks always install their full surface):
    travels: the adapter extracts `.md` path tokens from the command
    (quotes stripped, URL-shaped tokens ignored, deduped, at most 5 per
    command), emits one PATH signal per token with `detail: "Bash"` and
-   `access: "shell"`, and drops the rest. A shell frame is a SIGHTING,
-   not evidence: it lights the map and lands in recordings, but the
-   observed-relations fold ignores the class (a command can name files
-   it never touches and touch files it never names) and it never counts
-   as an execution.
+   `access: "shell"`, and drops the rest. A shell frame is a HEURISTIC sighting (a command can name files it never touches and touch files it never names), admitted as evidence anyway by user decision 2026-08-30: it lights the map, lands in recordings, counts toward the node's execution stats (§Execution stats, the shell bullet) and folds as a `reads` relation (§Session journal, Consumption), leaning on the analyzer gates (repetition + points coverage) to absorb the noise.
 
 The active level is a SERVER-side filter at the ingest seam, applied to
 resolved frames BEFORE stats, run history, conversation capture, the

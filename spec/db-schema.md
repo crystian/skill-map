@@ -496,7 +496,7 @@ The BFF's `/api/nodes` route loads the full set of favorited paths once per requ
 
 ### `state_activity_stats`
 
-Runtime execution stats per node: the checkpoint of the BFF's in-memory accumulator ([`provider-activity.md`](./provider-activity.md) §Execution stats). One row per node the live activity ever touched, counted executions AND shell sightings alike (a sighting keeps `count` at 0 next to a non-empty recent log). Written debounced by `sm serve` on every mutation, read once at boot to hydrate the accumulator, so counts survive a server restart. Machine-generated (§Storage rule in [`architecture.md`](./architecture.md)); cleared per node by `DELETE /api/activity/node/<pathB64>`, never by a scan.
+Runtime execution stats per node: the checkpoint of the BFF's in-memory accumulator ([`provider-activity.md`](./provider-activity.md) §Execution stats). One row per node the live activity ever touched (shell sightings count like any other start since 2026-08-30, see the shell bullet there; a row checkpointed before that may still carry `count` 0 next to a non-empty recent log). Written debounced by `sm serve` on every mutation, read once at boot to hydrate the accumulator, so counts survive a server restart. Machine-generated (§Storage rule in [`architecture.md`](./architecture.md)); cleared per node by `DELETE /api/activity/node/<pathB64>`, never by a scan.
 
 | Column | Type | Constraint |
 |---|---|---|

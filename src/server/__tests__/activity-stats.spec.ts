@@ -116,7 +116,7 @@ describe('ActivityStatsService.record', () => {
     assert.equal(stats.nodeDetail('mcp://notion').recent[0]?.caller, undefined);
   });
 
-  it('a shell SIGHTING never counts as an execution (spec §Capture level rung 5)', () => {
+  it('a shell sighting counts as an execution and stays typed in the log (spec §Execution stats, 2026-08-30)', () => {
     const stats = new ActivityStatsService();
     const skill = '.claude/skills/demo/SKILL.md';
     const file = 'docs/notes.md';
@@ -128,16 +128,14 @@ describe('ActivityStatsService.record', () => {
       detail: 'Bash',
       access: 'shell',
     });
-    // The frame rides WITH the node's unchanged stats (count stays 0),
-    // so a client learns the node has a log to show...
-    assert.equal(enriched?.count, 0);
-    assert.equal(enriched?.lastStartAt, 0);
-    // ...and no execution stat mutates: count, lastStartAt, owners all zero.
+    // The frame rides WITH the node's updated stats, like every counted start.
+    assert.equal(enriched?.count, 1);
+    assert.ok((enriched?.lastStartAt ?? 0) > 0);
     const detail = stats.nodeDetail(file);
-    assert.equal(detail.stats.count, 0);
-    assert.equal(detail.stats.lastStartAt, 0);
-    assert.equal(detail.stats.distinctOwners, 0);
-    // The typed recent log still carries the sighting on BOTH ends.
+    assert.equal(detail.stats.count, 1);
+    assert.equal(detail.stats.lastOwner, 'main:s1');
+    assert.equal(detail.stats.distinctOwners, 1);
+    // The typed recent log carries the sighting on BOTH ends, still tagged shell.
     assert.equal(detail.recent[0]?.kind, 'shell');
     assert.equal(detail.recent[0]?.detail, 'Bash');
     assert.equal(detail.recent[0]?.caller, skill);
