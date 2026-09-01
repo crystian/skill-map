@@ -176,115 +176,26 @@
           </div>
         </div>
 
-        <!-- Graph card. Static for now (iteration A). Iteration B adds
-             selection + drag + inspector; iteration C adds zoom/pan + traveling
-             animation + particle field. -->
+        <!-- Graph card: the REAL map. `/demo/?embed=1&replay=…` framed
+             chrome-less (spec/provider-activity.md §"Embedded replay"): the
+             same 9-node harness the public demo shows, replaying its curated
+             session on a loop, cards draggable, a click opens the full demo
+             on that node. hero-embed.js sets the frame's src once the page
+             has loaded; until then (and with JS off) the poster underneath
+             is a screenshot of the same graph. -->
         <div class="hero__graph" id="hero-graph">
-          <div class="hero__graph-chrome">
-            <div class="hero__graph-path">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="11" cy="11" r="7"/>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <span>~/.claude/skills</span>
-            </div>
-            <div class="hero__graph-counts">
-              <span><strong>13</strong> <span data-i18n="graph.nodes">nodes</span></span>
-              <span class="sep">·</span>
-              <span><strong>15</strong> <span data-i18n="graph.links">links</span></span>
-              <span class="sep">·</span>
-              <span class="alert">3 <span data-i18n="graph.collisions">collisions</span></span>
-              <span class="sep">·</span>
-              <span class="alert">1 <span data-i18n="graph.orphans">orphan</span></span>
-            </div>
-          </div>
-
-          <canvas class="hg-particles" aria-hidden="true"></canvas>
-
-          <div class="hero__graph-legend">
-            <div><i style="background:#00C853"></i><span data-i18n="graph.legend.skill">Skill</span></div>
-            <div><i style="background:#7C3AED"></i><span data-i18n="graph.legend.agent">Agent</span></div>
-            <div><i style="background:#A78BFA"></i><span data-i18n="graph.legend.mcp">MCP</span></div>
-            <div><i style="background:#8A93A1"></i><span data-i18n="graph.legend.markdown">Markdown</span></div>
-            <div><i style="background:#4C1D95"></i><span data-i18n="graph.legend.command">Command</span></div>
-            <div><i style="background:transparent;border:1px dashed #5A6472"></i><span data-i18n="graph.legend.orphan">Orphan</span></div>
-          </div>
-
-          <svg class="hero__graph-svg" viewBox="0 0 900 560" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Sample skill graph">
-            <defs>
-              <radialGradient id="hgBgGrad" cx="0.5" cy="0.4">
-                <stop offset="0%" stop-color="rgba(124,58,237,.08)"/>
-                <stop offset="100%" stop-color="transparent"/>
-              </radialGradient>
-            </defs>
-            <rect class="hg-bg" width="900" height="560" fill="url(#hgBgGrad)"/>
-
-            <g class="hg-viewport">
-            <g class="edges">
-              <line class="edge" data-from="oauth"     data-to="reviewer"   x1="280" y1="200" x2="340" y2="360"/>
-              <line class="edge" data-from="deploy"    data-to="reviewer"   x1="460" y1="140" x2="340" y2="360"/>
-              <line class="edge" data-from="deploy"    data-to="ship"       x1="460" y1="140" x2="580" y2="240"/>
-              <line class="edge" data-from="deploy"    data-to="release"    x1="460" y1="140" x2="480" y2="340"/>
-              <line class="edge" data-from="reviewer"  data-to="mcp-github" x1="340" y1="360" x2="170" y2="320"/>
-              <line class="edge" data-from="reviewer"  data-to="mcp-fs" x1="340" y1="360" x2="220" y2="460"/>
-              <line class="edge" data-from="planner"   data-to="ship"       x1="700" y1="380" x2="580" y2="240"/>
-              <line class="edge" data-from="planner"   data-to="fs-read"    x1="700" y1="380" x2="800" y2="240"/>
-              <line class="edge" data-from="planner"   data-to="git-log"    x1="700" y1="380" x2="760" y2="130"/>
-              <line class="edge" data-from="planner"   data-to="pdf-read"   x1="700" y1="380" x2="620" y2="460"/>
-              <line class="edge" data-from="ship"      data-to="git-log"    x1="580" y1="240" x2="760" y2="130"/>
-              <line class="edge" data-from="release"   data-to="git-log"    x1="480" y1="340" x2="760" y2="130"/>
-              <line class="edge" data-from="reviewer"  data-to="notes"      x1="340" y1="360" x2="420" y2="460"/>
-              <line class="edge" data-from="planner"   data-to="notes"      x1="700" y1="380" x2="420" y2="460"/>
-              <line class="edge" data-from="pdf-read"  data-to="reviewer"   x1="620" y1="460" x2="340" y2="360"/>
-            </g>
-
-            <g class="select-fx"></g>
-
-            <g class="nodes">
-              <g class="node" data-id="oauth"      data-type="skill"   data-tokens="1,842" data-bytes="6.1 KB"  data-lastscan="312ms" transform="translate(280, 200)"><circle r="16" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="32" text-anchor="middle">oauth-flow</text></g>
-              <g class="node" data-id="deploy"     data-type="skill"   data-tokens="3,407" data-bytes="11.2 KB" data-lastscan="287ms" transform="translate(460, 140)"><circle r="18" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="34" text-anchor="middle">deploy</text></g>
-              <g class="node" data-id="ship"       data-type="skill"   data-tokens="1,124" data-bytes="3.8 KB"  data-lastscan="318ms" transform="translate(580, 240)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">ship</text></g>
-              <g class="node" data-id="release"    data-type="skill"   data-tokens="1,609" data-bytes="5.4 KB"  data-lastscan="295ms" transform="translate(480, 340)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">release</text></g>
-              <g class="node" data-id="reviewer"   data-type="agent"   data-tokens="2,134" data-bytes="8.4 KB"  data-lastscan="287ms" data-warn="warn.collision" transform="translate(340, 360)"><circle r="22" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="38" text-anchor="middle">reviewer</text></g>
-              <g class="node" data-id="planner"    data-type="agent"   data-tokens="4,872" data-bytes="15.9 KB" data-lastscan="301ms" transform="translate(700, 380)"><circle r="20" fill="#7C3AED" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="36" text-anchor="middle">planner</text></g>
-              <g class="node" data-id="mcp-github" data-type="mcp"    data-tokens="412"   data-bytes="1.3 KB"  data-lastscan="276ms" transform="translate(170, 320)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">mcp:github</text></g>
-              <g class="node" data-id="mcp-fs" data-type="mcp"    data-tokens="389"   data-bytes="1.2 KB"  data-lastscan="269ms" transform="translate(220, 460)"><circle r="12" fill="#A78BFA" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="28" text-anchor="middle">mcp:fs</text></g>
-              <g class="node" data-id="fs-read"    data-type="command" data-tokens="217"   data-bytes="720 B"   data-lastscan="245ms" transform="translate(800, 240)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">fs/read</text></g>
-              <g class="node" data-id="git-log"    data-type="command" data-tokens="184"   data-bytes="612 B"   data-lastscan="241ms" transform="translate(760, 130)"><circle r="14" fill="#4C1D95" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">git/log</text></g>
-              <g class="node" data-id="legacy"     data-type="orphan"  data-tokens="987"   data-bytes="3.2 KB"  data-lastscan="14d"   data-warn="warn.orphan" transform="translate(100, 180)"><circle r="11" fill="transparent" stroke="#5A6472" stroke-width="1.5" stroke-dasharray="3 3"/><text class="node-label" y="27" text-anchor="middle">legacy.md</text></g>
-              <g class="node" data-id="pdf-read"   data-type="skill"   data-tokens="2,891" data-bytes="9.7 KB"  data-lastscan="304ms" transform="translate(620, 460)"><circle r="14" fill="#00C853" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="30" text-anchor="middle">read-pdf</text></g>
-              <g class="node" data-id="notes"      data-type="markdown" data-tokens="1,256" data-bytes="4.1 KB"  data-lastscan="298ms" transform="translate(420, 460)"><circle r="10" fill="#8A93A1" stroke="rgba(255,255,255,.15)"/><text class="node-label" y="26" text-anchor="middle">CLAUDE.md</text></g>
-            </g>
-            </g><!-- /hg-viewport -->
-          </svg>
+          <img class="hero__graph-poster" src="/img/hero-embed-poster.jpg" width="1280" height="560" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
+          <!-- Says out loud what the card is: the product's own UI, not a
+               mockup. Sits over the frame, click-through. -->
+          <span class="hero__graph-badge" aria-hidden="true">
+            <i></i><span data-i18n="hero.embed.badge">Real UI, live. Not a mockup.</span>
+          </span>
+          <iframe class="hero__graph-frame"
+                  data-src="/demo/?embed=1&amp;replay=main:demo-publish&amp;theme=neon-blue"
+                  title="skill-map live map: a harness replaying an agent session"
+                  data-i18n-title="hero.embed.title"
+                  referrerpolicy="same-origin"></iframe>
         </div>
-      </div>
-    </section>
-
-    <hr class="section-divider" aria-hidden="true">
-
-    <!-- ============== SCREENSHOTS ============== -->
-    <!-- Single hero screenshot, centered. Replace the <img> in the figure
-         when delivering a new shot; the placeholder fallback stays in CSS. -->
-    <section class="section shots" id="shots">
-      <header class="section-header section-header--center">
-        <div>
-          <h2 class="section-title">
-            <span data-i18n="shots.title.1">Your whole agent harness,</span><br>
-            <span class="section-title-soft" data-i18n="shots.title.2">on a single screen!</span>
-          </h2>
-        </div>
-      </header>
-
-      <div class="shots__grid">
-        <figure class="shots__main">
-          <video class="shots__video" muted loop playsinline preload="metadata"
-                 poster="/img/demo-realtime-poster.jpg"
-                 aria-label="skill-map lighting up live as you edit .md files"
-                 data-i18n-aria-label="shots.video.label" data-hero-video>
-            <source src="/img/demo-realtime.mp4" type="video/mp4">
-          </video>
-        </figure>
       </div>
     </section>
 

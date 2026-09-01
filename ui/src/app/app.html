@@ -9,6 +9,7 @@
   application at 200% / 400% zoom on an ordinary desktop (WCAG 1.4.4, a11y
   audit finding C3). Full rationale on the rule in `app.css`.
 -->
+@if (!embed) {
 <div class="viewport-warning" role="alert" data-testid="viewport-warning">
   <div class="viewport-warning__card">
     <i class="fa-solid fa-desktop viewport-warning__icon" aria-hidden="true"></i>
@@ -17,8 +18,12 @@
     <p class="viewport-warning__body">{{ texts.viewportWarning.body }}</p>
   </div>
 </div>
+}
 
-<div class="shell" data-testid="shell">
+<div class="shell" data-testid="shell" [class.shell--embed]="embed">
+  <!-- Embedded boot (`?embed=1`): nothing but the main outlet renders,
+       the host page frames the canvas as a living illustration. -->
+  @if (!embed) {
   <a href="#shell-main" class="sr-only-focusable" data-testid="skip-to-main">{{ texts.a11y.skipToMain }}</a>
   <sm-demo-banner />
   <sm-oversized-banner (openSettings)="openSettings()" />
@@ -358,10 +363,13 @@
     </div>
   </header>
 
+  }
+
   <main class="shell__main" id="shell-main" tabindex="-1">
     <router-outlet />
   </main>
 
+  @if (!embed) {
   @defer (when settingsOpen()) {
     <sm-settings-modal
       [visible]="settingsOpen()"
@@ -391,5 +399,6 @@
       [target]="ignoreConfirmTarget()"
       (decision)="onIgnoreConfirmDecision($event)"
     />
+  }
   }
 </div>

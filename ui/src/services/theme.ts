@@ -27,6 +27,8 @@
 import { DOCUMENT } from '@angular/common';
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 
+import { SKILL_MAP_EMBED } from './embed-mode';
+
 import {
   EXTRA_THEMES,
   findExtraTheme,
@@ -51,6 +53,13 @@ const FAVICON_SELECTOR = 'link[rel="icon"][type="image/svg+xml"]';
 export class ThemeService {
   private readonly doc = inject(DOCUMENT);
   private readonly destroyRef = inject(DestroyRef);
+  /**
+   * Embedded boot (`?embed=1&theme=<id>`, spec §"Embedded replay"): the
+   * host page picks the look and NOTHING is persisted, so a framed
+   * visit never rewrites the visitor's own preference on the shared
+   * origin. `theme` names a base mode or an extra theme id.
+   */
+  private readonly embed = inject(SKILL_MAP_EMBED, { optional: true });
 
   private readonly modeState = signal<TThemeMode>(this.readInitialMode());
   private readonly extraThemeState = signal<TExtraThemeId>(this.readInitialExtra());
@@ -122,6 +131,7 @@ export class ThemeService {
       // untouched and the dark / light auto behavior keeps working.
       this.applyFavicon(activeExtra?.favicon ?? FAVICON_DEFAULT);
       if (activeExtra) this.ensureExtraThemeFont(activeExtra);
+      if (this.embed !== null) return;
       try {
         const ls = this.doc.defaultView?.localStorage;
         ls?.setItem(STORAGE_KEY, this.mode());
@@ -156,6 +166,9 @@ export class ThemeService {
   }
 
   private readInitialMode(): TThemeMode {
+    const requested = this.embed?.theme;
+    if (requested === 'light' || requested === 'dark') return requested;
+    if (this.embed) return 'auto';
     try {
       const stored = this.doc.defaultView?.localStorage.getItem(STORAGE_KEY);
       if (stored === 'auto' || stored === 'light' || stored === 'dark') return stored;
@@ -166,6 +179,7 @@ export class ThemeService {
   }
 
   private readInitialExtra(): TExtraThemeId {
+    if (this.embed) return findExtraTheme(this.embed.theme)?.id ?? null;
     try {
       const stored = this.doc.defaultView?.localStorage.getItem(EXTRA_STORAGE_KEY);
       // Legacy remap: the cyan variant shipped as the bare `neon` id

@@ -27,17 +27,8 @@
   "hero.cta.demo":    { "en": "See it live",   "es": "Demo en vivo" },
   "hero.cta.install": { "en": "Install",        "es": "Instalar" },
   "hero.cta.npm":     { "en": "npm i -g @skill-map/cli", "es": "npm i -g @skill-map/cli" },
-
-  "graph.nodes":       { "en": "nodes",      "es": "nodes" },
-  "graph.links":       { "en": "links",      "es": "links" },
-  "graph.collisions":  { "en": "collisions", "es": "collisions" },
-  "graph.orphans":     { "en": "orphan",     "es": "orphan" },
-  "graph.legend.skill":   { "en": "Skill",   "es": "Skill" },
-  "graph.legend.agent":   { "en": "Agent",   "es": "Agent" },
-  "graph.legend.command": { "en": "Command", "es": "Command" },
-  "graph.legend.mcp":     { "en": "MCP",     "es": "MCP" },
-  "graph.legend.markdown": { "en": "Markdown", "es": "Markdown" },
-  "graph.legend.orphan":  { "en": "Orphan",  "es": "Orphan" },
+  "hero.embed.badge": { "en": "Real UI, live. Not a mockup.", "es": "Interfaz real, en vivo. No es una simulación." },
+  "hero.embed.title": { "en": "skill-map live map: a harness replaying an agent session", "es": "Mapa en vivo de skill-map: un harness reproduciendo una sesión de agente" },
 
   "qs.eyebrow":      { "en": "Quickstart", "es": "Primeros pasos" },
   "qs.title":        { "en": "Tutorial in 5 lines", "es": "Tutorial en 5 líneas" },
@@ -50,10 +41,6 @@
   "qs.then":         { "en": "Then, inside Claude, type:", "es": "Después, dentro de Claude, escribe:" },
   "qs.claude.cmd":   { "en": "run the tutorial", "es": "ejecuta el tutorial" },
   "qs.claude.aria":  { "en": "Copy the tutorial prompt to clipboard", "es": "Copiar el prompt del tutorial al portapapeles" },
-
-  "shots.title.1":   { "en": "Your whole agent harness,", "es": "¡Todo tu harness de agentes" },
-  "shots.title.2":   { "en": "on a single screen!",         "es": "en una única pantalla!" },
-  "shots.video.label": { "en": "skill-map lighting up live as you edit .md files", "es": "skill-map encendiéndose en vivo mientras editas tus .md" },
 
   "vid.eyebrow":      { "en": "Watch",            "es": "Videos" },
   "vid.title":        { "en": "See it in action", "es": "Míralo en acción" },
@@ -135,7 +122,6 @@
   "feat.coll.t":     { "en": "Vague, incoherent, redundant", "es": "Vago, incoherente, redundante" },
   "feat.coll.b":     { "en": "Instructions too soft to follow, terms used three ways, the same thing said twice. The semantic analyzers catch what a regex cannot see.",
                        "es": "Lo que un regex no ve: instrucciones tan vagas que no se pueden seguir, un término usado de tres formas, lo mismo dicho dos veces. Para eso están los analyzers semánticos." },
-
 
   "cases.eyebrow":   { "en": "Use cases",  "es": "Casos de uso" },
   "cases.title":     { "en": "Built for people who live in Markdown.",  "es": "Si vives en Markdown, esto es para ti." },

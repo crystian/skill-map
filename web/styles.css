@@ -227,20 +227,6 @@ svg    { display: block; max-width: 100%; }
     scroll-behavior: auto !important;
   }
 
-  /* Hard-stop the always-on motion in the hero. These are the only
-     `infinite` animations on the page and the main CPU/GPU draw when
-     nothing else is happening. `animation: none` releases the compositor
-     layer for them; collapsing duration to .01ms still keeps the layer
-     and the work loop alive. */
-  .hero__graph-svg .select-fx-pulse,
-  .hero__graph-svg .hg-traveler {
-    animation: none !important;
-    opacity: 1 !important;
-  }
-
-  /* The canvas loop also self-suspends via JS, but hide the element so
-     no leftover frame remains painted. */
-  .hero__graph .hg-particles { display: none !important; }
 }
 
 /* ============================================================
@@ -693,47 +679,6 @@ svg    { display: block; max-width: 100%; }
   animation-timing-function: steps(45, end) !important;
 }
 
-/* Selected-node ring pulse. Same compositor-only trick: animate transform on
-   a <circle> centered at (0,0) inside a translated <g>. The previous SMIL
-   <animate> approach modified the `r` attribute every frame, forcing SVG
-   rasterization and pegging CPU when a backdrop-filter sat on top of it. */
-@keyframes select-pulse {
-  0%   { transform: scale(1);   opacity: .7; }
-  100% { transform: scale(2.2); opacity: 0;  }
-}
-.hero__graph-svg .select-fx-pulse {
-  animation: select-pulse 1.6s ease-out infinite;
-  transform-origin: 0 0;
-  will-change: transform, opacity;
-}
-
-/* Pan/zoom viewport; its `transform` is updated on wheel + bg drag.
-   GPU layer hint so panning doesn't repaint the SVG below. */
-.hero__graph-svg .hg-viewport {
-  will-change: transform;
-}
-.hero__graph-svg .hg-bg {
-  cursor: grab;
-}
-.hero__graph-svg.is-panning .hg-bg,
-.hero__graph-svg.is-panning {
-  cursor: grabbing;
-}
-
-/* Traveling pulse along a selected node's edge.
-   Uses CSS `offset-path` (compositor-friendly path animation). */
-@keyframes hg-travel {
-  0%   { offset-distance: 0%;   opacity: 0; }
-  10%  { opacity: 1; }
-  90%  { opacity: 1; }
-  100% { offset-distance: 100%; opacity: 0; }
-}
-.hero__graph-svg .hg-traveler {
-  animation: hg-travel 1.4s linear infinite;
-  pointer-events: none;
-  will-change: offset-distance, opacity;
-}
-
 .hero {
   position: relative;
   overflow: hidden;
@@ -809,11 +754,19 @@ svg    { display: block; max-width: 100%; }
   flex-wrap: wrap;
 }
 
-/* ---------- Graph card ---------- */
+
+/* ---------- Graph card: the real map, framed ---------- */
+/* `/demo/?embed=1&replay=…&theme=neon-blue` in an <iframe> (hero-embed.js
+   sets the src after the page's own load so the Angular boot never
+   competes with the hero paint). The poster underneath is a screenshot of
+   the same graph; it stays until the framed map has drawn its cards, then
+   `is-live` fades the frame in over it. Chrome-less on purpose: whatever
+   is visible inside the card IS the map. The base colour is the neon-blue
+   console navy so the poster / frame swap never flashes. */
 .hero__graph {
   position: relative;
   border-radius: 20px;
-  background: radial-gradient(ellipse at 50% 30%, rgba(14,19,26,.4) 0%, rgba(6,8,12,.95) 70%);
+  background: #0a1326;
   border: 1px solid rgba(255,255,255,.08);
   box-shadow:
     0 40px 100px rgba(0,0,0,.5),
@@ -821,229 +774,75 @@ svg    { display: block; max-width: 100%; }
   overflow: hidden;
   height: clamp(360px, 60vh, 560px);
   /* Tell the browser nothing inside this card can affect layout/paint
-     outside it; repaints from drag/hover stay scoped here. */
+     outside it; the framed canvas repaints stay scoped here. */
   contain: layout paint style;
 }
-
-.hero__graph-chrome {
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  border-bottom: 1px solid rgba(255,255,255,.05);
-  background: rgba(14,19,26,.92);
-  z-index: 5;
-}
-.hero__graph-path {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: rgba(255,255,255,.6);
-}
-.hero__graph-path svg { width: 14px; height: 14px; }
-
-.hero__graph-counts {
-  margin-left: auto;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  color: rgba(255,255,255,.45);
-  align-items: center;
-}
-.hero__graph-counts strong { color: #fff; font-weight: 500; }
-.hero__graph-counts .alert  { color: var(--violet-400); }
-.hero__graph-counts .sep    { opacity: .4; }
-
-.hero__graph-legend {
-  position: absolute;
-  top: 64px; left: 20px;
-  display: flex; flex-direction: column;
-  gap: 6px;
-  z-index: 4;
-  pointer-events: none;
-}
-.hero__graph-legend > div {
-  display: flex; align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: rgba(255,255,255,.5);
-}
-.hero__graph-legend i {
-  width: 8px; height: 8px;
-  border-radius: 50%;
-  display: inline-block;
-}
-
-.hero__graph-svg {
+.hero__graph-poster,
+.hero__graph-frame {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  z-index: 2;
-  cursor: grab;
-  touch-action: none;
+  display: block;
 }
+.hero__graph-poster { object-fit: cover; }
+.hero__graph-frame {
+  border: 0;
+  opacity: 0;
+  transition: opacity 400ms ease;
+}
+.hero__graph.is-live .hero__graph-frame { opacity: 1; }
 
-/* Particle field, sits below the SVG (z-index 1) and above the card bg.
-   Visible through the SVG's translucent radial overlay. */
-.hero__graph .hg-particles {
+/* "Real UI" badge, top-left over the frame: mono chip with a live dot,
+   click-through so the map underneath keeps its drag. */
+.hero__graph-badge {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  top: 14px;
+  left: 14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(6,10,18,.72);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: .02em;
+  color: rgba(255,255,255,.78);
   pointer-events: none;
-  z-index: 1;
 }
-.hero__graph-svg .edge {
-  stroke: rgba(255,255,255,.12);
-  stroke-width: 1;
-  /* Only opacity is animated; it goes through the GPU compositor.
-     stroke / stroke-width changes on selection are instant; the eye barely
-     notices them since the dim/highlight read comes from the opacity fade. */
-  transition: opacity var(--dur-base) var(--ease-out);
-}
-.hero__graph-svg .edge[data-hi="true"]  { stroke: rgba(124,58,237,.7); stroke-width: 1.5; }
-.hero__graph-svg .edge[data-dim="true"] { opacity: .35; }
-
-.hero__graph-svg .node {
-  cursor: grab;
-  transition: opacity var(--dur-base) var(--ease-out);
-  /* Promote each node to its own GPU layer so drag updates the transform
-     on the compositor thread instead of triggering main-thread paint.
-     Memory cost: ~13 small layers, trivial. */
-  will-change: transform;
-}
-.hero__graph-svg .node[data-dim="true"] { opacity: .3; }
-.hero__graph-svg .node[data-selected="true"] circle:first-of-type {
-  filter: drop-shadow(0 0 12px currentColor);
-}
-.hero__graph-svg .node[data-selected="true"] { color: var(--type-color, #fff); }
-.hero__graph-svg .node[data-dragging="true"] { cursor: grabbing; }
-
-.hero__graph-svg .node-label {
-  font: 500 11px var(--font-mono);
-  fill: rgba(255,255,255,.55);
-  pointer-events: none;
-  user-select: none;
-  /* No transition: hover should feel instant. Animating fill on every
-     pointerenter/leave is the main source of perceived latency. */
-}
-.hero__graph-svg .node[data-selected="true"] .node-label,
-.hero__graph-svg .node[data-hover="true"]    .node-label { fill: #fff; }
-
-/* ---------- Inspector panel ---------- */
-.hero__inspector {
-  position: absolute;
-  top: 64px;
-  right: 20px;
-  width: 240px;
-  padding: 18px 18px 16px;
-  border-radius: 12px;
-  background: #0E131A;
-  border: 1px solid rgba(124,58,237,.35);
-  box-shadow: 0 0 0 1px rgba(124,58,237,.15), 0 20px 50px rgba(0,0,0,.5);
-  z-index: 6;
-  color: #fff;
-  font-family: var(--font-sans);
-}
-.hero__inspector__type {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 14px;
-}
-.hero__inspector__dot {
-  width: 10px; height: 10px;
+.hero__graph-badge i {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  background: var(--type-color, #fff);
-  box-shadow: 0 0 8px var(--type-color, #fff);
+  background: #22d3ee;
+  box-shadow: 0 0 8px #22d3ee;
 }
-.hero__inspector__type-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: .08em;
-  color: rgba(255,255,255,.5);
-}
-.hero__inspector__name {
-  font-size: 18px;
-  font-weight: 600;
-  letter-spacing: -.01em;
-  color: #fff;
-  margin-bottom: 4px;
-}
-.hero__inspector__path {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: rgba(255,255,255,.45);
-  margin-bottom: 18px;
-  word-break: break-all;
-}
-.hero__inspector__rows {
-  display: flex; flex-direction: column;
-  gap: 10px;
-  padding-top: 14px;
-  border-top: 1px solid rgba(255,255,255,.08);
-}
-.hero__inspector__row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 12px;
-}
-.hero__inspector__row .k {
-  color: rgba(255,255,255,.5);
-  font-family: var(--font-mono);
-}
-.hero__inspector__row .v {
-  color: #fff;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
-.hero__inspector__warn {
-  margin-top: 14px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: rgba(124,58,237,.12);
-  border: 1px solid rgba(124,58,237,.28);
-  font-size: 12px;
-  color: var(--violet-200);
-  display: flex; gap: 8px;
-  align-items: flex-start;
-}
-.hero__inspector__warn svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; }
-
-/* On narrow viewports, dock the inspector at the bottom of the card so it
-   doesn't overlap the legend or eat half the canvas. Phone breakpoint. */
-@media (max-width: 480px) {
-  .hero__inspector {
-    top: auto;
-    right: 12px;
-    bottom: 56px;
-    left: 12px;
-    width: auto;
+@media (prefers-reduced-motion: no-preference) {
+  .hero__graph-badge i { animation: hero-badge-pulse 1.8s ease-in-out infinite; }
+  @keyframes hero-badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .35; }
   }
-  .hero__graph-legend { display: none; }
 }
-
-/* Hide hero__graph-legend / counts on tiny viewports to keep the card readable. */
 @media (max-width: 480px) {
-  .hero__graph-legend { display: none; }
-  .hero__graph-counts { font-size: 10px; gap: 4px; }
-  .hero__graph-counts .sep { display: none; }
+  .hero__graph-badge { top: 10px; left: 10px; font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero__graph-frame { transition: none; }
 }
 
-/* On mobile, drop the interactive graph card entirely. The hero leans on
-   title + sub + CTAs; the live graph belongs to /demo/. The drag/pan/particle
-   JS is also short-circuited via matchMedia in app.js, so the cost is zero.
-   Above 480px we already hide legend + collapse counts; below 768px we
-   remove the whole card (768 inclusive shows the graph). */
+/* Phones keep the card (the embed skips the app's desktop-only guard,
+   a bare canvas has nothing that breaks at 360px); shorter so the title
+   + CTAs stay above the fold. */
 @media (max-width: 767px) {
-  .hero__graph { display: none; }
+  .hero__graph {
+    height: clamp(260px, 60vw, 380px);
+    border-radius: 14px;
+  }
 }
 
 /* ============================================================
@@ -1158,65 +957,6 @@ svg    { display: block; max-width: 100%; }
     rgba(167, 139, 250, 0.45) 50%,
     rgba(167, 139, 250, 0) 90%,
     transparent 100%);
-}
-
-/* ============================================================
-   SCREENSHOTS: single hero shot, centered (16:9)
-   The <img> uses object-fit: cover so the visible image crops to
-   the cell instead of distorting it.
-   Images are non-interactive on purpose (no click, no drag).
-   ============================================================ */
-.shots__grid {
-  max-width: 1024px;
-  margin-inline: auto;
-}
-
-.shots__main { aspect-ratio: 16 / 9; }
-
-.shots figure {
-  position: relative;
-  margin: 0;
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  background: rgba(255, 255, 255, .03);
-  border: 1px solid rgba(255, 255, 255, .08);
-  transition: transform 240ms cubic-bezier(0.2, 0, 0, 1),
-              border-color 240ms cubic-bezier(0.2, 0, 0, 1),
-              box-shadow 240ms cubic-bezier(0.2, 0, 0, 1);
-}
-.shots figure:hover {
-  transform: scale(1.02);
-  border-color: rgba(167, 139, 250, .35);
-  box-shadow: 0 12px 40px -12px rgba(124, 58, 237, .35);
-  z-index: 1;
-}
-@media (prefers-reduced-motion: reduce) {
-  .shots figure { transition: none; }
-  .shots figure:hover { transform: none; }
-}
-.shots figure video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Placeholder visual: dashed inset frame with a centered label. The
-   author replaces the entire <span> with an <img> when real shots
-   are ready, so no toggling logic is needed. */
-.shots__placeholder {
-  position: absolute;
-  inset: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed rgba(255, 255, 255, .14);
-  border-radius: var(--r-md);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, .4);
 }
 
 /* ============================================================

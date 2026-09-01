@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 
 import { ThemeService } from '../theme';
+import { SKILL_MAP_EMBED } from '../embed-mode';
 
 const STORAGE_KEY = 'skill-map.ui.theme';
 const EXTRA_STORAGE_KEY = 'skill-map.ui.extra-theme';
@@ -275,5 +276,51 @@ describe('ThemeService', () => {
       expect(svc.mode()).toBe('dark'); // light → dark
       expect(doc.documentElement.classList.contains('app-matrix')).toBe(false);
     });
+  });
+});
+
+describe('ThemeService, embedded boot', () => {
+  function configureEmbed(theme: string | null): ThemeService {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{ provide: SKILL_MAP_EMBED, useValue: { theme } }],
+    });
+    return TestBed.inject(ThemeService);
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    installFakeMatchMedia(false);
+  });
+
+  afterEach(() => {
+    document.documentElement.classList.remove('app-dark', 'dark', 'app-neon');
+    TestBed.resetTestingModule();
+  });
+
+  it('honours an extra theme id from the link and persists nothing', () => {
+    const svc = configureEmbed('neon-blue');
+    expect(svc.extraTheme()).toBe('neon-blue');
+    expect(svc.mode()).toBe('auto');
+    TestBed.tick();
+    expect(document.documentElement.classList.contains('app-neon')).toBe(true);
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem(EXTRA_STORAGE_KEY)).toBeNull();
+  });
+
+  it('honours a base mode from the link', () => {
+    const svc = configureEmbed('dark');
+    expect(svc.mode()).toBe('dark');
+    expect(svc.extraTheme()).toBeNull();
+    TestBed.tick();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+  });
+
+  it('ignores the stored preference and an unknown id under embed', () => {
+    localStorage.setItem(STORAGE_KEY, 'dark');
+    localStorage.setItem(EXTRA_STORAGE_KEY, 'matrix');
+    const svc = configureEmbed('bogus');
+    expect(svc.mode()).toBe('auto');
+    expect(svc.extraTheme()).toBeNull();
   });
 });

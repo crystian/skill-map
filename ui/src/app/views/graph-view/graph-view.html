@@ -62,13 +62,15 @@
       <!-- Branch-cap banner: shows when the selected folder branch has
            more nodes than the server render cap, so only the first slice
            is drawn on the map. Floats over the canvas, informational. -->
-      <sm-branch-cap-banner />
+      @if (!embed) {
+        <sm-branch-cap-banner />
+      }
 
       <!-- Live lens frame: the "on air" border around the whole map
            while the lens is on, the at-a-glance signal that this is a
            live, read-only view (no drag, no curation). Decorative and
            click-through; the a11y announcement carries the state. -->
-      @if (lensOn()) {
+      @if (lensOn() && !embed) {
         <div
           class="graph__lens-frame"
           [class.graph__lens-frame--replay]="replayOn()"
@@ -88,7 +90,7 @@
 
       <!-- Replay transport, floats above the main toolbar while the
            lens replays the recorded tape. -->
-      @if (replayOn()) {
+      @if (replayOn() && !embed) {
         <div
           class="graph__playback-bar"
           [style.--sm-graph-inspector-w]="reservedPanelWidth() + 'px'"
@@ -100,7 +102,7 @@
       <!-- Live lens empty state: floating overlay, NOT a branch of the
            top-level empty-state chain, so <f-flow> stays mounted while
            the lens waits for its first frame. -->
-      @if (showLensEmptyState()) {
+      @if (showLensEmptyState() && !embed) {
         <div
           class="graph__lens-empty"
           data-canvas-click-shield
@@ -128,6 +130,7 @@
         <f-line-alignment [fAlignThreshold]="20" />
         <f-canvas
           fZoom
+          [fWheelTrigger]="wheelTrigger"
           [position]="viewportPosition()"
           [scale]="viewportScale()"
           [fZoomStep]="0.06"
@@ -548,13 +551,15 @@
             }
           </ng-container>
         </f-canvas>
-        <f-minimap />
+        @if (!embed) {
+          <f-minimap />
+        }
       </f-flow>
 
       <!-- Facet palettes hide while the Live lens is on: its filter
            stub deliberately ignores them (the lens answers "what is
            executing"), and showing dead toggles would lie. -->
-      @if (!lensOn()) {
+      @if (!lensOn() && !embed) {
         <div class="graph__filter-stack" data-canvas-click-shield>
           <sm-kind-palette />
           <sm-severity-palette />
@@ -577,6 +582,7 @@
         `selectionFocusEffect` (which runs in `afterNextRender`, i.e.
         after the attribute is gone) still lands.
       -->
+      @if (!embed) {
       <aside
         #inspectorPanel
         class="graph__panel"
@@ -611,8 +617,9 @@
           />
         </div>
       </aside>
+      }
 
-      @if (perfHud()) {
+      @if (perfHud() && !embed) {
         <sm-perf-hud
           data-canvas-click-shield
           [visible]="visibleCount()"
@@ -621,6 +628,7 @@
         />
       }
 
+      @if (!embed) {
       <div
         class="graph__toolbar"
         data-canvas-click-shield
@@ -733,10 +741,12 @@
           />
         }
       </div>
+      }
 
     </div>
 
   }
+  @if (!embed) {
   <p-confirmdialog
     [ariaLabel]="texts.resetLayoutConfirm.header"
     styleClass="graph__confirm"
@@ -755,4 +765,5 @@
     [captureEnabled]="conversationCaptureEnabled()"
     (closed)="onConversationClosed()"
   />
+  }
 </section>

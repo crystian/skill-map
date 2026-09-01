@@ -46,12 +46,16 @@ import {
   type IFollowActivityHandle,
   type IFollowSession,
 } from './follow-activity.controller';
+import type { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
+
 import {
   computeForceLayoutPositions,
+  computeLayoutPositions,
   topologyFingerprint,
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
+import { DEFAULT_LAYOUT_SPACING } from './layout-controls';
 import { setupGraphPipeline, type IGraphPipelineHandle } from './graph-pipeline';
 import { computeFitTransform, type IViewportTransform } from './viewport-animation';
 import { resolveDirectorTargets } from './director';
@@ -73,6 +77,15 @@ export interface ILiveLensControllerConfig {
   };
   /** `LivePreferencesService.directorEnabled`, the replay camera taste. */
   directorEnabled: Signal<boolean>;
+  /**
+   * Lens arrangement. `force` (default): the seeded cloud, survivors
+   * pinned while newcomers settle. `network-simplex`: the layered LEFT_RIGHT
+   * layout the main map uses, re-run on every topology change; the
+   * embedded boot (spec §"Embedded replay") picks it so a framed hero
+   * reads as aligned rows rather than a cloud. Needs `dagreLayout`.
+   */
+  layoutAlgorithm?: 'force' | 'network-simplex';
+  dagreLayout?: DagreLayoutEngine;
   /** Real severity index; the lens filter stub never reads it, passed only to satisfy the pipeline config. */
   issuesBySeverity: Signal<IIssuePathsBySeverity>;
   /** MAIN pipeline fingerprint, frozen while the lens is on (see `layoutFitFingerprint`). */
@@ -161,7 +174,8 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
   // state. Cards on the live map can pile up; this is the way out.
   const lensPins = signal<TNodePositions>(new Map());
 
-  const lensAlgorithm = computed(() => 'force' as const);
+  const algorithm = config.layoutAlgorithm ?? 'force';
+  const lensAlgorithm = computed(() => algorithm);
   const lensDirection = computed(() => 'LEFT_RIGHT' as const);
 
   const pipeline = setupGraphPipeline({
@@ -192,6 +206,21 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
     const key = topologyFingerprint(nodes, topology.edges);
     if (key === lastLayoutKey) return;
     lastLayoutKey = key;
+    if (algorithm === 'network-simplex' && config.dagreLayout !== undefined) {
+      // Layered arrangement: async like the main map's effect, and a
+      // result that lands after a newer topology is dropped.
+      void computeLayoutPositions(config.dagreLayout, nodes, topology.edges, {
+        algorithm: 'network-simplex',
+        direction: 'LEFT_RIGHT',
+        spacing: DEFAULT_LAYOUT_SPACING,
+      }).then((positions) => {
+        if (lastLayoutKey !== key) return;
+        layoutSeed = positions;
+        pipeline.layoutPositions.set(positions);
+        pipeline.layoutComputedAtSignal.set(performance.now());
+      });
+      return;
+    }
     // Seed = survivors' last positions overlaid with the operator's
     // pins (read untracked: a drag must never re-run the layout, the
     // projection already overlays the pin; the next topology change

@@ -14,13 +14,11 @@
 // No bundling: every module ships as its own request over HTTP/2.
 
 import './modules/mobile-nav.js';
-import './modules/hero-graph.js';
-import './modules/hero-particles.js';
+import './modules/hero-embed.js';
 import './modules/roadmap.js';
 import './modules/copy-code.js';
 import './modules/audio-player.js';
 import './modules/peco.js';
-import './modules/hero-video.js';
 import './modules/video-embed.js';
 import './modules/drawer-footer.js';
 import './modules/cookie-consent.js';

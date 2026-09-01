@@ -24,6 +24,7 @@ import {
 } from '../../slots/session-replay-intent';
 import type { ISessionReplaySelection, ISessionStep } from '../../../services/session-index';
 import { SKILL_MAP_MODE } from '../../../services/data-source/runtime-mode';
+import { SKILL_MAP_EMBED } from '../../../services/embed-mode';
 import { ActivityReadinessService } from '../../services/activity-readiness';
 import { UsageTrackerService } from '../../services/usage-tracker';
 import { NODE_OPEN_INTENT } from '../../slots/node-open-intent';
@@ -177,6 +178,8 @@ export class WorkspaceView implements IMapIsolateIntent, ISessionReplayIntent, I
    * whole point of the demo tour, so the gate only applies live.
    */
   private readonly mode = inject(SKILL_MAP_MODE);
+  /** Embedded boot (`?embed=1`): the map alone, the rail never mounts. */
+  protected readonly embed = inject(SKILL_MAP_EMBED, { optional: true }) !== null;
   protected readonly sessionsDisabled = computed(
     () => this.mode !== 'demo' && this.activityReadiness.hookInstalled() === false,
   );

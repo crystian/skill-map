@@ -20,8 +20,11 @@
  *
  * The stepper is a self-rearming timeout (armed only while playing),
  * auto-pausing on the last event; play() from the end restarts from
- * the beginning. Cursor conventions follow the fold: -1 = before the
- * first event, `total - 1` = everything applied.
+ * the beginning. Under `loop` (the embedded boot, spec
+ * §"Embedded replay") the last event rewinds to -1 and keeps playing
+ * instead, so the tape runs as a film with one blank beat between
+ * passes. Cursor conventions follow the fold: -1 = before the first
+ * event, `total - 1` = everything applied.
  */
 
 import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
@@ -44,6 +47,8 @@ export type TReplaySource =
 
 /** Fixed playback cadence: one recorded event per wall-clock second. */
 export const PLAYBACK_STEP_MS = 1000;
+/** The embedded film's slower beat (spec §"Embedded replay"): a framed hero is glanced at, not operated. */
+export const EMBED_PLAYBACK_STEP_MS = 1800;
 
 @Injectable({ providedIn: 'root' })
 export class ActivityPlaybackService {
@@ -56,6 +61,12 @@ export class ActivityPlaybackService {
 
   private readonly _playing = signal(false);
   readonly playing = this._playing.asReadonly();
+
+  private stepMs = PLAYBACK_STEP_MS;
+
+  private readonly _loop = signal(false);
+  /** Rewind-and-continue at the end instead of pausing (see module doc). */
+  readonly loop = this._loop.asReadonly();
 
   /** Index of the last APPLIED event; -1 = before the first. */
   private readonly _cursor = signal(-1);
@@ -155,12 +166,22 @@ export class ActivityPlaybackService {
     this.clearStepTimer();
   }
 
+  /** Session-wide setting; a replay already at its end resumes on the next play. */
+  setLoop(loop: boolean): void {
+    this._loop.set(loop);
+  }
+
+  /** Session-wide cadence override (the embed's slower beat); applies from the next tick. */
+  setStepMs(ms: number): void {
+    this.stepMs = ms;
+  }
+
   /** Scrub to an absolute cursor (clamped); keeps the playing state. */
   seek(cursor: number): void {
     if (!this._active()) return;
     const clamped = Math.max(-1, Math.min(cursor, this.total() - 1));
     this._cursor.set(clamped);
-    if (this._playing() && clamped >= this.total() - 1) this.pause();
+    if (this._playing() && clamped >= this.total() - 1 && !this._loop()) this.pause();
   }
 
   stepForward(): void {
@@ -176,14 +197,22 @@ export class ActivityPlaybackService {
     this.stepTimer = setTimeout(() => {
       this.stepTimer = null;
       if (!this._active() || !this._playing()) return;
-      const next = this._cursor() + 1;
+      const current = this._cursor();
+      // Loop: the tick AFTER the last event rewinds (one blank beat,
+      // the fold at -1 paints nothing) and the film starts over.
+      if (this._loop() && current >= this.total() - 1) {
+        this._cursor.set(-1);
+        this.armStepTimer();
+        return;
+      }
+      const next = current + 1;
       this._cursor.set(Math.min(next, this.total() - 1));
-      if (next >= this.total() - 1) {
+      if (next >= this.total() - 1 && !this._loop()) {
         this.pause();
         return;
       }
       this.armStepTimer();
-    }, PLAYBACK_STEP_MS);
+    }, this.stepMs);
   }
 
   private clearStepTimer(): void {

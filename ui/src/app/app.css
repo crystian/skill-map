@@ -833,8 +833,11 @@
   /* Hide the shell entirely while the overlay is active, the layout is
      not viable on a narrow touch screen and showing a broken version
      under the overlay defeats the point. Scoped to the coarse-pointer
-     query above, so it can never hide the app from a zoomed desktop. */
-  .shell {
+     query above, so it can never hide the app from a zoomed desktop.
+     The embedded boot (`shell--embed`, spec §"Embedded replay") is
+     exempt: it renders the bare canvas, which has nothing that breaks
+     on a phone, and the template skips the overlay for it anyway. */
+  .shell:not(.shell--embed) {
     display: none;
   }
 }

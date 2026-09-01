@@ -12,6 +12,17 @@
         "tMs": 1755000000000,
         "type": "node.activity",
         "data": {
+          "nodePath": "AGENTS.md",
+          "phase": "start",
+          "owner": "main:demo-publish",
+          "detail": "Read",
+          "access": "read"
+        }
+      },
+      {
+        "tMs": 1755000001500,
+        "type": "node.activity",
+        "data": {
           "nodePath": ".claude/commands/publish.md",
           "phase": "start",
           "owner": "main:demo-publish",
@@ -26,17 +37,6 @@
           "phase": "start",
           "owner": "main:demo-publish",
           "detail": "Skill"
-        }
-      },
-      {
-        "tMs": 1755000004500,
-        "type": "node.activity",
-        "data": {
-          "nodePath": "AGENTS.md",
-          "phase": "start",
-          "owner": "main:demo-publish",
-          "detail": "Read",
-          "access": "read"
         }
       },
       {

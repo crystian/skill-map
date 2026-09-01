@@ -1,4 +1,6 @@
 <div class="workspace" data-testid="workspace-view">
+  <!-- Embedded boot (`?embed=1`): the map alone, no files rail. -->
+  @if (!embed) {
   <aside
     class="workspace__rail"
     [class.is-collapsed]="railCollapsed()"
@@ -293,6 +295,7 @@
       ></div>
     }
   </aside>
+  }
 
   <div class="workspace__map">
     <sm-graph-view />

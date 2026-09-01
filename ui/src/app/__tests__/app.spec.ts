@@ -14,6 +14,7 @@ import { DATA_SOURCE, type IDataSourcePort } from '../../services/data-source/da
 import { NodeActivityService } from '../../services/node-activity';
 import { ProjectIgnoreService } from '../../services/project-ignore';
 import { SKILL_MAP_MODE } from '../../services/data-source/runtime-mode';
+import { SKILL_MAP_EMBED } from '../../services/embed-mode';
 import { WsEventStreamService, WS_SOCKET_FACTORY, type TWsSocketFactory, type IWsLike } from '../../services/ws-event-stream';
 import { UpdateCheckService } from '../services/update-check';
 import { ThemeService } from '../../services/theme';
@@ -980,5 +981,34 @@ describe('App, GitHub star affordance', () => {
     expect(link?.getAttribute('aria-label')).toBe(APP_TEXTS.starsA11y(1));
     expect(link?.getAttribute('aria-label')).toContain('1 star so far');
     expect(APP_TEXTS.starsA11y(123_456)).toContain('123,456 stars so far');
+  });
+});
+
+describe('App, embedded boot', () => {
+  it('renders the main outlet alone: no viewport guard, no topbar, no banners', async () => {
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
+      imports: [App],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: DATA_SOURCE, useValue: STUB_DATA_SOURCE },
+        { provide: SKILL_MAP_MODE, useValue: 'demo' },
+        { provide: SKILL_MAP_EMBED, useValue: { theme: null } },
+        { provide: WS_SOCKET_FACTORY, useValue: inertWsSocketFactory },
+        { provide: UpdateCheckService, useValue: makeUpdateCheckStub().service },
+      ],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-testid="shell"]')?.classList.contains('shell--embed')).toBe(true);
+    expect(root.querySelector('[data-testid="shell-main"], #shell-main')).not.toBeNull();
+    expect(root.querySelector('[data-testid="viewport-warning"]')).toBeNull();
+    expect(root.querySelector('[data-testid="shell-topbar"]')).toBeNull();
+    expect(root.querySelector('[data-testid="skip-to-main"]')).toBeNull();
+    expect(root.querySelector('sm-demo-banner')).toBeNull();
   });
 });

@@ -18,12 +18,18 @@
  * No meta at all (the static demo bundle, jsdom) falls back to the
  * `default` namespace: those hosts serve one project per origin, so
  * the collision the namespace exists to prevent cannot happen there.
+ * An EMBEDDED boot (`?embed=1`, see `embed-mode.ts`) gets its own
+ * `embed` namespace regardless of the meta: the framed canvas shares
+ * the origin with the full SPA it is cut from, and a card dragged
+ * inside a host page's hero must not move the visitor's real map.
  *
  * DEBUG AFFORDANCE, nothing reads it programmatically: the
  * `sm.scopes` registry key maps each hash to the root it was minted
  * for (`{ "a3f9c2e1": "/home/x/project" }`), so a human inspecting
  * devtools can tell which project a suffixed key belongs to.
  */
+
+import { readEmbedConfigFromLocation } from './embed-mode';
 
 /** Meta tag name the BFF stamps the resolved scope root into. */
 export const SCOPE_META_NAME = 'skill-map-scope';
@@ -82,7 +88,9 @@ export function scopeNamespace(): string {
   if (resolved !== null) return resolved;
   const root = readMeta(SCOPE_META_NAME);
   ensureStorageVersion(readMeta(VERSION_META_NAME));
-  if (root === null || root.length === 0) {
+  if (readEmbedConfigFromLocation() !== null) {
+    resolved = 'embed';
+  } else if (root === null || root.length === 0) {
     resolved = 'default';
   } else {
     resolved = fnv1a(root);

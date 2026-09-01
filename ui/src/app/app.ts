@@ -27,6 +27,7 @@ import { ScanTriggerService } from './services/scan-trigger';
 import { UpdateCheckService } from './services/update-check';
 import { UsageTrackerService } from './services/usage-tracker';
 import { ThemeService, type TThemeMode } from '../services/theme';
+import { SKILL_MAP_EMBED } from '../services/embed-mode';
 import { EXTRA_THEMES, findExtraTheme } from '../themes/registry';
 import { ProviderRegistryService, type IProviderUi } from '../services/provider-registry';
 import { DemoBanner } from './components/demo-banner/demo-banner';
@@ -55,6 +56,14 @@ import { ViewContributionsHost } from './components/view-contributions-host/view
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class App {
+  /**
+   * Embedded boot (`?embed=1`, spec §"Embedded replay"): the template
+   * renders the main outlet ALONE, no banners, no topbar, no dialogs,
+   * and skips the desktop-only viewport guard (a bare canvas has
+   * nothing that breaks at phone widths). Constant for the page's
+   * life, like the runtime mode.
+   */
+  protected readonly embed = inject(SKILL_MAP_EMBED, { optional: true }) !== null;
   private readonly loader = inject(CollectionLoaderService);
   private readonly theme = inject(ThemeService);
   private readonly projectInfo = inject(ProjectInfoService);

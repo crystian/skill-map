@@ -33,10 +33,11 @@ import {
   provideFLayout,
   withA11y,
 } from '@foblex/flow';
-import type { FCanvasChangeEvent, FSelectionChangeEvent } from '@foblex/flow';
+import type { FCanvasChangeEvent, FEventTrigger, FSelectionChangeEvent } from '@foblex/flow';
 import { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
 
 import { GRAPH_VIEW_TEXTS } from '../../../i18n/graph-view.texts';
+import { SKILL_MAP_EMBED } from '../../../services/embed-mode';
 import { DEFAULT_SETTINGS } from '../../../models/settings';
 
 import { CollectionLoaderService } from '../../../services/collection-loader';
@@ -69,7 +70,7 @@ import { ViewContributionsHost } from '../../components/view-contributions-host/
 import { DebugPerfService } from '../../services/debug-perf';
 import { A11yAnnouncerService } from '../../services/a11y-announcer';
 import { ActivityReadinessService } from '../../services/activity-readiness';
-import { ActivityPlaybackService } from '../../../services/activity-playback';
+import { ActivityPlaybackService, EMBED_PLAYBACK_STEP_MS } from '../../../services/activity-playback';
 import { ActivityRecorderService } from '../../../services/activity-recorder';
 import { LiveLensService } from '../../../services/live-lens';
 import {
@@ -262,6 +263,23 @@ export class GraphView implements OnInit {
   private readonly liveLens = inject(LiveLensService);
   protected readonly playback = inject(ActivityPlaybackService);
   private readonly recorder = inject(ActivityRecorderService);
+  /**
+   * Embedded boot (`?embed=1`, spec §"Embedded replay"): the canvas
+   * alone. The template drops every overlay (lens chrome, transport,
+   * palettes, inspector, toolbar, dialogs), a plain wheel is left to
+   * the host page (`wheelTrigger`), a card click opens the full SPA on
+   * that node in a new tab instead of selecting, and a replay loops.
+   */
+  protected readonly embed = inject(SKILL_MAP_EMBED, { optional: true }) !== null;
+  /**
+   * Foblex wheel gate: under embed only `Ctrl`/`Cmd`+wheel (which is
+   * also how a trackpad pinch arrives) zooms, so the scroll over the
+   * framed canvas chains to the page hosting it. Outside embed the
+   * library's default (every wheel zooms) stays.
+   */
+  protected readonly wheelTrigger: FEventTrigger = this.embed
+    ? (event) => event instanceof WheelEvent && (event.ctrlKey || event.metaKey)
+    : () => true;
   private readonly activityReadiness = inject(ActivityReadinessService);
 
   private readonly flow = viewChild(FFlowComponent);
@@ -439,7 +457,12 @@ export class GraphView implements OnInit {
     nodeActivity: this.nodeActivity,
     livePrefs: this.livePrefs,
     playback: this.playback,
-    directorEnabled: this.livePrefs.directorEnabled,
+    // Embed (spec §"Embedded replay"): the camera frames the whole lens
+    // set (no director close-ups, the frame is small) over a layered
+    // dagre arrangement instead of the force cloud.
+    directorEnabled: computed(() => !this.embed && this.livePrefs.directorEnabled()),
+    layoutAlgorithm: this.embed ? 'network-simplex' : 'force',
+    dagreLayout: this.dagreLayout,
     issuesBySeverity: this.issuePaths.bySeverity,
     mainPathsFingerprint: this.pathsFingerprint,
     viewportPosition: this.viewportPosition,
@@ -1243,6 +1266,10 @@ export class GraphView implements OnInit {
 
   selectNode(node: IGraphNode, event: MouseEvent): void {
     if (!this.activeNodeDrag().isClickWithoutDrag(event)) return;
+    if (this.embed) {
+      this.openInFullApp(node);
+      return;
+    }
     // Modifier clicks are multi-selection gestures owned by Foblex:
     // Ctrl/Cmd+click toggles the node in and out of the selection
     // (`SelectByPointer`), Shift belongs to the marquee. Forcing the
@@ -1383,9 +1410,22 @@ export class GraphView implements OnInit {
   }
 
   openNode(node: IGraphNode): void {
+    if (this.embed) return; // the single click already left the frame
     // Embedded inspector mode: dblclick selects (single click already does
     // the same, kept the handler so the gesture has a clear intent).
     this.applySelection(node.id);
+  }
+
+  /**
+   * Embed's card activation: the full SPA on that node, in a new tab.
+   * `document.baseURI` carries the deploy's `<base href>` (`/demo/` on
+   * the public site), so the link resolves wherever the bundle lives;
+   * `path` is the selection deep link `selection-url-sync.ts` reads.
+   */
+  private openInFullApp(node: IGraphNode): void {
+    const url = new URL(document.baseURI);
+    url.search = new URLSearchParams({ path: node.view.path }).toString();
+    window.open(url.toString(), '_blank', 'noopener');
   }
 
   /**
@@ -1401,6 +1441,10 @@ export class GraphView implements OnInit {
    */
   selectNodeByKeyboard(node: IGraphNode, event: Event): void {
     event.preventDefault();
+    if (this.embed) {
+      this.openInFullApp(node);
+      return;
+    }
     this.applySelection(node.id);
   }
 
@@ -1839,6 +1883,13 @@ export class GraphView implements OnInit {
     }
   }
 
+  /** Embed: the replay is a film, it loops at a slower beat (see `ActivityPlaybackService`). */
+  private loopingPlayback(): ActivityPlaybackService {
+    this.playback.setLoop(true);
+    this.playback.setStepMs(EMBED_PLAYBACK_STEP_MS);
+    return this.playback;
+  }
+
   /**
    * Replay deep link (`?replay=<rootOwner>[&agent=…][&at=…]`): boot read
    * resolved against the client tape and the journal (one best-effort
@@ -1846,7 +1897,7 @@ export class GraphView implements OnInit {
    * replay is on screen. See `replay-url-sync.ts`.
    */
   private readonly replayUrl = setupReplayUrlSync({
-    playback: this.playback,
+    playback: this.embed ? this.loopingPlayback() : this.playback,
     resolve: async (link) => {
       const tapeSessions = computeSessionIndex(this.recorder.events()).sessions;
       let recordings: readonly ISessionRecordingApi[] = [];

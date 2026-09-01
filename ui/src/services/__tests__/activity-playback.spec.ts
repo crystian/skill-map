@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 
-import { ActivityPlaybackService, PLAYBACK_STEP_MS } from '../activity-playback';
+import { ActivityPlaybackService, EMBED_PLAYBACK_STEP_MS, PLAYBACK_STEP_MS } from '../activity-playback';
 import { ActivityRecorderService, type TRecordedEvent } from '../activity-recorder';
 import type { IWsNodeActivityData } from '../../models/ws-event';
 
@@ -198,5 +198,71 @@ describe('ActivityPlaybackService', () => {
     TestBed.tick();
     expect(service.active()).toBe(false);
     expect(service.scopeLabel()).toBeNull();
+  });
+});
+
+describe('ActivityPlaybackService, loop (embedded replay)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('rewinds after the last event and keeps playing instead of pausing', () => {
+    const { service } = bootstrap(TAPE);
+    service.setLoop(true);
+    service.enter();
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS * 3);
+    expect(service.cursor()).toBe(2);
+    expect(service.playing()).toBe(true);
+
+    // One blank beat (the fold at -1 paints nothing), then the film restarts.
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS);
+    expect(service.cursor()).toBe(-1);
+    expect(service.playing()).toBe(true);
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS);
+    expect(service.cursor()).toBe(0);
+    expect(service.playing()).toBe(true);
+  });
+
+  it('a seek to the end does not pause under loop', () => {
+    const { service } = bootstrap(TAPE);
+    service.setLoop(true);
+    service.enter();
+    service.seek(2);
+    expect(service.playing()).toBe(true);
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS);
+    expect(service.cursor()).toBe(-1);
+  });
+
+  it('off by default: the last event still auto-pauses', () => {
+    const { service } = bootstrap(TAPE);
+    service.enter();
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS * 3);
+    expect(service.cursor()).toBe(2);
+    expect(service.playing()).toBe(false);
+    expect(service.loop()).toBe(false);
+  });
+});
+
+describe('ActivityPlaybackService, cadence override', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(T0);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('setStepMs paces the stepper from the next tick', () => {
+    const { service } = bootstrap(TAPE);
+    service.setStepMs(EMBED_PLAYBACK_STEP_MS);
+    service.enter();
+    vi.advanceTimersByTime(PLAYBACK_STEP_MS);
+    expect(service.cursor()).toBe(-1);
+    vi.advanceTimersByTime(EMBED_PLAYBACK_STEP_MS - PLAYBACK_STEP_MS);
+    expect(service.cursor()).toBe(0);
   });
 });

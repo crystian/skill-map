@@ -14,6 +14,7 @@ import { routes } from './app.routes';
 import { dataSourceFactory } from '../services/data-source/data-source.factory';
 import { DATA_SOURCE } from '../services/data-source/data-source.port';
 import { SKILL_MAP_MODE, readSkillMapModeFromMeta } from '../services/data-source/runtime-mode';
+import { SKILL_MAP_EMBED, readEmbedConfigFromLocation } from '../services/embed-mode';
 import { CollectionLoaderService } from '../services/collection-loader';
 import { LivePreferencesService } from '../services/live-preferences';
 import { DebugSlotsService } from './services/debug-slots';
@@ -164,6 +165,9 @@ export const appConfig: ApplicationConfig = {
     // Runtime-mode token: read once from <meta name="skill-map-mode">
     // (defaults to 'live'). The data-source factory branches on it.
     { provide: SKILL_MAP_MODE, useFactory: readSkillMapModeFromMeta },
+    // Embed flag (`?embed=1`): canvas-only rendering for a framed boot,
+    // read once from the location the same way (see embed-mode.ts).
+    { provide: SKILL_MAP_EMBED, useFactory: readEmbedConfigFromLocation },
     { provide: DATA_SOURCE, useFactory: dataSourceFactory },
     // Telemetry arm-up (`spec/telemetry.md`, surface `skill-map-ui`).
     // Runs as an app initializer so it resolves BEFORE the shell renders,
