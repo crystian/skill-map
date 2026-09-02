@@ -719,20 +719,31 @@ svg    { display: block; max-width: 100%; }
 
 .hero__head {
   text-align: center;
-  max-width: 880px;
+  /* 960px: wide enough for each subtitle sentence to close in two lines
+     at the 24px cap (the title lines still fit at 80px). */
+  max-width: 960px;
   margin: 0 auto var(--s-12);
 }
 
 .hero__title {
-  font-size: clamp(48px, 9vw, 92px);
+  /* Sized so the opening line ("From multi-agent chaos") never breaks on
+     tablet and desktop: the head is 880px wide and the phrase runs about
+     11em, so the cap sits at 80px. Phones keep wrapping naturally. */
+  font-size: clamp(48px, 6.4vw, 80px);
   line-height: 1.05;
   letter-spacing: -.02em;
   font-weight: 600;
   color: #fff;
   margin-bottom: var(--s-6);
 }
+/* Two lines, no more: the opener and the italic close each hold their
+   own line from tablet up (the close is sized to fit the 880px head at
+   the 80px cap); phones wrap both naturally. */
+@media (min-width: 768px) {
+  .hero__title > span { white-space: nowrap; }
+}
 .hero__title-soft {
-  font-size: .6em;
+  font-size: .5em;
   font-style: italic;
   font-weight: 500;
   color: rgba(255,255,255,.75);
@@ -743,9 +754,15 @@ svg    { display: block; max-width: 100%; }
   line-height: 1.5;
   color: rgba(255,255,255,.85);
   font-weight: 400;
-  max-width: 640px;
+  /* Runs the full head width: two lines per sentence under the two-line
+     title; `pretty` keeps a lone word from dangling on a last line. */
+  max-width: none;
   margin: 0 auto;
+  text-wrap: pretty;
 }
+/* Each sentence is its own block with a breath between them. */
+.hero__sub > span { display: block; }
+.hero__sub > span + span { margin-top: var(--s-4); }
 
 /* Under the map card: the visitor sees the real thing first, then acts. */
 .hero__ctas {
