@@ -15,6 +15,7 @@ import {
   GraphPreferencesService,
   type TConnectionType,
 } from '../graph-preferences';
+import { SKILL_MAP_EMBED } from '../embed-mode';
 
 const STORAGE_KEY = 'sm.graph.connection-type';
 
@@ -154,5 +155,18 @@ describe('GraphPreferencesService, signal reactivity', () => {
     service.setConnectionType('segment');
     readings.push(service.connectionType());
     expect(readings).toEqual([DEFAULT_CONNECTION_TYPE, 'straight', 'segment']);
+  });
+});
+
+describe('GraphPreferencesService, embedded boot', () => {
+  it('forces the balanced left-to-right layout over any stored preference', () => {
+    localStorage.setItem('sm.graph.layout-algorithm', 'force');
+    localStorage.setItem('sm.graph.layout-direction', 'TOP_BOTTOM');
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({ providers: [{ provide: SKILL_MAP_EMBED, useValue: { theme: null } }] });
+    const service = TestBed.inject(GraphPreferencesService);
+    expect(service.layoutAlgorithm()).toBe('network-simplex');
+    expect(service.layoutDirection()).toBe('LEFT_RIGHT');
+    localStorage.clear();
   });
 });

@@ -457,12 +457,24 @@ export class GraphView implements OnInit {
     nodeActivity: this.nodeActivity,
     livePrefs: this.livePrefs,
     playback: this.playback,
-    // Embed (spec §"Embedded replay"): the camera frames the whole lens
-    // set (no director close-ups, the frame is small) over a layered
-    // dagre arrangement instead of the force cloud.
-    directorEnabled: computed(() => !this.embed && this.livePrefs.directorEnabled()),
-    layoutAlgorithm: this.embed ? 'network-simplex' : 'force',
-    dagreLayout: this.dagreLayout,
+    directorEnabled: this.livePrefs.directorEnabled,
+    // Embed (spec §"Embedded replay"): the lens shows the whole map in
+    // its own dagre places and only the execution dressing moves.
+    ...(this.embed
+      ? {
+          fullMap: {
+            nodes: this.loader.nodes,
+            scan: this.loader.scan,
+            positions: computed(() => {
+              // Effective places: a pinned drag (or an applied view's
+              // pins) wins over the layout, like `projectVisible`.
+              const merged = new Map<string, IPoint>(this.fullLayout().positions);
+              for (const [path, pin] of this.nodePositions()) merged.set(path, { x: pin.x, y: pin.y });
+              return merged;
+            }),
+          },
+        }
+      : {}),
     issuesBySeverity: this.issuePaths.bySeverity,
     mainPathsFingerprint: this.pathsFingerprint,
     viewportPosition: this.viewportPosition,

@@ -744,29 +744,32 @@ svg    { display: block; max-width: 100%; }
   color: rgba(255,255,255,.85);
   font-weight: 400;
   max-width: 640px;
-  margin: 0 auto var(--s-8);
+  margin: 0 auto;
 }
 
+/* Under the map card: the visitor sees the real thing first, then acts. */
 .hero__ctas {
   display: flex;
   gap: var(--s-3);
   justify-content: center;
   flex-wrap: wrap;
+  margin-top: var(--s-8);
 }
 
 
 /* ---------- Graph card: the real map, framed ---------- */
-/* `/demo/?embed=1&replay=…&theme=neon-blue` in an <iframe> (hero-embed.js
+/* `/demo/?embed=1&replay=…&theme=dark` in an <iframe> (hero-embed.js
    sets the src after the page's own load so the Angular boot never
    competes with the hero paint). The poster underneath is a screenshot of
    the same graph; it stays until the framed map has drawn its cards, then
    `is-live` fades the frame in over it. Chrome-less on purpose: whatever
-   is visible inside the card IS the map. The base colour is the neon-blue
-   console navy so the poster / frame swap never flashes. */
+   is visible inside the card IS the map. The base colour is the dark
+   theme's canvas (`--sm-bg-content`) so the poster / frame swap never
+   flashes. */
 .hero__graph {
   position: relative;
   border-radius: 20px;
-  background: #0a1326;
+  background: #18181b;
   border: 1px solid rgba(255,255,255,.08);
   box-shadow:
     0 40px 100px rgba(0,0,0,.5),
@@ -793,11 +796,11 @@ svg    { display: block; max-width: 100%; }
 }
 .hero__graph.is-live .hero__graph-frame { opacity: 1; }
 
-/* "Real UI" badge, top-left over the frame: mono chip with a live dot,
+/* "Real UI" badge, bottom-left over the frame: mono chip with a live dot,
    click-through so the map underneath keeps its drag. */
 .hero__graph-badge {
   position: absolute;
-  top: 14px;
+  bottom: 14px;
   left: 14px;
   z-index: 3;
   display: inline-flex;
@@ -829,7 +832,7 @@ svg    { display: block; max-width: 100%; }
   }
 }
 @media (max-width: 480px) {
-  .hero__graph-badge { top: 10px; left: 10px; font-size: 10px; }
+  .hero__graph-badge { bottom: 10px; left: 10px; font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .hero__graph-frame { transition: none; }

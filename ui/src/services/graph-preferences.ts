@@ -30,7 +30,7 @@
  *     get normalised once at boot rather than every read.
  */
 
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { EFConnectionType } from '@foblex/flow';
 
 import {
@@ -43,6 +43,7 @@ import {
   type TLayoutDirection,
   type TLayoutSpacing,
 } from '../app/views/graph-view/layout-controls';
+import { SKILL_MAP_EMBED } from './embed-mode';
 
 /**
  * Foblex `EFConnectionType` literal subset, scoped for narrowing without
@@ -79,14 +80,25 @@ const LAYOUT_DIRECTION_KEY = 'sm.graph.layout-direction';
 
 @Injectable({ providedIn: 'root' })
 export class GraphPreferencesService {
+  /**
+   * Embedded boot (spec §"Embedded replay"): the framed map always
+   * opens in the balanced layout, left to right, whatever the
+   * visitor's own preference on the shared origin says (the layout
+   * toolbar is hidden there, so nothing can change it either).
+   */
+  private readonly embed = inject(SKILL_MAP_EMBED, { optional: true }) !== null;
   private readonly _connectionType = signal<TConnectionType>(
     readStored(CONNECTION_TYPE_KEY, isConnectionType, DEFAULT_CONNECTION_TYPE),
   );
   private readonly _layoutAlgorithm = signal<TLayoutAlgorithm>(
-    readStored(LAYOUT_ALGORITHM_KEY, isLayoutAlgorithm, DEFAULT_LAYOUT_ALGORITHM),
+    this.embed
+      ? 'network-simplex'
+      : readStored(LAYOUT_ALGORITHM_KEY, isLayoutAlgorithm, DEFAULT_LAYOUT_ALGORITHM),
   );
   private readonly _layoutDirection = signal<TLayoutDirection>(
-    readStored(LAYOUT_DIRECTION_KEY, isLayoutDirection, DEFAULT_LAYOUT_DIRECTION),
+    this.embed
+      ? 'LEFT_RIGHT'
+      : readStored(LAYOUT_DIRECTION_KEY, isLayoutDirection, DEFAULT_LAYOUT_DIRECTION),
   );
   // Pinned to the default: the spacing toolbar control was removed, so
   // there is no UI to change it and no stored value is read (a legacy

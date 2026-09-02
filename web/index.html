@@ -156,24 +156,6 @@
             <span data-i18n="hero.sub.2">The harness you designed, finally visible and testable: deterministic and probabilistic analysis and fixes, on one map.</span>
           </p>
 
-          <div class="hero__ctas">
-            <a class="btn btn--accent btn--xl" href="/demo/" target="_blank" rel="noopener">
-              <span data-i18n="hero.cta.demo">See it live</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-                <polyline points="15 3 21 3 21 9"/>
-                <line x1="10" y1="14" x2="21" y2="3"/>
-              </svg>
-            </a>
-            <button type="button" class="btn btn--mono btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">
-              <span class="btn__label" data-i18n="hero.cta.install">Install</span>
-              <span class="btn__cmd" data-i18n="hero.cta.npm">npm i -g @skill-map/cli</span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="9" y="9" width="13" height="13" rx="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-              </svg>
-            </button>
-          </div>
         </div>
 
         <!-- Graph card: the REAL map. `/demo/?embed=1&replay=…` framed
@@ -186,15 +168,35 @@
         <div class="hero__graph" id="hero-graph">
           <img class="hero__graph-poster" src="/img/hero-embed-poster.jpg" width="1280" height="560" alt="" aria-hidden="true" decoding="async" fetchpriority="high">
           <!-- Says out loud what the card is: the product's own UI, not a
-               mockup. Sits over the frame, click-through. -->
+               mockup. Sits over the frame, bottom-left, click-through. -->
           <span class="hero__graph-badge" aria-hidden="true">
             <i></i><span data-i18n="hero.embed.badge">Real UI, live. Not a mockup.</span>
           </span>
           <iframe class="hero__graph-frame"
-                  data-src="/demo/?embed=1&amp;replay=main:demo-publish&amp;theme=neon-blue"
+                  data-src="/demo/?embed=1&amp;replay=main:demo-publish&amp;theme=dark"
                   title="skill-map live map: a harness replaying an agent session"
                   data-i18n-title="hero.embed.title"
                   referrerpolicy="same-origin"></iframe>
+        </div>
+
+        <!-- CTAs sit under the map (user call 2026-09-02): see it first, then act. -->
+        <div class="hero__ctas">
+          <a class="btn btn--accent btn--xl" href="/demo/" target="_blank" rel="noopener">
+            <span data-i18n="hero.cta.demo">See it live</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+          <button type="button" class="btn btn--mono btn--xl js-copy" data-copy="npm i -g @skill-map/cli" data-i18n-aria-label="copy.aria">
+            <span class="btn__label" data-i18n="hero.cta.install">Install</span>
+            <span class="btn__cmd" data-i18n="hero.cta.npm">npm i -g @skill-map/cli</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
         </div>
       </div>
     </section>

@@ -35,6 +35,7 @@
 import { computed, effect, signal, untracked, type Signal, type WritableSignal } from '@angular/core';
 
 import type { TLinkKindApi } from '../../../models/api';
+import type { IScanResultApi } from '../../../models/api';
 import type { INodeView } from '../../../models/node';
 import type { IIssuePathsBySeverity } from '../../../services/issue-paths';
 import type { LiveLensService } from '../../../services/live-lens';
@@ -46,16 +47,12 @@ import {
   type IFollowActivityHandle,
   type IFollowSession,
 } from './follow-activity.controller';
-import type { DagreLayoutEngine } from '@foblex/flow-dagre-layout';
-
 import {
   computeForceLayoutPositions,
-  computeLayoutPositions,
   topologyFingerprint,
   type IPoint,
   type TNodePositions,
 } from './graph-layout';
-import { DEFAULT_LAYOUT_SPACING } from './layout-controls';
 import { setupGraphPipeline, type IGraphPipelineHandle } from './graph-pipeline';
 import { computeFitTransform, type IViewportTransform } from './viewport-animation';
 import { resolveDirectorTargets } from './director';
@@ -78,14 +75,17 @@ export interface ILiveLensControllerConfig {
   /** `LivePreferencesService.directorEnabled`, the replay camera taste. */
   directorEnabled: Signal<boolean>;
   /**
-   * Lens arrangement. `force` (default): the seeded cloud, survivors
-   * pinned while newcomers settle. `network-simplex`: the layered LEFT_RIGHT
-   * layout the main map uses, re-run on every topology change; the
-   * embedded boot (spec §"Embedded replay") picks it so a framed hero
-   * reads as aligned rows rather than a cloud. Needs `dagreLayout`.
+   * Embedded boot (spec §"Embedded replay"): the lens shows the FULL
+   * map instead of the executing set. Nodes, links and positions are
+   * the main pipeline's own (same dagre places, no relayout, no
+   * force cloud), the camera stays on the boot fit, and only the
+   * execution dressing (glow, comets, spawn dash) narrates the tape.
    */
-  layoutAlgorithm?: 'force' | 'network-simplex';
-  dagreLayout?: DagreLayoutEngine;
+  fullMap?: {
+    nodes: Signal<INodeView[]>;
+    scan: Signal<IScanResultApi | null>;
+    positions: Signal<ReadonlyMap<string, IPoint>>;
+  };
   /** Real severity index; the lens filter stub never reads it, passed only to satisfy the pipeline config. */
   issuesBySeverity: Signal<IIssuePathsBySeverity>;
   /** MAIN pipeline fingerprint, frozen while the lens is on (see `layoutFitFingerprint`). */
@@ -174,13 +174,13 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
   // state. Cards on the live map can pile up; this is the way out.
   const lensPins = signal<TNodePositions>(new Map());
 
-  const algorithm = config.layoutAlgorithm ?? 'force';
-  const lensAlgorithm = computed(() => algorithm);
+  const fullMap = config.fullMap;
+  const lensAlgorithm = computed(() => (fullMap ? ('network-simplex' as const) : ('force' as const)));
   const lensDirection = computed(() => 'LEFT_RIGHT' as const);
 
   const pipeline = setupGraphPipeline({
-    nodes: lens.lensNodes,
-    scan: lens.lensScan,
+    nodes: fullMap?.nodes ?? lens.lensNodes,
+    scan: fullMap?.scan ?? lens.lensScan,
     filters: filterStub,
     issuesBySeverity: config.issuesBySeverity,
     nodePositions: lensPins,
@@ -200,27 +200,21 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
   let layoutSeed: ReadonlyMap<string, IPoint> = new Map();
   effect(() => {
     if (!lens.active()) return;
+    if (fullMap) {
+      // Full-map lens: mirror the main layout, every card keeps its place.
+      const positions = fullMap.positions();
+      untracked(() => {
+        pipeline.layoutPositions.set(new Map(positions));
+        pipeline.layoutComputedAtSignal.set(performance.now());
+      });
+      return;
+    }
     const nodes = lens.lensNodes();
     const topology = pipeline.topology();
     if (nodes.length === 0) return;
     const key = topologyFingerprint(nodes, topology.edges);
     if (key === lastLayoutKey) return;
     lastLayoutKey = key;
-    if (algorithm === 'network-simplex' && config.dagreLayout !== undefined) {
-      // Layered arrangement: async like the main map's effect, and a
-      // result that lands after a newer topology is dropped.
-      void computeLayoutPositions(config.dagreLayout, nodes, topology.edges, {
-        algorithm: 'network-simplex',
-        direction: 'LEFT_RIGHT',
-        spacing: DEFAULT_LAYOUT_SPACING,
-      }).then((positions) => {
-        if (lastLayoutKey !== key) return;
-        layoutSeed = positions;
-        pipeline.layoutPositions.set(positions);
-        pipeline.layoutComputedAtSignal.set(performance.now());
-      });
-      return;
-    }
     // Seed = survivors' last positions overlaid with the operator's
     // pins (read untracked: a drag must never re-run the layout, the
     // projection already overlays the pin; the next topology change
@@ -246,7 +240,7 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
    * persisted, so a gesture-disarm during the lens cannot clobber the
    * user's global Follow the Activity preference.
    */
-  const lensFollowArmed = signal(true);
+  const lensFollowArmed = signal(fullMap === undefined);
   const follow = setupFollowActivity({
     livePrefs: config.livePrefs,
     nodeActivity: config.nodeActivity,
@@ -301,7 +295,8 @@ export function setupLiveLens(config: ILiveLensControllerConfig): ILiveLensHandl
       fingerprint: config.mainPathsFingerprint(),
     };
     frozenFingerprint.set(snapshot.fingerprint);
-    lensFollowArmed.set(true);
+    // Re-armed on every enter; the full-map embed keeps the camera on the boot fit.
+    lensFollowArmed.set(fullMap === undefined);
     config.beginViewSwitch();
     lens.setActive(true);
   };
