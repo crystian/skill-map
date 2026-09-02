@@ -1,6 +1,6 @@
 {
   "name": "@skill-map/web",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "type": "module",
   "description": "skill-map.ai public site source. Static HTML + i18n; deployed via Caddy/Docker.",
