@@ -288,12 +288,23 @@ describe('ThemeService, embedded boot', () => {
     return TestBed.inject(ThemeService);
   }
 
+  let saved: ((query: string) => MediaQueryList) | undefined;
+
   beforeEach(() => {
     localStorage.clear();
+    // Same save / restore as the main block: the fake throws on any
+    // query but the dark one, so leaking it past this file breaks every
+    // later spec that probes prefers-reduced-motion (CI 2026-09-02).
+    saved = (window as unknown as { matchMedia?: (q: string) => MediaQueryList }).matchMedia;
     installFakeMatchMedia(false);
   });
 
   afterEach(() => {
+    if (saved === undefined) {
+      delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    } else {
+      (window as unknown as { matchMedia: (q: string) => MediaQueryList }).matchMedia = saved;
+    }
     document.documentElement.classList.remove('app-dark', 'dark', 'app-neon');
     TestBed.resetTestingModule();
   });
